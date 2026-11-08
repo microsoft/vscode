@@ -56,7 +56,7 @@ import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
-import { McpListWidget } from './mcpListWidget.js';
+import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
@@ -131,6 +131,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { openCustomizationChat } from '../actions/chatActions.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
@@ -346,6 +347,9 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.container.classList.toggle('section-separator-before', element.separatorBefore === true);
+		// Leaves the separator's spacing above the row's box, so the row's hover, selection, and focus look like the other rows'.
+		templateData.container.style.marginTop = element.separatorBefore ? `${SECTION_ITEM_SEPARATOR_SPACING}px` : '';
+		templateData.container.style.maxHeight = element.separatorBefore ? `${SECTION_ITEM_HEIGHT}px` : '';
 		templateData.label.textContent = element.label;
 		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
@@ -1130,7 +1134,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 							if (options?.newChat) {
 								await this.commandService.executeCommand('workbench.action.chat.newChat');
 							}
-							await this.commandService.executeCommand('workbench.action.chat.open', { query, isPartialQuery: options?.isPartialQuery ?? false });
+							if (options?.generateCustomizations) {
+								await this.instantiationService.invokeFunction(openCustomizationChat, 'init', undefined, query);
+							} else {
+								await this.commandService.executeCommand('workbench.action.chat.open', { query, isPartialQuery: options?.isPartialQuery ?? false });
+							}
 						}
 					} catch (err) {
 						onUnexpectedError(err);
@@ -1298,6 +1306,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
 			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		}));
+		this.editorDisposables.add(this.listWidget.onDidRequestShowPlugin(({ plugin, name }) => {
+			if (plugin) {
+				this.showPluginDetail(createInstalledPluginItem(plugin));
+			} else {
+				this.selectSection(AICustomizationManagementSection.Plugins);
+				this.pluginListWidget?.setSearchQuery(name);
+			}
+		}));
 
 		// Container for Models content (only in sessions)
 		const hasSections = new Set(this.workspaceService.managementSections);
@@ -1325,6 +1341,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpListWidget.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
+			this.mcpListWidget.setShowSkillBundle(bundleId => void this.showMcpServerSkills(bundleId));
 			this.mcpListWidget.setCloseCustomizationEditor(async () => {
 				if (this.input) {
 					await this.group.closeEditor(this.input);
@@ -4379,7 +4396,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
 			this.updateContentVisibility();
 			if (this.isPromptsSection(sectionId)) {
-				void this.listWidget.setSection(sectionId);
+				this.listWidgetSectionLoad = this.listWidget.setSection(sectionId);
 			}
 			// Re-layout after visibility change so the newly-visible widget
 			// can measure its flex-computed container height correctly.
@@ -4468,6 +4485,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.listWidget.refresh();
 	}
 
+	/** Opens Skills filtered to the MCP server's host-published bundle identity. */
+	public async showMcpServerSkills(bundleId: string): Promise<void> {
+		if (!this.selectSectionById(AICustomizationManagementSection.Skills)) {
+			return;
+		}
+		const navigationGeneration = this.contentNavigationGeneration;
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		await this.listWidgetSectionLoad;
+		if (navigationGeneration === this.contentNavigationGeneration && this.selectedSection === AICustomizationManagementSection.Skills && isEqual(sessionResource, this.harnessService.activeSessionResource.get())) {
+			this.listWidget.showSkillBundle(bundleId);
+		}
+	}
+
 	public setSearchQuery(query: string, preserveFocus?: boolean): void {
 		if (this.selectedSection === undefined) {
 			this.welcomePage?.setSearchQuery(query, preserveFocus);
@@ -4488,18 +4518,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	/**
 	 * Reveals and selects the item backed by `uri` in the current section,
-	 * retrying while the list loads. MCP servers and plugins have no
-	 * URI-addressable rows, so selecting their section is the whole reveal.
+	 * retrying while the list loads.
 	 */
 	public async revealCustomizationByUri(uri: URI): Promise<void> {
-		if (!this.isPromptsSection(this.selectedSection)) {
+		const isPlugin = this.selectedSection === AICustomizationManagementSection.Plugins;
+		if (!isPlugin && !this.isPromptsSection(this.selectedSection)) {
 			return;
 		}
 		for (let attempt = 0; attempt < 10; attempt++) {
-			if (this.listWidget.revealAndSelectFirstItemByUri([uri])) {
+			const revealed = isPlugin
+				? await this.pluginListWidget?.revealAndSelectItemByUri(uri)
+				: this.listWidget.revealAndSelectFirstItemByUri([uri]);
+			if (revealed) {
 				return;
 			}
-			if (attempt === 0) {
+			if (attempt === 0 && !isPlugin) {
 				this.listWidget.clearSearch();
 			}
 			await timeout(100);

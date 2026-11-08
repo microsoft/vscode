@@ -46,6 +46,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 		showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 		showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+		hasOpenDialogs(): boolean { throw new Error('Method not implemented.'); }
 	}
 
 	class TestBackupMainService implements IBackupMainService {

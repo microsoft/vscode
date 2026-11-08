@@ -31,11 +31,28 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label.colored-icon::before,
+.monaco-icon-label.colored-icon > .monaco-icon-label-iconpath {
+	color: var(--monaco-icon-label-icon-color);
+}
+
 .monaco-icon-label-iconpath {
 	width: 16px;
 	height: 22px;
 	margin-right: 6px;
 	display: flex;
+}
+
+/* A theme icon in its own element, such as a spinning one, centered so that it turns in place. */
+.monaco-icon-label > .monaco-icon-label-iconpath.codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* A spinning icon stands still while motion is reduced. */
+.monaco-reduce-motion .monaco-icon-label > .monaco-icon-label-iconpath.codicon-modifier-spin {
+	animation: none;
 }
 
 .monaco-icon-label-container.disabled {

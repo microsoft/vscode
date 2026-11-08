@@ -26,7 +26,7 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
 	[string]$Distribution = 'Ubuntu',
-	# A Linux VS Code server, or a source checkout set up with `pnpm run install-fast` and `pnpm run build-fast --client-only`.
+	# A Linux VS Code server, or a source checkout set up with `pnpm install` and `pnpm run build-fast --client-only`.
 	[Parameter(Mandatory)][string]$WslServerPath,
 	# The Linux Node for a source checkout, which has no bundled Node.
 	[string]$WslNodePath,
@@ -34,6 +34,8 @@ param(
 	[string]$WslCopilotRuntimePath,
 	# Whether clients use TLS to the proxy. The Copilot runtime authenticates with Kerberos only to `http://` proxies.
 	[ValidateSet('Http', 'Https')][string]$ProxyScheme = 'Http',
+	# The editor window suite connects to the server in WSL. A packaged server only accepts a packaged client of its commit.
+	[ValidateSet('All', 'AgentsWindow', 'EditorWindow')][string]$Suites = 'All',
 	# Further smoke test arguments, such as `--build <path>`.
 	[Parameter(ValueFromRemainingArguments)][string[]]$SmokeTestArguments = @()
 )
@@ -50,7 +52,11 @@ $ProxyPort = 3129
 $PacPort = 44444
 $CaSubject = 'VS Code Smoke Test WSL Kerberos Proxy CA'
 $FirewallRuleName = 'VSCodeSmokeTestWslKerberosProxy'
-$SmokeTestGrep = 'AgentHost, Kerberos proxy'
+$SmokeTestGrep = switch ($Suites) {
+	'AgentsWindow' { 'WSL AgentHost, Kerberos proxy' }
+	'EditorWindow' { 'WSL remote AgentHost, Kerberos proxy' }
+	default { 'AgentHost, Kerberos proxy' }
+}
 $ProxyUrl = "$($ProxyScheme.ToLowerInvariant())://localhost:$ProxyPort"
 $SquidPort = if ($ProxyScheme -eq 'Https') {
 	'https_port 127.0.0.1:{0} tls-cert=$WSL_ROOT/server.pem tls-key=$WSL_ROOT/server.key' -f $ProxyPort
@@ -59,6 +65,12 @@ $SquidPort = if ($ProxyScheme -eq 'Https') {
 }
 $PacProxy = "$(if ($ProxyScheme -eq 'Https') { 'HTTPS' } else { 'PROXY' }) localhost:$ProxyPort"
 $LogDirectory = Join-Path $RepositoryRoot '.build\logs\agents-window-wsl-kerberos-proxy'
+$SmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron'
+$EarlierSmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron-before-wsl-kerberos-proxy'
+# Where test/smoke/test/index.js writes its JUnit report.
+$SmokeTestResults = Join-Path (@($env:BUILD_ARTIFACTSTAGINGDIRECTORY, $env:GITHUB_WORKSPACE, (Join-Path $RepositoryRoot 'test\smoke\test')) | Where-Object { $_ } | Select-Object -First 1) 'test-results'
+$SmokeTestResultsFilter = '*-desktop-smoke-tests-results.xml'
+$EarlierSmokeTestResultsSuffix = '.before-wsl-kerberos-proxy'
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) "vscode-agents-window-wsl-kerberos-proxy-$PID"
 $WslRoot = "/tmp/vscode-agents-window-wsl-kerberos-proxy-$PID"
 $Wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
@@ -504,6 +516,7 @@ $kdcProcess = $null
 $squidProcess = $null
 $pacProcess = $null
 $smokeProcess = $null
+$smokeStarted = $false
 $script:KdcAddress = $null
 $script:WslAddress = $null
 $succeeded = $false
@@ -681,11 +694,13 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 
 	$smokeArguments = @('run', 'smoketest-no-compile', '--tracing', '-g', $SmokeTestGrep, '--fail-zero') + $SmokeTestArguments
 	$netOnlyScript = Join-Path $TempRoot 'netonly.ps1'
+	# A JDK on the PATH, as on CI agents, has its own klist.
+	$klist = Join-Path $env:SystemRoot 'System32\klist.exe'
 	[IO.File]::WriteAllText($netOnlyScript, @"
 `$ErrorActionPreference = 'Continue'
 Set-Location $(ConvertTo-PowerShellLiteral $RepositoryRoot)
 Write-Output 'Kerberos ticket for $ServicePrincipal from the $Realm KDC:'
-klist get $ServicePrincipal
+& $(ConvertTo-PowerShellLiteral $klist) get $ServicePrincipal
 if (`$LASTEXITCODE -ne 0) {
 	Write-Output 'Windows could not obtain a Kerberos ticket for $ServicePrincipal with the $Realm credentials.'
 	exit 1
@@ -695,6 +710,16 @@ exit `$LASTEXITCODE
 "@, [Text.UTF8Encoding]::new($true))
 	$smokeLog = Join-Path $TempRoot 'smoke-test.log'
 	New-Item -ItemType File $smokeLog | Out-Null
+	# The smoke tests replace the Electron smoke test logs and JUnit report, such as those of an earlier run in the same
+	# CI job, so these are kept aside while this run's go to the log directory and to a report of their own.
+	if (Test-Path $SmokeLogs) {
+		Remove-Item -Recurse -Force $EarlierSmokeLogs -ErrorAction SilentlyContinue
+		Move-Item $SmokeLogs $EarlierSmokeLogs
+	}
+	Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like $SmokeTestResultsFilter | ForEach-Object {
+		Move-Item -Force $_.FullName "$($_.FullName)$EarlierSmokeTestResultsSuffix"
+	}
+	$smokeStarted = $true
 	Write-Host "Running the smoke tests with network-only credentials for $KerberosUser@$Realm..."
 	$smokeProcess = [VSCodeSmokeNetOnlyProcess]::Start($KerberosUser, $Realm, $password,
 		"`"$env:ComSpec`" /d /s /c `"`"$PowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$netOnlyScript`" > `"$smokeLog`" 2>&1`"",
@@ -737,6 +762,28 @@ exit `$LASTEXITCODE
 	if ($smokeProcess) {
 		& taskkill.exe /PID $smokeProcess.Id /T /F | Out-Null
 		$smokeProcess.Dispose()
+	}
+	if ($smokeStarted) {
+		try {
+			if (Test-Path $SmokeLogs) {
+				Move-Item $SmokeLogs (Join-Path $LogDirectory 'smoke-tests-electron')
+			}
+			if (Test-Path $EarlierSmokeLogs) {
+				Move-Item $EarlierSmokeLogs $SmokeLogs
+			}
+		} catch {
+			Write-Warning "Could not file the smoke test logs: $_"
+		}
+		try {
+			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like $SmokeTestResultsFilter | ForEach-Object {
+				Move-Item -Force $_.FullName (Join-Path $_.DirectoryName ($_.Name -replace '-results\.xml$', '-wsl-kerberos-proxy-results.xml'))
+			}
+			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like "$SmokeTestResultsFilter$EarlierSmokeTestResultsSuffix" | ForEach-Object {
+				Move-Item -Force $_.FullName $_.FullName.Substring(0, $_.FullName.Length - $EarlierSmokeTestResultsSuffix.Length)
+			}
+		} catch {
+			Write-Warning "Could not file the smoke test results: $_"
+		}
 	}
 	if ($savedProxySettings) {
 		try {

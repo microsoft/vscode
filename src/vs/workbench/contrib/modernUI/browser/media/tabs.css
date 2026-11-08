@@ -757,6 +757,16 @@
 	top: 0;
 }
 
+/* That scrollbar shares the top edge of a part's card with the card's grabber: each makes way while the pointer is over the other. */
+.modern-ui-tabs .part-grid-card.part-grid-pointer-over-top-strip > .part-grid-drag-handle {
+	opacity: 0;
+}
+
+.modern-ui-tabs .part-grid-card.part-grid-pointer-over-grabber .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal {
+	opacity: 0;
+	transition: none;
+}
+
 .modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal > .slider {
 	border-radius: var(--vscode-cornerRadius-circle);
 }

@@ -327,6 +327,13 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      # Defender for Linux can block the scan of a job's outputs for the length
+      # of a background scan of the agent, and without a timeout the scan runs
+      # until the job limit. On a timeout, 1ES logs an error and the publish
+      # still runs. This is the default for the jobs that don't set their own
+      # cap; 2 min matches those jobs until the Defender issue is fixed.
+      antimalwareScan:
+        scanTimeoutInMinutes: '2'
       sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
@@ -434,6 +441,7 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+                    - smoke-wsl-kerberos-proxy
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32.yml@self
@@ -497,6 +505,8 @@ extends:
                     VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                     VSCODE_TEST_IDS:
                       - smoke-electron
+                      - smoke-wsl-kerberos-proxy
+                    VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -1182,6 +1192,8 @@ extends:
                   displayName: Ubuntu 22.04 x64 Native
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
+                  ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, false) }}:
+                    args: --grep "^(?!desktop-linux-snap-x64$)"
 
             # Ubuntu 22.04
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:

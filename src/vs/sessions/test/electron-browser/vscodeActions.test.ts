@@ -11,14 +11,13 @@ import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindow
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LabelService } from '../../../workbench/services/label/common/labelService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
@@ -77,13 +76,18 @@ suite('VS Code Actions', () => {
 		const provisional = createSession('provisional', false);
 		const materialized = createSession('materialized', true);
 
+		// Created per the provider's status: a draft carries no flag that says it is one.
 		assert.deepStrictEqual({
 			provisional: getChatSessionToOpenInEditor(provisional)?.toString(),
+			provisionalChat: getChatSessionToOpenInEditor(provisional, provisional.mainChat.get())?.toString(),
 			materialized: getChatSessionToOpenInEditor(materialized)?.toString(),
+			materializedChat: getChatSessionToOpenInEditor(materialized, materialized.mainChat.get())?.toString(),
 			missing: getChatSessionToOpenInEditor(undefined),
 		}, {
 			provisional: undefined,
+			provisionalChat: undefined,
 			materialized: 'test:/materialized',
+			materializedChat: 'test:/materialized/chat',
 			missing: undefined,
 		});
 	});
@@ -125,6 +129,31 @@ suite('VS Code Actions', () => {
 		assert.deepStrictEqual(calls, [{ empty: true }]);
 	});
 
+	test('opens the clicked nested chat and its workspace instead of the active chat', async () => {
+		const calls: { folders: string[]; chat: string | undefined }[] = [];
+		const session = createSession('parent', true, [URI.file('/active')]);
+		const folder = URI.file('/nested');
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:/nested-chat'),
+			workspace: constObservable({
+				...session.mainChat.get().workspace.get()!,
+				folders: [{ root: folder, workingDirectory: folder, name: 'nested', description: undefined }],
+			}),
+		});
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+				calls.push({
+					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(folder => folder.folderUri.toString()) : [],
+					chat: options?.chatSessionToOpen?.toString(),
+				});
+			}
+		}());
+
+		await instantiationService.invokeFunction(openSessionInVSCode, session, chat);
+
+		assert.deepStrictEqual(calls, [{ folders: ['file:///nested'], chat: 'test:/nested-chat' }]);
+	});
+
 	for (const folders of [
 		[toAgentHostUri(URI.file('C:\\Users\\test\\project'), agentHostAuthority('cloudsandbox:environment'))],
 		[URI.file('/local/project'), toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('ws:host'))],
@@ -149,7 +178,7 @@ suite('VS Code Actions', () => {
 			assert.deepStrictEqual({
 				calls,
 				session: session.resource.toString(),
-				folders: session.activeChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				folders: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 			}, {
 				calls: [{ toOpen: { remoteAuthority: null }, options: undefined }],
 				session: 'test:/unsupported',
@@ -265,7 +294,8 @@ function createWindow(id: number): IOpenedMainWindow {
 	};
 }
 
-function createSession(id: string, isCreated: boolean, folders?: URI[]): IActiveSession {
+/** A provider's session: created per its status, with no pane state; `folders` are its main chat's workspace. */
+function createSession(id: string, isCreated: boolean, folders?: URI[]): ISession {
 	const workspace = constObservable(folders ? {
 		uri: URI.from({ scheme: 'test', path: `/${id}/workspace` }),
 		label: id,
@@ -279,13 +309,14 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	} : undefined);
-	const activeChat = new class extends mock<IChat>() {
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = URI.from({ scheme: 'test', path: `/${id}/chat` });
 		override readonly workspace = workspace;
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ISession>() {
 		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
 		override readonly providerId = 'test';
-		override readonly isCreated = constObservable(isCreated);
-		override readonly activeChat = constObservable(activeChat);
+		override readonly status = constObservable(isCreated ? SessionStatus.Completed : SessionStatus.Untitled);
+		override readonly mainChat = constObservable(mainChat);
 	}();
 }

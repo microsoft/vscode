@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, writeFile } from 'node:fs/promises';
 import { globSync } from 'node:fs';
 import path from 'node:path';
 import { retry } from './retry.ts';
@@ -25,6 +24,7 @@ export const testIds = [
 	'smoke-electron',
 	'smoke-agents-pac-proxy',
 	'smoke-agents-kerberos-pac-proxy',
+	'smoke-wsl-kerberos-proxy',
 	'smoke-browser-chromium',
 	'smoke-remote',
 	'copilot-extension',
@@ -52,23 +52,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function pipelineArtifacts(body: unknown): Set<string> {
-	if (!isRecord(body) || !Array.isArray(body.value)) {
-		throw new Error('Invalid pipeline artifact list');
+interface TimelineRecord {
+	readonly id: string;
+	readonly parentId: string | null;
+	readonly type: string;
+	readonly name: string;
+	readonly result: string | null;
+	readonly previousAttempts: readonly { readonly timelineId: string; readonly recordId: string }[];
+}
+
+const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function timelineRecords(body: unknown): TimelineRecord[] {
+	if (!isRecord(body) || !Array.isArray(body.records)) {
+		throw new Error('Invalid build timeline');
 	}
 
-	const artifacts: readonly unknown[] = body.value;
-	const names = new Set<string>();
-	for (const artifact of artifacts) {
-		if (!isRecord(artifact) || typeof artifact.name !== 'string'
-			|| !isRecord(artifact.resource) || typeof artifact.resource.type !== 'string') {
-			throw new Error('Invalid pipeline artifact entry');
+	const records: readonly unknown[] = body.records;
+	return records.map(record => {
+		if (!isRecord(record) || typeof record.id !== 'string' || typeof record.type !== 'string' || typeof record.name !== 'string'
+			|| (record.parentId !== null && record.parentId !== undefined && typeof record.parentId !== 'string')
+			|| (record.result !== null && record.result !== undefined && typeof record.result !== 'string')
+			|| (record.previousAttempts !== null && record.previousAttempts !== undefined && !Array.isArray(record.previousAttempts))) {
+			throw new Error('Invalid build timeline record');
 		}
-		if (artifact.resource.type === 'PipelineArtifact') {
-			names.add(artifact.name);
-		}
-	}
-	return names;
+		const previousAttempts: readonly unknown[] = Array.isArray(record.previousAttempts) ? record.previousAttempts : [];
+		return {
+			id: record.id,
+			parentId: typeof record.parentId === 'string' ? record.parentId : null,
+			type: record.type,
+			name: record.name,
+			result: typeof record.result === 'string' ? record.result : null,
+			previousAttempts: previousAttempts.map(attempt => {
+				if (!isRecord(attempt) || typeof attempt.timelineId !== 'string' || !guid.test(attempt.timelineId)
+					|| typeof attempt.recordId !== 'string' || !guid.test(attempt.recordId)) {
+					throw new Error('Invalid build timeline attempt');
+				}
+				return { timelineId: attempt.timelineId, recordId: attempt.recordId };
+			}),
+		};
+	});
 }
 
 function setVariable(log: (message: string) => void, name: string, value: string): void {
@@ -76,23 +99,14 @@ function setVariable(log: (message: string) => void, name: string, value: string
 	log(`##vso[task.setvariable variable=${name}]${escaped}`);
 }
 
-function checkpointTarget(env: NodeJS.ProcessEnv): string {
-	if (env.AGENT_OS === 'Darwin' && env.VSCODE_ARCH === 'arm64') {
-		return 'darwin-arm64';
-	}
-	if (env.VSCODE_ARCH === 'x64') {
-		switch (env.AGENT_OS) {
-			case 'Windows_NT': return 'win32-x64';
-			case 'Linux': return 'linux-x64';
-		}
-	}
-	throw new Error('Test checkpoints require Windows x64, Linux x64, or macOS arm64');
-}
-
 /**
  * Restores, records and collects test checkpoints of the current pipeline run.
- * Only published artifacts from this run count as checkpoints; local files and
- * attempt numbers never indicate a hit.
+ *
+ * A test passed in an earlier attempt of this job when its `Record <id> checkpoint`
+ * step succeeded there. That step runs on the condition of its test step, right
+ * after it, so it only succeeds when the test did. Only the pipeline writes build
+ * timelines, so a checkpoint can't be created by anything but a passing test, and
+ * nothing is published or scanned to record one.
  */
 export async function testCheckpoint(
 	args: readonly string[],
@@ -100,7 +114,6 @@ export async function testCheckpoint(
 	request: typeof fetch = fetch,
 	log: (message: string) => void = console.log,
 ): Promise<void> {
-	const target = checkpointTarget(env);
 	const [command, testId] = args;
 	if (!((command === 'restore' || command === 'collect-results') && args.length === 1)
 		&& !(command === 'record' && args.length === 2 && testIds.some(id => id === testId))) {
@@ -113,28 +126,32 @@ export async function testCheckpoint(
 		return;
 	}
 
-	const buildId = identifier(env, 'BUILD_BUILDID', /^[1-9]\d*$/);
-	const stage = identifier(env, 'SYSTEM_STAGENAME', /^[A-Za-z_][A-Za-z0-9_]*$/);
-	const job = identifier(env, 'SYSTEM_JOBNAME', /^[A-Za-z_][A-Za-z0-9_]*$/);
-	const artifactName = (id: string) => `test-pass-${stage}-${job}-${target}-${id}`;
+	if (command === 'record') {
+		log(`Test ${testId} passed. A retry of this job reuses it instead of running it again.`);
+		return;
+	}
+
 	const variablePrefix = (id: string) => `TEST_CHECKPOINT_${id.replaceAll('-', '_').toUpperCase()}`;
+	setVariable(log, 'TEST_CHECKPOINTS_RESTORED', 'false');
+	for (const id of testIds) {
+		setVariable(log, `${variablePrefix(id)}_HIT`, 'false');
+	}
 
-	if (command === 'restore') {
-		setVariable(log, 'TEST_CHECKPOINTS_RESTORED', 'false');
-		for (const id of testIds) {
-			setVariable(log, `${variablePrefix(id)}_HIT`, 'false');
-			setVariable(log, `${variablePrefix(id)}_READY`, 'false');
-		}
+	const buildId = identifier(env, 'BUILD_BUILDID', /^[1-9]\d*$/);
+	const jobId = identifier(env, 'SYSTEM_JOBID', guid);
+	const jobAttempt = identifier(env, 'SYSTEM_JOBATTEMPT', /^[1-9]\d*$/);
+	const collection = new URL(required(env, 'SYSTEM_COLLECTIONURI'));
+	if (collection.protocol !== 'https:' || collection.username || collection.password || collection.search || collection.hash) {
+		throw new Error('Expected an HTTPS Azure DevOps collection URL');
+	}
+	const project = encodeURIComponent(required(env, 'SYSTEM_TEAMPROJECTID'));
+	const token = required(env, 'SYSTEM_ACCESSTOKEN');
 
-		const collection = new URL(required(env, 'SYSTEM_COLLECTIONURI'));
-		if (collection.protocol !== 'https:' || collection.username || collection.password || collection.search || collection.hash) {
-			throw new Error('Expected an HTTPS Azure DevOps collection URL');
-		}
-		const project = encodeURIComponent(required(env, 'SYSTEM_TEAMPROJECTID'));
-		const url = new URL(`${collection.href.replace(/\/$/, '')}/${project}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`);
-		const token = required(env, 'SYSTEM_ACCESSTOKEN');
+	const passed = new Set<string>();
+	if (jobAttempt !== '1') {
+		const timelines = `${collection.href.replace(/\/$/, '')}/${project}/_apis/build/builds/${buildId}/timeline`;
 		const signal = AbortSignal.timeout(120_000);
-		const names = await retry(async () => {
+		const getTimeline = (url: string) => retry(async () => {
 			signal.throwIfAborted();
 			const response = await request(url, {
 				headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -143,40 +160,31 @@ export async function testCheckpoint(
 			if (!response.ok) {
 				throw new Error(`Unexpected status code: ${response.status} while restoring test checkpoints`);
 			}
-			return pipelineArtifacts(await response.json());
+			return timelineRecords(await response.json());
 		});
 
-		for (const id of testIds) {
-			const artifact = artifactName(id);
-			const hit = names.has(artifact);
-			setVariable(log, `${variablePrefix(id)}_HIT`, String(hit));
-			log(hit ? `Reusing successful test ${id}: ${artifact}` : `No checkpoint for ${id}; the test remains eligible to run.`);
+		const job = (await getTimeline(`${timelines}?api-version=7.1`))
+			.find(record => record.type === 'Job' && record.id.toLowerCase() === jobId.toLowerCase());
+		if (!job) {
+			throw new Error(`Job ${jobId} is not in the timeline of build ${buildId}`);
 		}
-		setVariable(log, 'TEST_CHECKPOINTS_RESTORED', 'true');
-		return;
+
+		for (const attempt of job.previousAttempts) {
+			for (const record of await getTimeline(`${timelines}/${attempt.timelineId}?api-version=7.1`)) {
+				const id = /^Record (?<id>[a-z0-9-]+) checkpoint$/.exec(record.name)?.groups?.id;
+				if (id && record.type === 'Task' && record.parentId === attempt.recordId && record.result === 'succeeded') {
+					passed.add(id);
+				}
+			}
+		}
 	}
 
-	const jobAttempt = identifier(env, 'SYSTEM_JOBATTEMPT', /^[1-9]\d*$/);
-	const stageAttempt = identifier(env, 'SYSTEM_STAGEATTEMPT', /^[1-9]\d*$/);
-	const sourceVersion = required(env, 'BUILD_SOURCEVERSION');
-	const directory = path.join(required(env, 'AGENT_TEMPDIRECTORY'), 'test-checkpoints', buildId, stage, job, stageAttempt, jobAttempt, testId);
-	const file = path.join(directory, 'test-checkpoint.json');
-	await mkdir(directory, { recursive: true });
-	await writeFile(file, JSON.stringify({
-		schemaVersion: 1,
-		buildId,
-		sourceVersion,
-		stageName: stage,
-		jobName: job,
-		target,
-		testId,
-		jobAttempt: Number(jobAttempt),
-		stageAttempt: Number(stageAttempt),
-		completedAt: new Date().toISOString(),
-	}, null, '\t') + '\n');
-	setVariable(log, `${variablePrefix(testId)}_FILE`, file);
-	setVariable(log, `${variablePrefix(testId)}_ARTIFACT`, artifactName(testId));
-	setVariable(log, `${variablePrefix(testId)}_READY`, 'true');
+	for (const id of testIds) {
+		const hit = passed.has(id);
+		setVariable(log, `${variablePrefix(id)}_HIT`, String(hit));
+		log(hit ? `Reusing successful test ${id} from an earlier attempt of this job.` : `No checkpoint for ${id}; the test remains eligible to run.`);
+	}
+	setVariable(log, 'TEST_CHECKPOINTS_RESTORED', 'true');
 }
 
 if (import.meta.main) {

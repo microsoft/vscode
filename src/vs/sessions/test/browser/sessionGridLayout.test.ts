@@ -10,14 +10,15 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
-import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
-import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
+import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../../workbench/browser/parts/sessions/sessionGridLayout.js';
+import { getSessionDropDirection } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/browser/parts/sessions/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
-import '../../browser/parts/media/chatCompositeBar.css';
-import '../../browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -204,9 +205,9 @@ suite('Sessions - Grid Layout', () => {
 			pointerEvents: mainWindow.getComputedStyle(sash).pointerEvents
 		}));
 		const visible = snapshot();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const hidden = snapshot();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const restored = snapshot();
 		const transitions = () => sashes.map(sash => {
 			const style = mainWindow.getComputedStyle(sash, '::after');
@@ -214,9 +215,9 @@ suite('Sessions - Grid Layout', () => {
 		});
 		workbench.classList.add('monaco-enable-motion');
 		const motionEnabled = transitions();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const fadeOut = transitions();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const fadeIn = transitions();
 		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
 		assert.deepStrictEqual({ visible, hidden, restored, motionEnabled, fadeOut, fadeIn, reducedMotion: transitions() }, {
@@ -412,7 +413,7 @@ suite('Sessions - Grid Layout', () => {
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		root.appendChild(card);
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));

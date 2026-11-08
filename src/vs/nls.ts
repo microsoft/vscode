@@ -190,6 +190,11 @@ export interface INLSConfiguration {
 	readonly osLocale: string;
 
 	/**
+	 * Regional formatting locale from `app.getSystemLocale()`, independent of the UI language.
+	 */
+	readonly regionalLocale?: string;
+
+	/**
 	 * The actual language of the UI that ends up being used considering `userLocale`
 	 * and `osLocale`.
 	 */

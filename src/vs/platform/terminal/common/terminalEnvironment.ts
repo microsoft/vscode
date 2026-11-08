@@ -91,20 +91,33 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (!userHome) {
 		return path;
 	}
+	if (userHome.match(/^\/[a-zA-Z]:/)) {
+		userHome = userHome.slice(1);
+	}
 	// Trim the trailing separator from the end if it exists
 	if (userHome.match(/[\/\\]$/)) {
 		userHome = userHome.slice(0, userHome.length - 1);
 	}
-	let normalizedPath = path.replace(/\\/g, '/');
+	if (!userHome || userHome.match(/^[a-zA-Z]:$/)) {
+		return path;
+	}
+	let formattedPath = path;
+	if (formattedPath.match(/^\/[a-zA-Z]:/)) {
+		formattedPath = formattedPath.slice(1);
+	}
+	let normalizedPath = formattedPath.replace(/\\/g, '/');
 	let normalizedUserHome = userHome.replace(/\\/g, '/');
 	if (separator === '\\') {
 		normalizedPath = normalizedPath.toLowerCase();
 		normalizedUserHome = normalizedUserHome.toLowerCase();
 	}
-	if (!normalizedPath.includes(normalizedUserHome)) {
+	if (normalizedPath === normalizedUserHome || normalizedPath === `${normalizedUserHome}/`) {
+		return '~';
+	}
+	if (!normalizedPath.startsWith(`${normalizedUserHome}/`)) {
 		return path;
 	}
-	return `~${separator}${path.slice(userHome.length + 1)}`;
+	return `~${separator}${formattedPath.slice(userHome.length + 1)}`;
 }
 
 /**

@@ -221,7 +221,7 @@ export class CopilotFusionProgress {
 		return {
 			activity: undefined,
 			phase,
-			part: phase ? phase.outcome : milestone(localize('copilot.fusion.interrupted', "HydraFusion workflow interrupted"), 'cancelled', this._syntheticModel),
+			part: phase ? phase.outcome : milestone(localize('copilot.fusion.interrupted', "Copilot Fusion workflow interrupted"), 'cancelled', this._syntheticModel),
 		};
 	}
 
@@ -242,7 +242,7 @@ export class CopilotFusionProgress {
 				this._syntheticModel = event.data.syntheticModel ?? this._syntheticModel;
 				this._fusionId = undefined;
 				this._phase = undefined;
-				this._activity = localize('copilot.fusion.routing', "Choosing a HydraFusion workflow...");
+				this._activity = localize('copilot.fusion.routing', "Choosing a Copilot Fusion workflow...");
 				break;
 			case 'session.fusion_resolved': {
 				const d = event.data;
@@ -295,7 +295,7 @@ export class CopilotFusionProgress {
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
 				part = phase.outcome;
 				this._phase = undefined;
-				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the HydraFusion workflow...") : undefined;
+				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the Copilot Fusion workflow...") : undefined;
 				break;
 			}
 			case 'assistant.fusion_phase_failed': {
@@ -316,7 +316,7 @@ export class CopilotFusionProgress {
 					return undefined;
 				}
 				this._inFlight = true;
-				part = milestone(localize('copilot.fusion.routeFailed', "HydraFusion routing failed; continuing with {0}", event.data.fallbackModel), 'degraded', event.data.syntheticModel);
+				part = milestone(localize('copilot.fusion.routeFailed', "Copilot Fusion routing failed; continuing with {0}", event.data.fallbackModel), 'degraded', event.data.syntheticModel);
 				this._activity = undefined;
 				break;
 			case 'session.fusion_completed': {
@@ -326,9 +326,9 @@ export class CopilotFusionProgress {
 				// The phase pills already show a clean run; only a fallback or an abnormal ending needs a row.
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
 				if (degraded) {
-					part = milestone(localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback"), 'degraded', d.syntheticModel);
+					part = milestone(localize('copilot.fusion.completedDegraded', "Copilot Fusion workflow completed with a fallback"), 'degraded', d.syntheticModel);
 				} else if (d.outcome !== 'completed') {
-					part = milestone(localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome), 'degraded', d.syntheticModel);
+					part = milestone(localize('copilot.fusion.ended', "Copilot Fusion workflow ended: {0}", d.outcome), 'degraded', d.syntheticModel);
 				}
 				this._phase = undefined;
 				this._activity = undefined;

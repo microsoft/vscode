@@ -85,12 +85,18 @@ steps:
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # right before gulp packages it. Non-fatal: falls back to legacy on any problem.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+    - pwsh: |
+        # If the background daemon died, fetch the notice here instead of keeping the legacy one.
+        pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "##vso[task.logissue type=warning]The CG NOTICE daemon was not running; downloading the notice directly."
+          node build/azure-pipelines/common/downloadNotice.ts
+        }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
       displayName: Apply CG NOTICE
-      # deemon --attach can exit non-zero if the background daemon died; never fail for that.
+      # downloadNotice.ts never fails; keep the step non-fatal for any other problem.
       continueOnError: true
 
   - powershell: |

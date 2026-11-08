@@ -38,10 +38,10 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;

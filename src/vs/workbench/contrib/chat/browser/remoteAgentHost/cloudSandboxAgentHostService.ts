@@ -201,8 +201,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	unstageConfiguration(address: string): void {
 		this._pendingConnections.deleteAndDispose(address);
 		this._stagedConnections.get(address)?.authenticationLifetime?.dispose(true);
-		this._stagedConnections.delete(address);
-		this._updateEntries();
+		if (this._stagedConnections.delete(address)) {
+			this._updateEntries();
+		}
 	}
 
 	isCurrentConfiguration(entry: IRemoteAgentHostEntry): boolean {

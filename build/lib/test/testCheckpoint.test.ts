@@ -9,23 +9,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { load } from 'js-yaml';
-import { testCheckpoint } from '../../azure-pipelines/common/testCheckpoint.ts';
+import { testCheckpoint, testIds } from '../../azure-pipelines/common/testCheckpoint.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
-const helperPath = path.join(repositoryRoot, 'build/azure-pipelines/common/testCheckpoint.ts');
+const jobId = '11111111-1111-1111-1111-111111111111';
+const otherJobId = '22222222-2222-2222-2222-222222222222';
+const attempt1 = { timelineId: 'aaaaaaaa-0000-0000-0000-000000000001', recordId: '33333333-3333-3333-3333-333333333331' };
+const attempt2 = { timelineId: 'aaaaaaaa-0000-0000-0000-000000000002', recordId: '33333333-3333-3333-3333-333333333332' };
 const environment: NodeJS.ProcessEnv = {
-	AGENT_OS: 'Windows_NT',
-	VSCODE_ARCH: 'x64',
 	BUILD_BUILDID: '123',
-	BUILD_SOURCEVERSION: 'source-commit',
 	SYSTEM_COLLECTIONURI: 'https://dev.azure.com/organization/',
 	SYSTEM_TEAMPROJECTID: 'project-id',
-	SYSTEM_STAGENAME: 'Windows',
-	SYSTEM_JOBNAME: 'Windows_x64_Test',
-	SYSTEM_STAGEATTEMPT: '1',
-	SYSTEM_JOBATTEMPT: '1',
+	SYSTEM_JOBID: jobId,
+	SYSTEM_JOBATTEMPT: '2',
 	SYSTEM_ACCESSTOKEN: 'test-token',
 };
+const timelines = 'https://dev.azure.com/organization/project-id/_apis/build/builds/123/timeline';
 
 function variables(messages: readonly string[]): Record<string, string> {
 	return Object.fromEntries(messages.flatMap(message => {
@@ -34,71 +33,105 @@ function variables(messages: readonly string[]): Record<string, string> {
 	}));
 }
 
-function artifactName(id: string, target = 'win32-x64'): string {
-	return `test-pass-Windows-Windows_x64_Test-${target}-${id}`;
+function hits(messages: readonly string[]): string[] {
+	return Object.entries(variables(messages)).filter(([name, value]) => name.endsWith('_HIT') && value === 'true').map(([name]) => name).sort();
+}
+
+function job(id: string, previousAttempts: readonly object[] = []) {
+	return { id, parentId: null, type: 'Job', name: 'Tests', result: null, previousAttempts };
+}
+
+function task(parentId: string, name: string, result: string | null) {
+	return { id: crypto.randomUUID(), parentId, type: 'Task', name, result };
+}
+
+/**
+ * Serves the current timeline and the timelines of earlier attempts by URL.
+ */
+function server(responses: Record<string, unknown>, requested: string[] = []): typeof fetch {
+	return async (url, options) => {
+		requested.push(String(url));
+		assert.deepStrictEqual(options?.headers, { Authorization: 'Bearer test-token', Accept: 'application/json' });
+		const body = responses[String(url)];
+		return body === undefined ? new Response(null, { status: 404 }) : Response.json(body);
+	};
 }
 
 suite('Product test checkpoints', () => {
-	test('restores only exact pipeline artifacts and resets readiness', async () => {
+	test('the first attempt of a job reuses nothing and makes no request', async () => {
 		const messages: string[] = [];
-		let requestedUrl = '';
-		const request: typeof fetch = async (url, options) => {
-			requestedUrl = String(url);
-			assert.deepStrictEqual(options?.headers, { Authorization: 'Bearer test-token', Accept: 'application/json' });
-			return Response.json({
-				value: [
-					{ name: artifactName('unit-electron'), resource: { type: 'PipelineArtifact' } },
-					{ name: artifactName('unit-node'), resource: { type: 'Container' } },
-					{ name: artifactName('unit-browser-chromium') + '-attempt1', resource: { type: 'PipelineArtifact' } },
-					{ name: artifactName('unit-node').replace('Windows_x64_Test', 'Windows_arm64_Test'), resource: { type: 'PipelineArtifact' } },
-					{ name: artifactName('unit-node').replace('test-pass-', 'test-pass-v2-'), resource: { type: 'PipelineArtifact' } },
-				]
-			});
-		};
-		await testCheckpoint(['restore'], environment, request, message => messages.push(message));
+		await testCheckpoint(['restore'], { ...environment, SYSTEM_JOBATTEMPT: '1' }, async () => { throw new Error('Unexpected network access'); }, message => messages.push(message));
+		assert.deepStrictEqual({ restored: variables(messages).TEST_CHECKPOINTS_RESTORED, hits: hits(messages) }, { restored: 'true', hits: [] });
+	});
+
+	test('reuses only tests whose record step succeeded in an earlier attempt of this job', async () => {
+		const requested: string[] = [];
+		const messages: string[] = [];
+		await testCheckpoint(['restore'], environment, server({
+			[`${timelines}?api-version=7.1`]: {
+				records: [
+					job(jobId, [attempt1]),
+					job(otherJobId, [{ timelineId: attempt1.timelineId, recordId: '44444444-4444-4444-4444-444444444444' }]),
+					// The current attempt's own steps never count
+					task(jobId, 'Record unit-node checkpoint', 'succeeded'),
+				],
+			},
+			[`${timelines}/${attempt1.timelineId}?api-version=7.1`]: {
+				records: [
+					job(attempt1.recordId),
+					task(attempt1.recordId, '🧪 Run unit tests (Electron)', 'succeeded'),
+					task(attempt1.recordId, 'Record unit-electron checkpoint', 'succeeded'),
+					task(attempt1.recordId, 'Record unit-browser-chromium checkpoint', 'succeeded'),
+					task(attempt1.recordId, 'Record copilot-extension checkpoint', 'skipped'),
+					task(attempt1.recordId, 'Record copilot-sanity checkpoint', 'failed'),
+					task(attempt1.recordId, 'Record copilot-completions-core checkpoint', 'canceled'),
+					task(attempt1.recordId, 'Record smoke-remote checkpoint', null),
+					task(attempt1.recordId, 'Record unknown-test checkpoint', 'succeeded'),
+					// Another job of the same attempt
+					task('44444444-4444-4444-4444-444444444444', 'Record smoke-electron checkpoint', 'succeeded'),
+				],
+			},
+		}, requested), message => messages.push(message));
 		assert.deepStrictEqual({
-			requestedUrl,
-			variables: variables(messages),
+			requested,
+			hits: hits(messages),
+			restored: variables(messages).TEST_CHECKPOINTS_RESTORED,
 			reused: messages.filter(message => message.startsWith('Reusing')),
 		}, {
-			requestedUrl: 'https://dev.azure.com/organization/project-id/_apis/build/builds/123/artifacts?api-version=7.1',
-			variables: {
-				TEST_CHECKPOINTS_RESTORED: 'true',
-				TEST_CHECKPOINT_UNIT_ELECTRON_HIT: 'true',
-				TEST_CHECKPOINT_UNIT_ELECTRON_READY: 'false',
-				...Object.fromEntries([
-					'UNIT_NODE', 'UNIT_BROWSER_CHROMIUM', 'UNIT_BROWSER_WEBKIT',
-					'INTEGRATION_AGENT_HOST_E2E', 'INTEGRATION_ELECTRON', 'INTEGRATION_BROWSER_CHROMIUM', 'INTEGRATION_BROWSER_FIREFOX', 'INTEGRATION_BROWSER_WEBKIT', 'INTEGRATION_REMOTE',
-					'SMOKE_ELECTRON', 'SMOKE_AGENTS_PAC_PROXY', 'SMOKE_AGENTS_KERBEROS_PAC_PROXY', 'SMOKE_BROWSER_CHROMIUM', 'SMOKE_REMOTE',
-					'COPILOT_EXTENSION', 'COPILOT_COMPLETIONS_CORE', 'COPILOT_SANITY',
-				].flatMap(id => [`TEST_CHECKPOINT_${id}_HIT`, `TEST_CHECKPOINT_${id}_READY`].map(name => [name, 'false']))),
-			},
-			reused: [`Reusing successful test unit-electron: ${artifactName('unit-electron')}`],
+			requested: [`${timelines}?api-version=7.1`, `${timelines}/${attempt1.timelineId}?api-version=7.1`],
+			hits: ['TEST_CHECKPOINT_UNIT_BROWSER_CHROMIUM_HIT', 'TEST_CHECKPOINT_UNIT_ELECTRON_HIT'],
+			restored: 'true',
+			reused: [
+				'Reusing successful test unit-electron from an earlier attempt of this job.',
+				'Reusing successful test unit-browser-chromium from an earlier attempt of this job.',
+			],
 		});
 	});
 
-	test('job and stage attempts share names but a new run has its own lookup', async () => {
-		const restored: { buildId: string; hit: string }[] = [];
-		const request: typeof fetch = async url => Response.json({
-			value: String(url).includes('/builds/123/')
-				? [{ name: artifactName('unit-electron'), resource: { type: 'PipelineArtifact' } }]
-				: []
-		});
-		for (const overrides of [
-			{ SYSTEM_JOBATTEMPT: '2' },
-			{ SYSTEM_JOBATTEMPT: '1', SYSTEM_STAGEATTEMPT: '3' },
-			{ BUILD_BUILDID: '456' },
-		]) {
-			const env = { ...environment, ...overrides };
-			const messages: string[] = [];
-			await testCheckpoint(['restore'], env, request, message => messages.push(message));
-			restored.push({ buildId: env.BUILD_BUILDID!, hit: variables(messages).TEST_CHECKPOINT_UNIT_ELECTRON_HIT });
-		}
-		assert.deepStrictEqual(restored, [
-			{ buildId: '123', hit: 'true' },
-			{ buildId: '123', hit: 'true' },
-			{ buildId: '456', hit: 'false' },
-		]);
+	test('combines every earlier attempt, including tests that a later attempt skipped', async () => {
+		const messages: string[] = [];
+		await testCheckpoint(['restore'], { ...environment, SYSTEM_JOBATTEMPT: '3' }, server({
+			[`${timelines}?api-version=7.1`]: { records: [job(jobId.toUpperCase(), [attempt1, attempt2])] },
+			[`${timelines}/${attempt1.timelineId}?api-version=7.1`]: {
+				records: [task(attempt1.recordId, 'Record unit-electron checkpoint', 'succeeded')],
+			},
+			[`${timelines}/${attempt2.timelineId}?api-version=7.1`]: {
+				records: [
+					task(attempt2.recordId, 'Record unit-electron checkpoint', 'skipped'),
+					task(attempt2.recordId, 'Record unit-node checkpoint', 'succeeded'),
+				],
+			},
+		}), message => messages.push(message));
+		assert.deepStrictEqual(hits(messages), ['TEST_CHECKPOINT_UNIT_ELECTRON_HIT', 'TEST_CHECKPOINT_UNIT_NODE_HIT']);
+	});
+
+	test('fails when this job is not in the build timeline', async () => {
+		const messages: string[] = [];
+		await assert.rejects(
+			testCheckpoint(['restore'], environment, server({ [`${timelines}?api-version=7.1`]: { records: [job(otherJobId, [attempt1])] } }), message => messages.push(message)),
+			/is not in the timeline of build 123/,
+		);
+		assert.deepStrictEqual(hits(messages), []);
 	});
 
 	for (const status of [401, 403, 429]) {
@@ -115,133 +148,46 @@ suite('Product test checkpoints', () => {
 	test('retries a transient server failure', async () => {
 		let requests = 0;
 		await testCheckpoint(['restore'], environment, async () => {
-			return ++requests === 1 ? new Response(null, { status: 503 }) : Response.json({ value: [] });
+			return ++requests === 1 ? new Response(null, { status: 503 }) : Response.json({ records: [job(jobId)] });
 		}, () => { });
 		assert.equal(requests, 2);
 	});
 
-	for (const body of [{}, { value: null }, { value: [{ name: 'incomplete' }] }]) {
-		test(`rejects malformed artifact response ${JSON.stringify(body)}`, async () => {
-			await assert.rejects(testCheckpoint(['restore'], environment, async () => Response.json(body), () => { }), /Invalid pipeline artifact/);
+	for (const body of [{}, { records: null }, { records: [{ id: jobId }] }, { records: [job(jobId, [{ timelineId: '../escape', recordId: attempt1.recordId }])] }]) {
+		test(`rejects malformed timeline ${JSON.stringify(body)}`, async () => {
+			await assert.rejects(testCheckpoint(['restore'], environment, async () => Response.json(body), () => { }), /Invalid build timeline/);
 		});
 	}
 
-	test('validates commands, supported targets and identity before accessing the API', async () => {
+	test('validates commands and identity before accessing the API', async () => {
 		const request: typeof fetch = async () => { throw new Error('Unexpected network access'); };
 		for (const args of [[], ['restore', 'extra'], ['record', '../escape'], ['record', 'unit-electron', 'extra'], ['record', 'unknown-test']]) {
 			await assert.rejects(testCheckpoint(args, environment, request), /Usage:/);
 		}
 		for (const overrides of [
-			{ VSCODE_ARCH: 'arm64' },
-			{ AGENT_OS: 'Darwin' },
 			{ BUILD_BUILDID: '' },
-			{ SYSTEM_JOBNAME: '../job' },
-			{ SYSTEM_STAGENAME: 'stage\ninjection' },
+			{ BUILD_BUILDID: '1/../2' },
+			{ SYSTEM_JOBID: '../job' },
+			{ SYSTEM_JOBATTEMPT: '0' },
 			{ SYSTEM_COLLECTIONURI: 'http://dev.azure.com/org/' },
 			{ SYSTEM_ACCESSTOKEN: '' },
 		]) {
-			await assert.rejects(testCheckpoint(['restore'], { ...environment, ...overrides }, request, () => { }), /require|Missing|Invalid|HTTPS/);
+			await assert.rejects(testCheckpoint(['restore'], { ...environment, ...overrides }, request, () => { }), /Missing|Invalid|HTTPS/);
 		}
 	});
 
-	test('checkpoints are isolated by target', async t => {
-		const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-target-'));
-		t.after(() => rmSync(directory, { recursive: true, force: true }));
-		const id = 'unit-browser-chromium';
-		const prefix = 'TEST_CHECKPOINT_UNIT_BROWSER_CHROMIUM';
-		const env = { ...environment, AGENT_TEMPDIRECTORY: directory };
-		const recorded: string[] = [];
-		await testCheckpoint(['record', id], env, fetch, message => recorded.push(message));
-		const state = variables(recorded);
-		const metadata: Record<string, unknown> = JSON.parse(readFileSync(state[`${prefix}_FILE`], 'utf8'));
-		const hits: string[] = [];
-		for (const artifactTarget of ['linux-x64', 'win32-x64']) {
-			const restored: string[] = [];
-			await testCheckpoint(['restore'], { ...env, SYSTEM_JOBATTEMPT: '2' }, async () => Response.json({
-				value: [{ name: artifactName(id, artifactTarget), resource: { type: 'PipelineArtifact' } }],
-			}), message => restored.push(message));
-			hits.push(variables(restored)[`${prefix}_HIT`]);
+	test('recording needs no token, files or network', async () => {
+		for (const id of testIds) {
+			const messages: string[] = [];
+			await testCheckpoint(['record', id], {}, async () => { throw new Error('Unexpected network access'); }, message => messages.push(message));
+			assert.deepStrictEqual(messages, [`Test ${id} passed. A retry of this job reuses it instead of running it again.`]);
 		}
-		assert.deepStrictEqual({
-			target: metadata.target,
-			testId: metadata.testId,
-			artifact: state[`${prefix}_ARTIFACT`],
-			ready: state[`${prefix}_READY`],
-			hits,
-		}, { target: 'win32-x64', testId: id, artifact: artifactName(id), ready: 'true', hits: ['false', 'true'] });
-	});
-
-	test('supports arm64 macOS checkpoints', async t => {
-		const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-darwin-'));
-		t.after(() => rmSync(directory, { recursive: true, force: true }));
-		const env: NodeJS.ProcessEnv = {
-			...environment,
-			AGENT_OS: 'Darwin',
-			VSCODE_ARCH: 'arm64',
-			SYSTEM_STAGENAME: 'macOSARM64',
-			SYSTEM_JOBNAME: 'macOS_arm64_Test',
-			AGENT_TEMPDIRECTORY: directory,
-		};
-		const messages: string[] = [];
-		await testCheckpoint(['record', 'unit-browser-webkit'], env, fetch, message => messages.push(message));
-		const state = variables(messages);
-		const metadata: Record<string, unknown> = JSON.parse(readFileSync(state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_FILE, 'utf8'));
-		assert.deepStrictEqual({
-			target: metadata.target,
-			testId: metadata.testId,
-			artifact: state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_ARTIFACT,
-			ready: state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_READY,
-		}, {
-			target: 'darwin-arm64',
-			testId: 'unit-browser-webkit',
-			artifact: 'test-pass-macOSARM64-macOS_arm64_Test-darwin-arm64-unit-browser-webkit',
-			ready: 'true',
-		});
-	});
-
-	test('records metadata without a token and ignores local files during restore', async t => {
-		const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-'));
-		t.after(() => rmSync(directory, { recursive: true, force: true }));
-		const env = { ...environment, AGENT_TEMPDIRECTORY: directory, SYSTEM_JOBATTEMPT: '2', SYSTEM_ACCESSTOKEN: undefined };
-		const recorded: string[] = [];
-		const request: typeof fetch = async () => Response.json({ value: [] });
-		await testCheckpoint(['record', 'unit-node'], env, request, message => recorded.push(message));
-		const state = variables(recorded);
-		const metadata: Record<string, unknown> = JSON.parse(readFileSync(state.TEST_CHECKPOINT_UNIT_NODE_FILE, 'utf8'));
-		assert.deepStrictEqual({ ...metadata, completedAt: typeof metadata.completedAt === 'string' && Number.isFinite(Date.parse(metadata.completedAt)) }, {
-			schemaVersion: 1,
-			buildId: '123',
-			sourceVersion: 'source-commit',
-			stageName: 'Windows',
-			jobName: 'Windows_x64_Test',
-			target: 'win32-x64',
-			testId: 'unit-node',
-			jobAttempt: 2,
-			stageAttempt: 1,
-			completedAt: true,
-		});
-		assert.deepStrictEqual(state, {
-			TEST_CHECKPOINT_UNIT_NODE_FILE: path.join(directory, 'test-checkpoints/123/Windows/Windows_x64_Test/1/2/unit-node/test-checkpoint.json'),
-			TEST_CHECKPOINT_UNIT_NODE_ARTIFACT: artifactName('unit-node'),
-			TEST_CHECKPOINT_UNIT_NODE_READY: 'true',
-		});
-		const restored: string[] = [];
-		await testCheckpoint(['restore'], { ...env, SYSTEM_ACCESSTOKEN: 'test-token' }, request, message => restored.push(message));
-		assert.equal(variables(restored).TEST_CHECKPOINT_UNIT_NODE_HIT, 'false');
-	});
-
-	test('metadata write failures cannot signal readiness', async () => {
-		const messages: string[] = [];
-		await assert.rejects(testCheckpoint(['record', 'unit-node'], {
-			...environment, AGENT_TEMPDIRECTORY: helperPath,
-		}, fetch, message => messages.push(message)));
-		assert.deepStrictEqual(messages, []);
 	});
 
 	test('reports test results only when a test produced them', async t => {
 		const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-outputs-'));
 		t.after(() => rmSync(directory, { recursive: true, force: true }));
-		const env = { ...environment, SYSTEM_ACCESSTOKEN: undefined, BUILD_ARTIFACTSTAGINGDIRECTORY: directory };
+		const env = { BUILD_ARTIFACTSTAGINGDIRECTORY: directory };
 		const observed: Record<string, string>[] = [];
 		const collect = async () => {
 			const messages: string[] = [];
@@ -262,24 +208,12 @@ suite('Product test checkpoints', () => {
 		]);
 	});
 
-	test('publisher records and publishes the checkpoint on the condition of its test step', () => {
+	test('the checkpoint is a step named after the test, on the condition of its test step, and nothing is published', () => {
 		const publisher = load(readFileSync(path.join(repositoryRoot, 'build/azure-pipelines/common/publish-test-checkpoint.yml'), 'utf8')) as { steps: object[] };
-		const prefix = 'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}';
 		assert.deepStrictEqual(publisher.steps, [{
 			script: 'node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}',
 			condition: '${{ parameters.condition }}',
 			displayName: 'Record ${{ parameters.testId }} checkpoint',
-		}, {
-			task: '1ES.PublishPipelineArtifact@1',
-			inputs: {
-				targetPath: `$(${prefix}_FILE)`,
-				artifactName: `$(${prefix}_ARTIFACT)`,
-				sbomEnabled: false,
-				isProduction: false,
-			},
-			condition: '${{ parameters.condition }}',
-			displayName: 'Publish ${{ parameters.testId }} checkpoint',
-			timeoutInMinutes: 2,
 		}]);
 	});
 });

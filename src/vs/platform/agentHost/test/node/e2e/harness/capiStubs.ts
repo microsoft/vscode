@@ -150,8 +150,27 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
 			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
 	}
-	if (path === '/models' && method === 'GET') {
-		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
+	if ((path === '/models' || path === '/meta') && method === 'GET') {
+		const models = { data: STUB_MODELS.map(expandModel), object: 'list' };
+		const auto = {
+			default_tier: 'balance',
+			tiers: [
+				{ id: 'balance', tier_level: 'standard', display_name: 'Standard' },
+				{ id: 'intelligence', tier_level: 'high', display_name: 'High' },
+				{ id: 'efficiency', display_name: 'Efficiency' },
+			].map(tier => ({ ...tier, description: '', type: 'auto', status: { enabled: true } })),
+		};
+		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify(path === '/meta' ? { models, auto } : models) };
+	}
+	// The runtime runs with `DYNAMIC_AUTO_TIERS`, which reads the model catalog and Auto's tiers from `/meta`.
+	// A single non-Fusion tier keeps Auto presented as Auto; these scenarios pin concrete models.
+	if (path === '/meta' && method === 'GET') {
+		return {
+			status: 200, headers: JSON_HEADERS, body: JSON.stringify({
+				models: { data: STUB_MODELS.map(expandModel), object: 'list' },
+				auto: { default_tier: 'balance', tiers: [{ id: 'balance', display_name: 'Balance', description: 'A balance of speed and capability', type: 'auto', status: { enabled: true } }] },
+			}),
+		};
 	}
 	// The SDK probes websocket support before falling back to POST /responses.
 	if (path === '/responses' && method === 'GET') {

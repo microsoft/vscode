@@ -104,13 +104,27 @@ function getCopilotPlatformPackageCandidates(): string[] {
 	return [`${process.platform}-${arch}`];
 }
 
+/**
+ * Returns the folders that may hold the platform packages of `@github/copilot`: the `@github`
+ * folder of `node_modules`, where a flat `node_modules` puts them, and the folder that holds the
+ * real path of `@github/copilot`, where a symlinked `node_modules` (pnpm's isolated layout) puts
+ * the optional dependencies of that package.
+ */
+function getCopilotScopeCandidates(): string[] {
+	const scopeDir = path.dirname(COPILOT_PACKAGE_DIR);
+	const realScopeDir = path.dirname(fs.realpathSync(COPILOT_PACKAGE_DIR));
+	return realScopeDir === fs.realpathSync(scopeDir) ? [scopeDir] : [scopeDir, realScopeDir];
+}
+
 async function resolveCopilotCliSourceDir(): Promise<string> {
 	const tried: string[] = [];
-	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
-		const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', `copilot-${platformPackage}`);
-		tried.push(sourceDir);
-		if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
-			return sourceDir;
+	for (const scopeDir of getCopilotScopeCandidates()) {
+		for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+			const sourceDir = path.join(scopeDir, `copilot-${platformPackage}`);
+			tried.push(sourceDir);
+			if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
+				return sourceDir;
+			}
 		}
 	}
 

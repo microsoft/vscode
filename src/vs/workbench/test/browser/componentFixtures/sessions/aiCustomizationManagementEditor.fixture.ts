@@ -60,7 +60,7 @@ import { AbstractVariableResolverService } from '../../../../services/configurat
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationScope, AICustomizationSource, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { matchesCustomizationSearchQuery } from '../../../../contrib/chat/common/aiCustomizationSearch.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
@@ -122,10 +122,8 @@ import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
+import { ICodeReviewService } from '../../../../contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -248,11 +246,32 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 // item provider (bypassing the prompts-service discovery used by local
 // harnesses). Provide items and writable folders so the fixture exercises
 // the same discovery and migration availability as the real provider.
-function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string): ICustomizationItemProvider {
+/** A plugin installed on the agent host itself, reported with the scope it applies to. */
+interface IFixtureAgentHostPlugin {
+	readonly name: string;
+	readonly description: string;
+	readonly scope: AICustomizationScope;
+	/** Organization that requires the plugin. */
+	readonly organization?: string;
+}
+
+function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string, plugins: readonly IFixtureAgentHostPlugin[] = []): ICustomizationItemProvider {
 	return {
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
-			return files.filter(file => file.source !== PromptFileSource.UserData).map(file => ({
+			const pluginItems = plugins.map((plugin): ICustomizationItem => ({
+				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.name}`),
+				type: 'plugin',
+				name: plugin.name,
+				description: plugin.description,
+				source: AICustomizationSources.plugin,
+				groupKey: 'remote-host',
+				scope: plugin.scope,
+				origin: plugin.organization ? { kind: 'account', label: plugin.organization } : undefined,
+				extensionId: undefined,
+				pluginUri: undefined,
+			}));
+			return [...pluginItems, ...files.filter(file => file.source !== PromptFileSource.UserData).map(file => ({
 				uri: file.uri,
 				type: file.type,
 				name: file.name ?? '',
@@ -263,7 +282,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 					: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
-			}));
+			}))];
 		},
 		async provideSourceFolders(_sessionResource, type): Promise<readonly ICustomizationSourceFolder[]> {
 			let folderName: string;
@@ -478,6 +497,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				description: f.description,
 				disableModelInvocation: false,
 				userInvocable: true,
+				extension: toExtensionInfo(f) as never,
 			}));
 		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
@@ -1246,6 +1266,7 @@ interface IRenderEditorOptions {
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly mcpMigrationCandidates?: readonly IMcpServerCustomizationMigrationCandidate[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
+	readonly agentHostPlugins?: readonly IFixtureAgentHostPlugin[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
 	readonly expectedDiscoveryContentWidth?: number;
@@ -1316,7 +1337,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName, options.agentHostPlugins),
 			marketplaceManagementProvider,
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
@@ -3670,7 +3691,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. Its header includes secondary Create a Canvas and Browse actions for guided authoring and filtered discovery. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
+		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Every Canvas renders directly in a flat scope list with "Plugin: name" or "Extension: name" secondary text. Source controls remain available on each Canvas row, and Workspace-provided Canvases remain read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
@@ -3779,6 +3800,43 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		},
 	}),
 
+	// Sessions variant whose contributed section after the separator is selected in the navigation list.
+	SessionsContributedSectionSelected: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'In the navigation list, a thin divider separates Hooks from the selected Extensions entry. The divider is not inside the selection background of Extensions, which has the same height and the same space above and below its label as the backgrounds of the other entries.',
+		],
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
+				supportsHarness: () => true,
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Extensions,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
+	}),
+
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
@@ -3809,7 +3867,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible User and Workspace groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree ordered Workspace, User, then Built-in, followed by Available when applicable. Plugin-, extension-, and organization-contributed servers render directly in flat scope lists with "Plugin: name", "Extension: name", or "Organization: name" secondary text. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -4342,7 +4400,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
+		expectedVisualDescriptions: ['The Tools page shows User, Copilot, and VS Code Managed groups as collapsible parent nodes in a classic tree; extension tool sets are listed under VS Code Managed and name their extension.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Tools,
@@ -4357,7 +4415,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
-		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows collapsible Built-in Tools and Extension Tools groups, including an Extension Tools count of eight.'],
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows collapsible Copilot and VS Code Managed groups; VS Code Managed lists the VS Code tool sets followed by eight extension tool sets.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -4401,10 +4459,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	// Plugins tab
+	AgentHostPluginsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in flat scope groups ordered Workspace, User, then Built-in. Organization-contributed plugins show "Organization: name" as their secondary text, and the Built-in plugin has no Copilot tag. Browse replaces the Available group.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user' },
+				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'user', organization: 'contoso' },
+				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application' },
+			],
+			height: 1180,
+		}),
+	}),
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree ordered Workspace, User, then Built-in, followed by Available when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

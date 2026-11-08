@@ -105,6 +105,11 @@ suite('Windows State Storing', () => {
 		assertRestoring(windowState, 'multiple windows');
 
 		windowState = {
+			openedWindows: [{ backupPath: testBackupPath1, uiState: { ...getUIState(), minimized: true }, folderUri: testFolderURI }]
+		};
+		assertRestoring(windowState, 'minimized window');
+
+		windowState = {
 			lastActiveWindow: { backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI },
 			openedWindows: []
 		};

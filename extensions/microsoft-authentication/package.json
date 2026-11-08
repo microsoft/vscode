@@ -138,10 +138,11 @@
     "watch": "gulp watch-extension:microsoft-authentication"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/randombytes": "^2.0.0",
-    "@types/sha.js": "^2.4.0",
-    "@types/uuid": "8.0.0"
+    "@types/sinon": "^10.0.2",
+    "sinon": "^12.0.1",
+    "tslib": "^2.6.3"
   },
   "dependencies": {
     "@azure/ms-rest-azure-env": "^2.0.0",

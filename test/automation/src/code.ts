@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';

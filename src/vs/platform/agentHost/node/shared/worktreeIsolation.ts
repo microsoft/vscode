@@ -1141,6 +1141,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
 		const { config, workingDirectory, sessionId, prompt, githubToken, onProgress } = request;
+		if (workingDirectory && workingDirectory.scheme !== Schemas.file) {
+			return workingDirectory;
+		}
 
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
@@ -1827,6 +1830,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 			if (mode === 'commit') {
 				if (await this._gitService.hasUncommittedChanges(worktree).catch(() => true)) {
+					if (canRemove && !await canRemove()) {
+						return 'inUse';
+					}
 					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
 				}
 			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {

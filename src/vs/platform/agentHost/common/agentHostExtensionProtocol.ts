@@ -30,8 +30,9 @@ import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWor
 import { AgentHostWorktreeCleanupCapabilityMetaKey } from './meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostSideChatWithoutContextMetaKey } from './meta/agentHostSideChatMeta.js';
 import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
-import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
+import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
@@ -112,7 +113,7 @@ export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArti
 export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
 export const ListAgentExtensionsExtensionMethod = 'vscode/listAgentExtensions';
 export const SetAgentExtensionEnabledExtensionMethod = 'vscode/setAgentExtensionEnabled';
-const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
+export const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
@@ -129,6 +130,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
 	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
+	/** Present when side chats can retain their origin without inheriting source context. */
+	readonly [AgentHostSideChatWithoutContextMetaKey]?: true;
 	/** Present when `createSession` honors an imported conversation on `_meta`. */
 	readonly [AgentHostCreateSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
@@ -164,6 +167,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
+		[AgentHostSideChatWithoutContextMetaKey]: true,
 		[AgentHostCreateSessionImportCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
@@ -220,7 +224,7 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
-export const importSessionParamsValidator = vObj({ session: vString() });
+export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
 
 /** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
 export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
@@ -306,12 +310,17 @@ export interface IAgentHostExtensionCommandMap {
 	[InstallSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[RotateSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[RemoveSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
+	[RefreshSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[ReadSavedChatExtensionMethod]: { params: ValidatorType<typeof readSavedChatParamsValidator>; result: IAgentHostSavedChatDto };
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[DeleteAutomationExtensionMethod]: { params: ValidatorType<typeof deleteAutomationParamsValidator>; result: readonly string[] };
 	[AcknowledgeAutomationDeletionExtensionMethod]: { params: ValidatorType<typeof acknowledgeAutomationDeletionParamsValidator>; result: void };
 	[StageCreateSessionImportChunkExtensionMethod]: { params: ValidatorType<typeof stageCreateSessionImportChunkParamsValidator>; result: void };
-	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
+	/**
+	 * Resolves to the session's exact resource, which can differ from the requested one: the host may address an
+	 * admitted session differently from its provider backing. Hosts that predate this resolve to nothing.
+	 */
+	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: { readonly session?: string } | null | undefined };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };

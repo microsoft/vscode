@@ -19,8 +19,9 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
-import { ICanvas, ICanvasReference, ICanvasService } from '../../common/canvas.js';
+import { ICanvasService } from '../../common/canvas.js';
 import { CanvasView, ICanvasViewInput } from '../../electron-browser/canvasView.js';
+import { ICanvas, ICanvasReference } from '../../../../common/canvasReference.js';
 
 suite('CanvasView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -231,4 +232,77 @@ suite('CanvasView', () => {
 			afterHide: { heldFrame: undefined, message: '' },
 		});
 	}));
+
+	test('switching to another canvas never freezes or keeps the page of the canvas it switched away from', async () => {
+		const pending = new DeferredPromise<IBrowserViewModel>();
+		const attached: string[] = [];
+		const createModel = (name: string) => upcastPartial<IBrowserViewModel>({
+			url: `https://${name}.test`,
+			onDidChangeFocus: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onDidNavigate: Event.None,
+			onDidRequestOpenExternal: Event.None,
+			onWillDispose: Event.None,
+			layout: async () => { },
+		});
+		const plan = createModel('plan');
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICanvasService, {
+			enabled: constObservable(true),
+			isPresentable: () => true,
+			resolveCanvasModel: async (reference: ICanvasReference) => ({ model: reference.canvas.path === '/plan' ? plan : await pending.p, reused: false }),
+		});
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+		instantiationService.stub(IAccessibleViewService, {});
+		instantiationService.stubInstance(WebContentsViewHost, {
+			screenshotElement: $('div'), pauseElement: $('div'),
+			onContainerCreated: () => { },
+			setModel: value => { attached.push(value?.url ?? 'none'); },
+			setVisible: () => { },
+			layout: () => { },
+			tryFocus: () => false,
+			dispose: () => { },
+		});
+		const createInput = (name: string, source: string | undefined): ICanvasViewInput => {
+			const reference: ICanvasReference = { providerId: 'local', session: URI.parse('session:/a'), chat: URI.parse('chat:/a'), canvas: URI.parse(`canvas:/${name}`) };
+			return { reference, canvas: constObservable({ resource: reference.canvas, instanceId: name, title: name, source: source ? URI.parse(source) : undefined }), membershipPending: constObservable(false) };
+		};
+		const parent = $('.canvas-view-switch');
+		parent.style.width = '400px';
+		parent.style.height = '200px';
+		getWindow(parent).document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const view = store.add(instantiationService.createInstance(CanvasView, parent, getWindow(parent), {
+			logPrefix: '[test]',
+			notPresentableMessage: constObservable('Not shown here.'),
+			getHelpContent: () => '',
+		}));
+		view.setVisible(true);
+		const state = () => ({
+			attached: attached.at(-1),
+			message: parent.querySelector('.session-canvas-message')?.textContent,
+			reconnecting: parent.querySelector('.session-canvas-editor')?.classList.contains('provider-reconnecting'),
+		});
+
+		view.setInput(createInput('plan', 'https://plan.test'));
+		await timeout(0);
+		const shown = state();
+		view.setInput(createInput('preview', undefined));
+		await timeout(0);
+		const toUnavailable = state();
+		view.setInput(createInput('plan', 'https://plan.test'));
+		await timeout(0);
+		view.setInput(createInput('slow', 'https://slow.test'));
+		await timeout(0);
+		const toLoading = state();
+		pending.complete(createModel('slow'));
+		await timeout(0);
+
+		assert.deepStrictEqual({ shown, toUnavailable, toLoading, loaded: state() }, {
+			shown: { attached: 'https://plan.test', message: '', reconnecting: false },
+			toUnavailable: { attached: 'none', message: 'The canvas provider is temporarily unavailable.', reconnecting: false },
+			toLoading: { attached: 'none', message: 'Loading canvas…', reconnecting: false },
+			loaded: { attached: 'https://slow.test', message: '', reconnecting: false },
+		});
+	});
 });
