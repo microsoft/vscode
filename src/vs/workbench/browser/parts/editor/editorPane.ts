@@ -55,7 +55,7 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	protected readonly _onDidChangeControl = this._register(new Emitter<void>());
 	readonly onDidChangeControl = this._onDidChangeControl.event;
 
-	/** Fires as {@link titleMenu} changes, such as as the editor shows another input. */
+	/** Fires as {@link titleMenu} changes, such as the editor shows another input. */
 	readonly onDidChangeTitleMenu: Event<void> = Event.None;
 
 	//#endregion

@@ -42,7 +42,7 @@ export interface ITerminalStatusList {
 	/**
 	 * Adds a status to the list.
 	 * @param status The status object. Ideally a single status object that does not change will be
-	 * shared as this call will no-op if the status is already set (checked by by object reference).
+	 * shared as this call will no-op if the status is already set (checked by object reference).
 	 * @param duration An optional duration in milliseconds of the status, when specified the status
 	 * will remove itself when the duration elapses unless the status gets re-added.
 	 */

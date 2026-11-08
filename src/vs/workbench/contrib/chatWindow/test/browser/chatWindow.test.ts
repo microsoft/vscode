@@ -135,7 +135,7 @@ suite('Chat window', () => {
 			this.onWillClose.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 			this.onCloseEditor.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 		}
-		/** As a group closes all its editors without asking, such as as it moves to another part: the active one last. */
+		/** As a group closes all its editors without asking, such as it moves to another part: the active one last. */
 		forceCloseAll() {
 			const active = this.activeEditor;
 			for (const editor of this.testEditors.filter(candidate => candidate !== active)) {

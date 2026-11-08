@@ -382,7 +382,7 @@ __vsc_command_complete() {
 __vsc_update_prompt() {
 	# in command execution
 	if [ "$__vsc_in_command_execution" = "1" ]; then
-		# Wrap the prompt if it is not yet wrapped, if the PS1 changed this this was last set it
+		# Wrap the prompt if it is not yet wrapped, if the PS1 changed since this was last set it
 		# means the user re-exported the PS1 so we should re-wrap it
 		if [[ "$__vsc_custom_PS1" == "" || "$__vsc_custom_PS1" != "$PS1" ]]; then
 			__vsc_original_PS1=$PS1

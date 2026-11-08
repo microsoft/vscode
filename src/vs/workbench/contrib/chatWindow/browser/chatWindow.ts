@@ -190,7 +190,7 @@ export interface IChatWindowProvider {
 	moveVeto?(chats: readonly URI[]): string | undefined;
 	/** Opens a new chat of the provider's in `window`, such as one that starts a new session, as {@link IChatWindowService.openNewChat} does. */
 	openNewChat?(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void>;
-	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
+	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as it closed; the first is the one that was active there. */
 	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**
 	 * Whether a chat window of `chat` that was open when the window last closed opens again, waiting as long as it needs

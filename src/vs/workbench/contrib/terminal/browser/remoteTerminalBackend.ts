@@ -101,7 +101,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 		this._register(this._remoteTerminalChannel.onExecuteCommand(async e => {
-			// Ensure this request for for this window
+			// Ensure this request for this window
 			const pty = this._ptys.get(e.persistentProcessId);
 			if (!pty) {
 				return;
