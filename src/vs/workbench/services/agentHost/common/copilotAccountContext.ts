@@ -73,5 +73,9 @@ export async function resolveCopilotAccountContext(host: IAgentHostService, toke
 }
 
 export function canCompleteCopilotAccountSetup(context: CopilotAccountContextView): boolean {
-	return context === undefined || typeof context === 'object' && !(context instanceof Error) && context.kind === 'ready';
+	return isLegacyCopilotAccountContext(context) || typeof context === 'object' && !(context instanceof Error) && context.kind === 'ready';
+}
+
+export function isLegacyCopilotAccountContext(context: CopilotAccountContextView): context is Extract<CopilotAccountContext, { kind: 'legacy' }> | undefined {
+	return context === undefined || typeof context === 'object' && !(context instanceof Error) && context.kind === 'legacy';
 }

@@ -41,10 +41,10 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { canCompleteCopilotAccountSetup, resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
+import { resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { CopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { AgentHostCopilotM365EnabledSettingId, ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { CopilotAccountContext, isMicrosoftCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
 
 type ChatSetupDialogShownEvent = {
 	source: ChatSetupSource;
@@ -374,9 +374,8 @@ export class ChatSetup {
 			return { dialogSkipped, success: undefined };
 		}
 
-		const accountContext = await this.prepareAccountSetup(options?.cancellationToken ?? CancellationToken.None);
-		if (accountContext && (this.context.state.hidden || this.context.state.disabled || this.context.state.disabledInWorkspace)) {
-			throw new Error(localize('copilotSetupUnavailable', "Copilot setup is unavailable. Check your AI feature and administrator settings."));
+		if (this.context.state.hidden || this.context.state.disabled || this.context.state.disabledInWorkspace) {
+			await this.prepareAccountSetup(options?.cancellationToken ?? CancellationToken.None);
 		}
 
 		const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
@@ -403,17 +402,21 @@ export class ChatSetup {
 		}
 
 		let setupStrategy = await this.getSetupStrategy(options, dialogSkipped);
+		const accountContext = setupStrategy === ChatSetupStrategy.Canceled ? undefined : await this.prepareAccountSetup(options?.cancellationToken ?? CancellationToken.None);
 		const signedInAccount = options?.autoDismissOnSignIn ? this.defaultAccountService.currentDefaultAccount : undefined;
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && !isMicrosoftCopilotAccountContext(accountContext) && !signedInAccount && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
+		const microsoftSetup = setupStrategy === ChatSetupStrategy.SetupWithMicrosoftProvider
+			? this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true
+			: setupStrategy === ChatSetupStrategy.DefaultSetup && isMicrosoftCopilotAccountContext(accountContext);
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
-			if (!accountContext && (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount))) {
+			if (!microsoftSetup && (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount))) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
 			}
 
@@ -446,7 +449,8 @@ export class ChatSetup {
 		}
 
 		if (success) {
-			success = canCompleteCopilotAccountSetup(await resolveCopilotAccountContext(this.agentHostService, options?.cancellationToken ?? CancellationToken.None));
+			const current = await resolveCopilotAccountContext(this.agentHostService, options?.cancellationToken ?? CancellationToken.None);
+			success = microsoftSetup ? current?.kind === 'ready' : !isMicrosoftCopilotAccountContext(current);
 			if (success) {
 				this.context.update({ completed: true });
 			}
@@ -464,7 +468,11 @@ export class ChatSetup {
 			await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
 		}
 		const context = await resolveCopilotAccountContext(this.agentHostService, token);
-		if (!context) {
+		if (isMicrosoftCopilotAccountContext(context)) {
+			if (this.context.state.hidden || this.context.state.disabled || this.context.state.disabledInWorkspace) {
+				throw new Error(localize('copilotSetupUnavailable', "Copilot setup is unavailable. Check your AI feature and administrator settings."));
+			}
+		} else {
 			await this.context.update({ hidden: false });
 			await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
 		}
@@ -550,11 +558,7 @@ export class ChatSetup {
 			return ChatSetupStrategy.Canceled;
 		}
 		const entitlement = this.context.state.entitlement;
-		const accountContext = await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None);
-		if (accountContext && accountContext.kind !== 'signedOut') {
-			return ChatSetupStrategy.DefaultSetup;
-		}
-		const content = accountContext ? this.getMicrosoftDialogContent(options) : this.getLegacyDialogContent(options);
+		const content = this.getDialogContent(options);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
 			...content,
 			icon: options.dialogIcon ?? Codicon.copilotLarge,
@@ -571,18 +575,10 @@ export class ChatSetup {
 				entitlement: ChatEntitlement[entitlement],
 				forceSignInDialog: options.forceSignInDialog === true,
 			});
-		}, options.autoDismissOnSignIn && !accountContext ? this.defaultAccountService : undefined);
+		}, options.autoDismissOnSignIn && this.context.state.copilotAccountReady === undefined ? this.defaultAccountService : undefined);
 	}
 
-	private getMicrosoftDialogContent(options?: IChatSetupRunOptions): Pick<IChatSetupDialogOptions, 'title' | 'buttons' | 'footer'> {
-		return {
-			title: options?.dialogTitle ?? localize('copilotSignIn', "Sign in to use Copilot"),
-			buttons: [{ label: localize('continueWithMicrosoft', "Continue with Microsoft"), strategy: ChatSetupStrategy.SetupWithMicrosoftProvider, classes: ['continue-button', 'microsoft'] }],
-			footer: localize('copilotMicrosoftSetupFooter', "Sign in with Microsoft to discover your available Copilot services. Signing in alone does not complete setup."),
-		};
-	}
-
-	private getLegacyDialogContent(options?: IChatSetupRunOptions): Pick<IChatSetupDialogOptions, 'title' | 'buttons' | 'footer'> {
+	private getDialogContent(options?: IChatSetupRunOptions): Pick<IChatSetupDialogOptions, 'title' | 'buttons' | 'footer'> {
 		let showMicrosoftProvider = false;
 		if (offersProviderSignIn(this.context.state.entitlement, options)) {
 			this.microsoftSignInProbeService.notifySignInShown();

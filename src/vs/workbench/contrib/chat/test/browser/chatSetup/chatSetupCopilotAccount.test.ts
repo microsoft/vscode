@@ -29,17 +29,21 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IActivityService } from '../../../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, chatRequiresSetup } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, chatRequiresSetup, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
-import { IAgentHostCopilotAccountService } from '../../../browser/agentSessions/agentHost/agentHostCopilotAccountService.js';
+import { AgentHostCopilotAccountService, IAgentHostCopilotAccountService } from '../../../browser/agentSessions/agentHost/agentHostCopilotAccountService.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
 import { observeCopilotAccountContext } from '../../../../../services/agentHost/common/copilotAccountContext.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatSetup } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { gitHubEnterpriseUrisSetting } from '../../../../../services/accounts/common/githubEnterprise.js';
+import { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
 
 suite('Microsoft Copilot setup UI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +68,7 @@ suite('Microsoft Copilot setup UI', () => {
 			root.config!.values[copilotAccountContextKey] = value;
 			changed.fire(root);
 		};
-		const config = new TestConfigurationService();
+		const config = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true });
 		const context = store.add(new ChatEntitlementContext(store.add(new MockContextKeyService()), store.add(new TestStorageService()), new NullLogService(), config, NullTelemetryService));
 		context.setCopilotAccountContext(observeCopilotAccountContext(host, store.add(new DisposableStore())));
 		const session: AuthenticationSession = { id: 'microsoft-session', account: { id: 'account-a', label: 'Microsoft Account A' }, accessToken: 'synthetic', scopes: ['User.Read'] };
@@ -135,8 +139,97 @@ suite('Microsoft Copilot setup UI', () => {
 		});
 		const requests = upcastPartial<ChatEntitlementRequests>({ signIn: async () => { calls.push('legacySignIn'); return {}; } });
 		const controller = store.add(instantiation.createInstance(ChatSetupController, context, requests));
-		return { context, controller, calls, state, setContext, config, session, host, available, exited, signInStarted, instantiation };
+		return { context, controller, calls, state, setContext, config, session, host, available, exited, signInStarted, instantiation, requests };
 	}
+
+	test('provider choices use real legacy authentication or explicit Microsoft discovery, not the availability flag', async () => {
+		const observed = [];
+		for (const enabled of [false, true]) {
+			for (const provider of ['github', 'github-enterprise', 'google', 'apple', 'microsoft']) {
+				const f = fixture({ kind: 'legacy' });
+				await f.config.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, enabled);
+				if (!enabled) {
+					f.setContext(undefined);
+				}
+				const endpoint = provider === 'github-enterprise' ? 'https://contoso.ghe.com' : 'https://github.com';
+				await f.config.setUserConfiguration(gitHubEnterpriseUrisSetting, [endpoint]);
+				const account: IDefaultAccount = {
+					accountName: 'chosen', sessionId: 'chosen-session', enterprise: provider === 'github-enterprise',
+					authenticationProvider: { id: provider === 'github-enterprise' ? provider : 'github', name: 'GitHub', enterprise: provider === 'github-enterprise' },
+				};
+				const credential: AuthenticationSession = { id: account.sessionId, account: { id: 'opaque-chosen', label: account.accountName }, accessToken: 'selected-token', scopes: ['read:user', 'user:email'] };
+				const legacyCalls: string[] = [];
+				const deliveries: AuthenticateParams[] = [];
+				f.instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+				f.instantiation.stub(IDefaultAccountService, { currentDefaultAccount: account, resolveGitHubUrl: () => endpoint });
+				f.requests.signIn = async options => {
+					legacyCalls.push(options?.useSocialProvider ?? provider);
+					return { defaultAccount: account, entitlements: { entitlement: ChatEntitlement.Pro } };
+				};
+				const authentication = f.instantiation.get(IAuthenticationService);
+				const getSessions = authentication.getSessions;
+				authentication.getSessions = async (id, scopes, options, activate) => {
+					if (id === 'microsoft') {
+						return getSessions(id, scopes, options, activate);
+					}
+					assert.deepStrictEqual([id, options?.authorizationServer?.toString()], [account.authenticationProvider.id, `${endpoint}/login/oauth`]);
+					return [credential];
+				};
+				f.instantiation.stub(IChatEntitlementService, { sentiment: {} });
+				const service = store.add(f.instantiation.createInstance(AgentHostCopilotAccountService));
+				f.instantiation.get(IAgentHostCopilotAccountService).selectLegacy = (connection, request) => service.selectLegacy(connection, request);
+				f.host.authenticate = async request => {
+					deliveries.push(request);
+					f.setContext({ kind: 'legacy' });
+					return { authenticated: true };
+				};
+				f.state.discovery = ready();
+				const controller = store.add(f.instantiation.createInstance(ChatSetupController, f.context, f.requests));
+				const result = await controller.setupWithProvider({ useSocialProvider: provider === 'github' || provider === 'github-enterprise' ? undefined : provider, useEnterpriseProvider: provider === 'github-enterprise' });
+				observed.push({
+					enabled, provider, result, legacyCalls: [...legacyCalls], microsoftDiscovery: f.calls.includes('discover'), deliveries: deliveries.map(request => ({
+						resource: request.resource, scopes: request.scopes, token: request.token, meta: request._meta,
+					}))
+				});
+				if (enabled && provider === 'github') {
+					f.setContext(ready());
+					f.host.authenticate = async () => ({ authenticated: false });
+					await assert.rejects(controller.setupWithProvider({ useEnterpriseProvider: false }), /did not accept the selected GitHub account/);
+					assert.strictEqual(f.calls.filter(call => call === 'install').length, 1, 'A rejected handoff must not install or complete against the old Microsoft context');
+				}
+			}
+		}
+		assert.deepStrictEqual(observed, [false, true].flatMap(enabled => ['github', 'github-enterprise', 'google', 'apple', 'microsoft'].map(provider => ({
+			enabled, provider, result: true,
+			legacyCalls: enabled && provider === 'microsoft' ? [] : [provider],
+			microsoftDiscovery: enabled && provider === 'microsoft',
+			deliveries: !enabled || provider === 'microsoft' ? [] : [{
+				resource: provider === 'github-enterprise' ? 'https://api.contoso.ghe.com' : 'https://api.github.com',
+				scopes: ['read:user', 'user:email'], token: 'selected-token',
+				meta: {
+					'vscode.authentication.account': { providerId: provider === 'github-enterprise' ? provider : 'github', accountId: 'opaque-chosen' },
+					'vscode.copilot.accountOperation': { kind: 'useLegacy', context: { kind: 'legacy' } },
+				},
+			}],
+		}))));
+	});
+
+	test('legacy readiness keeps normal entitlement requirements and cannot bypass a failed Microsoft choice', async () => {
+		const f = fixture({ kind: 'legacy' });
+		const observed = [];
+		for (const state of [{ kind: 'legacy' } as const, offered, { kind: 'error', stage: 'discovery', entraAccountId: 'account-a' } as const]) {
+			f.setContext(state);
+			observed.push({
+				ready: f.context.state.copilotAccountReady, requiresSetup: chatRequiresSetup({
+					completed: false, copilotAccountReady: f.context.state.copilotAccountReady, entitlement: ChatEntitlement.Pro,
+					disabled: false, untrusted: false, anonymous: true, hasByokModels: true,
+				})
+			});
+		}
+		assert.deepStrictEqual(observed, [
+			{ ready: undefined, requiresSetup: false }, { ready: false, requiresSetup: true }, { ready: false, requiresSetup: true },
+		]);
+	});
 
 	test('disconnecting a host with a retained ready root clears readiness until reconnect', () => {
 		const f = fixture(ready());
@@ -329,6 +422,8 @@ suite('Microsoft Copilot setup UI', () => {
 		await f.config.setUserConfiguration('chat.agentHost.copilot.m365.enabled', true);
 		assert.deepStrictEqual({ result: await f.controller.setup({ forceAnonymous: ChatSetupAnonymous.EnabledWithDialog }), calls: f.calls },
 			{ result: true, calls: ['install'] });
+		await assert.rejects(f.controller.setupWithProvider({ useSocialProvider: 'microsoft' }), /not available on the current agent host/);
+		assert.deepStrictEqual(f.calls, ['install']);
 	});
 
 	for (const discovery of [

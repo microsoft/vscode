@@ -7,7 +7,7 @@ import { raceCancellation } from '../../../../../base/common/async.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -37,13 +37,17 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { CopilotAccountContext, readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { CopilotAccountContext, isMicrosoftCopilotAccountContext, readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
 import { IAgentHostCopilotAccountService } from '../agentSessions/agentHost/agentHostCopilotAccountService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
+import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/githubEndpoints.js';
+import { toAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -131,10 +135,15 @@ export class ChatSetupController extends Disposable {
 		}
 
 		const accountContext = await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None);
-		if (accountContext) {
+		const microsoft = options.useSocialProvider === 'microsoft' && this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true;
+		if (microsoft && !accountContext) {
+			throw new Error(localize('copilotMicrosoftUnavailable', "Microsoft Copilot setup is not available on the current agent host."));
+		}
+		if (microsoft || !options.forceSignIn && isMicrosoftCopilotAccountContext(accountContext)) {
 			return this.setupMicrosoftAccount(options);
 		}
-		return this.setupLegacyAccount(options, watch);
+		const success = await this.setupLegacyAccount(options, watch);
+		return success && accountContext ? (await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None))?.kind === 'legacy' : success;
 	}
 
 	private async setupLegacyAccount(options: IChatSetupControllerOptions, watch: StopWatch): Promise<ChatSetupResultValue> {
@@ -170,6 +179,9 @@ export class ChatSetupController extends Disposable {
 				}
 
 				entitlement = result.entitlement;
+				if (await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None)) {
+					await this.selectLegacyAccount(result.defaultAccount, options.cancellationToken ?? CancellationToken.None);
+				}
 			}
 
 			if (options.cancellationToken?.isCancellationRequested) {
@@ -185,6 +197,24 @@ export class ChatSetupController extends Disposable {
 		}
 
 		return success;
+	}
+
+	private async selectLegacyAccount(account: IDefaultAccount, token: CancellationToken): Promise<void> {
+		this.requireMicrosoftSetupEnabled();
+		const server = this.defaultAccountService.resolveGitHubUrl('');
+		if (!server) {
+			throw new Error(localize('copilotGitHubServerMissing', "The selected GitHub account has no authentication server."));
+		}
+		const resource = gitHubCopilotResource(deriveGitHubEndpoints(server));
+		const sessions = await raceCancellation(this.authenticationService.getSessions(account.authenticationProvider.id, undefined, { authorizationServer: URI.parse(resource.authorization_servers![0]), silent: true }, true), token);
+		if (token.isCancellationRequested || this.defaultAccountService.currentDefaultAccount !== account) {
+			throw new CancellationError();
+		}
+		const session = sessions?.find(session => session.id === account.sessionId && session.accessToken && resource.scopes_supported!.every(scope => session.scopes.includes(scope)));
+		if (!session) {
+			throw new Error(localize('copilotGitHubCredentialMissing', "GitHub sign-in did not provide the selected account credential."));
+		}
+		await this.copilotAccountService.selectLegacy(this.agentHostService, toAuthenticateRequest(resource.resource, resource.scopes_supported, session, account.authenticationProvider.id));
 	}
 
 	private async setupMicrosoftAccount(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
@@ -261,7 +291,7 @@ export class ChatSetupController extends Disposable {
 		if (!context) {
 			throw new Error(localize('copilotAccountModeChanged', "Copilot account setup changed. Start setup again."));
 		}
-		const accountId = context.kind === 'signedOut' ? undefined : context.entraAccountId;
+		const accountId = isMicrosoftCopilotAccountContext(context) && context.kind !== 'signedOut' ? context.entraAccountId : undefined;
 		const session = await this.getMicrosoftSession(accountId, token);
 		if (!session || token.isCancellationRequested) {
 			return undefined;
@@ -466,8 +496,8 @@ export class ChatSetupController extends Disposable {
 			return undefined;
 		}
 
-		if (await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None)) {
-			return this.setup(options);
+		if (options.useSocialProvider === 'microsoft' && this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true) {
+			return this.setup({ ...options, forceSignIn: true });
 		}
 
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

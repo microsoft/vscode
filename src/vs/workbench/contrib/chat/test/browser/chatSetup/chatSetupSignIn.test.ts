@@ -31,7 +31,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { copilotAccountContextKey } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { AgentHostCopilotM365EnabledSettingId, ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 
 suite('Chat setup dialog external sign-in', () => {
 
@@ -61,6 +61,7 @@ suite('Chat setup dialog external sign-in', () => {
 		let listeningDuringProviderSetup = false;
 		const state = {
 			hidden: false,
+			copilotAccountReady: host instanceof NullAgentHostService && host.authenticationPending.get() ? false : undefined,
 			entitlement: initialAccount ? ChatEntitlement.Pro : ChatEntitlement.Unknown,
 			sku: undefined,
 			organisations: undefined,
@@ -210,7 +211,7 @@ suite('Chat setup dialog external sign-in', () => {
 					return { value: root, verifiedValue: root instanceof Error ? undefined : root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 				}
 			}();
-			const f = createSetup(false, null, Promise.resolve(true), host);
+			const f = createSetup(false, null, Promise.resolve(true), host, new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true }));
 			const result = await f.run({ setupStrategy: ChatSetupStrategy.DefaultSetup });
 			observed.push({ success: result.success, error: result.error?.message, calls: f.snapshot().setupCalls, errors: f.errors.length });
 		}
@@ -258,7 +259,7 @@ suite('Chat setup dialog external sign-in', () => {
 		await result;
 		assert.deepStrictEqual({ disposed: afterAuthentication.dialogDisposed, completed: afterAuthentication.completed, calls: afterAuthentication.setupCalls },
 			{ disposed: false, completed: false, calls: [] });
-		const explicit = createSetup(false, null, Promise.resolve(true), host);
+		const explicit = createSetup(false, null, Promise.resolve(true), host, new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true }));
 		let legacyProgressShown = false;
 		await explicit.run({
 			setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider,
@@ -286,6 +287,34 @@ suite('Chat setup dialog external sign-in', () => {
 		assert.deepStrictEqual(results.map(result => ({ success: result.success, error: result.error?.message })), [
 			{ success: false, error: 'Copilot setup is unavailable. Check your AI feature and administrator settings.' },
 			{ success: false, error: 'Copilot setup is unavailable. Check your AI feature and administrator settings.' },
+		]);
+	});
+
+	test('provider completion must match the chosen authentication path', async () => {
+		const observed = [];
+		for (const kind of ['legacy', 'ready'] as const) {
+			const host = new class extends NullAgentHostService {
+				override readonly authenticationPending = constObservable(true);
+				override get rootState() {
+					const context = kind === 'legacy' ? { kind } : {
+						kind, entraAccountId: 'account', discoveryId: 'discovery', derivedFrom: 'base',
+						choice: { service: 'm365', selectionId: 'selection', resource: 'https://m365.example', host: 'https://m365.example', accountName: 'user', displayName: 'User' },
+					};
+					const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: context } } };
+					return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				}
+			}();
+			for (const strategy of [ChatSetupStrategy.SetupWithMicrosoftProvider, ChatSetupStrategy.SetupWithoutEnterpriseProvider]) {
+				const f = createSetup(false, null, Promise.resolve(true), host, new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true }));
+				const result = await f.run({ setupStrategy: strategy });
+				observed.push({ kind, strategy, success: result.success, completed: f.snapshot().completed });
+			}
+		}
+		assert.deepStrictEqual(observed, [
+			{ kind: 'legacy', strategy: ChatSetupStrategy.SetupWithMicrosoftProvider, success: false, completed: false },
+			{ kind: 'legacy', strategy: ChatSetupStrategy.SetupWithoutEnterpriseProvider, success: true, completed: true },
+			{ kind: 'ready', strategy: ChatSetupStrategy.SetupWithMicrosoftProvider, success: true, completed: true },
+			{ kind: 'ready', strategy: ChatSetupStrategy.SetupWithoutEnterpriseProvider, success: false, completed: false },
 		]);
 	});
 

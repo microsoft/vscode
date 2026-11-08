@@ -40,6 +40,7 @@ import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../workbench/
 import { ISessionsManagementService } from '../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAgentHostService } from '../../platform/agentHost/common/agentService.js';
 import { resolveCopilotAccountContext } from '../../workbench/services/agentHost/common/copilotAccountContext.js';
+import { isMicrosoftCopilotAccountContext } from '../../platform/agentHost/common/copilotAccountContext.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -252,7 +253,7 @@ class SessionsSetUpWidget extends Disposable {
 	private async _copilotAccountReady(): Promise<boolean | undefined> {
 		try {
 			const context = await resolveCopilotAccountContext(this.agentHostService, CancellationToken.None);
-			return context ? context.kind === 'ready' : undefined;
+			return isMicrosoftCopilotAccountContext(context) ? context.kind === 'ready' : undefined;
 		} catch (error) {
 			this.logService.error('[sessions welcome] Could not resolve Copilot account readiness', error);
 			return false;

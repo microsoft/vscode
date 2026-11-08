@@ -70,6 +70,7 @@ suite('Sessions - Account Title Bar State', () => {
 		const state = createState({ copilotAccountContext: github, accountName: 'EMU' });
 		assert.deepStrictEqual({
 			github: snapshot(state),
+			legacy: snapshot({ ...state, copilotAccountContext: { kind: 'legacy' } }),
 			otherLogin: snapshot(state, 'other'),
 			otherHost: snapshot(state, 'emu', 'https://other.ghe.com/'),
 			microsoft365: snapshot({ ...state, copilotAccountContext: microsoft365 }),
@@ -77,6 +78,7 @@ suite('Sessions - Account Title Bar State', () => {
 			hidden: snapshot({ ...state, copilotAccountContext: microsoft365, sentiment: { ...state.sentiment, hidden: true } }),
 		}, {
 			github: { showIdentity: true, showSetup: false, showUsage: true },
+			legacy: { showIdentity: true, showSetup: false, showUsage: true },
 			otherLogin: { showIdentity: true, showSetup: false, showUsage: false },
 			otherHost: { showIdentity: true, showSetup: false, showUsage: false },
 			microsoft365: { showIdentity: true, showSetup: false, showUsage: false },

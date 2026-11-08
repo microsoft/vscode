@@ -66,7 +66,7 @@ suite('OnboardingVariationA', () => {
 		button.click();
 	}
 
-	test('Microsoft onboarding awaits service readiness instead of direct GitHub sign-in', async () => {
+	test('onboarding keeps all provider choices and waits for shared setup completion', async () => {
 		const host = new class extends NullAgentHostService {
 			override readonly authenticationPending = constObservable(true);
 			override get rootState() {
@@ -74,8 +74,8 @@ suite('OnboardingVariationA', () => {
 				return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 			}
 		}();
-		const f = createOnboarding(undefined, undefined, true, undefined, host);
-		f.executeCommand.resolves(true);
+		const f = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(true), notifySignInShown() { } }, host);
+		f.executeCommand.resolves(false);
 		const microsoft = f.container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
 		assert.ok(microsoft);
 		microsoft.click();
@@ -86,12 +86,12 @@ suite('OnboardingVariationA', () => {
 			stillOnSignIn: !!f.container.querySelector('.onboarding-a-signin-actions'),
 		}, {
 			commands: [['workbench.action.chat.triggerSetup', undefined, { disableChatViewReveal: true, setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider }]],
-			githubOffered: false,
+			githubOffered: true,
 			stillOnSignIn: true,
 		});
 	});
 
-	test('account mode refresh restores content focus without stealing external dialog focus', () => {
+	test('account mode refresh leaves the shared sign-in controls and dialog focus intact', () => {
 		const observed = [];
 		for (const externalFocus of [false, true]) {
 			const changed = store.add(new Emitter<RootState>());
@@ -109,8 +109,7 @@ suite('OnboardingVariationA', () => {
 			(externalFocus ? externalButton : original).focus();
 			root.config!.values[copilotAccountContextKey] = { kind: 'signedOut' };
 			changed.fire(root);
-			const microsoft = container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
-			observed.push({ externalFocus, correctFocus: mainWindow.document.activeElement === (externalFocus ? externalButton : microsoft) });
+			observed.push({ externalFocus, correctFocus: mainWindow.document.activeElement === (externalFocus ? externalButton : original) });
 			if (!externalFocus) {
 				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 				container.querySelector('.onboarding-a-overlay.exiting')?.dispatchEvent(new mainWindow.Event('transitionend'));

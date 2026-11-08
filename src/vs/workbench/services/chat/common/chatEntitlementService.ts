@@ -34,7 +34,7 @@ import { IObservable, autorun, observableFromEvent } from '../../../../base/comm
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IEntitlementsData, IQuotaSnapshotData } from '../../../../base/common/defaultAccount.js';
 import { isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
-import { canCompleteCopilotAccountSetup, CopilotAccountContextView } from '../../agentHost/common/copilotAccountContext.js';
+import { canCompleteCopilotAccountSetup, CopilotAccountContextView, isLegacyCopilotAccountContext } from '../../agentHost/common/copilotAccountContext.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -1713,7 +1713,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
 		const accountContext = this.copilotAccountContext?.get();
-		if (accountContext !== undefined) {
+		if (!isLegacyCopilotAccountContext(accountContext)) {
 			const ready = canCompleteCopilotAccountSetup(accountContext);
 			state = { ...state, copilotAccountReady: ready, completed: !!state.completed && ready };
 		}

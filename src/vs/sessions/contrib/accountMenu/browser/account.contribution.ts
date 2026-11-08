@@ -57,7 +57,8 @@ import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../workbench/contrib/sessio
 import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
-import { CopilotAccountContextView, observeCopilotAccountContext, resolveCopilotAccountContext } from '../../../../workbench/services/agentHost/common/copilotAccountContext.js';
+import { CopilotAccountContextView, isLegacyCopilotAccountContext, observeCopilotAccountContext, resolveCopilotAccountContext } from '../../../../workbench/services/agentHost/common/copilotAccountContext.js';
+import { isMicrosoftCopilotAccountContext } from '../../../../platform/agentHost/common/copilotAccountContext.js';
 import { copilotEntraClientId } from '../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
@@ -150,15 +151,16 @@ registerAction2(class extends Action2 {
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const host = accessor.get(IAgentHostService);
 		const context = await resolveCopilotAccountContext(host, CancellationToken.None);
-		const defaultAccount = context ? null : await defaultAccountService.getDefaultAccount();
-		const microsoftSessions = context && context.kind !== 'signedOut'
+		const microsoft = isMicrosoftCopilotAccountContext(context);
+		const defaultAccount = microsoft ? null : await defaultAccountService.getDefaultAccount();
+		const microsoftSessions = microsoft && context.kind !== 'signedOut'
 			? (await authenticationService.getSessions('microsoft', undefined, { clientId: copilotEntraClientId, silent: true }, true)).filter(session => session.account.id === context.entraAccountId)
 			: undefined;
-		if (context ? !microsoftSessions?.length : !defaultAccount) {
+		if (microsoft ? !microsoftSessions?.length : !defaultAccount) {
 			return;
 		}
 
-		const providerId = context ? 'microsoft' : defaultAccount!.authenticationProvider.id;
+		const providerId = microsoft ? 'microsoft' : defaultAccount!.authenticationProvider.id;
 		const accountLabel = microsoftSessions?.[0].account.label ?? defaultAccount!.accountName;
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
@@ -729,7 +731,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private appendCopilotAccount(identities: HTMLElement, panelStore: DisposableStore, actions: { signIn: IAction | undefined; signOut: IAction | undefined; personalize: IAction[] }): void {
 		const presentation = this.getCopilotMenuPresentation();
-		if (this.copilotAccountContext.get() !== undefined) {
+		if (!isLegacyCopilotAccountContext(this.copilotAccountContext.get())) {
 			actions.signIn = presentation.showSetup
 				? panelStore.add(new Action(AGENTIC_SIGN_IN_COMMAND_ID, localize('setUpCopilot', "Set Up Copilot"), undefined, true, () => this.commandService.executeCommand(AGENTIC_SIGN_IN_COMMAND_ID)))
 				: undefined;
@@ -958,7 +960,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private getPanelHeaderLabel(): string {
 		if (this.accountName) {
-			return this.copilotAccountContext.get() !== undefined && this.accountProviderLabel
+			return !isLegacyCopilotAccountContext(this.copilotAccountContext.get()) && this.accountProviderLabel
 				? localize('copilotAccountWithService', "{0} ({1})", this.accountName, this.accountProviderLabel)
 				: this.accountName;
 		}
