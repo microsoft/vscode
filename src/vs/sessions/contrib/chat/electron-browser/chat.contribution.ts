@@ -394,8 +394,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<'unsupported' | undefined> {
 		// Only a tunnel's editor windows share their agent host with this window. Elsewhere, the editor's VS Code server
 		// runs its own agent host, with a session registry separate from that of the agent host this window starts.
+		// The window's folder is selected instead, without a notification.
 		if (getRemoteName(remoteAuthority) !== 'tunnel') {
-			this.notificationService.warn(localize('agentsHandoff.remoteSessionUnsupported', "The Agents Window can't open sessions from this remote window yet. Only sessions from local and tunnel windows can be opened here."));
+			this.logService.info(`[AgentsHandoff] sessions of ${getRemoteName(remoteAuthority)} windows are not shared with this window`);
 			return 'unsupported';
 		}
 		let host: RemoteAgentHostHandoffResult;

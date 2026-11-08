@@ -264,7 +264,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		});
 	});
 
-	test('opens sessions of tunnel editor windows under this window\'s connection and explains other remotes', async () => {
+	test('opens sessions of tunnel editor windows under this window\'s connection and silently falls back for other remotes', async () => {
 		const sessionType = remoteAgentHostSessionTypeId('tunnel-box', 'copilotcli');
 		const known = URI.parse(`${sessionType}:/known#chat`);
 		const hosts: Record<string, RemoteAgentHostHandoffResult> = {
@@ -306,7 +306,6 @@ suite('Agents Window workspace handoff telemetry', () => {
 				'The session of your remote window could not be found on the remote agent host.',
 				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the tunnel\'s machine than your remote window.',
 				'The session of your remote window could not be opened in the Agents Window. Tunnel \'unknown\' was not found for the signed-in accounts.',
-				'The Agents Window can\'t open sessions from this remote window yet. Only sessions from local and tunnel windows can be opened here.',
 			],
 			results: [undefined, undefined, undefined, 'unsupported', undefined, undefined, 'unsupported'],
 		});
