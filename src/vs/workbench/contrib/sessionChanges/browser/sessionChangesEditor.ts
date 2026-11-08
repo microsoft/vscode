@@ -244,8 +244,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	});
 	private readonly _inputChangesLoadingObs = derived(this, reader => !!this._inputChangesSource.read(reader)?.chat && (this._inputChangesObs.read(reader)?.loading.read(reader) ?? false));
 	/**
-	 * Whether the changes of the input are still loading, during which the changes service reports none: of the chat it
-	 * names, else of its session while it is the active session.
+	 * Whether the changes of the input are still loading, during which the changes service reports none or those of before:
+	 * of the chat it names, else of its session while it is the active session, as long as the header's summary keeps the
+	 * summary of before.
 	 */
 	private readonly _inputChangesPendingLoadObs = derived(this, reader => {
 		const source = this._inputChangesSource.read(reader);
@@ -254,7 +255,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}
 		return source.chat
 			? this._inputChangesLoadingObs.read(reader)
-			: isEqual(this.changesViewService.activeSessionResourceObs.read(reader), source.session) && this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			: isEqual(this.changesViewService.activeSessionResourceObs.read(reader), source.session) && this.changesViewService.activeSessionLoadingObs.read(reader);
+	});
+	/**
+	 * Whether the diffs of the changes of the input are still resolving: it shows none of them yet. The multi-diff replaces
+	 * the diffs it shows only once those of all the changes resolved.
+	 */
+	private readonly _inputDiffsResolvingObs = derived(this, reader => {
+		const viewModel = this.widget?.viewModel.read(reader);
+		return !!viewModel && viewModel.items.read(reader).length === 0 && (this._inputChangesObs.read(reader)?.changes.read(reader).length ?? 0) > 0;
 	});
 	/** The input whose diffs this editor resolves to show instead of those of another input, which it no longer shows. */
 	private readonly _resolvingInput = observableValue<SessionChangesEditorInput | undefined>(this, undefined);
@@ -265,9 +274,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _inputGeneration = 0;
 	/**
 	 * Whether this editor does not show the changes of its input yet: while it resolves the diffs of an input it switched
-	 * to, or while those changes load. Meanwhile it shows its progress, neither diffs of other changes nor that there are none.
+	 * to, while those changes load, or while their diffs resolve. Meanwhile it shows its progress, neither diffs of other
+	 * changes nor that there are none.
 	 */
-	private readonly _changesPendingObs = derived(this, reader => !!this._resolvingInput.read(reader) || this._inputChangesPendingLoadObs.read(reader));
+	private readonly _changesPendingObs = derived(this, reader => !!this._resolvingInput.read(reader) || this._inputChangesPendingLoadObs.read(reader) || this._inputDiffsResolvingObs.read(reader));
 
 	private readonly _hasInput = observableValue(this, false);
 	private readonly _paneVisible = observableValue(this, false);

@@ -10,7 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -542,11 +542,13 @@ suite('SessionChangesEditorInput', () => {
 		// While the incoming session's changes load, the active summary keeps the outgoing session's, as the service does.
 		const changeset = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch Changes', isEnabled: constObservable(true), isDefault: constObservable(true) });
 		const summary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 2, additions: 5, deletions: 1 });
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 			override readonly activeSessionResourceObs = activeSession;
 			override readonly activeSessionChangesetLoadingObs = changesLoading;
-			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+			override readonly activeSessionLoadingObs = changesLoading;
+			override readonly activeSessionChangesObs = changes;
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
@@ -584,10 +586,13 @@ suite('SessionChangesEditorInput', () => {
 		const disposedViewModels: string[] = [];
 		const viewModelRequests = new Map<string, DeferredPromise<MultiDiffEditorViewModel>[]>();
 		const onDidRequestViewModel = disposables.add(new Emitter<void>());
+		const itemsByInput = new Map<string, ISettableObservable<readonly DocumentDiffItemViewModel[]>>();
 		const createInput = (name: string, hasChanges: boolean) => {
+			const items = observableValue<readonly DocumentDiffItemViewModel[]>('items', hasChanges ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
+			itemsByInput.set(name, items);
 			const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
 				override readonly isLoading = observableValue('isLoading', false);
-				override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>(hasChanges ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
+				override readonly items = items;
 				override toString() { return name; }
 			}();
 			const input = disposables.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse(`changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/${name}"}`)));
@@ -644,7 +649,9 @@ suite('SessionChangesEditorInput', () => {
 			await timeout(250);
 			return { progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')), ...state() };
 		};
-		return { editor, activeSession, changesLoading, summary, shownViewModel, disposedViewModels, createInput, whenRequested, settleViewModel, state, presentation };
+		/** Lets the view model of `name` show the diffs of `count` changes. */
+		const showDiffs = (name: string, count: number) => itemsByInput.get(name)!.set(Array.from({ length: count }, () => upcastPartial<DocumentDiffItemViewModel>({})), undefined);
+		return { editor, activeSession, changesLoading, summary, changes, shownViewModel, disposedViewModels, createInput, whenRequested, settleViewModel, showDiffs, state, presentation };
 	}
 
 	for (const loadingSettles of [true, false]) {
@@ -752,6 +759,35 @@ suite('SessionChangesEditorInput', () => {
 			whileResolvingB2: { ...pending, disposed: ['a', 'b', 'a'] },
 			cleared: { ...notPending, disposed: ['a', 'b', 'a', 'b'] },
 			afterClearedResolve: { ...notPending, disposed: ['a', 'b', 'a', 'b'] },
+		});
+	});
+
+	test('while the diffs of its changes resolve after its view model, it shows its progress rather than that there are none, and its header no stats', async () => {
+		const { editor, activeSession, summary, changes, createInput, settleViewModel, showDiffs, state } = createSwitchingEditor();
+		activeSession.set(URI.parse('agent-host-copilotcli:/many'), undefined);
+		summary.set({ files: 1, additions: 1, deletions: 0 }, undefined);
+		// The changes are known, while the multi-diff still resolves their diffs: its view model has none yet.
+		changes.set([createFileChange(1)], undefined);
+		const input = createInput('many', false);
+		const opened = editor.setInput(input, undefined, {}, CancellationToken.None);
+		await settleViewModel('many');
+		await opened;
+		const whileDiffsResolve = state();
+		showDiffs('many', 1);
+		const resolved = state();
+		// Once there are no changes any more, it shows that there are none.
+		transaction(tx => {
+			changes.set([], tx);
+			summary.set(undefined, tx);
+			showDiffs('many', 0);
+		});
+		const noChanges = state();
+		editor.clearInput();
+
+		assert.deepStrictEqual({ whileDiffsResolve, resolved, noChanges }, {
+			whileDiffsResolve: { shown: 'many', placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] },
+			resolved: { shown: 'many', placeholderHidden: false, emptyState: false, headerStats: '1 File +1 -0', headerAriaLabel: 'Branch Changes, 1 file, 1 additions, 0 deletions', disposed: [] },
+			noChanges: { shown: 'many', placeholderHidden: false, emptyState: true, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] },
 		});
 	});
 });
