@@ -8,6 +8,7 @@ import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/
 import { asCssVariableName as asSizeCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { getMotionCssVariables } from '../../../../platform/theme/common/motionRecipes.js';
 
 /**
  * Generates CSS content (variables + theming participant rules) for a color theme.
@@ -59,6 +60,10 @@ export function generateColorThemeCSS(
 		if (sizeValue) {
 			variables.push(`${asSizeCssVariableName(item.id)}: ${sizeValueToCss(sizeValue)};`);
 		}
+	}
+
+	for (const [name, value] of Object.entries(getMotionCssVariables())) {
+		variables.push(`${name}: ${value};`);
 	}
 
 	ruleCollector.addRule(`${scopeSelector} { ${variables.join('\n')} }`);

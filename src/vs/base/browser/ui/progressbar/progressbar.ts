@@ -139,6 +139,7 @@ export class ProgressBar extends Disposable {
 	infinite(): ProgressBar {
 		this.bit.style.width = '2%';
 		this.bit.style.opacity = '1';
+		this.element.removeAttribute('aria-valuenow');
 
 		this.element.classList.remove(CSS_DISCRETE, CSS_DONE, CSS_INFINITE_LONG_RUNNING);
 		this.element.classList.add(CSS_ACTIVE, CSS_INFINITE);

@@ -8,22 +8,23 @@ import * as nls from '../../../../nls.js';
 // Import the effects we need
 import { Color } from '../../../../base/common/color.js';
 import { registerColor, transparent } from '../colorUtils.js';
+import { colorBorderContrast, colorBorderFocus, colorIcon, colorText, colorTextDisabled, colorTextError, colorTextLink, colorTextStrong } from './semanticColors.js';
 
 
 export const foreground = registerColor('foreground',
-	{ dark: '#CCCCCC', light: '#616161', hcDark: '#FFFFFF', hcLight: '#292929' },
+	colorText,
 	nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
 
 export const strongForeground = registerColor('strongForeground',
-	{ dark: '#FFFFFF', light: '#000000', hcDark: '#FFFFFF', hcLight: '#000000' },
+	colorTextStrong,
 	nls.localize('strongForeground', "Highest-contrast foreground color, intended for text or icons that need maximum legibility across various backgrounds. This color is only used if not overridden by a component."));
 
 export const disabledForeground = registerColor('disabledForeground',
-	{ dark: '#CCCCCC80', light: '#61616180', hcDark: '#A5A5A5', hcLight: '#7F7F7F' },
+	colorTextDisabled,
 	nls.localize('disabledForeground', "Overall foreground for disabled elements. This color is only used if not overridden by a component."));
 
 export const errorForeground = registerColor('errorForeground',
-	{ dark: '#F48771', light: '#A1260D', hcDark: '#F48771', hcLight: '#B5200D' },
+	colorTextError,
 	nls.localize('errorForeground', "Overall foreground color for error messages. This color is only used if not overridden by a component."));
 
 export const descriptionForeground = registerColor('descriptionForeground',
@@ -31,15 +32,15 @@ export const descriptionForeground = registerColor('descriptionForeground',
 	nls.localize('descriptionForeground', "Foreground color for description text providing additional information, for example for a label."));
 
 export const iconForeground = registerColor('icon.foreground',
-	{ dark: '#C5C5C5', light: '#424242', hcDark: '#FFFFFF', hcLight: '#292929' },
+	colorIcon,
 	nls.localize('iconForeground', "The default color for icons in the workbench."));
 
 export const focusBorder = registerColor('focusBorder',
-	{ dark: '#007FD4', light: '#0090F1', hcDark: '#F38518', hcLight: '#006BBD' },
+	colorBorderFocus,
 	nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
 
 export const contrastBorder = registerColor('contrastBorder',
-	{ light: null, dark: null, hcDark: '#6FC3DF', hcLight: '#0F4A85' },
+	colorBorderContrast,
 	nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
 
 export const activeContrastBorder = registerColor('contrastActiveBorder',
@@ -54,11 +55,11 @@ export const selectionBackground = registerColor('selection.background',
 // ------ text link
 
 export const textLinkForeground = registerColor('textLink.foreground',
-	{ light: '#006AB1', dark: '#3794FF', hcDark: '#21A6FF', hcLight: '#0F4A85' },
+	colorTextLink,
 	nls.localize('textLinkForeground', "Foreground color for links in text."));
 
 export const textLinkActiveForeground = registerColor('textLink.activeForeground',
-	{ light: '#006AB1', dark: '#3794FF', hcDark: '#21A6FF', hcLight: '#0F4A85' },
+	colorTextLink,
 	nls.localize('textLinkActiveForeground', "Foreground color for links in text when clicked on and on mouse hover."));
 
 export const textSeparatorForeground = registerColor('textSeparator.foreground',

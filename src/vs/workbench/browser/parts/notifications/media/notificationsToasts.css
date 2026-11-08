@@ -39,7 +39,7 @@
 	margin: 4px; /* enables separation and drop shadows around toasts */
 	transform: translate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to prevent bleed through) */
 	opacity: 0; /*  fade the toast in */
-	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+	transition: var(--vscode-motion-toast-enter-transition, transform 300ms ease-out, opacity 300ms ease-out);
 }
 
 .monaco-workbench > .notifications-toasts .notifications-list-container {

@@ -1009,6 +1009,8 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
+	/** General-purpose design-system building blocks, independent of a feature workflow. */
+	readonly primitive?: boolean;
 	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
@@ -1019,6 +1021,9 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 		result.push('.screenshot');
 	} else if (labels?.kind === 'animated') {
 		result.push('animated');
+	}
+	if (labels?.primitive) {
+		result.push('primitive');
 	}
 	if (labels?.blocksCi) {
 		result.push('blocks-ci');
