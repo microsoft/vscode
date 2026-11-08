@@ -312,6 +312,8 @@ ${modelRouterExample}
 
 Only plain YAML is accepted: maps and lists written one item per line, \`[a, b]\` lists with commas, plain or quoted text, \`|\` and \`>\` blocks, and comments. \`{ ... }\` maps, anchors, unknown escapes like \`"\\q"\` and duplicate keys are errors. A file is at most 32 KiB, and the guidance, \`when\` and examples together at most 64 KiB.
 
+Quote any example or \`when\` text that contains \`: \`, such as a pasted error message (\`- "CUDA error: device-side assert triggered"\`). Unquoted, YAML reads it as a key and a value.
+
 ## Workflow
 
 1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list.
