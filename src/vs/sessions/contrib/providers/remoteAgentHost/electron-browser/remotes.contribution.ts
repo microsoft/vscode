@@ -23,13 +23,13 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionsCategories } from '../../../../common/categories.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
-import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { RemotesEditor, RemotesEditorFocusedContext } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(RemotesEditor, RemotesEditor.ID, localize('remotes.editorLabel', "Remote Environments")),

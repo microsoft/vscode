@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { IInboxNotificationItem, IInboxSessionRow, InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem, IInboxSessionRow, InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 
 export function getInboxEmptyMessage(name: string | undefined, working: boolean, index: number): string {
 	const messages = name ? [

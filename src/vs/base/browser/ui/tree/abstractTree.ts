@@ -26,6 +26,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { SetMap } from '../../../common/map.js';
 import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
+import { onUnexpectedError } from '../../../common/errors.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
@@ -807,6 +808,8 @@ export interface IFindWidgetStyles {
 export interface IFindWidgetOptions {
 	readonly history?: string[];
 	readonly styles?: IFindWidgetStyles;
+	/** Returns focus to the results when they span more than one tree. */
+	readonly focusTree?: () => void;
 }
 
 const unthemedFindWidgetStyles: IFindWidgetStyles = {
@@ -896,6 +899,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		const emitter = this._register(new DomEmitter(this.findInput.inputBox.inputElement, 'keydown'));
 		const onKeyDown = Event.chain(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
+		const focusTree = options?.focusTree ?? (() => this.tree.domFocus());
 
 		this._register(onKeyDown((e) => {
 			// Using equals() so we reserve modified keys for future use
@@ -904,7 +908,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				this.findInput.inputBox.addToHistory();
-				this.tree.domFocus();
+				focusTree();
 				return;
 			}
 			if (e.equals(KeyCode.DownArrow)) {
@@ -913,7 +917,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 				if (this.findInput.inputBox.isAtLastInHistory() || this.findInput.inputBox.isNowhereInHistory()) {
 					// Retain original pre-history DownArrow behavior
 					this.findInput.inputBox.addToHistory();
-					this.tree.domFocus();
+					focusTree();
 				} else {
 					// Downward through history
 					this.findInput.inputBox.showNextValue();
@@ -3483,7 +3487,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				}
 
 				activeNodesEmitter.fire([...set.values()]);
-			});
+			}).catch(onUnexpectedError);
 		}));
 
 		this.onDidChangeActiveNodesRelay.input = activeNodesEmitter.event;

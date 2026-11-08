@@ -10,9 +10,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackPRThreadResolverContribution } from '../../browser/agentFeedbackPRThreadResolver.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('AgentFeedbackPRThreadResolverContribution', () => {
 

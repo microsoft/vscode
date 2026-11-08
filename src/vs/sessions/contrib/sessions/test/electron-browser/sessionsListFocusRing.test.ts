@@ -12,10 +12,9 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../canvases/browser/pinnedCanvases.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { createListHarness } from '../browser/sessionsListTestUtils.js';
 
 /** Focus styles only match while the document has focus, so give the test's web contents real focus. */

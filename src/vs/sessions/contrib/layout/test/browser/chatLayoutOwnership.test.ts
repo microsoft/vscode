@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -16,12 +16,13 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChatDeletedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeQuickChatWithWorkspaceChild, makeSession, makeTestWorkspace, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
@@ -40,7 +41,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	}
 
 	class TestDesktopController extends DesktopLayoutController {
-		ownerKeyFor(session: IActiveSession): URI {
+		ownerKeyFor(session: ITestSessionWithChat): URI {
 			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			assert.ok(key, 'expected an owner key while chat layout is active');
 			return key;
@@ -62,7 +63,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		}
 	}
 
-	function createDesktopController(options: ICreateOptions = {}, initialSession?: IActiveSession): TestDesktopController {
+	function createDesktopController(options: ICreateOptions = {}, initialSession?: ITestSessionWithChat): TestDesktopController {
 		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], ...options });
 		if (initialSession) {
 			harness.activeSessionObs.set(initialSession, undefined);
@@ -616,7 +617,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				await settle();
 				const isCreated = observableValue('created', quick);
 				const isQuickChat = observableValue('quick', quick);
-				const transient = { ...makeSession(URI.parse('session:conversion-transient')), isCreated, isQuickChat };
+				const transient = { ...makeSession(URI.parse('session:conversion-transient'), { isQuickChat: quick }), ...withCreatedStatus(isCreated), isQuickChat };
 				harness.visibleSessionsObs.set(multiple ? [existing, transient] : [transient], undefined);
 				harness.activeSessionObs.set(transient, undefined);
 				await settle();
@@ -624,7 +625,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 				await settle();
 				if (quick) {
-					isQuickChat.set(false, undefined);
+					transaction(tx => {
+						(transient.workspace as ISettableObservable<ISessionWorkspace | undefined>).set(makeTestWorkspace(), tx);
+						isQuickChat.set(false, tx);
+					});
 				} else {
 					isCreated.set(true, undefined);
 				}
@@ -634,6 +638,31 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				});
 			});
 		}
+	}
+
+	for (const mode of ['chat', 'chat-shared'] as const) {
+		test(`${mode}: switching between a workspace child of a quick chat and the quick chat swaps their own compositions`, async () => {
+			createDesktopController({ chatLayoutMode: mode });
+			harness.onApplyWorkingSet = () => harness.editorGroupsHaveContent = harness.activeGroupEditors.length > 0;
+			const { session, parent, child } = makeQuickChatWithWorkspaceChild();
+			setActiveChat(session, child);
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			openOrdinaryEditors('child');
+			setVisible(true, false);
+			await settle();
+
+			setActiveChat(session, parent);
+			await settle();
+			const parentShown = editorState();
+			setActiveChat(session, child);
+			await settle();
+
+			assert.deepStrictEqual({ parentShown, childShownAgain: editorState() }, {
+				parentShown: { resources: [], active: undefined, composition: { editor: false, auxiliaryBar: false }, panel: false },
+				childShownAgain: { resources: ['/child-one.txt', '/child-two.txt'], active: '/child-two.txt', composition: { editor: mode === 'chat', auxiliaryBar: false }, panel: false },
+			});
+		});
 	}
 
 	test('per-chat same-session switching captures ordinary editor resources and active tab without a shutdown save', async () => {
@@ -1197,7 +1226,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			test(`chat: docked-only draft submission preserves only the active transition (sameResource=${sameResource}, active=${activeAtSubmit})`, async () => {
 				createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
 				const isCreated = observableValue('isCreated', false);
-				const draft = { ...makeSession(URI.parse('session:docked-draft'), { isCreated: false }), isCreated };
+				const draft = { ...makeSession(URI.parse('session:docked-draft'), { isCreated: false }), ...withCreatedStatus(isCreated) };
 				const other = makeSession(URI.parse('session:docked-other'));
 				harness.activeSessionObs.set(draft, undefined);
 				await settle();
@@ -1238,7 +1267,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		test(`chat: a session submitted with a closed pane explicitly reopens both areas (sameResource=${sameResource})`, async () => {
 			createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
 			const isCreated = observableValue('isCreated', false);
-			const draft = { ...makeSession(URI.parse('session:closed-submit'), { isCreated: false }), isCreated };
+			const draft = { ...makeSession(URI.parse('session:closed-submit'), { isCreated: false }), ...withCreatedStatus(isCreated) };
 			harness.activeSessionObs.set(draft, undefined);
 			await settle();
 			setVisible(false, true);

@@ -50,6 +50,7 @@ import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterDat
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -540,6 +541,7 @@ suite('IssueReporterOverlay', () => {
 			instantiation.stub(IEditorService, {});
 			instantiation.stub(ITreeViewsDnDService, {});
 			instantiation.stub(IWorkspaceContextService, {});
+			instantiation.stub(IDialogService, {});
 			store.add(instantiation.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
 			const transfer = new DataTransfer();
 			transfer.items.add(images(1)[0]);

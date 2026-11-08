@@ -1281,6 +1281,18 @@ suite('skill events', () => {
 		});
 	});
 
+	test('SDK skills have no source links while disk skills remain openable', () => {
+		assert.deepStrictEqual([
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'sdk', path: '/skill/troubleshoot', content: '' }, 'sdk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'personal', path: '/user/skills/troubleshoot/SKILL.md', content: '' }, 'disk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'other', source: 'sdk', path: '', content: '' }, 'other').invocationMessage,
+		], [
+			{ markdown: 'Read skill troubleshoot' },
+			{ markdown: 'Read skill [troubleshoot](file:///user/skills/troubleshoot/SKILL.md)' },
+			{ markdown: 'Read skill other' },
+		]);
+	});
+
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(
 			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },

@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
+import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
+import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
+import { ISessionChatSource } from '../../../../../../services/sessions/browser/sessionHost.js';
+import { AgentHostModePicker } from '../agentHostModePicker.js';
+import { createChatPhoneInputSessionContext } from '../../../../browser/chatPhoneInputContext.js';
+
+/**
+ * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout
+ * viewports the desktop action-widget popover is replaced with the same
+ * combined Mode + Model bottom sheet used by the workbench picker button and the
+ * empty new-chat picker (see {@link IChatPhoneInputPresenter}). On
+ * desktop the inherited `_showPicker` falls through to the base
+ * implementation, so this class is safe to keep through viewport-class
+ * transitions.
+ */
+export class MobileAgentHostModePicker extends AgentHostModePicker {
+
+	constructor(
+		source: ISessionChatSource,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatPetService protected override readonly _chatPetService: IChatPetService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IPreferencesService preferencesService: IPreferencesService,
+	) {
+		super(source, actionWidgetService, sessionsProvidersService, telemetryService, hoverService, _chatPetService, instantiationService, configurationService, preferencesService);
+	}
+
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions?: IActionListOptions): boolean {
+		if (!anchor) {
+			return false;
+		}
+		// Guard applies to both the phone sheet and the desktop popover —
+		// either path can dispatch through `setSessionConfigValue`.
+		if (this._isCurrentlyResolvingConfig()) {
+			return false;
+		}
+		if (this._phonePresenter.enabled.get()) {
+			this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
+				kind: 'session',
+				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get(), this._chat.get()),
+				selectModel: modelIdentifier => {
+					const chatResource = this._chat.get()?.resource;
+					const inputPart = chatResource ? this._chatWidgetService.getWidgetBySessionResource(chatResource)?.inputPart : undefined;
+					const previousModelIdentifier = inputPart?.selectedLanguageModel.get()?.identifier;
+					const selected = inputPart?.switchModelByIdentifier(modelIdentifier, true, true) ?? false;
+					if (selected && didExplicitlySwitchChatPetModel(previousModelIdentifier, modelIdentifier)) {
+						this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+					}
+					return selected;
+				},
+			})
+				.finally(() => {
+					anchor.focus();
+					onHide?.();
+				});
+			return true;
+		}
+		return super._showPicker(anchor, onHide, listOptions);
+	}
+}

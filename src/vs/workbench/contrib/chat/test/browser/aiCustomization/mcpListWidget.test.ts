@@ -305,6 +305,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, targetEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
@@ -345,6 +346,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, connectorEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === connectorEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'select' : 'select-other'),
@@ -608,15 +610,15 @@ suite('mcpListWidget', () => {
 		], [
 			'user',
 			'workspace',
-			'plugins',
-			'plugins',
-			'extensions',
-			'builtin',
-			'builtin',
+			'user',
+			'user',
+			'user',
+			'application',
+			'user',
 		]);
 	});
 
-	test('renders User before Workspace even when User has no servers', () => {
+	test('renders Workspace before User even when User has no servers', () => {
 		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
 			type: 'server-item',
 			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
@@ -656,8 +658,8 @@ suite('mcpListWidget', () => {
 			]),
 			userEmpty: renderGroupLabels([localEntry(LocalMcpServerScope.Workspace)]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
 		});
 	});
 
@@ -707,9 +709,9 @@ suite('mcpListWidget', () => {
 			label: group.element.label,
 			servers: group.children?.map(child => child.element.type === 'server-item' ? child.element.server.id : ''),
 		})), [
+			{ label: 'Workspace · First', servers: ['first'] },
+			{ label: 'Workspace · Second', servers: ['second'] },
 			{ label: 'User', servers: [] },
-			{ label: 'First', servers: ['first'] },
-			{ label: 'Second', servers: ['second'] },
 		]);
 	});
 
@@ -746,7 +748,7 @@ suite('mcpListWidget', () => {
 			'user',
 			'workspace',
 			'workspace',
-			'builtin',
+			'application',
 		]);
 	});
 
@@ -768,11 +770,11 @@ suite('mcpListWidget', () => {
 			{ name: 'local-memory', group: 'user' },
 			{ name: 'github', group: 'user' },
 			{ name: 'workspace-server', group: 'workspace' },
-			{ name: 'plugin-server', group: 'plugins' },
-			{ name: 'github-mcp-server', group: 'builtin' },
-			{ name: 'managed-server', group: 'builtin' },
+			{ name: 'plugin-server', group: 'user' },
+			{ name: 'github-mcp-server', group: 'application' },
+			{ name: 'managed-server', group: 'user' },
 			{ name: 'my-mcp-server-618d857f', group: 'user' },
-			{ name: 'legacy-server', group: 'builtin' },
+			{ name: 'legacy-server', group: 'user' },
 		]);
 	});
 
@@ -1737,7 +1739,7 @@ suite('mcpListWidget', () => {
 			hasSameMcpMembership('server:one:session', 'server:one:session'),
 			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/workspace/old.json')), getMembershipSignature(URI.file('/workspace/new.json'))),
-			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'user')),
+			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'builtin')),
 			hasSameMcpMembership(getMembershipSignature(undefined, 'managed'), getMembershipSignature(undefined, 'managed', 'Linear')),
 		], [true, false, false, false, false]);
 	});
@@ -2798,7 +2800,7 @@ suite('mcpListWidget', () => {
 				detail: { source: detail.source, label: detail.provenance?.label, ariaLabel: detail.provenance?.ariaLabel },
 				openedExtensions: ctx.openedExtensions,
 			}, {
-				group: 'builtin',
+				group: 'application',
 				source: {
 					label: 'Built-in: GitHub Copilot Chat',
 					hover: 'Open extension details for GitHub Copilot Chat',

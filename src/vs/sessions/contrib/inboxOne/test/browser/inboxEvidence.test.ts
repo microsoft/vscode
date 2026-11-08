@@ -24,10 +24,10 @@ import { IChatService, IChatToolInvocationSerialized, ToolConfirmKind } from '..
 import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChat, ISession, ISessionArtifact, ISessionFileChange, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionArtifact, ISessionFileChange, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
 import { collectInboxCommandEvidence, collectInboxEvidence } from '../../common/inboxEvidence.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
-import { IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
+import { IInboxNotificationItem } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 
 suite('Inbox evidence collection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
