@@ -19,14 +19,14 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { IOpenNewSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
@@ -177,7 +177,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		});
 	});
 
-	test('preserves unresolved draft workspace intent instead of treating remote workspaces as absent', async () => {
+	test('hands remote workspaces to the handoff instead of treating them as absent', async () => {
 		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const calls: IAgentsWindowWorkspaceHandoff[] = [];
@@ -194,7 +194,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const remoteWorkspaces = [
 			URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/project' }),
 			URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+host', path: '/project' }),
-			URI.from({ scheme: Schemas.vscodeRemote, authority: `dev-container+${encodeHex(VSBuffer.fromString(hostFolder.fsPath))}@ssh-remote+host`, path: '/project' }),
+			URI.from({ scheme: Schemas.vscodeRemote, authority: `dev-container+${encodeHex(VSBuffer.fromString('/host/project'))}@ssh-remote+host`, path: '/project' }),
 			URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'remote-host', path: '/project' }),
 			URI.from({ scheme: 'unavailable-workspace', path: '/project' }),
 		];
@@ -205,11 +205,19 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const localContainer = URI.from({ scheme: Schemas.vscodeRemote, authority: `dev-container+${encodeHex(VSBuffer.fromString(hostFolder.fsPath))}`, path: '/project' });
 		await handleOpenIntent.call(harness, localContainer, undefined, false, CancellationToken.None, undefined, draft);
 		await handleOpenIntent.call(harness, remoteWorkspaces[0], undefined, false, CancellationToken.None, undefined);
+		await handleOpenIntent.call(harness, URI.from({ scheme: Schemas.vscodeRemote, authority: 'codespaces+name', path: '/workspaces/project' }), undefined, true, CancellationToken.None, undefined);
+		const sshRemote = { kind: 'ssh', folder: { remoteAuthority: 'ssh-remote+host', path: '/project' } };
 		assert.deepStrictEqual(calls.map(intent => ({
-			folder: intent.folderUri?.toString(), preferDevContainer: intent.preferDevContainer, draft: intent.draft,
+			folder: intent.folderUri?.toString(), remote: intent.remote, preferDevContainer: intent.preferDevContainer, isDefault: intent.isDefault, draft: intent.draft,
 		})), [
-			...remoteWorkspaces.map(workspace => ({ folder: workspace.toString(), preferDevContainer: false, draft })),
-			{ folder: hostFolder.toString(), preferDevContainer: true, draft },
+			{ folder: remoteWorkspaces[0].toString(), remote: sshRemote, preferDevContainer: false, isDefault: false, draft },
+			{ folder: remoteWorkspaces[1].toString(), remote: { kind: 'tunnel', folder: { remoteAuthority: 'tunnel+host', path: '/project' } }, preferDevContainer: false, isDefault: false, draft },
+			{ folder: remoteWorkspaces[2].toString(), remote: { kind: 'ssh', folder: { remoteAuthority: 'ssh-remote+host', path: '/host/project' } }, preferDevContainer: true, isDefault: false, draft },
+			{ folder: remoteWorkspaces[3].toString(), remote: undefined, preferDevContainer: false, isDefault: false, draft },
+			{ folder: remoteWorkspaces[4].toString(), remote: undefined, preferDevContainer: false, isDefault: false, draft },
+			{ folder: hostFolder.toString(), remote: undefined, preferDevContainer: true, isDefault: false, draft },
+			{ folder: undefined, remote: sshRemote, preferDevContainer: false, isDefault: false, draft: undefined },
+			{ folder: undefined, remote: { kind: 'codespaces', folder: undefined }, preferDevContainer: false, isDefault: true, draft: undefined },
 		]);
 	});
 

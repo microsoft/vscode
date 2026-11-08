@@ -85,8 +85,7 @@ const defaultChat = product.defaultChatAgent;
  * Variation A — Classic Wizard Modal
  *
  * A centered modal overlay with progress dots, clean step transitions,
- * and polished navigation. Sits on top of the agent sessions welcome
- * tab. When dismissed, the welcome tab is revealed underneath.
+ * and polished navigation.
  *
  * Steps:
  * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options, plus
@@ -645,7 +644,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
+					message.textContent = localize('onboarding.signIn.enterprise.invalid2', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}

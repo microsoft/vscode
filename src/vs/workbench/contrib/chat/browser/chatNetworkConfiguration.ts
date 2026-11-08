@@ -16,6 +16,7 @@ export const chatNetworkDomainConfigurationProperties: Record<string, IConfigura
 	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: {
 		order: 66,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser) when {0} is enabled. In Copilot Agent Host sessions with sandboxing ({1}) enabled, also restricts the integrated browser when outbound network access ({2}) is allowed; an empty allow list adds no sandbox restriction. This list does not enable outbound access. Supports wildcards like {3}. Outside sandboxing, when both allowed and denied lists are empty, all domains are blocked. Denied domains (see {4}) take precedence.\n\nChanges may not take full effect until VS Code is restarted.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, '`*.example.com`', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
 		type: 'array',
 		items: { type: 'string' },
@@ -57,6 +58,7 @@ export const chatNetworkDomainConfigurationProperties: Record<string, IConfigura
 	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
 		order: 67,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser) when {0} is enabled. Also applies to the integrated browser in sandboxed Copilot Agent Host sessions ({1}); allowing outbound network access ({2}) does not bypass this list. Takes precedence over {3}. Supports wildcards like {4}.\n\nChanges may not take full effect until VS Code is restarted.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``, '`*.example.com`'),
 		type: 'array',
 		items: { type: 'string' },

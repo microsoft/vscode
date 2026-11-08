@@ -9,12 +9,13 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import type { FetchTurnsResult, ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, ROOT_STATE_URI, buildSubagentChatUri, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, ChatOriginKind, ROOT_STATE_URI, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	fetchSessionWithRecordedChat,
 	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
@@ -23,6 +24,14 @@ import {
 	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
+
+/** The host-recorded tool-origin chat of `toolCallId`, read from the session's chat catalog. */
+async function findSubagentChat(client: TestProtocolClient, sessionUri: string, toolCallId: string): Promise<string> {
+	const result = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+	const chat = (result.snapshot!.state as SessionState).chats.find(c => c.origin?.kind === ChatOriginKind.Tool && c.origin.toolCallId === toolCallId);
+	assert.ok(chat, `session should record a subagent chat for ${toolCallId}`);
+	return chat.resource;
+}
 
 function isTurnComplete(notification: Parameters<typeof isActionNotification>[0], turnId: string): boolean {
 	return isActionNotification(notification, 'chat/turnComplete')
@@ -221,12 +230,12 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		// Wait for the parent turn to complete.
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		// Subscribe to the child subagent session — its URI is derived from
-		// the parent session URI + parent toolCallId.
-		const childUri = buildSubagentChatUri(sessionUri, 'tc-task-1');
+		// Subscribe to the child subagent chat — its URI is read from
+		// the parent session's recorded chat catalog.
+		const childUri = await findSubagentChat(client, sessionUri, 'tc-task-1');
 
 		const parentState = await fetchSessionWithChat(client, sessionUri);
-		const childState = await fetchSessionWithChat(client, childUri);
+		const childState = await fetchSessionWithRecordedChat(client, sessionUri, childUri);
 
 		// Parent turn should contain the `task` tool call but NOT the inner one.
 		const parentTurn = parentState.turns[parentState.turns.length - 1];
@@ -253,7 +262,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Sanity: the subagent child session is live (subscribing succeeds).
-		const childUri = buildSubagentChatUri(sessionUri, 'tc-task-1');
+		const childUri = await findSubagentChat(client, sessionUri, 'tc-task-1');
 		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
 		assert.ok(childSnapshot.snapshot, 'subagent child session should be live');
 

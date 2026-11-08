@@ -75,7 +75,7 @@ export class ChatReadOnlyBanner extends Disposable {
 		this.actionLink.enabled = !!action && this.runningAction !== action;
 	}
 
-	async runAction(): Promise<void> {
+	async runAction(run?: () => Promise<void>): Promise<void> {
 		const action = this.action;
 		if (!action || this.runningAction === action) {
 			return;
@@ -83,7 +83,7 @@ export class ChatReadOnlyBanner extends Disposable {
 		this.runningAction = action;
 		this.actionLink.enabled = false;
 		try {
-			await action.run();
+			await (run ? run() : action.run());
 		} finally {
 			if (this.runningAction === action) {
 				this.runningAction = undefined;

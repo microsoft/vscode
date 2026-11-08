@@ -77,7 +77,7 @@ function environment(id: string, name = `Host ${id}`): IMissionControlHost {
 suite('Mission Control environment picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true) {
+	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true, ownEnvironmentId?: string) {
 		const quickPick = store.add(new TestEnvironmentQuickPick());
 		const instantiation = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlHost[]>();
@@ -87,6 +87,7 @@ suite('Mission Control environment picker', () => {
 		const service = new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly enabled = enabled;
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', ownEnvironmentId);
 			override get accountKey() { return accountKey; }
 			override async initialize() { }
 			override async refresh(token: CancellationToken) {
@@ -133,13 +134,12 @@ suite('Mission Control environment picker', () => {
 		quickPick.hide();
 		await done;
 		await inventory.complete([]);
-		const offline = { label: 'Host offline', description: 'Offline', detail: undefined };
 		assert.deepStrictEqual(states, [
-			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Connecting', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Connected', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Reconnecting', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Connecting', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Connected', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Reconnecting', detail: undefined }],
+			[{ label: 'Host online', description: 'Online', detail: undefined }],
 		]);
 	});
 
@@ -157,7 +157,31 @@ suite('Mission Control environment picker', () => {
 		await done;
 		assert.deepStrictEqual(copy, {
 			title: 'Environments', placeholder: 'Select an environment to connect',
-			refresh: 'Refresh Environments', empty: 'No environments found.',
+			refresh: 'Refresh Environments', empty: 'No online environments found.',
+		});
+	});
+
+	test('filters cached and refreshed offline hosts and clears a selection that goes offline', async () => {
+		const stale = { ...environment('stale'), status: 'offline' };
+		const { quickPick, inventory, calls, hosts, run } = fixture([stale, environment('a')]);
+		const done = run();
+		await quickPick.shown.p;
+		const cached = quickPick.hostItems().map(item => item.label);
+		quickPick.activeItems = quickPick.selectedItems = [quickPick.hostItems()[0]];
+		await inventory.complete([stale, { ...environment('a'), status: 'offline' }]);
+		await quickPick.refreshed.p;
+		const offline = {
+			items: quickPick.hostItems(), active: quickPick.activeItems, selected: quickPick.selectedItems,
+			message: quickPick.validationMessage,
+		};
+		quickPick.accept();
+		hosts.set([stale, environment('a')], undefined);
+		const online = quickPick.hostItems().map(item => item.label);
+		quickPick.hide();
+		await done;
+		assert.deepStrictEqual({ cached, offline, online, connections: calls.connections }, {
+			cached: ['Host a'], offline: { items: [], active: [], selected: [], message: 'No online environments found.' },
+			online: ['Host a'], connections: [],
 		});
 	});
 
@@ -185,7 +209,7 @@ suite('Mission Control environment picker', () => {
 
 	test('does not expose discovery when AI features are disabled', async () => {
 		const { calls, quickPick, run } = fixture([], false);
-		await assert.rejects(async () => run(), /require remote agent hosts and AI features to be enabled/);
+		await assert.rejects(async () => run(), /require GitHub Environments, remote agent hosts, and AI features to be enabled/);
 		assert.deepStrictEqual({ requests: calls.tokens.length, shown: quickPick.shown.isSettled }, { requests: 0, shown: false });
 	});
 

@@ -84,6 +84,14 @@ export class McpElicitationService implements IMcpElicitationService {
 	}
 
 	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
+		if (token.isCancellationRequested) {
+			return {
+				kind: ElicitationKind.Form,
+				value: { action: 'cancel' },
+				dispose: () => { },
+			};
+		}
+
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
 			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
@@ -91,6 +99,34 @@ export class McpElicitationService implements IMcpElicitationService {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {
 					const { questions, idToPropertyMap } = this._convertSchemaToQuestions(elicitation);
+					if (questions.length === 0) {
+						const part = new ChatElicitationRequestPart(
+							localize('mcp.elicit.form.title', "Confirmation Required"),
+							new MarkdownString(elicitation.message),
+							localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
+							localize('mcp.elicit.accept', "Accept"),
+							localize('mcp.elicit.decline', "Decline"),
+							async () => {
+								if (token.isCancellationRequested) {
+									return ElicitationState.Rejected;
+								}
+								resolve({ action: 'accept', content: {} });
+								return ElicitationState.Accepted;
+							},
+							async () => {
+								resolve({ action: 'decline' });
+								return ElicitationState.Rejected;
+							},
+							mcpServerToSourceData(server),
+						);
+						store.add(token.onCancellationRequested(() => {
+							part.hide();
+							resolve({ action: 'cancel' });
+						}));
+						chatModel.acceptResponseProgress(request, part);
+						return;
+					}
+
 					const carousel = new ChatQuestionCarouselData(
 						questions,
 						/* allowSkip */ true,

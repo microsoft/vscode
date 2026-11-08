@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { getActionForAltMode, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -11,7 +11,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { unmnemonicLabel } from '../../../../base/common/labels.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-browser/contextmenu.js';
@@ -21,10 +21,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from '../../../../platform/contextview/browser/contextMenuService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { coalesce } from '../../../../base/common/arrays.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { getMenuActionGroupTitle, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -128,7 +127,8 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 			const anchor = delegate.getAnchor();
 			const targetWindow = dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : anchor instanceof StandardMouseEvent ? dom.getWindow(anchor.browserEvent) : dom.getActiveWindow();
-			const menu = this.createMenu(delegate, actions, onHide, targetWindow);
+			const entryIndexes: number[] = [];
+			const menu = this.createMenu(delegate, actions, onHide, targetWindow, undefined, entryIndexes);
 
 			let x: number | undefined;
 			let y: number | undefined;
@@ -212,14 +212,45 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				y = Math.floor(y * zoom);
 			}
 
-			this.menuPopup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
+			const selection = getContextMenuAutoSelectItem(delegate, actions);
+			const positioningItem = typeof selection === 'number' ? entryIndexes[selection] : selection ? 0 : undefined;
+			this.menuPopup(menu, { x, y, positioningItem }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, targetWindow: Window, submenuIds = new Set<string>()): IContextMenuItem[] {
-		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, onHide, targetWindow, submenuIds)));
+	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, targetWindow: Window, submenuIds = new Set<string>(), entryIndexes?: number[]): IContextMenuItem[] {
+		const items: IContextMenuItem[] = [];
+		// Native menus have no group headers on all platforms, so a group's title becomes a disabled item
+		// at the start of the group. It is the label of the separator before the group, or else the group
+		// title of its first action.
+		let separatorLabel: string | undefined;
+		let isGroupStart = true;
+		for (const entry of entries) {
+			if (entry instanceof Separator) {
+				isGroupStart = true;
+				separatorLabel = entry.label || undefined;
+				if (entry.label && items.length === 0) {
+					// A header at the start needs no separator
+					entryIndexes?.push(0);
+					continue;
+				}
+			} else if (isGroupStart) {
+				isGroupStart = false;
+				const title = separatorLabel || getMenuActionGroupTitle(entry);
+				if (title) {
+					items.push({ label: unmnemonicLabel(stripIcons(title)).trim(), enabled: false });
+				}
+			}
+
+			entryIndexes?.push(items.length);
+			const item = this.createMenuItem(delegate, entry, onHide, targetWindow, submenuIds);
+			if (item) {
+				items.push(item);
+			}
+		}
+		return items;
 	}
 
 	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, onHide: () => void, targetWindow: Window, submenuIds: Set<string>): IContextMenuItem | undefined {
@@ -243,6 +274,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 		// Normal Menu Item
 		else {
+			entry = getActionForAltMode(entry, dom.ModifierKeyEmitter.getInstance().keyStatus);
 			let type: 'radio' | 'checkbox' | undefined = undefined;
 			if (entry.checked) {
 				if (typeof delegate.getCheckedActionsRepresentation === 'function') {

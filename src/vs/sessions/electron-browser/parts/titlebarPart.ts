@@ -19,7 +19,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition, hasNativeTitlebar, useWindowControlsOverlay } from '../../../platform/window/common/window.js';
 import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -57,6 +57,10 @@ export class NativeTitlebarPart extends TitlebarPart {
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
 	}
 
+	protected override queryWindowFullscreen(targetWindow: CodeWindow): Promise<boolean | undefined> {
+		return this.nativeHostService.isFullScreen({ targetWindowId: targetWindow.vscodeWindowId });
+	}
+
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Workaround for macOS/Electron bug where the window does not
@@ -83,6 +87,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
 			this.windowControlsContainer
 		) {
+			this.rootContainer.classList.add('custom-window-controls');
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -193,7 +198,9 @@ export class NativeTitlebarPart extends TitlebarPart {
 
 		if (useWindowControlsOverlay(this.configurationService)) {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
-			const newHeight = Math.round(height * zoomFactor);
+			// Mirror the default-density toolbar's optical padding in the native button center.
+			const opticalPadding = isMacintosh && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
+			const newHeight = Math.round(height * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
 			const horizontalInset = isMacintosh
 				? getMacOSWindowControlsPosition(Math.round(DEFAULT_CUSTOM_TITLEBAR_HEIGHT * (this.preventZoom ? 1 : zoomFactor)), this.environmentService.os.release)?.x
 				: undefined;
@@ -254,6 +261,10 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
 
+	protected override get showsWindowLayoutActions(): boolean {
+		return true;
+	}
+
 	override get preventZoom(): boolean {
 		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
@@ -262,7 +273,7 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 export class NativeTitleService extends TitleService {
 
 	protected override createMainTitlebarPart(): MainNativeTitlebarPart {
-		return this.instantiationService.createInstance(MainNativeTitlebarPart);
+		return this.mainWindowInstantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {

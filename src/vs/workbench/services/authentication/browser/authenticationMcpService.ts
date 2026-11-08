@@ -18,6 +18,7 @@ import { IAuthenticationMcpAccessService } from './authenticationMcpAccessServic
 import { IAuthenticationMcpUsageService } from './authenticationMcpUsageService.js';
 import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../common/authentication.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -402,7 +403,7 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 
 			disposables.add(quickPick.onDidHide(_ => {
 				if (!quickPick.selectedItems[0]) {
-					reject('User did not consent to account access');
+					reject(new CancellationError());
 				}
 				disposables.dispose();
 			}));

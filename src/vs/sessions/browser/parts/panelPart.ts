@@ -16,8 +16,8 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
-import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../../workbench/contrib/sessions/common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -26,16 +26,25 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../workbenc
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { getSessionsPartFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
+
+function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
+	if (!showLabels) {
+		return undefined;
+	}
+
+	return compact ? EditorHeaderControl.COMPACT_HEIGHT : EditorHeaderControl.DEFAULT_HEIGHT;
+}
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -93,7 +102,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true, trailingSeparator: true },
+			{
+				hasTitle: true,
+				trailingSeparator: true,
+				titleHeight: () => getPanelTabBarHeight(
+					configurationService.getValue('workbench.panel.showLabels') !== false,
+					configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact'
+				)
+			},
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -103,7 +119,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			PANEL_TITLE_BORDER,
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
-			Menus.PanelTitle,
+			AgentsWindowMenus.PanelTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -120,8 +136,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.panel.showLabels')) {
-				this.updateCompositeBar(true);
+			const panelLabelsChanged = e.affectsConfiguration('workbench.panel.showLabels');
+			const editorTabHeightChanged = e.affectsConfiguration('window.density.editorTabHeight');
+			if (panelLabelsChanged || editorTabHeightChanged) {
+				this.updatePanelTabBarStyles();
+				if (panelLabelsChanged) {
+					this.updateCompositeBar(true);
+				}
+				this.relayoutForInsets();
 			}
 		}));
 		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
@@ -136,6 +158,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
+		this.updatePanelTabBarStyles();
 
 		// Store background and border as CSS variables for the card styling on .part
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
@@ -147,6 +170,19 @@ export class PanelPart extends AbstractPaneCompositePart {
 		container.style.borderTopColor = '';
 		container.style.borderTopStyle = '';
 		container.style.borderTopWidth = '';
+	}
+
+	private updatePanelTabBarStyles(): void {
+		const container = this.getContainer();
+		const showLabels = this.configurationService.getValue('workbench.panel.showLabels') !== false;
+		container?.classList.toggle('panel-labels', showLabels);
+
+		const tabBarHeight = getPanelTabBarHeight(showLabels, this.configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact');
+		if (tabBarHeight === undefined) {
+			this.titleArea?.style.removeProperty('height');
+		} else {
+			this.titleArea?.style.setProperty('height', `${tabBarHeight}px`);
+		}
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {

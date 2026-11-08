@@ -1,0 +1,327 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The sashes in the gaps between the cells of a grid show the three-dot
+ * gripper of the workbench: the center dot is the pseudo-element and box
+ * shadows draw the outer dots, `--part-grid-gap` apart. All three hide while
+ * the hover/drag highlight shows the active resize target.
+ */
+.monaco-sash.part-grid-gap-sash::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-modernSash-gripForeground);
+	color: var(--vscode-modernSash-gripForeground);
+	opacity: var(--sash-grip-opacity, 1);
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.monaco-sash.part-grid-gap-sash.disabled::after {
+	content: none;
+}
+
+.monaco-sash.part-grid-gap-sash.vertical::after {
+	box-shadow: 0 calc(-1 * var(--part-grid-gap, 0px)) currentColor, 0 var(--part-grid-gap, 0px) currentColor;
+}
+
+.monaco-sash.part-grid-gap-sash.horizontal::after {
+	box-shadow: calc(-1 * var(--part-grid-gap, 0px)) 0 currentColor, var(--part-grid-gap, 0px) 0 currentColor;
+}
+
+.monaco-sash.part-grid-gap-sash:is(.hover, .active)::after {
+	opacity: 0;
+}
+
+.monaco-enable-motion .monaco-sash.part-grid-gap-sash::after {
+	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
+}
+
+@media (forced-colors: active) {
+
+	.monaco-sash.part-grid-gap-sash::after {
+		background: CanvasText;
+		color: CanvasText;
+		opacity: var(--sash-grip-opacity, 1);
+	}
+}
+
+/*
+ * Each cell of a part grid shows its content in a card, inset by its share
+ * of the gap to the cells beside it. The owner of the grid draws the card
+ * through the `--part-grid-card-*` variables; by default it is invisible.
+ */
+.part-grid-cell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.part-grid-cell > .part-grid-card {
+	position: absolute;
+	box-sizing: border-box;
+	overflow: hidden;
+	background: var(--part-grid-card-background, transparent);
+	border: var(--part-grid-card-border-width, 0) solid var(--part-grid-card-border-color, transparent);
+	border-radius: var(--part-grid-card-radius, 0);
+}
+
+/*
+ * A part drags by the grabber on the top edge of its card, which shows while
+ * the card is hovered. Where a dragged part goes shows as a drop indicator.
+ */
+.part-grid-card > .part-grid-drag-handle {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	z-index: 10;
+	width: 32px;
+	/* Only as tall as down to its grip, so that what is under it, such as tabs, takes the pointer below */
+	height: var(--vscode-spacing-size40);
+	transform: translateX(-50%);
+	cursor: grab;
+	opacity: 0;
+	-webkit-app-region: no-drag; /* the top of a card can be in a title bar that moves the window */
+}
+
+.part-grid-card > .part-grid-drag-handle::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size20);
+	left: 0;
+	right: 0;
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-modernSash-gripForeground);
+}
+
+.part-grid-card:hover > .part-grid-drag-handle,
+.part-grid-card.part-grid-pointer-over > .part-grid-drag-handle,
+.part-grid-card > .part-grid-drag-handle:focus-visible {
+	opacity: 1;
+}
+
+.monaco-enable-motion .part-grid-card > .part-grid-drag-handle {
+	transition: opacity 0.15s ease-out;
+}
+
+/* A part that does not move for now has no grabber: what is on the edge of its card, such as a sash, takes it all */
+.part-grid-cell-immovable > .part-grid-card > .part-grid-drag-handle {
+	display: none;
+}
+
+/* Flush cards have no gap between them for the sash: on the edge they share, the grabber takes the pointer over its span, the sash elsewhere */
+.part-grid-gapless .part-grid-card > .part-grid-drag-handle {
+	z-index: 36; /* above sashes (35) */
+}
+
+.part-grid-drop-indicator {
+	position: fixed;
+	z-index: 10000;
+	box-sizing: border-box;
+	pointer-events: none;
+	border-radius: var(--part-grid-card-radius, 0);
+	background-color: var(--vscode-editorGroup-dropBackground);
+}
+
+/* Where a part goes shows as a card: its slot, or the whole part it merges into, framed as a card is. */
+.part-grid-drop-indicator.part {
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+}
+
+.monaco-enable-motion .part-grid-drop-indicator {
+	transition: left 0.07s ease-out, top 0.07s ease-out, width 0.07s ease-out, height 0.07s ease-out;
+}
+
+@media (forced-colors: active) {
+
+	.part-grid-card > .part-grid-drag-handle::after {
+		background: CanvasText;
+	}
+
+	.part-grid-drop-indicator {
+		outline: 2px dashed Highlight;
+		outline-offset: -2px;
+	}
+}
+
+/*
+ * Cards in motion, as cards glide to where a move puts them: the cells
+ * move by transforms, clipped as they get smaller, and the cards of native
+ * content move as plain cards, in a layer over the cells.
+ */
+.part-grid-cell.part-grid-moving {
+	z-index: 1;
+	will-change: transform, clip-path;
+}
+
+.monaco-enable-motion .part-grid-cell.part-grid-moving,
+.monaco-enable-motion .part-grid-motion-layer > .part-grid-motion-card {
+	transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-motion-layer {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	pointer-events: none;
+}
+
+.part-grid-motion-layer > .part-grid-motion-card {
+	position: fixed;
+	box-sizing: border-box;
+	border-radius: var(--part-grid-motion-radius, 0);
+	background-color: var(--part-grid-motion-background, var(--vscode-editor-background));
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-agentsCard-border, var(--vscode-widget-border, transparent));
+	will-change: transform, clip-path;
+}
+
+/*
+ * A card dragged by the pointer lifts, smaller and with a shadow, and
+ * follows the pointer by `translate`; the other cards slide to where they
+ * go by `translate` and `clip-path`, over card frames, under the cells,
+ * that show where each card goes. A running slide changes course from where
+ * it is, as transitions do. Dropped, the cards settle by the same means.
+ */
+.part-grid-drag-cursor {
+	position: fixed;
+	inset: 0;
+	z-index: 9998;
+	cursor: grabbing;
+}
+
+/* From the press until the card lifts, the cursor of what was pressed */
+.part-grid-drag-cursor.part-grid-drag-pending {
+	cursor: grab;
+}
+
+.part-grid-frame-layer {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+}
+
+.part-grid-frame-layer > .part-grid-frame {
+	position: fixed;
+	box-sizing: border-box;
+	background-color: var(--part-grid-frame-border, var(--vscode-agentsCard-border, var(--vscode-widget-border, transparent)));
+	clip-path: var(--part-grid-frame-clip);
+	will-change: clip-path;
+}
+
+.part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill {
+	position: absolute;
+	inset: 0;
+	background-color: var(--part-grid-frame-background, var(--vscode-editor-background));
+	clip-path: var(--part-grid-frame-fill-clip);
+}
+
+/* Where the dragged card goes: an empty card, with the watermark of an empty editor. */
+/* The image is that of the watermark of an empty editor group (see editorgroupview.css). */
+.part-grid-frame-layer > .part-grid-slot-watermark {
+	position: fixed;
+	width: 128px;
+	height: 128px;
+	transform-origin: center;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+/* The cards leave their looks to their frames, which take the size of where they go. */
+.part-grid-card-dragging .part-grid-cell.part-grid-reflow > .part-grid-card {
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.part-grid-cell:is(.part-grid-reflow, .part-grid-settle) {
+	z-index: 1;
+	will-change: translate, clip-path;
+}
+
+.part-grid-cell.part-grid-lifted {
+	z-index: 3;
+	will-change: translate, scale;
+}
+
+.part-grid-cell.part-grid-lifted > .part-grid-card,
+.part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	box-shadow: 0 8px 24px var(--vscode-widget-shadow);
+}
+
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-frame,
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill,
+.part-grid-settling .part-grid-frame-layer > .part-grid-frame,
+.part-grid-settling .part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill {
+	transition: clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-slot-watermark,
+.part-grid-settling .part-grid-frame-layer > .part-grid-slot-watermark {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), scale 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-reflowing .part-grid-cell.part-grid-reflow {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The lifted card follows the pointer at once: only its lift is a transition. */
+.part-grid-reflowing .part-grid-cell.part-grid-lifted,
+.part-grid-reflowing .part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	transition: scale 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-settling .part-grid-cell:is(.part-grid-reflow, .part-grid-lifted, .part-grid-settle),
+.part-grid-settling .part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), scale 200ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * While a card moves, what draws over its part rather than in it, such as a
+ * webview or an integrated browser, hides: the part shows its tabs as they
+ * are, and over each such editor a placeholder, the watermark of an empty
+ * editor with the editor's icon and name.
+ */
+.part-grid-placeholder {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+	overflow: hidden;
+}
+
+.part-grid-placeholder > .part-grid-slot-watermark {
+	width: 96px;
+	max-width: 50%;
+	aspect-ratio: 1 / 1;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.part-grid-placeholder > .part-grid-placeholder-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 80%;
+}
+
+.part-grid-placeholder > .part-grid-placeholder-label > .part-grid-placeholder-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

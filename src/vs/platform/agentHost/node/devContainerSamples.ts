@@ -8,7 +8,6 @@ import { readFile, rename, rm, writeFile } from 'fs/promises';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
-import { IGitHubRepositoryFile } from '../../github/common/anonymousClient.js';
 import { DevContainerSample, getDevContainerSampleFolder, getDevContainerSampleUrl, IDevContainerRepository } from '../common/devContainerSamples.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
@@ -24,7 +23,7 @@ interface ICommandResult {
 interface ISampleCommands {
 	readonly docker: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
-	readonly readSource: () => Promise<IGitHubRepositoryFile>;
+	readonly readSource: () => Promise<{ readonly commitSha: string; readonly content: string }>;
 	readonly onContainerStarted: (containerId: string) => void;
 }
 

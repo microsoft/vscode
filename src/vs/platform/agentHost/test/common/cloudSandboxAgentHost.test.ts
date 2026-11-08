@@ -13,6 +13,7 @@ import {
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	isRetryableCloudSandboxError,
+	isStaleQueuedCloudSandboxTask,
 } from '../../common/cloudSandboxAgentHost.js';
 
 suite('cloudSandbox url/address helpers', () => {
@@ -55,6 +56,25 @@ suite('cloudSandbox url/address helpers', () => {
 	});
 });
 
+suite('isStaleQueuedCloudSandboxTask', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hides only default-titled queued tasks at the exact 24-hour modification cutoff', () => {
+		const now = Date.parse('2026-11-06T04:00:00Z');
+		const task = { taskId: 'task', name: 'New remote session', isQueued: true, updatedAt: new Date(now - 24 * 60 * 60_000).toISOString() };
+		assert.deepStrictEqual([
+			task,
+			{ ...task, updatedAt: new Date(Date.parse(task.updatedAt) + 1).toISOString() },
+			{ ...task, name: 'A real task' },
+			{ ...task, isQueued: false },
+			{ ...task, isQueued: undefined },
+			{ ...task, updatedAt: undefined },
+			{ ...task, updatedAt: 'invalid' },
+			{ ...task, updatedAt: new Date(now + 1).toISOString() },
+		].map(value => isStaleQueuedCloudSandboxTask(value, now)), [true, false, false, false, false, false, false, false]);
+	});
+});
+
 suite('isRetryableCloudSandboxError', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,7 +83,7 @@ suite('isRetryableCloudSandboxError', () => {
 		const statuses = [200, 400, 401, 403, 404, 408, 409, 410, 422, 429, 500, 502, 503];
 		const retryable = statuses.filter(status => isRetryableCloudSandboxError(new CloudSandboxRequestError(status, `HTTP ${status}`)));
 
-		assert.deepStrictEqual(retryable, [200, 408, 429, 500, 502, 503]);
+		assert.deepStrictEqual(retryable, [408, 429, 500, 502, 503]);
 	});
 
 	test('errors without a status are retryable, including a not-yet-available sign-in', () => {

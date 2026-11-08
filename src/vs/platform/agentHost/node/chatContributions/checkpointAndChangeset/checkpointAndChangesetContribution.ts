@@ -11,7 +11,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITu
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
-/** Starts end-of-turn checkpoint capture and schedules tracked then Git-backed changeset recomputation. */
+/** Starts end-of-turn checkpoint capture and schedules tracked changeset recomputation. */
 export class CheckpointAndChangesetContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'checkpointAndChangeset';
@@ -28,6 +28,11 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind === 'cancelled') {
+			// Edits already applied still belong in turn and session changes after the model stops.
+			this._onTurnComplete(turn);
+			return;
+		}
 		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'error') {
 			return;
 		}
@@ -45,9 +50,6 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 		this._onTurnComplete(turn);
 		void checkpoint.catch(err => {
 			this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: ${err instanceof Error ? err.message : String(err)}`);
-		}).then(() => {
-			// Recover terminal-tool edits that providers cannot report through the file-edit tracker.
-			this._changesets.refreshSessionChangeset(turn.session, 'auto');
 		});
 	}
 

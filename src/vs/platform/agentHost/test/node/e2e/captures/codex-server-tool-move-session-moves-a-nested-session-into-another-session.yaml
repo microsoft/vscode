@@ -1,0 +1,57 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_TARGET_READY".
+    response:
+      content: MOVE_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}?chat=${uuid_1}" and into "agent-host-session://codex/${uuid_2}", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://codex/${uuid_0}?chat=${uuid_1}
+            into: agent-host-session://codex/${uuid_2}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}?chat=${uuid_1}" and into "agent-host-session://codex/${uuid_2}", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://codex/${uuid_0}?chat=${uuid_1}
+                into: agent-host-session://codex/${uuid_2}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session moved into agent-host-session://codex/${uuid_2} (agent-host-session://codex/${uuid_2}?chat=${uuid_1}).
+    response:
+      content: moved
+      stopReason: end_turn

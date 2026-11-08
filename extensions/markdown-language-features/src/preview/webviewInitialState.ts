@@ -6,6 +6,7 @@
 import type { MarkdownEditorConfiguration } from './markdownEditorProtocol';
 
 export interface MarkdownEditorInitialState extends MarkdownEditorConfiguration {
+	readonly taskProgressLabels: TaskProgressLabels;
 	readonly content: string;
 	readonly documentVersion: number;
 	/** Identifies the authoritative text baseline shared by the host and webview. */
@@ -13,6 +14,12 @@ export interface MarkdownEditorInitialState extends MarkdownEditorConfiguration 
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[];
+}
+
+export interface TaskProgressLabels {
+	readonly title: string;
+	readonly summary: string;
+	readonly language: string;
 }
 
 /**

@@ -140,6 +140,7 @@ suite('Copilot built-in agents', () => {
 			contents: CustomizationType.Agent,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
+			_meta: { 'vscode.customizationDiscovery': { source: 'builtin' } },
 			children: COPILOT_BUILTIN_AGENTS.map(agent => ({
 				type: CustomizationType.Agent,
 				id: getCopilotBuiltinAgentUri(agent).toString(),
@@ -147,6 +148,7 @@ suite('Copilot built-in agents', () => {
 				name: agent.displayName(),
 				description: agent.description(),
 				disableModelInvocation: true,
+				_meta: { 'vscode.chatMode': 'ask' },
 			})),
 		});
 	});

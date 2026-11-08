@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type CustomizationDiscoveryType = 'skill' | 'mcp' | 'plugin';
+export type CustomizationDiscoveryType = 'skill' | 'mcp' | 'plugin' | 'canvas';
 
 const typeOrder = [
 	'skill',
 	'mcp',
 	'plugin',
+	'canvas',
 ] as const;
 
 const typeAliases = new Map<string, CustomizationDiscoveryType>([
@@ -18,6 +19,8 @@ const typeAliases = new Map<string, CustomizationDiscoveryType>([
 	['mcps', 'mcp'],
 	['plugin', 'plugin'],
 	['plugins', 'plugin'],
+	['canvas', 'canvas'],
+	['canvases', 'canvas'],
 ]);
 
 function normalizeText(value: string): string {

@@ -9,6 +9,7 @@ import type { ILogger } from '../logging';
 import { Disposable } from '../util/dispose';
 import { getAbsoluteUri, MdLinkOpener } from '../util/openDocumentLink';
 import type { LinkPresentation } from './linkPresentation/linkPresentationResolver';
+import { resolveGitCommitHref } from './linkPresentation/gitLinkPresentationResolver';
 import type { MarkdownEditorRenderer, RichLinkSubscriptions } from './markdownEditorProtocol';
 
 export class MarkdownEditorRichLinkController extends Disposable {
@@ -107,6 +108,7 @@ function toMarkdownEditorPresentation(presentation: vscode.LinkPresentationData 
 }
 
 async function resolveLinkResource(href: string, documentUri: vscode.Uri, linkOpener: MdLinkOpener): Promise<vscode.Uri | undefined> {
+	href = resolveGitCommitHref(href, documentUri);
 	const absoluteUri = getAbsoluteUri(href);
 	if (absoluteUri) {
 		return absoluteUri;

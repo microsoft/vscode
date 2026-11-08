@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
@@ -33,7 +33,7 @@ import { IOverlayWebview, WebviewContentOptions, WebviewExtensionDescription, We
 import { WebviewInput } from '../../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -50,6 +50,10 @@ import { MainThreadWebviewPanels } from '../../browser/mainThreadWebviewPanels.j
 import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
 import { CustomEditorProviderCapabilities, ExtHostCustomEditorsShape } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { WebviewEditor } from '../../../contrib/webviewPanel/browser/webviewEditor.js';
+import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 
 type WebviewResolver = Parameters<IWebviewWorkbenchService['registerResolver']>[0];
 
@@ -273,24 +277,22 @@ suite('MainThreadCustomEditors', () => {
 	});
 
 	test('navigation resolution is canceled when its panel closes before completion', async () => {
-		let pendingToken: CancellationToken | undefined;
-		let complete: (() => void) | undefined;
+		const navigationRequested = new DeferredPromise<CancellationToken>();
+		const navigation = new DeferredPromise<{ selection: undefined }>();
 		const fixture = createCustomEditors({
 			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
 			resolveNavigation: (_handle, token) => {
-				pendingToken = token;
-				return new Promise(resolve => { complete = () => resolve({ selection: undefined }); });
+				navigationRequested.complete(token);
+				return navigation.p;
 			}
 		});
 		const { input } = fixture.createInput();
 		const resolution = input.resolve();
-		while (!complete) {
-			await timeout(0);
-		}
+		const pendingToken = await navigationRequested.p;
 		input.dispose();
-		assert.strictEqual(pendingToken?.isCancellationRequested, true);
+		assert.strictEqual(pendingToken.isCancellationRequested, true);
 		await resolution;
-		complete();
+		navigation.complete({ selection: undefined });
 		assert.strictEqual(input.navigation, undefined);
 		assert.strictEqual(fixture.outlineChanges(), 0);
 		assert.deepStrictEqual(unexpectedErrors, []);
@@ -325,25 +327,72 @@ suite('MainThreadCustomEditors', () => {
 	});
 
 	test('selection notifications during navigation resolution supersede its initial snapshot', async () => {
-		let publish: (() => void) | undefined;
-		let panelHandle: string | undefined;
+		const navigationRequested = new DeferredPromise<string>();
+		const navigation = new DeferredPromise<{ selection: undefined }>();
 		const fixture = createCustomEditors({
 			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
 			resolveNavigation: (handle) => {
-				panelHandle = handle;
-				return new Promise(resolve => { publish = () => resolve({ selection: undefined }); });
+				navigationRequested.complete(handle);
+				return navigation.p;
 			}
 		});
 		const { input } = fixture.createInput();
 		const resolution = input.resolve();
-		while (!publish) {
-			await timeout(0);
-		}
+		const panelHandle = await navigationRequested.p;
 		const selection = { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 3 };
-		fixture.customEditors.$onDidChangeCustomTextEditorSelection(panelHandle!, selection);
-		publish();
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(panelHandle, selection);
+		navigation.complete({ selection: undefined });
 		await resolution;
 		assert.strictEqual(input.navigation?.selection, selection);
+		input.dispose();
+		await timeout(0);
+	});
+
+	test('custom editor pane accepts missing options when switching back to an open editor', async () => {
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+		});
+		const { input } = fixture.createInput();
+		await input.resolve();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pane = store.add(instantiationService.createInstance(class extends WebviewEditor {
+			override get input() { return input; }
+		}, new class extends mock<IEditorGroup>() { }));
+
+		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		pane.setOptions(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ options: pane.options, unexpectedErrors }, { options: undefined, unexpectedErrors: [] });
+		input.dispose();
+		await timeout(0);
+	});
+
+	test('custom editor pane exposes live navigation selections for editor type switches', async () => {
+		let handle: string | undefined;
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+			resolveNavigation: async panelHandle => {
+				handle = panelHandle;
+				return { selection: undefined };
+			}
+		});
+		const { input } = fixture.createInput();
+		await input.resolve();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pane = store.add(instantiationService.createInstance(class extends WebviewEditor {
+			override get input() { return input; }
+		}, new class extends mock<IEditorGroup>() { }));
+		const before = pane.getSelection();
+		const selection = { selectionStartLineNumber: 1, selectionStartColumn: 4, positionLineNumber: 1, positionColumn: 1 };
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(handle!, selection);
+		const restored = pane.getSelection()?.restore({ override: 'default', pinned: true });
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(handle!, undefined);
+		assert.deepStrictEqual({ before, restored, after: pane.getSelection() }, {
+			before: undefined,
+			restored: { override: 'default', pinned: true, selection: Selection.liftSelection(selection), selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport },
+			after: undefined
+		});
 		input.dispose();
 		await timeout(0);
 	});

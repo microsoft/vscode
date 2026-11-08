@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mkdir, readFile, rm } from 'fs/promises';
+import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -17,10 +18,10 @@ import type { ICompletedSpanData } from '../../../../../otel/common/spanData.js'
 import { type ILocalOtlpHttpReceiver, startLocalOtlpHttpReceiver } from '../../../../../otel/node/otlp/localOtlpReceiver.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { readAgentModelCallDiagnostics } from '../../../../common/meta/agentModelCallMeta.js';
-import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
@@ -49,6 +50,96 @@ interface ManagedTelemetryPolicy {
 	lockCaptureContent?: boolean;
 	capture?: { prompts?: boolean; responses?: boolean; identity?: boolean };
 	resourceAttributes?: Record<string, string>;
+	headers?: Record<string, string>;
+}
+
+interface ICapturedOtlpRequest {
+	readonly method: string;
+	readonly path: string;
+	readonly managedTestHeader: string | undefined;
+	readonly body: Buffer;
+}
+
+interface IHeaderCapturingProxy {
+	readonly baseUrl: string;
+	readonly requests: readonly ICapturedOtlpRequest[];
+	dispose(): Promise<void>;
+}
+
+async function startHeaderCapturingProxy(targetBaseUrl: string): Promise<IHeaderCapturingProxy> {
+	const { createServer } = await import('http');
+	const target = new URL(targetBaseUrl);
+	const requests: ICapturedOtlpRequest[] = [];
+	const server = createServer((request, response) => {
+		void handleRequest().catch(() => {
+			try {
+				if (!response.headersSent && !response.destroyed) {
+					response.writeHead(502);
+				}
+				if (!response.destroyed) {
+					response.end();
+				}
+			} catch {
+				// The request can close while the host is shutting down.
+			}
+		});
+
+		async function handleRequest(): Promise<void> {
+			const chunks: Buffer[] = [];
+			for await (const chunk of request) {
+				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			}
+			const body = Buffer.concat(chunks);
+			requests.push({
+				method: request.method ?? 'UNKNOWN',
+				path: request.url ?? '/',
+				managedTestHeader: Array.isArray(request.headers['x-managed-test'])
+					? request.headers['x-managed-test'][0]
+					: request.headers['x-managed-test'],
+				body,
+			});
+			try {
+				const downstream = await fetch(new URL(request.url ?? '/', target), {
+					method: request.method,
+					headers: {
+						'content-type': String(request.headers['content-type'] ?? 'application/json'),
+						...(request.headers['content-encoding'] ? { 'content-encoding': String(request.headers['content-encoding']) } : {}),
+					},
+					body,
+				});
+				const downstreamBody = Buffer.from(await downstream.arrayBuffer());
+				const contentType = downstream.headers.get('content-type');
+				response.writeHead(downstream.status, contentType ? { 'content-type': contentType } : undefined);
+				response.end(downstreamBody);
+			} catch {
+				throw new Error('OTLP proxy forwarding failed');
+			}
+		}
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', () => resolve());
+	});
+	const address = server.address() as AddressInfo;
+	return {
+		baseUrl: `http://127.0.0.1:${address.port}`,
+		requests,
+		dispose: async () => {
+			if (!server.listening) {
+				return;
+			}
+			server.closeAllConnections();
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		},
+	};
+}
+
+async function capturedTraceRequests(requests: readonly ICapturedOtlpRequest[], sdkSessionId: string): Promise<readonly ICapturedOtlpRequest[]> {
+	return retry(async () => {
+		const matches = requests.filter(request => request.path === '/v1/traces' && request.body.includes(sdkSessionId));
+		assert.ok(matches.length > 0, `No captured OTLP request for session ${sdkSessionId}`);
+		return matches;
+	}, 100, 150);
 }
 
 suite('Agent Host E2E — Copilot managed telemetry', function () {
@@ -63,6 +154,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 	let cacheHome: string;
 	let workspace: string;
 	let collector: ILocalOtlpHttpReceiver;
+	let headerProxy: IHeaderCapturingProxy | undefined;
 	let initialized: boolean;
 	let testTitle: string;
 
@@ -74,8 +166,13 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 			try {
 				await lease?.dispose();
 			} finally {
-				collector?.dispose();
-				await removeTempDirs(tempDirs);
+				try {
+					await headerProxy?.dispose();
+					headerProxy = undefined;
+				} finally {
+					collector?.dispose();
+					await removeTempDirs(tempDirs);
+				}
 			}
 		}
 	});
@@ -88,6 +185,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		decodeErrors.length = 0;
 		initialized = false;
 		lease = undefined;
+		headerProxy = undefined;
 		testTitle = this.currentTest!.title;
 		const directory = createTestDirectory(join(tmpdir(), 'copilot-managed-otel-'));
 		tempDirs.push(directory);
@@ -168,7 +266,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 			});
 			createdSessions.push(session);
 			await client.call('subscribe', { channel: session });
-			await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+			await client.call('subscribe', { channel: defaultChatChannel(session) });
 		}
 		await driveTurnToCompletion(client, session, sentinel, message, 1);
 		assert.ok(proxy.managedSettingsRequestCount > previousRequests, 'The runtime must fetch the current managed policy');
@@ -197,9 +295,9 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		lease = undefined;
 	}
 
-	async function completeCapturedTurn(serviceName: string, sentinel: string, previousRequests: number): Promise<void> {
-		const { sdkSessionId, message } = await completePolicyTurn(sentinel, previousRequests);
-		const exported = await inferenceSpan(sdkSessionId);
+	async function completeCapturedTurn(serviceName: string, sentinel: string, previousRequests: number): Promise<{ session: string; sdkSessionId: string; message: string }> {
+		const turn = await completePolicyTurn(sentinel, previousRequests);
+		const exported = await inferenceSpan(turn.sdkSessionId);
 		const input = exported.attributes['gen_ai.input.messages'];
 		assert.strictEqual(typeof input, 'string', 'The inference span must capture structured input messages');
 		const messages: { role: string; parts: { type: string; content: string }[] }[] = JSON.parse(String(input));
@@ -212,9 +310,10 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 			decodeErrors,
 		}, {
 			serviceName,
-			userMessages: [{ role: 'user', parts: [{ type: 'text', content: message }] }],
+			userMessages: [{ role: 'user', parts: [{ type: 'text', content: turn.message }] }],
 			decodeErrors: [],
 		});
+		return turn;
 	}
 
 	test('managed captureContent exports the user message across sessions', async function () {
@@ -231,12 +330,32 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 
 	test('new sessions honor changed managed telemetry after restarting', async function () {
 		this.timeout(180_000);
-		await completeCapturedTurn('otel-policy-a', 'otel-restart-first', await setPolicy('otel-policy-a'));
-		const previousRequests = await setPolicy('otel-policy-b');
+		headerProxy = await startHeaderCapturingProxy(collector.baseUrl);
+		const first = await completeCapturedTurn('otel-policy-a', 'otel-restart-first', await setPolicy('otel-policy-a', { endpoint: headerProxy.baseUrl }));
+		const firstRequests = await capturedTraceRequests(headerProxy.requests, first.sdkSessionId);
+		assert.deepStrictEqual({
+			methods: [...new Set(firstRequests.map(request => request.method))],
+			nonemptyBodies: firstRequests.every(request => request.body.length > 0),
+			headers: [...new Set(firstRequests.map(request => request.managedTestHeader))],
+		}, { methods: ['POST'], nonemptyBodies: true, headers: [undefined] });
+
+		const previousRequests = await setPolicy('otel-policy-b', {
+			endpoint: headerProxy.baseUrl,
+			headers: { 'X-Managed-Test': 'managed' },
+		});
 		assert.ok(lease);
 		client = await lease.restart();
 		initialized = false;
-		await completeCapturedTurn('otel-policy-b', 'otel-restart-second', previousRequests);
+		const second = await completeCapturedTurn('otel-policy-b', 'otel-restart-second', previousRequests);
+		await flushHost();
+		const secondRequests = await capturedTraceRequests(headerProxy.requests, second.sdkSessionId);
+		assert.deepStrictEqual({
+			methods: [...new Set(secondRequests.map(request => request.method))],
+			nonemptyBodies: secondRequests.every(request => request.body.length > 0),
+			headers: [...new Set(secondRequests.map(request => request.managedTestHeader))],
+		}, { methods: ['POST'], nonemptyBodies: true, headers: ['managed'] });
+		await headerProxy.dispose();
+		headerProxy = undefined;
 	});
 
 	for (const restriction of [
@@ -341,11 +460,16 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 
 	test('removing managed telemetry does not retain the previous exporter in a new session', async function () {
 		this.timeout(180_000);
-		await completeCapturedTurn('otel-remove', 'otel-before-removal', await setPolicy('otel-remove'));
+		headerProxy = await startHeaderCapturingProxy(collector.baseUrl);
+		const before = await completeCapturedTurn('otel-remove', 'otel-before-removal', await setPolicy('otel-remove', { endpoint: headerProxy.baseUrl }));
+		await capturedTraceRequests(headerProxy.requests, before.sdkSessionId);
 		const turn = await completePolicyTurn('otel-after-removal', await replacePolicy(undefined));
 		await flushHost();
 		assert.deepStrictEqual(spans.filter(span => span.attributes[GenAiAttr.CONVERSATION_ID] === turn.sdkSessionId), []);
 		assert.ok(!JSON.stringify(spans).includes('otel-after-removal'));
+		assert.strictEqual(headerProxy.requests.some(request => request.body.includes(turn.sdkSessionId)), false, 'Removed policy must not export the new session');
+		await headerProxy.dispose();
+		headerProxy = undefined;
 	});
 
 	test('managed prompt capture can be reenabled after a denied session', async function () {
@@ -421,7 +545,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'otel-resume-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await client.call('subscribe', { channel: first.session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(first.session) });
+		await client.call('subscribe', { channel: defaultChatChannel(first.session) });
 		await driveTurnToCompletion(client, first.session, 'otel-resume-after', 'Reply exactly "otel-resume-after".', 1);
 		assert.ok(proxy.managedSettingsRequestCount > previousRequests);
 		const exported = await inferenceSpan(first.sdkSessionId, spans, 'otel-resume-denied');

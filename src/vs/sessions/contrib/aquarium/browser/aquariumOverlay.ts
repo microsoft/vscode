@@ -15,13 +15,13 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
+import { SessionsAquariumActiveContext } from '../../../common/agentsWindowContextKeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
 import { FishFeedingStreak, type FishHungerState } from './fishFeedingStreak.js';
+import { IAquariumService, IMountedToggleHandle } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 
@@ -70,51 +70,6 @@ interface IFoodPellet {
 	positionX: number;
 	positionY: number;
 	fallSpeed: number;
-}
-
-/**
- * Owns the toggle button(s), the persisted on/off preference, and the active
- * aquarium. Hosts call {@link IAquariumService.mountToggle} to attach a button
- * as a child of their container; the active aquarium itself is mounted inside
- * the chat bar part so the chat input naturally paints on top of the water.
- */
-export const IAquariumService = createDecorator<IAquariumService>('aquariumService');
-
-export interface IAquariumService {
-	readonly _serviceBrand: undefined;
-	/** Whether the aquarium action is visible on its mounted hosts. */
-	readonly actionVisible: IObservable<boolean>;
-
-	/**
-	 * Mount a toggle button into `parent`. Returns a handle that exposes a
-	 * {@link IMountedToggleHandle.setHostVisible} hook so callers can keep the
-	 * aquarium tied to their own visibility (e.g. a view pane). Disposing the
-	 * handle removes the button and tears down the active aquarium if it was
-	 * the last mount.
-	 */
-	mountToggle(parent: HTMLElement): IMountedToggleHandle;
-
-	/** Toggles and persists the aquarium action visibility. */
-	toggleActionVisibility(): boolean;
-
-	/**
-	 * Development/demo hook: force the persisted feeding streak into a specific
-	 * state and refresh the toggle tooltip(s) live. When `alive` is false the
-	 * streak is parked as a died/revivable streak and the revival prompt is
-	 * offered (when an aquarium is active). A `count` of 0 clears the streak.
-	 */
-	simulateStreak(count: number, alive: boolean): void;
-}
-
-export interface IMountedToggleHandle extends IDisposable {
-	/**
-	 * Inform the service whether this mount's host is currently visible. The
-	 * aquarium is only considered active when at least one mount is visible;
-	 * when the last visible mount goes invisible the aquarium is disposed
-	 * synchronously (no fade-out) so it cannot flash behind a sibling view.
-	 * Hosts that don't care can leave this alone — mounts default to visible.
-	 */
-	setHostVisible(visible: boolean): void;
 }
 
 interface IMountedToggle {
@@ -512,7 +467,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	// First child so subsequent chat bar content paints over it.
 	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
 	// Sessions Grid wraps the chat content in `.session-view` / `.session-view-content`
-	// with opaque backgrounds (see sessionsPart.css). Mark the part so a scoped
+	// with opaque backgrounds (see sessionsGridContent.css). Mark the part so a scoped
 	// CSS override can clear those backgrounds and let the water layer show through.
 	sessionsContainer.classList.add('aquarium-active');
 	store.add(toDisposable(() => {

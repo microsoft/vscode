@@ -113,10 +113,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const tasks: Promise<any>[] = [];
 
 			for (const session of this._editingSessions.values()) {
-				if (!session.isGlobalEditingSession) {
+				// Provider sessions (e.g. agent host review) can be global but own their persistence.
+				if (!session.isGlobalEditingSession.get() || !(session instanceof ChatEditingSession)) {
 					continue;
 				}
-				tasks.push((session as ChatEditingSession).storeState());
+				tasks.push(session.storeState());
 			}
 
 			storageTask = Promise.resolve(storageTask)
@@ -147,6 +148,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
+			// Entries of provider sessions, like the agent host's review, follow their provider's rules.
+			if (!(item instanceof ChatEditingSession)) {
+				continue;
+			}
 			const candidate = item.getEntry(uri);
 			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
@@ -165,7 +170,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession {
-		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
+		return this._createEditingSession(chatModel, session.isGlobalEditingSession.get(), session);
 	}
 
 	private _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): IChatEditingSession {
@@ -174,7 +179,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const provider = this._providers.get(getChatSessionType(chatModel.sessionResource));
 		const session = provider
-			? provider.createEditingSession(chatModel.sessionResource)
+			? provider.createEditingSession(chatModel.sessionResource, global)
 			: this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this), initFrom);
 
 		const list = this._sessionsObs.get();
@@ -489,7 +494,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 			return [];
 		}
 		const entries = currentSession.entries.read(reader);
-		return entries.map((entry) => {
+		const resources = entries.map((entry) => {
 			if (this._showPreviousChanges) {
 				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
 				const entryDiff = entryDiffObs?.read(reader);
@@ -517,6 +522,16 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 				},
 			);
 		});
+		for (const diff of currentSession.additionalReviewFiles?.read(reader) ?? []) {
+			if (!entries.some(entry => isEqual(entry.modifiedURI, diff.modifiedURI))) {
+				resources.push(new MultiDiffEditorItem(
+					diff.isCreated ? undefined : diff.originalURI,
+					diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+					diff.modifiedURI,
+				));
+			}
+		}
+		return resources;
 	});
 	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
 

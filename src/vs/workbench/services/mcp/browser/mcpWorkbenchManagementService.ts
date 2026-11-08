@@ -16,6 +16,7 @@ import { McpManagementService } from '../../../../platform/mcp/common/mcpManagem
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpWorkspaceInstallTargetService } from '../common/mcpWorkspaceInstallTargetService.js';
+import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 
 export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementService {
 
@@ -30,9 +31,10 @@ export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementSer
 		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpWorkspaceInstallTargetService workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
+		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
 	) {
 		const mMcpManagementService = instantiationService.createInstance(McpManagementService);
-		super(mMcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService, workspaceInstallTargetService);
+		super(mMcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService, workspaceInstallTargetService, mcpResourceScannerService);
 		this._register(mMcpManagementService);
 	}
 }

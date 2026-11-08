@@ -22,8 +22,8 @@ class TestLogService extends NullLogService {
 		this.traces.push([message, ...args].join(' '));
 	}
 
-	override error(error: string | Error, ..._args: unknown[]): void {
-		this.errors.push(error);
+	override error(error: string | Error, ...args: unknown[]): void {
+		this.errors.push(args.length ? [error, ...args].join(' ') : error);
 	}
 }
 
@@ -152,4 +152,21 @@ suite('AbstractRequestService', () => {
 			}, { diagnosticId: 'local-test', timings, body: '' });
 		});
 	}
+
+	test('logUrl: false logs only the host, the status and the error code, never the URL, headers or error message', async () => {
+		const logService = new TestLogService();
+		const signed = 'https://acct.blob.core.windows.net/models/m.gguf?sv=2024&sig=SECRET';
+		const failure = Object.assign(new Error(`connect failed for ${signed}`), { code: 'ECONNRESET' });
+		let fail = false;
+		const service = store.add(new TestRequestService(() => fail ? Promise.reject(failure) : Promise.resolve({ ...makeResponse(302), res: { statusCode: 302, headers: { location: signed } } }), logService));
+
+		await service.request({ url: signed, type: 'GET', headers: { Authorization: 'Bearer SECRET' }, logUrl: false, callSite: 'test.noUrl' }, CancellationToken.None);
+		fail = true;
+		await assert.rejects(() => service.request({ url: signed, type: 'GET', logUrl: false, callSite: 'test.noUrl' }, CancellationToken.None));
+
+		assert.deepStrictEqual({ traces: logService.traces, errors: logService.errors }, {
+			traces: ['#1: acct.blob.core.windows.net - begin GET', '#1: acct.blob.core.windows.net - end GET 302', '#2: acct.blob.core.windows.net - begin GET'],
+			errors: ['#2: acct.blob.core.windows.net - error GET ECONNRESET'],
+		});
+	});
 });

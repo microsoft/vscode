@@ -4,21 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IFileContent, IFileService } from '../../../files/common/files.js';
+import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileContent, IFileService } from '../../../files/common/files.js';
 import { IMainProcessService } from '../../../ipc/common/mainProcessService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from '../../common/electronRemoteResources.js';
-import { ElectronRemoteResourceLoader } from '../../electron-browser/electronRemoteResourceLoader.js';
+import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../electron-browser/electronRemoteResourceLoader.js';
+import { BrowserResourceService } from '../../../files/browser/browserResourceService.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
 
 suite('ElectronRemoteResourceLoader', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createLoader(windowId = 7) {
+	function createLoader(windowId = 7, readError?: Error) {
 		let channel: IServerChannel | undefined;
 		const mainProcessService = new class extends mock<IMainProcessService>() {
 			override registerChannel(channelName: string, registeredChannel: IServerChannel): void {
@@ -30,6 +32,9 @@ suite('ElectronRemoteResourceLoader', () => {
 		const fileService = new class extends mock<IFileService>() {
 			override async readFile(resource: URI): Promise<IFileContent> {
 				reads.push(resource);
+				if (readError) {
+					throw readError;
+				}
 				return {
 					resource,
 					name: 'resource.txt',
@@ -44,9 +49,10 @@ suite('ElectronRemoteResourceLoader', () => {
 				};
 			}
 		}();
-		const loader = store.add(new ElectronRemoteResourceLoader(windowId, mainProcessService, fileService));
+		const browserResources = store.add(new BrowserResourceService(createBrowserResourceUriProvider(windowId), fileService));
+		const loader = store.add(new ElectronRemoteResourceLoader(windowId, mainProcessService, fileService, browserResources));
 		assert.ok(channel);
-		return { loader, channel, reads };
+		return { loader, channel, reads, browserResources };
 	}
 
 	async function request(channel: IServerChannel, uri: URI): Promise<NodeRemoteResourceResponse> {
@@ -134,4 +140,45 @@ suite('ElectronRemoteResourceLoader', () => {
 			reads: [],
 		});
 	});
+
+	test('loads issued Agent Host resources through FileAccess with their complete identity', async () => {
+		const { channel, reads, browserResources } = createLoader();
+		store.add(browserResources.registerScheme(AGENT_HOST_SCHEME));
+		const resource = toAgentHostUri(URI.parse('git-blob:///project/image.png?ref=HEAD#part'), 'sandbox');
+		const browserUri = FileAccess.uriToBrowserUri(resource);
+		const response = await request(channel, browserUri);
+		const forged = browserUri.with({ path: '/other.txt', query: 'resourceId=unknown&scheme=file&authority=local' });
+		const rejected = await request(channel, forged);
+
+		assert.deepStrictEqual({ scheme: browserUri.scheme, authority: browserUri.authority, response, rejected, reads: reads.map(uri => uri.toString()) }, {
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: 'window:7',
+			response: { statusCode: 200, body: 'Y29udGVudA==', mimeType: 'image/png' },
+			rejected: { statusCode: 404, body: '' },
+			reads: [resource.toString()],
+		});
+	});
+
+	test('an issued resource cannot be redirected by substituting its path or scheme', async () => {
+		const { channel, reads, browserResources } = createLoader();
+		store.add(browserResources.registerScheme(AGENT_HOST_SCHEME));
+		const resource = toAgentHostUri(URI.file('/project/image.png'), 'sandbox');
+		const browserUri = FileAccess.uriToBrowserUri(resource);
+		await request(channel, browserUri.with({ path: '/secrets.txt', query: `${browserUri.query}&scheme=file&authority=local` }));
+		assert.deepStrictEqual(reads.map(uri => uri.toString()), [resource.toString()]);
+	});
+
+	for (const { error, statusCode } of [
+		{ error: new FileOperationError('Missing image', FileOperationResult.FILE_NOT_FOUND), statusCode: 404 },
+		{ error: createFileSystemProviderError('Sandbox offline', FileSystemProviderErrorCode.Unavailable), statusCode: 500 },
+		{ error: createFileSystemProviderError('Image read denied', FileSystemProviderErrorCode.NoPermissions), statusCode: 500 },
+	]) {
+		test(`returns a resource failure without reporting a product error: ${error.message}`, async () => {
+			const { channel, browserResources } = createLoader(7, error);
+			store.add(browserResources.registerScheme(AGENT_HOST_SCHEME));
+			const resource = toAgentHostUri(URI.file('/project/image.png'), 'sandbox');
+			const response = await request(channel, FileAccess.uriToBrowserUri(resource));
+			assert.deepStrictEqual({ statusCode: response.statusCode, message: decodeBase64(response.body).toString() }, { statusCode, message: error.message });
+		});
+	}
 });

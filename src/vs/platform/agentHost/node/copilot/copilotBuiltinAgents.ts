@@ -12,6 +12,8 @@ import { localize } from '../../../../nls.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
+import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -29,6 +31,7 @@ export interface ICopilotBuiltinAgent {
 	readonly prompt: string;
 	readonly tools: readonly string[];
 	readonly includeReadOnlyClientTools: boolean;
+	readonly chatMode?: 'ask';
 }
 
 const askAgentPrompt = `You are an ASK AGENT — a knowledgeable assistant that answers questions, explains code, and provides information.
@@ -66,6 +69,7 @@ export const COPILOT_BUILTIN_AGENTS: readonly ICopilotBuiltinAgent[] = [{
 		CopilotToolName.FetchCopilotCliDocumentation,
 	],
 	includeReadOnlyClientTools: true,
+	chatMode: 'ask',
 }];
 
 export const COPILOT_BUILTIN_AGENT_NAMES: ReadonlySet<string> = new Set(COPILOT_BUILTIN_AGENTS.map(agent => agent.name));
@@ -91,7 +95,7 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
-/** Owns read-only built-in agent files served through the host's normal resource-read path. */
+/** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();
@@ -120,6 +124,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 		contents: CustomizationType.Agent,
 		writable: false,
 		load: { kind: CustomizationLoadStatus.Loaded },
+		_meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }),
 		children: COPILOT_BUILTIN_AGENTS.map(agent => {
 			const agentUri = getCopilotBuiltinAgentUri(agent).toString();
 			return {
@@ -129,6 +134,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 				name: agent.displayName(),
 				description: agent.description(),
 				disableModelInvocation: true,
+				_meta: toAgentCustomizationMeta({ 'vscode.chatMode': agent.chatMode }),
 			};
 		}),
 	};
@@ -144,7 +150,7 @@ export interface ICopilotBuiltinAgentConfig extends CustomAgentConfig {
 
 /** Builds all reserved SDK configurations, including explicitly read-only client tools where requested. */
 export function buildCopilotBuiltinAgents(clientTools: IActiveClientSnapshot['tools']): ICopilotBuiltinAgentConfig[] {
-	const readOnlyClientTools = clientTools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => toSdkClientToolName(tool.name));
+	const readOnlyClientTools = clientTools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => toSdkClientToolName(tool.name)).sort();
 	return COPILOT_BUILTIN_AGENTS.map(agent => ({
 		name: agent.name,
 		displayName: agent.displayName(),

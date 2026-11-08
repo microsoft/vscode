@@ -97,20 +97,13 @@ appendToCommandPalette({
 	category: category
 }, REVEAL_IN_OS_WHEN_CONTEXT);
 
-// Menu registration - chat attachments context
+// Menu registration - chat resources
 
-MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInOsCommand,
-	when: REVEAL_IN_OS_WHEN_CONTEXT
-});
-
-// Menu registration - chat inline anchor
-
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInOsCommand,
-	when: REVEAL_IN_OS_WHEN_CONTEXT
-});
+for (const menuId of [MenuId.ChatAttachmentsContext, MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputResourceAttachmentContext, MenuId.ChatImageContext]) {
+	MenuRegistry.appendMenuItem(menuId, {
+		group: 'navigation',
+		order: 30,
+		command: revealInOsCommand,
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
+	});
+}

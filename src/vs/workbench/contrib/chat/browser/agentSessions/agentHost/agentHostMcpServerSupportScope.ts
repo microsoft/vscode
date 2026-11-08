@@ -102,10 +102,6 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 			return localize('mcpCompatibilityEnvironmentFileIgnored', "Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.");
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
-		case AgentHostMcpSupportReason.GalleryMetadataNotPortable:
-			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata isn't supported. Migrating removes it and stops registry updates.");
-		case AgentHostMcpSupportReason.ServerVersionNotPortable:
-			return localize('mcpCompatibilityServerVersionNotPortable', "Version metadata isn't supported. Migrating removes it; version pins are kept.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:
 			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
 		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:
@@ -113,7 +109,7 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 		case AgentHostMcpSupportReason.DevelopmentModeIgnored:
 			return localize('mcpCompatibilityDevelopmentModeIgnored', "Development mode isn't supported. Migrating removes dev.");
 		case AgentHostMcpSupportReason.OAuthClientConfigurationIgnored:
-			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "Custom OAuth client configuration is not supported by the Copilot harness.\nTo migrate this server, remove the custom OAuth client configuration and sign in when the Copilot harness prompts for authentication.");
+			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "The Copilot harness does not receive this server's custom OAuth client configuration from VS Code.\nMigrate this server to keep its OAuth client ID. Servers that use a client secret or enterprise-managed sign-in cannot be migrated.");
 		case AgentHostMcpSupportReason.DefinitionNotLoaded:
 			return localize('mcpCompatibilityDefinitionNotLoaded', "Compatibility cannot be determined because the server definition has not loaded.\nTo migrate this server, wait for MCP discovery to finish, then refresh this view. If the issue persists, check the server configuration for errors.");
 		case AgentHostMcpSupportReason.SourceUnknown:

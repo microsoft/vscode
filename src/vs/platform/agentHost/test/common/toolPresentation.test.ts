@@ -215,6 +215,34 @@ suite('Copilot app tool presentation compatibility', () => {
 		});
 	});
 
+	test('URL permission prompts keep the URL visible while the host catches up', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'open', toolName: 'web_fetch', displayName: 'Open URL',
+			invocationMessage: 'Read article', confirmationTitle: 'Open URL',
+			_meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } },
+		};
+		assert.deepStrictEqual(readToolCallPresentation(pending), {
+			toolKind: undefined, invocationMessage: 'Read article: https://example.com/docs', pastTenseMessage: 'Fetched webpage', confirmationTitle: 'Open URL',
+		});
+	});
+
+	test('URL permission fallback preserves host-provided URLs and markdown', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'open', toolName: 'web_fetch', displayName: 'Open URL',
+			invocationMessage: 'Read article', confirmationTitle: 'Open URL',
+			_meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } },
+		};
+		const messages = [
+			'Read article: https://example.com/docs',
+			{ markdown: 'Read [article](https://example.com/docs) after confirming access' },
+			{ markdown: '**Read article** after confirming access' },
+		];
+		assert.deepStrictEqual(
+			messages.map(invocationMessage => readToolCallPresentation({ ...pending, invocationMessage })),
+			messages.map(invocationMessage => ({ toolKind: undefined, invocationMessage, pastTenseMessage: 'Fetched webpage' })),
+		);
+	});
+
 	for (const { path, title, markdown } of [
 		{ path: 'C:\\workspace\\file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file:///c%3A/workspace/file.ts)' },
 		{ path: 'C:/workspace/file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file:///c%3A/workspace/file.ts)' },
