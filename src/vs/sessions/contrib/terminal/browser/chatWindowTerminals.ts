@@ -37,7 +37,7 @@ export interface IChatWindowTerminalsSource {
 	/**
 	 * Leaves `instance` to the chat window that shows `session`, as {@link setShownInChatWindow} does, and takes it as a
 	 * terminal of `session`, such as the terminal of a task or one opened by New Terminal in the window: it goes with the
-	 * session, such as as the session is archived, rather than with another session.
+	 * session, such as when the session is archived, rather than with another session.
 	 */
 	trackChatWindowTerminal(session: ISession, instance: ITerminalInstance): void;
 	/** The id of the session `instance` is a terminal of, if any. */

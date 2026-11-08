@@ -296,7 +296,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			return;
 		}
 		const chatResource = this.chat.read(reader);
-		// The chats of the session it was in, as these change without the sessions changing, such as as one is deleted
+		// The chats of the session it was in, as these change without the sessions changing, such as when one is deleted
 		// or replaced; the lookup below is not observable.
 		this._knownSession?.chats.read(reader);
 		this._knownSession?.loading.read(reader);
