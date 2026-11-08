@@ -101,4 +101,70 @@ suite('MinimapLayout', () => {
 			zeroHeightLineAfterZone: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 		});
 	});
+
+	test('fit/fill slider follows the lines, not the view zones, padding and taller lines', () => {
+		/**
+		 * Creates the minimap layout like `Minimap.render` does in `fit`/`fill` mode.
+		 */
+		function createFitLayout(linesLayout: LinesLayout, paddingTop: number, scrollTop: number): MinimapLayout {
+			const options = { pixelRatio: 1, minimapLineHeight: 2, canvasInnerHeight: minimapHeight, lineHeight, minimapHeightIsEditorHeight: true, minimapHeight, paddingTop, paddingBottom: 0, scrollBeyondLastLine: false };
+			const viewport = linesLayout.getLinesViewportData(scrollTop, scrollTop + viewportHeight);
+			const zoneFree = MinimapLayout.getZoneFreeScrollPosition(linesLayout, lineCount, lineHeight, paddingTop, viewport.startLineNumber, viewportHeight, scrollTop, linesLayout.getLinesTotalHeight());
+			return MinimapLayout.create(
+				options,
+				viewport.startLineNumber,
+				viewport.endLineNumber,
+				linesLayout.getVerticalOffsetForLineNumber(viewport.startLineNumber),
+				linesLayout.getLineHeightForLineNumber(viewport.startLineNumber),
+				viewportHeight,
+				linesLayout.getWhitespaceViewportData(scrollTop, scrollTop + viewportHeight).length > 0,
+				lineCount,
+				lineCount,
+				zoneFree.scrollTop,
+				zoneFree.scrollHeight,
+				null
+			);
+		}
+
+		/**
+		 * Scrolls the top and the middle of every line to the top of the viewport, compares the slider with the slider
+		 * of the same document without view zones and taller lines, and maps the slider back to the editor `scrollTop`.
+		 */
+		function compare(linesLayout: LinesLayout, plainLinesLayout: LinesLayout, paddingTop: number) {
+			const scrollHeight = linesLayout.getLinesTotalHeight();
+			let maxDrift = 0;
+			let roundTripMismatches = 0;
+			for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
+				for (const fraction of [0, 0.5]) {
+					const scrollTop = linesLayout.getVerticalOffsetForLineNumber(lineNumber) + fraction * linesLayout.getLineHeightForLineNumber(lineNumber);
+					if (scrollTop > scrollHeight - viewportHeight) {
+						continue;
+					}
+					const layout = createFitLayout(linesLayout, paddingTop, scrollTop);
+					const plainLayout = createFitLayout(plainLinesLayout, paddingTop, plainLinesLayout.getVerticalOffsetForLineNumber(lineNumber) + fraction * lineHeight);
+					maxDrift = Math.max(maxDrift, Math.abs(layout.sliderTop - plainLayout.sliderTop));
+					if (MinimapLayout.getScrollTopFromZoneFreeScrollTop(linesLayout, lineCount, lineHeight, paddingTop, viewportHeight, layout.scrollTop, scrollHeight) !== scrollTop) {
+						roundTripMismatches++;
+					}
+				}
+			}
+			return { maxDrift, roundTripMismatches };
+		}
+
+		const tallZone = createLinesLayout(0, [], [[100, 3000]]);
+		const paddingTallerLinesAndZones = createLinesLayout(30, [new CustomLineHeightData('a', 50, 50, 300), new CustomLineHeightData('b', 400, 400, 120)], [[200, 500], [600, 1000]]);
+
+		assert.deepStrictEqual({
+			tallZone: compare(tallZone, createLinesLayout(0, [], []), 0),
+			paddingTallerLinesAndZones: compare(paddingTallerLinesAndZones, createLinesLayout(30, [], []), 30),
+			// The zone between lines 100 and 101 spans scrollTop 2000 to 5000
+			sliderTopWhileTallZoneScrollsBy: [...new Set([2000, 3000, 4000, 4990, 5000].map(scrollTop => createFitLayout(tallZone, 0, scrollTop).sliderTop))],
+			sliderTopAtMaxScrollTop: createFitLayout(tallZone, 0, tallZone.getLinesTotalHeight() - viewportHeight).sliderTop,
+		}, {
+			tallZone: { maxDrift: 0, roundTripMismatches: 0 },
+			paddingTallerLinesAndZones: { maxDrift: 0, roundTripMismatches: 0 },
+			sliderTopWhileTallZoneScrollsBy: [40],
+			sliderTopAtMaxScrollTop: 392,
+		});
+	});
 });
