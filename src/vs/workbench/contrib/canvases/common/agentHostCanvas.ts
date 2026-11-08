@@ -16,7 +16,8 @@ import { CanvasReference, CanvasState } from '../../../../platform/agentHost/com
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+import { ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
+import { ICanvas, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;

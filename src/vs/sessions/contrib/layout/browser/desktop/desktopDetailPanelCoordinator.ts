@@ -12,12 +12,12 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
-import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 export const enum DetailPanelTarget {
 	Hidden,

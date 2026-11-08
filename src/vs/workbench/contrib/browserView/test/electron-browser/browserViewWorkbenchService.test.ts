@@ -27,7 +27,7 @@ import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
 
 suite('BrowserViewWorkbenchService', () => {
@@ -208,6 +208,27 @@ suite('BrowserViewWorkbenchService', () => {
 		const preferred = await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId);
 
 		assert.strictEqual(typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, 2);
+	});
+
+	test('opening to the side while a group that shows only a view with its own title, such as a chat, is active adds the side group beside the main part of its window, not beside the chat', async () => {
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
+		const addedBeside: number[] = [];
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: chatGroup,
+			groups: [windowMainPartGroup, chatGroup],
+			parts: [windowMainPart],
+			mainPart: windowMainPart,
+			addGroup: (location: IEditorGroup | number) => {
+				addedBeside.push(typeof location === 'number' ? location : location.id);
+				return upcastPartial<IEditorGroup>({ id: 3, lock: () => { } });
+			},
+		}));
+
+		const preferred = await service.getPreferredGroup(SIDE_GROUP);
+
+		assert.deepStrictEqual({ preferred: typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, addedBeside }, { preferred: 3, addedBeside: [2] });
 	});
 
 	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {

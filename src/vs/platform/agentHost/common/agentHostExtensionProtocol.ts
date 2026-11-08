@@ -30,6 +30,7 @@ import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWor
 import { AgentHostWorktreeCleanupCapabilityMetaKey } from './meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostSideChatWithoutContextMetaKey } from './meta/agentHostSideChatMeta.js';
 import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
@@ -129,6 +130,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
 	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
+	/** Present when side chats can retain their origin without inheriting source context. */
+	readonly [AgentHostSideChatWithoutContextMetaKey]?: true;
 	/** Present when `createSession` honors an imported conversation on `_meta`. */
 	readonly [AgentHostCreateSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
@@ -164,6 +167,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
+		[AgentHostSideChatWithoutContextMetaKey]: true,
 		[AgentHostCreateSessionImportCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,

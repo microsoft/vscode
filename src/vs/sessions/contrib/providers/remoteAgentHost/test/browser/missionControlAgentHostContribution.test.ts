@@ -28,22 +28,23 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
-import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
-import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
+import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
+import '../../browser/missionControlAgentHost.contribution.js';
+import { RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
+import { getRemoteAgentHostPickerKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly id: string;
@@ -158,10 +159,10 @@ suite('Mission Control native provider inventory', () => {
 		};
 		let sharedDiscoveries = 0;
 		let tunnelDiscoveries = 0;
-		const discoveryHandlers = new Set<() => Promise<void>>([async () => { tunnelDiscoveries++; }]);
+		const discoveryHandlers = new Set<Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]>([async () => { tunnelDiscoveries++; }]);
 		const rediscover = async () => {
 			sharedDiscoveries++;
-			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler()));
+			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler('manual')));
 			return results.every(result => result.status === 'fulfilled');
 		};
 		const sharedStartup = options.sharedStartupFirst ? rediscover() : undefined;
@@ -198,7 +199,7 @@ suite('Mission Control native provider inventory', () => {
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-			override registerDiscoveryHandler(handler: () => Promise<void>) {
+			override registerDiscoveryHandler(handler: Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]) {
 				discoveryHandlers.add(handler);
 				return toDisposable(() => discoveryHandlers.delete(handler));
 			}

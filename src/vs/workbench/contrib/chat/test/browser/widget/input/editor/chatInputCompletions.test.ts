@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { fuzzyScore, FuzzyScoreOptions } from '../../../../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../../base/common/network.js';
 import { upcastDeepPartial, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOptions } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
@@ -19,35 +20,46 @@ import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/o
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
 import { CompletionItem, CompletionItemKind, CompletionList, CompletionTriggerKind, SymbolKind } from '../../../../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
 import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
 import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { IOutlineModelService, OutlineModel } from '../../../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
-import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { TestCodeEditorService } from '../../../../../../../../editor/test/browser/editorTestServices.js';
+import { withAsyncTestCodeEditor, withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../../../platform/files/common/files.js';
+import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
+import { TestThemeService } from '../../../../../../../../platform/theme/test/common/testThemeService.js';
+import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { workbenchInstantiationService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
+import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
+import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
-import { ChatWidget } from '../../../../../browser/widget/chatWidget.js';
+import { ChatWidget, IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { AgentCompletions, BuiltinDynamicCompletions, SlashCommandCompletions } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
 import { InputEditorCommandArgumentHint } from '../../../../../browser/widget/input/editor/chatInputCommandArgumentHint.js';
-import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { IDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
+import { AgentHostCompletionReferenceKind, createChatReferenceVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { IChatVariablesService, IDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
 import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSession, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { IChatService } from '../../../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService } from '../../../../../common/customizationHarnessService.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../../common/participants/chatSlashCommands.js';
 import { IMcpService } from '../../../../../../mcp/common/mcpTypes.js';
-import { ChatRequestAgentPart, ChatRequestTextPart, chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest, chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../../../../../common/requestParser/chatRequestParser.js';
+import { ToolAndToolSetEnablementMap } from '../../../../../common/tools/languageModelToolsService.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
 import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
@@ -60,7 +72,7 @@ import { IAgentHostConnectionsService } from '../../../../../../../../platform/a
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IsSessionsWindowContext } from '../../../../../../../common/contextkeys.js';
 import { PromptsType } from '../../../../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../../../common/promptSyntax/service/promptsService.js';
 
 suite('BuiltinDynamicCompletions symbols', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -887,6 +899,114 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			submitOnAccept: true,
 		});
 	});
+});
+
+suite('AgentHostInputCompletions reference replacement', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { command, subcommand } of [{ command: 'mcp', subcommand: 'enable' }, { command: 'chronicle', subcommand: 'tips' }]) {
+		test(`supersedes /${command} when accepting ${subcommand} after the parent command`, async () => {
+			const completions = store.add(new TestableAgentHostInputCompletions(
+				new LanguageFeaturesService(),
+				new MockChatWidgetService(),
+				new TestChatSessionsService(),
+				new TestConfigurationService(),
+				upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+				upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			));
+			const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
+			store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+				rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			}));
+
+			await withAsyncTestCodeEditor(`/ #file:example /other /${command}`, {
+				serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+			}, async (editor, _viewModel, instantiationService) => {
+				const editorStore = new DisposableStore();
+				editor.registerDisposable(editorStore);
+				const attachments = editorStore.add(new ChatAttachmentModel(
+					upcastPartial<IFileService>({}),
+					upcastPartial<ISharedWebContentExtractorService>({}),
+					upcastPartial<IChatAttachmentResolveService>({}),
+				));
+				const context = { kind: 'generic' as const, id: 'context', name: 'Attached Context', value: 'keep this context' };
+				attachments.addContext(context);
+				const parser = new ChatRequestParser(
+					upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }),
+					upcastPartial<IChatVariablesService>({}),
+					upcastPartial<IChatSlashCommandService>({ getCommands: () => [] }),
+					upcastPartial<IPromptsService>({ hasPromptSlashCommand: () => false, isValidSlashCommandName: () => false }),
+				);
+				let parsedInput: IParsedChatRequest = { text: editor.getValue(), parts: [] };
+				const widget: IChatWidget = upcastPartial<IChatWidget>({
+					inputEditor: editor,
+					input: upcastPartial<IChatWidget['input']>({ attachmentModel: attachments }),
+					onDidChangeActiveInputEditor: Event.None,
+					getContrib: <T extends IChatWidgetContrib>(id: string) => id === ChatDynamicVariableModel.ID ? references as IChatWidgetContrib as T : undefined,
+					refreshParsedInput: () => {
+						parsedInput = parser.parseChatRequestWithReferences(references.variables, ToolAndToolSetEnablementMap.fromEntries([]), editor.getValue());
+					},
+				});
+				editorStore.add(editor.onDidChangeModelContent(() => widget.refreshParsedInput()));
+				const references: ChatDynamicVariableModel = editorStore.add(new ChatDynamicVariableModel(widget, upcastPartial<ILabelService>({ getUriLabel: uri => uri.path })));
+				const file = URI.parse('example:/file.ts');
+				const skill = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, 'other', URI.parse('example:/other'), undefined);
+				const otherCommand = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, command, command, undefined);
+				for (const [text, reference] of [
+					['#file:example', { id: file.toString(), data: file, isFile: true }],
+					['/other', { id: skill.id, data: skill.value }],
+					[`/${command}`, { id: otherCommand.id, data: otherCommand.value }],
+				] as const) {
+					const start = editor.getValue().indexOf(text) + 1;
+					references.addReference({ ...reference, range: new Range(1, start, 1, start + text.length) });
+				}
+
+				async function accept(insertText: string, endColumn: number, cursorColumn = endColumn): Promise<void> {
+					const completion = completions.buildItem(new Position(1, cursorColumn), {
+						insertText,
+						start: new Position(1, 1),
+						end: new Position(1, endColumn),
+						attachment: { kind: 'command', command, description: `Run /${command} commands` },
+					}, widget)!;
+					const range = Range.isIRange(completion.range) ? completion.range : completion.range.replace;
+					editor.executeEdits('suggest', [{ range, text: completion.insertText }]);
+					const acceptCommand = completion.command!;
+					await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(acceptCommand.id)!.handler(accessor, ...(acceptCommand.arguments ?? [])));
+				}
+
+				const parent = `/${command} `;
+				await accept(parent, 2);
+				// Completing mid-word shifts following references inside the original replacement span.
+				const argument = subcommand.slice(0, 2) + '-unfinished-command-word';
+				editor.executeEdits('test', [{ range: new Range(1, parent.length + 1, 1, parent.length + 1), text: argument }]);
+				await accept(`/${command} ${subcommand} `, parent.length + argument.length + 1, parent.length + 3);
+
+				assert.deepStrictEqual({
+					text: editor.getValue(),
+					references: references.variables.map(reference => ({ id: reference.id, text: editor.getModel()!.getValueInRange(reference.range) })),
+					parsedReferences: parsedInput.parts
+						.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+						.map(part => ({ id: part.id, text: part.text, kind: part.toVariableEntry().kind })),
+					attachments: attachments.attachments,
+				}, {
+					text: `/${command} ${subcommand}  #file:example /other /${command}`,
+					references: [
+						{ id: file.toString(), text: '#file:example' },
+						{ id: skill.id, text: '/other' },
+						{ id: otherCommand.id, text: `/${command}` },
+						{ id: otherCommand.id, text: `/${command} ${subcommand}` },
+					],
+					parsedReferences: [
+						{ id: otherCommand.id, text: `/${command} ${subcommand}`, kind: 'generic' },
+						{ id: file.toString(), text: '#file:example', kind: 'file' },
+						{ id: skill.id, text: '/other', kind: 'generic' },
+						{ id: otherCommand.id, text: `/${command}`, kind: 'generic' },
+					],
+					attachments: [context],
+				});
+			});
+		});
+	}
 });
 
 suite('escapeForCharClass', () => {

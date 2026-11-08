@@ -5,7 +5,7 @@
 
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/editorPart.css';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../browser/parts/mobile/mobileChatShell.css';
 import assert from 'assert';
 import sinon from 'sinon';
@@ -19,11 +19,11 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
 import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
-import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
 import { PanelPart } from '../../browser/parts/panelPart.js';
 import { AuxiliaryBarPart } from '../../browser/parts/auxiliaryBarPart.js';
 
@@ -846,11 +846,14 @@ suite('Sessions - Agents Part Card', () => {
 				agentWorkbenchLayoutService: {
 					isEditorPaneVisible: () => false,
 				},
+				hostLayoutService: {
+					sidePane: { isEditorPaneVisible: () => false },
+				},
 				layoutContents: (width: number, height: number) => {
 					contentLayouts.push({ width, height });
 					return { contentSize: { width, height } };
 				},
-				_gridWidget: { layout: layoutGrid },
+				layoutContent: (width: number, height: number) => layoutGrid(width, height),
 				_layoutNode: layoutGrid,
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;

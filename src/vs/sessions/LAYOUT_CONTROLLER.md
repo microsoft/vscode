@@ -53,7 +53,7 @@ The layout setting does not change terminal creation, task reuse, activation, cl
 
 Chat-layout deletion and promotion affect layout records only. Terminal cleanup continues to follow the existing session archive/removal and replacement rules, including their protection, confirmation, veto, and error handling.
 
-All state flows from the `activeSession` and `activeChat` observables. Events notify part, editor, and confirmed lifecycle changes rather than supplying a parallel state model.
+All state flows from the session and chat observables of the main window's host (`ISessionHost.session` and `ISessionHost.chat`) and the grid's panes. Events notify part, editor, and confirmed lifecycle changes rather than supplying a parallel state model.
 
 ## 2. Session switches
 

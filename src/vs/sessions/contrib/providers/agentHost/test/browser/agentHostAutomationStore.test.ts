@@ -31,17 +31,17 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../browser/agentHostAutomationStore.js';
+import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.js';
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import type { ISyncedCustomizationOrigin } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
+import { ReconnectableAgentHostAutomationStore } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 class TestAutomationConnection {
 
