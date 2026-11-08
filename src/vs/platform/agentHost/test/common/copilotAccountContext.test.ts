@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { copilotAccountContextKey, readCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import { copilotAccountContextKey, isMicrosoftCopilotAccountContext, readCopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { copilotAccountOperationMeta, readCopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
 import type { RootState } from '../../common/state/sessionState.js';
 
@@ -17,6 +17,15 @@ suite('Copilot account context schema', () => {
 	test('validates authoritative readiness and ignores unrelated metadata', () => {
 		const state = { kind: 'ready', entraAccountId: 'entra', discoveryId: 'flow', choice, derivedFrom: 'opaque-base' };
 		assert.deepStrictEqual(readCopilotAccountContext(root({ ...state, token: 'must-not-be-read' })), state);
+	});
+
+	test('distinguishes direct GitHub routing from Microsoft sign-out and Microsoft-derived GitHub service', () => {
+		const contexts = [
+			readCopilotAccountContext(root({ kind: 'legacy' })),
+			readCopilotAccountContext(root({ kind: 'signedOut' })),
+			readCopilotAccountContext(root({ kind: 'ready', entraAccountId: 'entra', discoveryId: 'flow', choice: { ...choice, service: 'github' }, derivedFrom: 'opaque-base' })),
+		];
+		assert.deepStrictEqual(contexts.map(isMicrosoftCopilotAccountContext), [false, true, true]);
 	});
 
 	test('does not derive readiness from malformed or partial state', () => {
@@ -34,6 +43,8 @@ suite('Copilot account context schema', () => {
 			readCopilotAccountOperation({}),
 			readCopilotAccountOperation({ _meta: { 'vscode.copilot.accountOperation': { kind: 'select', selectionId: 'opaque' } } }),
 			readCopilotAccountOperation({ _meta: copilotAccountOperationMeta({ kind: 'select', discoveryId: 'flow', selectionId: 'opaque' }) }),
-		], [undefined, undefined, { kind: 'select', discoveryId: 'flow', selectionId: 'opaque' }]);
+			readCopilotAccountOperation({ _meta: copilotAccountOperationMeta({ kind: 'useLegacy', context: { kind: 'signedOut' } }) }),
+			readCopilotAccountOperation({ _meta: { 'vscode.copilot.accountOperation': { kind: 'useLegacy' } } }),
+		], [undefined, undefined, { kind: 'select', discoveryId: 'flow', selectionId: 'opaque' }, { kind: 'useLegacy', context: { kind: 'signedOut' } }, undefined]);
 	});
 });

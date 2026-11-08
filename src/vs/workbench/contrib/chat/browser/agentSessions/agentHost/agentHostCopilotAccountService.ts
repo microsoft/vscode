@@ -9,7 +9,9 @@ import { Disposable, DisposableMap, DisposableStore, type IDisposable } from '..
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import type { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
+import { isMicrosoftCopilotAccountContext, readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { copilotAccountOperationMeta, type CopilotAccountOperation } from '../../../../../../platform/agentHost/common/meta/copilotAccountOperation.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -29,6 +31,7 @@ export interface IAgentHostCopilotAccountService {
 	readonly _serviceBrand: undefined;
 	discover(connection: IAgentConnection, microsoftSessionId: string): Promise<CopilotAccountContext>;
 	select(connection: IAgentConnection, discoveryId: string, selectionId: string): Promise<CopilotAccountContext>;
+	selectLegacy(connection: IAgentConnection, credential: AuthenticateParams): Promise<void>;
 	signOut(connection: IAgentConnection): Promise<void>;
 }
 
@@ -53,10 +56,16 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 	}
 
 	async discover(connection: IAgentConnection, microsoftSessionId: string): Promise<CopilotAccountContext> {
-		this.requireEnabled(connection);
+		const context = this.requireEnabled(connection);
+		if (context.kind === 'legacy') {
+			this._bindings.deleteAndDispose(connection);
+		}
 		const binding = this._bindings.get(connection) ?? this.bindIdentity(connection, microsoftSessionId);
 		const sessions = await this._authenticationService.getSessions('microsoft', undefined, { clientId: copilotEntraClientId, silent: true }, true);
 		this.assertCurrent(binding);
+		if (!equals(context, this.requireEnabled(connection))) {
+			throw new CancellationError();
+		}
 		const identity = sessions.find(session => session.id === microsoftSessionId);
 		if (!identity) {
 			throw new Error(localize('copilot.account.identityRequired', "Sign in with the intended Microsoft account before continuing."));
@@ -105,6 +114,26 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		return ready;
 	}
 
+	async selectLegacy(connection: IAgentConnection, credential: AuthenticateParams): Promise<void> {
+		const context = this.requireEnabled(connection);
+		const rootState = connection.rootState;
+		const account = readAuthenticationAccount(credential);
+		if (credential.target || !credential.token || !account || account.providerId === 'microsoft') {
+			throw new Error(localize('copilot.account.legacyCredentialMismatch', "GitHub sign-in did not provide the selected account credential."));
+		}
+		const result = await connection.authenticate({
+			...credential,
+			_meta: { ...credential._meta, ...copilotAccountOperationMeta({ kind: 'useLegacy', context }) },
+		});
+		if (!result.authenticated) {
+			throw new Error(localize('copilot.account.legacyRejected', "The agent host did not accept the selected GitHub account."));
+		}
+		if (connection.rootState !== rootState || this.requireEnabled(connection).kind !== 'legacy') {
+			throw new CancellationError();
+		}
+		this._bindings.deleteAndDispose(connection);
+	}
+
 	async signOut(connection: IAgentConnection): Promise<void> {
 		const binding = this._bindings.get(connection);
 		if (!binding) {
@@ -116,7 +145,7 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		}
 		const root = connection.rootState.value;
 		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-		if (!context || context.kind !== 'signedOut' && context.entraAccountId !== binding.accountId) {
+		if (!isMicrosoftCopilotAccountContext(context) || context.kind !== 'signedOut' && context.entraAccountId !== binding.accountId) {
 			throw new CancellationError();
 		}
 		await connection.authenticate({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: '' });
@@ -129,13 +158,18 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		lifetime.add(this._authenticationService.onDidChangeSessions(event => {
 			const replacement = [...event.event.added ?? [], ...event.event.changed ?? []].some(session => session.account.id === binding.accountId);
 			if (event.providerId === 'microsoft' && !replacement && event.event.removed?.some(session => session.id === binding.sessionId || session.account.id === binding.accountId)) {
+				const root = connection.rootState.value;
+				if (root && !(root instanceof Error) && readCopilotAccountContext(root)?.kind === 'legacy') {
+					this._bindings.deleteAndDispose(connection);
+					return;
+				}
 				void this.signOut(connection).catch(error => this._logService.error('[Copilot] Failed to withdraw Microsoft identity', error));
 			}
 		}));
 		lifetime.add(connection.rootState.onDidChange(() => {
 			const root = connection.rootState.value;
 			const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-			if (root instanceof Error || context && context.kind !== 'signedOut' && binding.accountId && context.entraAccountId !== binding.accountId) {
+			if (root instanceof Error || isMicrosoftCopilotAccountContext(context) && context.kind !== 'signedOut' && binding.accountId && context.entraAccountId !== binding.accountId) {
 				this._bindings.deleteAndDispose(connection);
 			}
 		}));
@@ -237,7 +271,7 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 			...request,
 			_meta: {
 				...request._meta,
-				...(operation ? copilotAccountOperationMeta(operation) : {}),
+				...(operation ? copilotAccountOperationMeta(operation.kind === 'discover' ? { ...operation, context } : operation) : {}),
 			},
 		});
 		this.assertCurrent(binding);

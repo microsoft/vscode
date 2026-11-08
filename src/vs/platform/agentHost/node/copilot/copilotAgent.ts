@@ -57,9 +57,11 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
-import { CopilotEntraAuthentication } from './copilotEntraAuthentication.js';
+import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { readCopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
+import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import { readAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
+import { readCopilotAccountOperation, type CopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_RESERVED_AGENT_NAMES, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
@@ -1197,6 +1199,16 @@ class BackgroundWorkWatch extends Disposable {
 	}
 }
 
+function validateLegacyAccountCredential(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
+	const account = readAuthenticationAccount(params);
+	if (params.target || params.resource !== resource.resource || !params.token.trim() || /[\r\n]/.test(params.token)
+		|| !resource.scopes_supported?.every(scope => params.scopes?.includes(scope))
+		|| params.expiresIn !== undefined && (!Number.isFinite(params.expiresIn) || params.expiresIn <= 0)
+		|| !account || account.providerId === 'microsoft') {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected GitHub account did not supply the required credential.');
+	}
+}
+
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
@@ -1215,8 +1227,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
 	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		// One requirement is published at a time. GitHub's goes first, so a pending Microsoft one cannot hide it.
-		this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
+		isMicrosoftCopilotAccountContext(this._accountService.state.read(reader)) ? this._entraAuthentication?.authenticationRequired.read(reader) : this._authenticationRequired.read(reader));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -1558,7 +1569,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._setAutoTierMetadata(undefined);
 				this._freeLongContextModels.clear();
 				this._publishModels();
-				if (state.kind === 'ready') {
+				if (state.kind === 'ready' || state.kind === 'legacy') {
 					void this._scheduleModelRefresh();
 				} else {
 					this._publishModelCatalogStatus(state.kind === 'error' ? 'error' : 'pending');
@@ -1905,7 +1916,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (chat && this._credentialSources.has(chat.toString())) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot runtime is unavailable');
 		}
-		if (this._entraAuthentication) {
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
 			this._accountService.requireReady();
 			return CopilotGitHubSessionCredentials.fromClientAuthentication(undefined);
 		}
@@ -2019,7 +2030,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _ensureClientForSession(): Promise<CopilotClient> {
-		if (this._entraAuthentication) {
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
 			this._accountService.requireReady();
 		}
 		while (true) {
@@ -3805,7 +3816,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
-		if (this._entraAuthentication) {
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.read(reader))) {
 			return false;
 		}
 		const authenticated = this._automationAuthenticationReady.read(reader) && this.authenticationRequired.read(reader) === undefined;
@@ -3821,37 +3832,53 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
+		if (readCopilotAccountOperation({ _meta })) {
+			return false;
+		}
+		return this._authenticateGitHub(resource, token, expiresIn, _meta);
+	}
+
+	private async _authenticateGitHub(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>, connection?: CancellationToken): Promise<boolean> {
 		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
-		if (this._entraAuthentication) {
+		const accountContext = this._accountService.state.get();
+		if (isMicrosoftCopilotAccountContext(accountContext)) {
 			return false;
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
-		await this._authenticationSequencer.queue(async () => {
-			if (endpointGeneration !== this._gitHubEndpointGeneration) {
-				return;
+		return this._authenticationSequencer.queue(async () => {
+			if (this._accountService.state.get() !== accountContext) {
+				return false;
 			}
-			this._automationAuthenticationReady.set(false, undefined);
-			// Only a supplied credential rearms the requirement. Clearing it for an
-			// empty token would silence the outstanding requirement when a second
-			// revocation arrives while the agent is already tokenless, because
-			// `_applyGitHubToken` returns early for an unchanged token.
-			if (token) {
-				this._githubCredentialInvalid = false;
-				this._authenticationRequired.set(undefined, undefined);
-			}
-			await this._applyGitHubToken(token || undefined, expiresIn);
-			if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== (token || undefined)) {
-				return;
-			}
-			this._automationAuthenticationReady.set(token.length > 0, undefined);
+			return this._applyGitHubAuthentication(token, expiresIn, endpointGeneration, _meta, connection);
 		});
+	}
+
+	private async _applyGitHubAuthentication(token: string, expiresIn: number | undefined, endpointGeneration: number, _meta?: Record<string, unknown>, connection?: CancellationToken): Promise<boolean> {
+		if (connection?.isCancellationRequested || endpointGeneration !== this._gitHubEndpointGeneration) {
+			return false;
+		}
+		this._automationAuthenticationReady.set(false, undefined);
+		// Duplicate revocation must leave the outstanding credential requirement armed.
+		if (token) {
+			this._githubCredentialInvalid = false;
+			this._authenticationRequired.set(undefined, undefined);
+		}
+		await this._applyGitHubToken(token || undefined, expiresIn);
+		if (connection?.isCancellationRequested) {
+			await this._applyGitHubToken(undefined, undefined);
+			return false;
+		}
+		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== (token || undefined)) {
+			return false;
+		}
+		this._automationAuthenticationReady.set(token.length > 0, undefined);
 		const entitlement = readAgentEntitlementHint({ _meta });
-		if (token && entitlement && endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
+		if (token && entitlement) {
 			void this._copilotApiService.refreshCopilotUser?.(token, entitlement.trackingId, entitlement.sku).then(async () => {
 				if (endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
 					await this._resolveRestrictedTelemetry(token);
@@ -3964,20 +3991,72 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _handleMicrosoftAuthentication(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
-		if (readCopilotAccountOperation(params)) {
-			if (!this._entraAuthentication || !connectionToken) {
-				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account setup requires an enabled, live connection.');
+	private async _applyAccountOperation(operation: CopilotAccountOperation, params: AuthenticateParams, connection: CancellationToken): Promise<void> {
+		if (operation.kind !== 'select' && operation.context && !equals(operation.context, this._accountService.state.get())) {
+			throw new CancellationError();
+		}
+		if (operation.kind === 'useLegacy') {
+			validateLegacyAccountCredential(params, this._gitHubEndpointService.getCopilotResource());
+			const endpointGeneration = this._gitHubEndpointGeneration;
+			if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+				await this._applyGitHubToken(undefined, undefined);
+				this._automationAuthenticationReady.set(false, undefined);
+				await this._entraAuthentication!.authenticate({ resource: copilotEntraDiscoveryMetadata.resource, token: '' }, connection);
+				await this._clientStopping;
 			}
-			try {
-				await this._accountService.authenticate(this._ensureClient(), params, connectionToken);
-			} catch (error) {
-				if (classifyCopilotClientOperationFailure(error) !== undefined) {
-					await this._stopClient().catch(stopError => this._logService.error('[Copilot] Failed to stop unavailable account setup runtime', stopError));
+			if (!await this._applyGitHubAuthentication(params.token, params.expiresIn, endpointGeneration, params._meta, connection)) {
+				throw new CancellationError();
+			}
+			await this._accountService.selectLegacy(connection);
+			return;
+		}
+		if (this._accountService.state.get().kind === 'legacy') {
+			if (operation.kind !== 'discover') {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft discovery must precede service selection.');
+			}
+			this._accountService.beginMicrosoftSelection(params, connection);
+			this._clearLegacySessions({
+				errorType: 'authentication',
+				message: localize('copilotAgent.accountChanging', "Copilot authentication changed. Retry with the selected account."),
+			});
+			await this._applyGitHubToken(undefined, undefined);
+			await this._stopClient();
+		}
+		const client = this._accountService.state.get().kind === 'incomplete' ? this._ensureClient() : undefined;
+		await this._accountService.authenticate(client, params, connection);
+	}
+
+	private async _runAccountOperation(operation: CopilotAccountOperation, params: AuthenticateParams, connection: CancellationToken): Promise<void> {
+		const context = this._accountService.state.get();
+		try {
+			await this._authenticationSequencer.queue(async () => {
+				if (connection.isCancellationRequested || this._accountService.state.get() !== context) {
+					throw new CancellationError();
 				}
-				throw error;
+				await this._applyAccountOperation(operation, params, connection);
+			});
+		} catch (error) {
+			if (classifyCopilotClientOperationFailure(error) !== undefined) {
+				await this._stopClient().catch(stopError => this._logService.error('[Copilot] Failed to stop unavailable account setup runtime', stopError));
 			}
+			throw error;
+		}
+		if (connection.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+
+	private async _handleAccountAuthentication(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
+		const operation = readCopilotAccountOperation(params);
+		if (operation) {
+			if (!this._entraAuthentication || !connectionToken) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Account selection requires an enabled, live connection.');
+			}
+			await this._runAccountOperation(operation, params, connectionToken);
 			return true;
+		}
+		if (!isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+			return false;
 		}
 		if (connectionToken && this._accountService.acceptCredential(params, connectionToken)) {
 			return true;
@@ -3992,7 +4071,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
-		if (await this._handleMicrosoftAuthentication(params, connectionToken)) {
+		if (await this._handleAccountAuthentication(params, connectionToken)) {
 			return true;
 		}
 		let handled = false;
@@ -4545,7 +4624,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const tokenAtRefreshStart = this._githubCredentials.token;
-		if (this._entraAuthentication) {
+		const accountContext = this._accountService.state.get();
+		if (isMicrosoftCopilotAccountContext(accountContext)) {
 			await this._refreshAccountModels();
 			return;
 		}
@@ -4559,11 +4639,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const client = await this._ensureClient();
 			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart);
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise || this._accountService.state.get() !== accountContext) {
 				return;
 			}
 			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
-			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
+			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation && this._accountService.state.get() === accountContext) {
 				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
@@ -4578,7 +4658,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Token rotated mid-flight — a newer refresh owns the result — or
 			// teardown began while the request was in flight, in which case a
 			// retry would just resurrect the client we are tearing down.
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise || this._accountService.state.get() !== accountContext) {
 				return;
 			}
 			if (/\b401\b/.test(getErrorMessage(err))) {
@@ -5099,7 +5179,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = scoped ? scopedClientCredential(scoped)?.token
-				: startupConfig.enterpriseHost ? this._githubCredentials.token : undefined;
+				: startupConfig.enterpriseHost && !isMicrosoftCopilotAccountContext(this._accountService.state.get()) ? this._githubCredentials.token : undefined;
 			const scopedCredential = scopedClientCredential(scoped);
 			if (scopedCredential) {
 				env['GITHUB_COPILOT_GITHUB_TOKEN'] = scopedCredential.token;
@@ -6141,7 +6221,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'imported chat' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
 		const accountContext = this._accountService.state.get();
-		if (this._entraAuthentication && accountContext.kind !== 'ready') {
+		if (isMicrosoftCopilotAccountContext(accountContext) && accountContext.kind !== 'ready') {
 			return undefined;
 		}
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });

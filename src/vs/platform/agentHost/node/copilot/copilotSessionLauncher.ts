@@ -50,6 +50,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
+import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, withModelRouterAgents, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES, COPILOT_RESERVED_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -1212,7 +1213,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
-		if (this._configurationService.copilotM365EnabledAtStartup && !plan.githubCredentials.usesScopedCredential) {
+		if (this._configurationService.copilotM365EnabledAtStartup && isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
 			this._accountService.requireReady();
 			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
 		}

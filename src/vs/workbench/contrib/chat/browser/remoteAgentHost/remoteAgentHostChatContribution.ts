@@ -8,6 +8,7 @@ import { CancellationError, onUnexpectedError } from '../../../../../base/common
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
@@ -28,6 +29,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../agentSessions/agentHost/agentHostAuth.js';
 import { readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { isCopilotEntraResource } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostDownloadProgress.js';
@@ -589,6 +591,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				try {
 					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
+						microsoftAccountId: this._copilotAccountContext(connState.connection)?.entraAccountId,
 						logPrefix: '[RemoteAgentHost]',
 						authenticate: this._authenticateCallback(address, connState.connection),
 					});
@@ -635,7 +638,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _copilotAccountContext(connection: IAgentConnection) {
 		const root = connection.rootState.value;
 		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-		return context ? { ...context, entraAccountId: context.kind === 'signedOut' ? undefined : context.entraAccountId } : undefined;
+		return context ? { ...context, entraAccountId: context.kind === 'signedOut' || context.kind === 'legacy' ? undefined : context.entraAccountId } : undefined;
 	}
 
 	private _handleAuthenticationRequiredNotification(address: string, connection: IAgentConnection, notification: INotification): void {
@@ -650,14 +653,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (!connState) {
 			return;
 		}
+		const context = this._copilotAccountContext(connection);
+		if (context?.kind === 'legacy' && isCopilotEntraResource(protectedResource)) {
+			return;
+		}
 		const renewAuthentication = reason === AuthRequiredReason.Expired
 			? this._connectionCustomizations.get(address)?.renewAuthentication
 			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
-			microsoftAccountId: this._copilotAccountContext(connection)?.entraAccountId,
+			microsoftAccountId: context?.entraAccountId,
 			logPrefix: '[RemoteAgentHost]',
-			isCurrent: () => this._connections.get(address) === connState,
+			isCurrent: () => this._connections.get(address) === connState && equals(context, this._copilotAccountContext(connection)),
 			renewAuthentication: renewAuthentication ? async resource => {
 				const request = await renewAuthentication(resource);
 				if (this._connections.get(address) !== connState) {

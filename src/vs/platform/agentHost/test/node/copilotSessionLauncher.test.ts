@@ -426,6 +426,7 @@ suite('CopilotSessionLauncher discovery-only boundary', () => {
 	for (const kind of ['create', 'resume'] as const) {
 		test(`${kind} does not treat account discovery as conversation authentication`, async () => {
 			const accountService = upcastPartial<ICopilotAccountService>({
+				state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'signedOut' }) }),
 				requireReady: () => upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' }),
 			});
 			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,

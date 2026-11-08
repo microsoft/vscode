@@ -19,6 +19,7 @@ export interface ICopilotServiceChoice {
 }
 
 export type CopilotAccountContext =
+	| { readonly kind: 'legacy' }
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'discovering'; readonly entraAccountId: string }
 	| { readonly kind: 'choiceRequired'; readonly entraAccountId: string; readonly discoveryId: string; readonly choices: readonly ICopilotServiceChoice[] }
@@ -27,15 +28,22 @@ export type CopilotAccountContext =
 	| { readonly kind: 'incomplete'; readonly entraAccountId: string }
 	| { readonly kind: 'error'; readonly entraAccountId: string; readonly stage: 'discovery' | 'activation' };
 
+export function isMicrosoftCopilotAccountContext(context: CopilotAccountContext | undefined): context is Exclude<CopilotAccountContext, { kind: 'legacy' }> {
+	return context !== undefined && context.kind !== 'legacy';
+}
+
 /** Reads host-owned transient state, never the requested rollout setting or a cached preference. */
 export function readCopilotAccountContext(root: RootState | undefined): CopilotAccountContext | undefined {
-	const raw = root?.config?.values[copilotAccountContextKey];
+	return readCopilotAccountContextValue(root?.config?.values[copilotAccountContextKey]);
+}
+
+export function readCopilotAccountContextValue(raw: unknown): CopilotAccountContext | undefined {
 	if (!isObject(raw)) {
 		return undefined;
 	}
 	const value = raw as Record<string, unknown>;
-	if (value.kind === 'signedOut') {
-		return { kind: 'signedOut' };
+	if (value.kind === 'legacy' || value.kind === 'signedOut') {
+		return { kind: value.kind };
 	}
 	if (typeof value.entraAccountId !== 'string' || !value.entraAccountId) {
 		return undefined;

@@ -9,6 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -55,6 +56,7 @@ import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourc
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { readCopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import './agentHostCopilotAccountService.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
@@ -473,6 +475,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			try {
 				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
+					microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),
 					authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -540,15 +543,19 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
 		const generation = this._authenticationGeneration;
+		const context = this._copilotAccountContext();
+		if (context?.kind === 'legacy' && isCopilotEntraResource(protectedResource)) {
+			return;
+		}
 		if (!this._isAuthenticationCurrent(generation)) {
 			return;
 		}
 		this._agentHostService.setAuthenticationPending(true);
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
-			microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
+			microsoftAccountId: context?.entraAccountId,
 			logPrefix: '[AgentHost]',
-			isCurrent: () => this._isAuthenticationCurrent(generation),
+			isCurrent: () => this._isAuthenticationCurrent(generation) && equals(context, this._copilotAccountContext()),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
 		}))
 			.catch(err => {
@@ -566,7 +573,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _copilotAccountContext() {
 		const root = this._agentHostService.rootState.value;
 		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-		return context ? { ...context, entraAccountId: context.kind === 'signedOut' ? undefined : context.entraAccountId } : undefined;
+		return context ? { ...context, entraAccountId: context.kind === 'signedOut' || context.kind === 'legacy' ? undefined : context.entraAccountId } : undefined;
 	}
 
 	/**

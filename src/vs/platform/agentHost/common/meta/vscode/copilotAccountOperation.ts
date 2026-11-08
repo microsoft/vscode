@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isObject } from '../../../../../base/common/types.js';
+import { readCopilotAccountContextValue, type CopilotAccountContext } from '../../copilotAccountContext.js';
 
 const key = 'vscode.copilot.accountOperation';
 
 export type CopilotAccountOperation =
-	| { readonly kind: 'discover' }
+	| { readonly kind: 'discover'; readonly context?: CopilotAccountContext }
+	| { readonly kind: 'useLegacy'; readonly context: CopilotAccountContext }
 	| { readonly kind: 'select'; readonly discoveryId: string; readonly selectionId: string };
 
 export function readCopilotAccountOperation(source: { readonly _meta?: Record<string, unknown> }): CopilotAccountOperation | undefined {
@@ -17,15 +19,26 @@ export function readCopilotAccountOperation(source: { readonly _meta?: Record<st
 		return undefined;
 	}
 	const value = raw as Record<string, unknown>;
-	if (value.kind === 'discover') {
-		return { kind: 'discover' };
+	switch (value.kind) {
+		case 'discover': {
+			if (value.context === undefined) {
+				return { kind: 'discover' };
+			}
+			const context = readCopilotAccountContextValue(value.context);
+			return context ? { kind: 'discover', context } : undefined;
+		}
+		case 'useLegacy': {
+			const context = readCopilotAccountContextValue(value.context);
+			return context ? { kind: 'useLegacy', context } : undefined;
+		}
+		case 'select':
+			return typeof value.discoveryId === 'string' && value.discoveryId
+				&& typeof value.selectionId === 'string' && value.selectionId
+				? { kind: 'select', discoveryId: value.discoveryId, selectionId: value.selectionId }
+				: undefined;
+		default:
+			return undefined;
 	}
-	if (typeof value.discoveryId !== 'string' || !value.discoveryId) {
-		return undefined;
-	}
-	return value.kind === 'select' && typeof value.selectionId === 'string' && value.selectionId
-		? { kind: 'select', discoveryId: value.discoveryId, selectionId: value.selectionId }
-		: undefined;
 }
 
 export function copilotAccountOperationMeta(operation: CopilotAccountOperation): Record<string, unknown> {

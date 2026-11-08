@@ -292,7 +292,7 @@ suite('Copilot account context', () => {
 		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, f.connection.token);
 		f.state.confirmation.complete({ kind: 'activeAccount', account: { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' } });
 		await rejected;
-		assert.deepStrictEqual(states, ['signedOut', 'incomplete', 'discovering', 'signedOut']);
+		assert.deepStrictEqual(states, ['legacy', 'incomplete', 'discovering', 'signedOut']);
 	});
 
 	for (const step of [
@@ -350,6 +350,40 @@ suite('Copilot account context', () => {
 		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, f.connection.token);
 		f.state.activation.complete({ kind: 'completed', result: { status: 'completed' } });
 		await assert.rejects(selecting);
+		assert.deepStrictEqual(f.context.state.get(), { kind: 'signedOut' });
+	});
+
+	test('availability alone neither selects Microsoft nor advertises its credentials', async () => {
+		const f = fixture();
+		await f.context.reset();
+		assert.deepStrictEqual({ context: f.context.state.get(), resources: f.context.getProtectedResources(), sessions: f.state.created }, {
+			context: { kind: 'legacy' }, resources: [], sessions: 0,
+		});
+	});
+
+	test('explicit direct selection withdraws Microsoft authority and rejects late activation', async () => {
+		const f = fixture();
+		await f.discover();
+		f.state.activation = new DeferredPromise<LoginStep>();
+		const selecting = assert.rejects(f.select('m365'));
+		await f.context.selectLegacy(f.connection.token);
+		f.state.activation.complete({ kind: 'completed', result: { status: 'completed' } });
+		await selecting;
+		assert.deepStrictEqual({ context: f.context.state.get(), resources: f.context.getProtectedResources(), credential: f.authentication.getAuthToken({ resource: copilotEntraResources.get(copilotEntraM365Audience)! }) }, {
+			context: { kind: 'legacy' }, resources: [], credential: undefined,
+		});
+	});
+
+	test('disconnect during direct selection cleanup cannot complete the transition', async () => {
+		const f = fixture();
+		await f.discover();
+		f.state.cleanup = new DeferredPromise<void>();
+		f.state.cleanupStarted = new DeferredPromise<void>();
+		const selecting = assert.rejects(f.context.selectLegacy(f.connection.token));
+		await f.state.cleanupStarted.p;
+		f.connection.cancel();
+		f.state.cleanup.complete();
+		await selecting;
 		assert.deepStrictEqual(f.context.state.get(), { kind: 'signedOut' });
 	});
 
