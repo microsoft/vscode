@@ -10,9 +10,9 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -20,7 +20,11 @@ import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../..
 import { IMultiDiffResourceId } from '../../../../../editor/common/multiDiffEditor.js';
 import { DiffEditorViewMode } from '../../../../../editor/common/config/editorOptions.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -35,10 +39,11 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { ChangesPickerActionItem, ChangesPickerSummary } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -514,7 +519,7 @@ suite('SessionChangesEditorInput', () => {
 	});
 
 	for (const loadingSettles of [true, false]) {
-		test(`keeps showing the replaced input's diffs until the incoming session's changes load (load settles: ${loadingSettles})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test(`stops showing the replaced input's diffs right away and shows its progress until the incoming input's diffs resolve, keeping its diffs only when the same input is set again (load settles: ${loadingSettles})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const outgoingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/outgoing"}');
 			const incomingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/incoming"}');
 			const activeSession = observableValue<URI | undefined>('activeSession', URI.parse('agent-host-copilotcli:/outgoing'));
@@ -532,12 +537,21 @@ suite('SessionChangesEditorInput', () => {
 				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 			}());
 			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
-			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			// While the incoming session's changes load, the active summary keeps the outgoing session's, as the service does.
+			const changeset = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch Changes', isEnabled: constObservable(true), isDefault: constObservable(true) });
+			const summary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 2, additions: 5, deletions: 1 });
+			const changesViewService = new class extends mock<IChangesViewService>() {
 				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 				override readonly activeSessionResourceObs = activeSession;
 				override readonly activeSessionChangesetLoadingObs = changesLoading;
 				override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
-			}());
+				override readonly activeSessionChangesetsObs = constObservable([changeset]);
+				override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+				override readonly activeSessionChangesetObs = constObservable(changeset);
+				override readonly activeSessionChangesSummaryObs = summary;
+			}();
+			instantiationService.stub(IChangesViewService, changesViewService);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
 			const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
 			instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
 			instantiationService.stub(IWorkbenchLayoutService, layoutService);
@@ -567,53 +581,100 @@ suite('SessionChangesEditorInput', () => {
 			});
 
 			const disposedViewModels: string[] = [];
+			const viewModelResolved = new Map<string, () => void>();
 			const createInput = (source: URI, name: string) => {
 				const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
 					override readonly isLoading = observableValue('isLoading', false);
-					override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>([]);
+					override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>(name === 'outgoing' ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
 					override toString() { return name; }
 				}();
+				// Each resolve waits until the test lets it, as resolving the documents of the diffs does.
 				instantiationService.stubInstance(MultiDiffEditorInput, {
-					getViewModel: async () => viewModel,
+					getViewModel: () => new Promise<MultiDiffEditorViewModel>(resolve => viewModelResolved.set(name, () => resolve(viewModel))),
 					dispose: () => disposedViewModels.push(name),
 				});
 				const input = disposables.add(instantiationService.createInstance(SessionChangesEditorInput, source));
 				assert.ok(input.multiDiffInput);
 				return input;
 			};
+			const resolveViewModel = async (name: string) => {
+				let resolve: (() => void) | undefined;
+				while (!(resolve = viewModelResolved.get(name))) {
+					await timeout(10);
+				}
+				viewModelResolved.delete(name);
+				resolve();
+			};
 			const parent = append(mainWindow.document.body, $('.editor-instance'));
 			disposables.add(toDisposable(() => parent.remove()));
 			const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 			editor.create(parent);
+			editor.setVisible(true);
+			// The header's Changes picker, as the main window's header creates it for the editor.
+			instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() { }());
+			const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, summary));
+			const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, new MockContextKeyService(), new class extends mock<ICommandService>() { }());
+			disposables.add(editor.scopedInstantiationService!.createInstance(ChangesPickerActionItem, action, pickerSummary, undefined, undefined)).render(append(parent, $('.header')));
+			const presentation = async () => {
+				await timeout(250);
+				const isShown = (element: HTMLElement | null) => !!element && !element.hidden && mainWindow.getComputedStyle(element).display !== 'none';
+				const headerSummary = parent.querySelector<HTMLElement>('.changes-picker-summary');
+				return {
+					shown: String(shownViewModel.get()),
+					progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')),
+					placeholderHidden: !!parent.querySelector('.session-changes-editor-body.changes-loading'),
+					emptyState: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-empty-state')),
+					headerStats: isShown(headerSummary) ? [...headerSummary!.children].map(child => child.textContent).join(' ') : 'hidden',
+					disposed: [...disposedViewModels],
+				};
+			};
 
 			const outgoing = createInput(outgoingSource, 'outgoing');
-			await editor.setInput(outgoing, undefined, {}, CancellationToken.None);
+			const opened = editor.setInput(outgoing, undefined, {}, CancellationToken.None);
+			await resolveViewModel('outgoing');
+			await opened;
+			const beforeSwitch = await presentation();
 			const incoming = createInput(incomingSource, 'incoming');
 			activeSession.set(URI.parse('agent-host-copilotcli:/incoming'), undefined);
 			changesLoading.set(true, undefined);
 			editor.clearInput();
 			const switched = editor.setInput(incoming, undefined, {}, CancellationToken.None);
 			outgoing.dispose();
-			await timeout(0);
-			const whileLoading = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			const whileChangesLoad = await presentation();
+			// The incoming session has no changes.
+			const finishLoading = () => transaction(tx => {
+				changesLoading.set(false, tx);
+				summary.set(undefined, tx);
+			});
 			if (loadingSettles) {
-				changesLoading.set(false, undefined);
+				finishLoading();
 			} else {
 				await timeout(1000);
 			}
+			const whileDiffsResolve = await presentation();
+			await resolveViewModel('incoming');
 			await switched;
-			const afterLoading = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			const resolved = await presentation();
+			finishLoading();
+			const loaded = await presentation();
 			editor.clearInput();
-			await editor.setInput(incoming, { forceReload: true }, {}, CancellationToken.None);
-			await timeout(0);
-			const afterReload = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			const reloaded = editor.setInput(incoming, { forceReload: true }, {}, CancellationToken.None);
+			const whileReloading = await presentation();
+			await resolveViewModel('incoming');
+			await reloaded;
 			editor.clearInput();
 			await timeout(0);
 
-			assert.deepStrictEqual({ whileLoading, afterLoading, afterReload, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
-				whileLoading: { shown: 'outgoing', disposed: [] },
-				afterLoading: { shown: 'incoming', disposed: ['outgoing'] },
-				afterReload: { shown: 'incoming', disposed: ['outgoing'] },
+			const pending = { progress: true, placeholderHidden: true, emptyState: false, headerStats: 'hidden' };
+			const emptyIncoming = { shown: 'incoming', progress: false, placeholderHidden: false, emptyState: true, headerStats: 'hidden', disposed: ['outgoing'] };
+			assert.deepStrictEqual({ beforeSwitch, whileChangesLoad, whileDiffsResolve, resolved, loaded, whileReloading, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
+				beforeSwitch: { shown: 'outgoing', progress: false, placeholderHidden: false, emptyState: false, headerStats: '2 Files +5 -1', disposed: [] },
+				whileChangesLoad: { shown: 'undefined', ...pending, disposed: ['outgoing'] },
+				whileDiffsResolve: { shown: 'undefined', ...pending, disposed: ['outgoing'] },
+				// Once the editor stops waiting for the changes, it shows what it resolved, still pending while they load.
+				resolved: loadingSettles ? { ...emptyIncoming } : { shown: 'incoming', ...pending, disposed: ['outgoing'] },
+				loaded: { ...emptyIncoming },
+				whileReloading: { ...emptyIncoming },
 				afterClear: { shown: 'undefined', disposed: ['outgoing', 'incoming'] },
 			});
 		}));

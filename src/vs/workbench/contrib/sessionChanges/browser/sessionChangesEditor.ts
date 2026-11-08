@@ -89,7 +89,7 @@ interface IOutgoingChangesContent extends IDisposable {
 	readonly retention: IDisposable;
 }
 
-/** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
+/** How long setting an input waits for the changes of its session to load before resolving its diffs. */
 const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
 const CHANGES_LOADING_PROGRESS_DELAY_MS = 200;
 export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
@@ -243,6 +243,25 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this._inputChangesObs.read(reader)?.changes.read(reader) ?? lastValue ?? [];
 	});
 	private readonly _inputChangesLoadingObs = derived(this, reader => !!this._inputChangesSource.read(reader)?.chat && (this._inputChangesObs.read(reader)?.loading.read(reader) ?? false));
+	/** The input whose diffs this editor resolves to show instead of those of another input, which it no longer shows. */
+	private readonly _resolvingInput = observableValue<SessionChangesEditorInput | undefined>(this, undefined);
+	/**
+	 * Whether this editor does not show the changes of its input yet: while it resolves the diffs of an input it switched
+	 * to, or while those changes load: of the chat it names, else of its session while it is the active session. Meanwhile
+	 * it shows its progress, neither diffs of other changes nor that there are none.
+	 */
+	private readonly _changesPendingObs = derived(this, reader => {
+		if (this._resolvingInput.read(reader)) {
+			return true;
+		}
+		const source = this._inputChangesSource.read(reader);
+		if (!source) {
+			return false;
+		}
+		return source.chat
+			? this._inputChangesLoadingObs.read(reader)
+			: isEqual(this.changesViewService.activeSessionResourceObs.read(reader), source.session) && this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+	});
 
 	private readonly _hasInput = observableValue(this, false);
 	private readonly _paneVisible = observableValue(this, false);
@@ -264,8 +283,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Defers resolving the multi-diff while the editor part is hidden (desktop detail-only). */
 	private readonly _pendingResolve = this._register(new MutableDisposable());
 	/**
-	 * Keeps the cleared input's diffs on screen until the next input is shown. Editor panes
-	 * clear the input right before setting the next one; if none follows, the diffs are dropped.
+	 * Keeps the cleared input's diffs on screen in case the same input is set again, such as to reload it. Editor panes
+	 * clear the input right before setting the next one; if another input or none follows, the diffs are dropped.
 	 */
 	private readonly _outgoingContent = this._register(new MutableDisposable<IOutgoingChangesContent>());
 
@@ -332,7 +351,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this._scope.changes.hasGitRepositoryObs.read(reader)));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope } satisfies IChangesEditorScope])));
+			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope, changesPendingObs: this._changesPendingObs } satisfies IChangesEditorScope])));
 		this._scopedInstantiationService = scopedInstantiationService;
 
 		// In desktop, the header (Branch Changes dropdown, diff stats and primary
@@ -374,7 +393,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.emptyState = this._register(scopedInstantiationService.createInstance(ChangesEmptyState, emptyState));
 		this._register(autorun(reader => {
 			const model = this.widget?.viewModel.read(reader);
-			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0 && !this._inputChangesLoadingObs.read(reader);
+			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0 && !this._changesPendingObs.read(reader);
 			emptyState.hidden = !empty;
 			this.bodyContainer?.classList.toggle('has-empty-state', empty);
 			if (empty) {
@@ -384,7 +403,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const loadingProgressBar = this._register(new ProgressBar(append(this.bodyContainer, $('.session-changes-editor-progress')), defaultProgressBarStyles));
 		loadingProgressBar.stop().hide();
 		this._register(autorun(reader => {
-			const loading = this._inputChangesLoadingObs.read(reader);
+			const loading = this._changesPendingObs.read(reader);
 			this.bodyContainer?.classList.toggle('changes-loading', loading);
 			if (loading && this._paneVisible.read(reader)) {
 				loadingProgressBar.infinite().show(CHANGES_LOADING_PROGRESS_DELAY_MS);
@@ -477,7 +496,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this._adoptOutgoingContent(input);
+		if (!this._adoptOutgoingContent(input)) {
+			// Diffs of other changes must not show under the header of these, so show none until these resolve.
+			transaction(tx => {
+				this._releaseOutgoingContent(true);
+				this._resolvingInput.set(input, tx);
+			});
+		}
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -508,6 +533,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private async _resolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		try {
+			await this._doResolveInput(input, options, context, token);
+		} finally {
+			// Once shown, or failed to show, while still the input; a newer input owns the state otherwise.
+			if (this.input === input && this._resolvingInput.get() === input) {
+				this._resolvingInput.set(undefined, undefined);
+			}
+		}
+	}
+
+	private async _doResolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		if (this._isSessionChangesLoading(sessionResource, undefined)) {
 			this._logger.log('changes editor set input waiting for changes to load', { session: sessionResource });
@@ -698,6 +734,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._pendingReveal.clear();
 		this._pendingResolve.clear();
 		this._hasInput.set(false, undefined);
+		this._resolvingInput.set(undefined, undefined);
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
@@ -739,14 +776,18 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}
 	}
 
-	/** Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of releasing it. */
-	private _adoptOutgoingContent(input: SessionChangesEditorInput): void {
+	/**
+	 * Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of
+	 * releasing it, and returns whether it did.
+	 */
+	private _adoptOutgoingContent(input: SessionChangesEditorInput): boolean {
 		const outgoing = this._outgoingContent.value;
 		if (outgoing?.input !== input) {
-			return;
+			return false;
 		}
 		this._outgoingContent.clearAndLeak();
 		outgoing.retention.dispose();
+		return true;
 	}
 
 	private _releaseOutgoingContent(clearWidget: boolean): void {
