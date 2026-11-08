@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -518,123 +519,144 @@ suite('SessionChangesEditorInput', () => {
 		});
 	});
 
+	/**
+	 * A Changes editor of the main window, with the header's Changes picker as the main window's header creates it for the
+	 * editor, whose inputs resolve their diffs only when the test lets them, as resolving the documents of the diffs does.
+	 */
+	function createSwitchingEditor() {
+		const activeSession = observableValue<URI | undefined>('activeSession', URI.parse('agent-host-copilotcli:/outgoing'));
+		const changesLoading = observableValue('changesLoading', false);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean { return true; }
+		});
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		// The editor shows the changes of its host's session: here the main window's.
+		const mainWindowSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = mainWindowSession;
+			readonly mainWindowActiveSession = mainWindowSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
+		// While the incoming session's changes load, the active summary keeps the outgoing session's, as the service does.
+		const changeset = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch Changes', isEnabled: constObservable(true), isDefault: constObservable(true) });
+		const summary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 2, additions: 5, deletions: 1 });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override readonly activeSessionResourceObs = activeSession;
+			override readonly activeSessionChangesetLoadingObs = changesLoading;
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+			override readonly activeSessionChangesetsObs = constObservable([changeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesSummaryObs = summary;
+		}());
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
+		const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
+		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, layoutService);
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(resource: URI): URI | undefined {
+				return URI.parse(JSON.parse(resource.query).sessionResource);
+			}
+			override getChatResource(): URI | undefined { return undefined; }
+		}());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const shownViewModel = observableValue<MultiDiffEditorViewModel | undefined>('shownViewModel', undefined);
+		instantiationService.stubInstance(MultiDiffEditorWidget, {
+			viewModel: shownViewModel,
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			setViewModel(viewModel: MultiDiffEditorViewModel | undefined) { shownViewModel.set(viewModel, undefined); },
+			getViewState() { return { scrollState: { top: 0, left: 0 } }; },
+			layout() { },
+			dispose() { },
+		});
+
+		const disposedViewModels: string[] = [];
+		const viewModelRequests = new Map<string, DeferredPromise<MultiDiffEditorViewModel>[]>();
+		const onDidRequestViewModel = disposables.add(new Emitter<void>());
+		const createInput = (name: string, hasChanges: boolean) => {
+			const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
+				override readonly isLoading = observableValue('isLoading', false);
+				override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>(hasChanges ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
+				override toString() { return name; }
+			}();
+			const input = disposables.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse(`changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/${name}"}`)));
+			input.getViewModel = () => {
+				const request = new DeferredPromise<MultiDiffEditorViewModel>();
+				viewModelRequests.set(name, [...viewModelRequests.get(name) ?? [], request]);
+				onDidRequestViewModel.fire();
+				return request.p.then(() => viewModel);
+			};
+			// The editor lets go of what the input resolved.
+			input.clear = () => disposedViewModels.push(name);
+			return input;
+		};
+		/** Waits until the editor asks `name` for its diffs the `count`th time. */
+		const whenRequested = async (name: string, count = 1) => {
+			while ((viewModelRequests.get(name)?.length ?? 0) < count) {
+				await Event.toPromise(onDidRequestViewModel.event);
+			}
+		};
+		/** Settles the `index`th request for the diffs of `name`, waiting for it first. */
+		const settleViewModel = async (name: string, index = 0, error?: Error) => {
+			await whenRequested(name, index + 1);
+			const request = viewModelRequests.get(name)![index];
+			if (error) {
+				request.error(error);
+			} else {
+				request.complete(upcastPartial<MultiDiffEditorViewModel>({}));
+			}
+		};
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		disposables.add(toDisposable(() => parent.remove()));
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		editor.setVisible(true);
+		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() { }());
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, summary));
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, new MockContextKeyService(), new class extends mock<ICommandService>() { }());
+		disposables.add(editor.scopedInstantiationService!.createInstance(ChangesPickerActionItem, action, pickerSummary, undefined, undefined)).render(append(parent, $('.header')));
+		const isShown = (element: HTMLElement | null) => !!element && !element.hidden && mainWindow.getComputedStyle(element).display !== 'none';
+		/** What the editor and its header show now: its diffs, whether it is pending, and the stats its header shows and announces. */
+		const state = () => {
+			const headerSummary = parent.querySelector<HTMLElement>('.changes-picker-summary');
+			return {
+				shown: String(shownViewModel.get()),
+				placeholderHidden: !!parent.querySelector('.session-changes-editor-body.changes-loading'),
+				emptyState: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-empty-state')),
+				headerStats: isShown(headerSummary) ? [...headerSummary!.children].map(child => child.textContent).join(' ') : 'hidden',
+				headerAriaLabel: parent.querySelector<HTMLElement>('.header .action-label')?.ariaLabel,
+				disposed: [...disposedViewModels],
+			};
+		};
+		/** {@link state} once the progress would show, with whether it does. */
+		const presentation = async () => {
+			await timeout(250);
+			return { progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')), ...state() };
+		};
+		return { editor, activeSession, changesLoading, summary, shownViewModel, disposedViewModels, createInput, whenRequested, settleViewModel, state, presentation };
+	}
+
 	for (const loadingSettles of [true, false]) {
 		test(`stops showing the replaced input's diffs right away and shows its progress until the incoming input's diffs resolve, keeping its diffs only when the same input is set again (load settles: ${loadingSettles})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const outgoingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/outgoing"}');
-			const incomingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/incoming"}');
-			const activeSession = observableValue<URI | undefined>('activeSession', URI.parse('agent-host-copilotcli:/outgoing'));
-			const changesLoading = observableValue('changesLoading', false);
-			const instantiationService = workbenchInstantiationService(undefined, disposables);
-			instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
-				override contextMatchesRules(): boolean { return true; }
-			});
-			instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
-			// The editor shows the changes of its host's session: here the main window's.
-			const mainWindowSession = constObservable<ITestSessionWithChat | undefined>(undefined);
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = mainWindowSession;
-				readonly mainWindowActiveSession = mainWindowSession;
-				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
-			}());
-			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
-			// While the incoming session's changes load, the active summary keeps the outgoing session's, as the service does.
-			const changeset = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch Changes', isEnabled: constObservable(true), isDefault: constObservable(true) });
-			const summary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 2, additions: 5, deletions: 1 });
-			const changesViewService = new class extends mock<IChangesViewService>() {
-				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
-				override readonly activeSessionResourceObs = activeSession;
-				override readonly activeSessionChangesetLoadingObs = changesLoading;
-				override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
-				override readonly activeSessionChangesetsObs = constObservable([changeset]);
-				override readonly activeSessionChangesetsLoadingObs = constObservable(false);
-				override readonly activeSessionChangesetObs = constObservable(changeset);
-				override readonly activeSessionChangesSummaryObs = summary;
-			}();
-			instantiationService.stub(IChangesViewService, changesViewService);
-			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
-			const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
-			instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
-			instantiationService.stub(IWorkbenchLayoutService, layoutService);
-			instantiationService.stub(ISessionsHostLayoutService, layoutService);
-			instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-				override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
-				override getSessionResource(resource: URI): URI | undefined {
-					return URI.parse(JSON.parse(resource.query).sessionResource);
-				}
-				override getChatResource(): URI | undefined { return undefined; }
-			}());
-			instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
-				override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
-				override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
-			}());
-			const shownViewModel = observableValue<MultiDiffEditorViewModel | undefined>('shownViewModel', undefined);
-			instantiationService.stubInstance(MultiDiffEditorWidget, {
-				viewModel: shownViewModel,
-				onDidChangeActiveControl: Event.None,
-				setPaddingBottom() { },
-				setVariant() { },
-				setDiffLayoutOptions() { },
-				setViewModel(viewModel: MultiDiffEditorViewModel | undefined) { shownViewModel.set(viewModel, undefined); },
-				getViewState() { return { scrollState: { top: 0, left: 0 } }; },
-				layout() { },
-				dispose() { },
-			});
+			const { editor, activeSession, changesLoading, summary, shownViewModel, disposedViewModels, createInput, settleViewModel, presentation } = createSwitchingEditor();
 
-			const disposedViewModels: string[] = [];
-			const viewModelResolved = new Map<string, () => void>();
-			const createInput = (source: URI, name: string) => {
-				const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
-					override readonly isLoading = observableValue('isLoading', false);
-					override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>(name === 'outgoing' ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
-					override toString() { return name; }
-				}();
-				// Each resolve waits until the test lets it, as resolving the documents of the diffs does.
-				instantiationService.stubInstance(MultiDiffEditorInput, {
-					getViewModel: () => new Promise<MultiDiffEditorViewModel>(resolve => viewModelResolved.set(name, () => resolve(viewModel))),
-					dispose: () => disposedViewModels.push(name),
-				});
-				const input = disposables.add(instantiationService.createInstance(SessionChangesEditorInput, source));
-				assert.ok(input.multiDiffInput);
-				return input;
-			};
-			const resolveViewModel = async (name: string) => {
-				let resolve: (() => void) | undefined;
-				while (!(resolve = viewModelResolved.get(name))) {
-					await timeout(10);
-				}
-				viewModelResolved.delete(name);
-				resolve();
-			};
-			const parent = append(mainWindow.document.body, $('.editor-instance'));
-			disposables.add(toDisposable(() => parent.remove()));
-			const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
-			editor.create(parent);
-			editor.setVisible(true);
-			// The header's Changes picker, as the main window's header creates it for the editor.
-			instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() { }());
-			const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, summary));
-			const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, new MockContextKeyService(), new class extends mock<ICommandService>() { }());
-			disposables.add(editor.scopedInstantiationService!.createInstance(ChangesPickerActionItem, action, pickerSummary, undefined, undefined)).render(append(parent, $('.header')));
-			const presentation = async () => {
-				await timeout(250);
-				const isShown = (element: HTMLElement | null) => !!element && !element.hidden && mainWindow.getComputedStyle(element).display !== 'none';
-				const headerSummary = parent.querySelector<HTMLElement>('.changes-picker-summary');
-				return {
-					shown: String(shownViewModel.get()),
-					progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')),
-					placeholderHidden: !!parent.querySelector('.session-changes-editor-body.changes-loading'),
-					emptyState: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-empty-state')),
-					headerStats: isShown(headerSummary) ? [...headerSummary!.children].map(child => child.textContent).join(' ') : 'hidden',
-					disposed: [...disposedViewModels],
-				};
-			};
-
-			const outgoing = createInput(outgoingSource, 'outgoing');
+			const outgoing = createInput('outgoing', true);
 			const opened = editor.setInput(outgoing, undefined, {}, CancellationToken.None);
-			await resolveViewModel('outgoing');
+			await settleViewModel('outgoing');
 			await opened;
 			const beforeSwitch = await presentation();
-			const incoming = createInput(incomingSource, 'incoming');
+			const incoming = createInput('incoming', false);
 			activeSession.set(URI.parse('agent-host-copilotcli:/incoming'), undefined);
 			changesLoading.set(true, undefined);
 			editor.clearInput();
@@ -652,7 +674,7 @@ suite('SessionChangesEditorInput', () => {
 				await timeout(1000);
 			}
 			const whileDiffsResolve = await presentation();
-			await resolveViewModel('incoming');
+			await settleViewModel('incoming');
 			await switched;
 			const resolved = await presentation();
 			finishLoading();
@@ -660,15 +682,15 @@ suite('SessionChangesEditorInput', () => {
 			editor.clearInput();
 			const reloaded = editor.setInput(incoming, { forceReload: true }, {}, CancellationToken.None);
 			const whileReloading = await presentation();
-			await resolveViewModel('incoming');
+			await settleViewModel('incoming', 1);
 			await reloaded;
 			editor.clearInput();
 			await timeout(0);
 
-			const pending = { progress: true, placeholderHidden: true, emptyState: false, headerStats: 'hidden' };
-			const emptyIncoming = { shown: 'incoming', progress: false, placeholderHidden: false, emptyState: true, headerStats: 'hidden', disposed: ['outgoing'] };
+			const pending = { progress: true, placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes' };
+			const emptyIncoming = { progress: false, shown: 'incoming', placeholderHidden: false, emptyState: true, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: ['outgoing'] };
 			assert.deepStrictEqual({ beforeSwitch, whileChangesLoad, whileDiffsResolve, resolved, loaded, whileReloading, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
-				beforeSwitch: { shown: 'outgoing', progress: false, placeholderHidden: false, emptyState: false, headerStats: '2 Files +5 -1', disposed: [] },
+				beforeSwitch: { progress: false, shown: 'outgoing', placeholderHidden: false, emptyState: false, headerStats: '2 Files +5 -1', headerAriaLabel: 'Branch Changes, 2 files, 5 additions, 1 deletions', disposed: [] },
 				whileChangesLoad: { shown: 'undefined', ...pending, disposed: ['outgoing'] },
 				whileDiffsResolve: { shown: 'undefined', ...pending, disposed: ['outgoing'] },
 				// Once the editor stops waiting for the changes, it shows what it resolved, still pending while they load.
@@ -679,6 +701,59 @@ suite('SessionChangesEditorInput', () => {
 			});
 		}));
 	}
+
+	test('an earlier resolve of an input set again since, A then B then A, neither shows its diffs nor ends the pending state of the latest; clearing the input ends it', async () => {
+		const { editor, createInput, whenRequested, settleViewModel, state } = createSwitchingEditor();
+		const a = createInput('a', true);
+		const b = createInput('b', true);
+		// As editor panes do: each open cancels the previous one and clears the input before setting the next.
+		let operation: CancellationTokenSource | undefined;
+		const open = (input: SessionChangesEditorInput) => {
+			operation?.dispose(true);
+			operation = new CancellationTokenSource();
+			editor.clearInput();
+			return editor.setInput(input, undefined, {}, operation.token);
+		};
+
+		const a1 = open(a);
+		await whenRequested('a');
+		const b1 = open(b);
+		await whenRequested('b');
+		const a2 = open(a);
+		await whenRequested('a', 2);
+		const whileResolvingA2 = state();
+		// What the first resolve of A asked for was let go of when it was cleared.
+		await settleViewModel('a', 0, new CancellationError());
+		await a1;
+		const afterFirstResolveOfA = state();
+		await settleViewModel('b');
+		await b1;
+		const afterResolveOfB = state();
+		await settleViewModel('a', 1);
+		await a2;
+		const resolvedA2 = state();
+		const b2 = open(b);
+		await whenRequested('b', 2);
+		const whileResolvingB2 = state();
+		operation?.dispose(true);
+		editor.clearInput();
+		const cleared = state();
+		await settleViewModel('b', 1);
+		await b2;
+		const afterClearedResolve = state();
+
+		const pending = { shown: 'undefined', placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes' };
+		const notPending = { shown: 'undefined', placeholderHidden: false, emptyState: false, headerStats: '2 Files +5 -1', headerAriaLabel: 'Branch Changes, 2 files, 5 additions, 1 deletions' };
+		assert.deepStrictEqual({ whileResolvingA2, afterFirstResolveOfA, afterResolveOfB, resolvedA2, whileResolvingB2, cleared, afterClearedResolve }, {
+			whileResolvingA2: { ...pending, disposed: ['a', 'b'] },
+			afterFirstResolveOfA: { ...pending, disposed: ['a', 'b'] },
+			afterResolveOfB: { ...pending, disposed: ['a', 'b'] },
+			resolvedA2: { ...notPending, shown: 'a', disposed: ['a', 'b'] },
+			whileResolvingB2: { ...pending, disposed: ['a', 'b', 'a'] },
+			cleared: { ...notPending, disposed: ['a', 'b', 'a', 'b'] },
+			afterClearedResolve: { ...notPending, disposed: ['a', 'b', 'a', 'b'] },
+		});
+	});
 });
 
 function createFileChange(index: number): ISessionFileChange {

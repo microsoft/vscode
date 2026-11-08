@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -243,17 +243,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this._inputChangesObs.read(reader)?.changes.read(reader) ?? lastValue ?? [];
 	});
 	private readonly _inputChangesLoadingObs = derived(this, reader => !!this._inputChangesSource.read(reader)?.chat && (this._inputChangesObs.read(reader)?.loading.read(reader) ?? false));
-	/** The input whose diffs this editor resolves to show instead of those of another input, which it no longer shows. */
-	private readonly _resolvingInput = observableValue<SessionChangesEditorInput | undefined>(this, undefined);
 	/**
-	 * Whether this editor does not show the changes of its input yet: while it resolves the diffs of an input it switched
-	 * to, or while those changes load: of the chat it names, else of its session while it is the active session. Meanwhile
-	 * it shows its progress, neither diffs of other changes nor that there are none.
+	 * Whether the changes of the input are still loading, during which the changes service reports none: of the chat it
+	 * names, else of its session while it is the active session.
 	 */
-	private readonly _changesPendingObs = derived(this, reader => {
-		if (this._resolvingInput.read(reader)) {
-			return true;
-		}
+	private readonly _inputChangesPendingLoadObs = derived(this, reader => {
 		const source = this._inputChangesSource.read(reader);
 		if (!source) {
 			return false;
@@ -262,6 +256,18 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			? this._inputChangesLoadingObs.read(reader)
 			: isEqual(this.changesViewService.activeSessionResourceObs.read(reader), source.session) && this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 	});
+	/** The input whose diffs this editor resolves to show instead of those of another input, which it no longer shows. */
+	private readonly _resolvingInput = observableValue<SessionChangesEditorInput | undefined>(this, undefined);
+	/**
+	 * Counts the inputs set and cleared, so that only the resolve of the latest one shows its diffs and ends
+	 * {@link _resolvingInput}: an earlier resolve of the same input, set again since, must not.
+	 */
+	private _inputGeneration = 0;
+	/**
+	 * Whether this editor does not show the changes of its input yet: while it resolves the diffs of an input it switched
+	 * to, or while those changes load. Meanwhile it shows its progress, neither diffs of other changes nor that there are none.
+	 */
+	private readonly _changesPendingObs = derived(this, reader => !!this._resolvingInput.read(reader) || this._inputChangesPendingLoadObs.read(reader));
 
 	private readonly _hasInput = observableValue(this, false);
 	private readonly _paneVisible = observableValue(this, false);
@@ -496,6 +502,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const generation = ++this._inputGeneration;
 		if (!this._adoptOutgoingContent(input)) {
 			// Diffs of other changes must not show under the header of these, so show none until these resolve.
 			transaction(tx => {
@@ -523,32 +530,33 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			const store = new DisposableStore();
 			store.add(toDisposable(() => cts.dispose(true)));
 			store.add(Event.once(Event.filter(this.layoutService.onDidChangePartVisibility, e => e.partId === Parts.EDITOR_PART && e.visible))(() => {
-				this._resolveInput(input, options, context, cts.token).catch(onUnexpectedError);
+				this._resolveInput(input, generation, options, context, cts.token).catch(onUnexpectedError);
 			}));
 			this._pendingResolve.value = store;
 			this._releaseOutgoingContent(true);
 			return;
 		}
-		await this._resolveInput(input, options, context, token);
+		await this._resolveInput(input, generation, options, context, token);
 	}
 
-	private async _resolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private async _resolveInput(input: SessionChangesEditorInput, generation: number, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const isCurrent = () => !token.isCancellationRequested && generation === this._inputGeneration && this.input === input;
 		try {
-			await this._doResolveInput(input, options, context, token);
+			await this._doResolveInput(input, isCurrent, options, context, token);
 		} finally {
-			// Once shown, or failed to show, while still the input; a newer input owns the state otherwise.
-			if (this.input === input && this._resolvingInput.get() === input) {
+			// Once shown, or failed to show; a newer input, or the same input set again, owns the state otherwise.
+			if (generation === this._inputGeneration) {
 				this._resolvingInput.set(undefined, undefined);
 			}
 		}
 	}
 
-	private async _doResolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private async _doResolveInput(input: SessionChangesEditorInput, isCurrent: () => boolean, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
-		if (this._isSessionChangesLoading(sessionResource, undefined)) {
+		if (this._inputChangesPendingLoadObs.get()) {
 			this._logger.log('changes editor set input waiting for changes to load', { session: sessionResource });
-			const loaded = await this._whenSessionChangesLoaded(sessionResource, token);
-			if (token.isCancellationRequested || this.input !== input) {
+			const loaded = await this._whenInputChangesLoaded(token);
+			if (!isCurrent()) {
 				return;
 			}
 			if (!loaded) {
@@ -565,12 +573,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 					throw error;
 				}
 				// What the input resolved was let go of meanwhile: resolve it again while it is still to show
-				if (token.isCancellationRequested || this.input !== input || input.isDisposed()) {
+				if (!isCurrent() || input.isDisposed()) {
 					return;
 				}
 			}
 		}
-		if (token.isCancellationRequested || this.input !== input) {
+		if (!isCurrent()) {
 			return;
 		}
 		this.viewModel = viewModel;
@@ -590,31 +598,19 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	/**
-	 * Whether the active session is `sessionResource` and its changes are still loading,
-	 * during which the changes service reports no changes for it, or the changes of the chat
-	 * the input names are still loading.
+	 * Resolves `true` once the changes of the input stop loading (see {@link _inputChangesPendingLoadObs}),
+	 * or `false` when `token` is cancelled or loading takes longer than {@link INCOMING_CHANGES_LOAD_WAIT_MS}.
+	 * Resolving the view model only afterwards makes it wait for the loaded changes' documents instead of
+	 * resolving empty.
 	 */
-	private _isSessionChangesLoading(sessionResource: URI | undefined, reader: IReader | undefined): boolean {
-		return !!sessionResource
-			&& ((isEqual(this.changesViewService.activeSessionResourceObs.read(reader), sessionResource)
-				&& this.changesViewService.activeSessionChangesetLoadingObs.read(reader))
-				|| this._inputChangesLoadingObs.read(reader));
-	}
-
-	/**
-	 * Resolves `true` once the changes of `sessionResource` stop loading (or it stops being
-	 * the active session), or `false` when `token` is cancelled or loading takes longer than
-	 * {@link INCOMING_CHANGES_LOAD_WAIT_MS}. Resolving the view model only afterwards makes
-	 * it wait for the loaded changes' documents instead of resolving empty.
-	 */
-	private async _whenSessionChangesLoaded(sessionResource: URI | undefined, token: CancellationToken): Promise<boolean> {
+	private async _whenInputChangesLoaded(token: CancellationToken): Promise<boolean> {
 		const store = new DisposableStore();
 		try {
 			return await new Promise<boolean>(resolve => {
 				store.add(token.onCancellationRequested(() => resolve(false)));
 				disposableTimeout(() => resolve(false), INCOMING_CHANGES_LOAD_WAIT_MS, store);
 				store.add(autorun(reader => {
-					if (!this._isSessionChangesLoading(sessionResource, reader)) {
+					if (!this._inputChangesPendingLoadObs.read(reader)) {
 						resolve(true);
 					}
 				}));
@@ -734,6 +730,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._pendingReveal.clear();
 		this._pendingResolve.clear();
 		this._hasInput.set(false, undefined);
+		this._inputGeneration++;
 		this._resolvingInput.set(undefined, undefined);
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
