@@ -9,8 +9,11 @@ import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js'
 import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, isLogLevel, LogLevel } from './log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { ResourceSet } from '../../../base/common/map.js';
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
+
+	private readonly localLoggerResources = new ResourceSet();
 
 	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, logsHome: URI, loggers: ILoggerResource[], private readonly channel: IChannel) {
 		super(logLevel, logsHome, loggers);
@@ -24,10 +27,15 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		this._register(channel.listen<[URI, boolean]>('onDidChangeVisibility', windowId)(([resource, visibility]) => super.setVisibility(URI.revive(resource), visibility)));
 		this._register(channel.listen<DidChangeLoggersEvent>('onDidChangeLoggers', windowId)(({ added, removed }) => {
 			for (const loggerResource of added) {
-				super.registerLogger({ ...loggerResource, resource: URI.revive(loggerResource.resource) });
+				const resource = URI.revive(loggerResource.resource);
+				if (!this.localLoggerResources.has(resource)) {
+					super.registerLogger({ ...loggerResource, resource });
+				}
 			}
 			for (const loggerResource of removed) {
-				super.deregisterLogger(loggerResource.resource);
+				if (!this.localLoggerResources.has(URI.revive(loggerResource.resource))) {
+					super.deregisterLogger(loggerResource.resource);
+				}
 			}
 		}));
 	}
@@ -41,14 +49,18 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 	}
 
 	override registerLogger(logger: ILoggerResource): void {
+		this.localLoggerResources.add(logger.resource);
 		super.registerLogger(logger);
 		this.channel.call('registerLogger', [logger, this.windowId]);
 	}
 
 	override deregisterLogger(idOrResource: URI | string): void {
 		const resource = this.toResource(idOrResource);
+		const wasLocal = this.localLoggerResources.delete(resource);
 		super.deregisterLogger(resource);
-		this.channel.call('deregisterLogger', [resource, this.windowId]);
+		if (wasLocal) {
+			this.channel.call('deregisterLogger', [resource, this.windowId]);
+		}
 	}
 
 	override setLogLevel(logLevel: LogLevel): void;
@@ -65,6 +77,11 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		return new Logger(this.channel, file, logLevel, options, this.windowId);
+	}
+
+	override dispose(): void {
+		this.localLoggerResources.clear();
+		super.dispose();
 	}
 
 	public static setLogLevel(channel: IChannel, level: LogLevel): Promise<void>;

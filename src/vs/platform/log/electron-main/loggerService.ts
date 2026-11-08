@@ -26,6 +26,8 @@ export interface ILoggerMainService extends ILoggerService {
 
 	registerLogger(resource: ILoggerResource, windowId?: number): void;
 
+	deregisterLogger(idOrResource: URI | string, windowId?: number): void;
+
 	getGlobalLoggers(): ILoggerResource[];
 
 	deregisterLoggers(windowId: number): void;
@@ -34,36 +36,43 @@ export interface ILoggerMainService extends ILoggerService {
 
 export class LoggerMainService extends LoggerService implements ILoggerMainService {
 
-	private readonly loggerResourcesByWindow = new ResourceMap<number>();
+	private readonly loggerOwners = new ResourceMap<Set<number | undefined>>();
+
+	constructor(logLevel: LogLevel, logsHome: URI, loggerResources?: Iterable<ILoggerResource>) {
+		super(logLevel, logsHome, loggerResources);
+		for (const logger of this.getRegisteredLoggers()) {
+			this.loggerOwners.set(logger.resource, new Set([undefined]));
+		}
+	}
 
 	override createLogger(idOrResource: URI | string, options?: ILoggerOptions, windowId?: number): ILogger {
-		if (windowId !== undefined) {
-			this.loggerResourcesByWindow.set(this.toResource(idOrResource), windowId);
-		}
-		try {
-			return super.createLogger(idOrResource, options);
-		} catch (error) {
-			this.loggerResourcesByWindow.delete(this.toResource(idOrResource));
-			throw error;
-		}
+		return this.createLoggerWithRegistration(idOrResource, options, info => this.registerLogger(info, windowId));
 	}
 
 	override registerLogger(resource: ILoggerResource, windowId?: number): void {
-		if (windowId !== undefined) {
-			this.loggerResourcesByWindow.set(resource.resource, windowId);
+		let owners = this.loggerOwners.get(resource.resource);
+		if (!owners) {
+			owners = new Set<number | undefined>();
+			this.loggerOwners.set(resource.resource, owners);
 		}
+		owners.add(windowId);
 		super.registerLogger(resource);
 	}
 
-	override deregisterLogger(resource: URI): void {
-		this.loggerResourcesByWindow.delete(resource);
+	override deregisterLogger(idOrResource: URI | string, windowId?: number): void {
+		const resource = this.toResource(idOrResource);
+		const owners = this.loggerOwners.get(resource);
+		if (!owners?.delete(windowId) || owners.size > 0) {
+			return;
+		}
+		this.loggerOwners.delete(resource);
 		super.deregisterLogger(resource);
 	}
 
 	getGlobalLoggers(): ILoggerResource[] {
 		const resources: ILoggerResource[] = [];
 		for (const resource of super.getRegisteredLoggers()) {
-			if (!this.loggerResourcesByWindow.has(resource.resource)) {
+			if (this.loggerOwners.get(resource.resource)?.has(undefined)) {
 				resources.push(resource);
 			}
 		}
@@ -90,21 +99,19 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 	}
 
 	deregisterLoggers(windowId: number): void {
-		for (const [resource, resourceWindow] of this.loggerResourcesByWindow) {
-			if (resourceWindow === windowId) {
-				this.deregisterLogger(resource);
-			}
+		for (const resource of this.loggerOwners.keys()) {
+			this.deregisterLogger(resource, windowId);
 		}
 	}
 
 	private isInterestedLoggerResource(resource: URI, windowId: number | undefined): boolean {
-		const loggerWindowId = this.loggerResourcesByWindow.get(resource);
-		return loggerWindowId === undefined || loggerWindowId === windowId;
+		const owners = this.loggerOwners.get(resource);
+		return !owners || owners.has(undefined) || owners.has(windowId);
 	}
 
 	override dispose(): void {
 		super.dispose();
-		this.loggerResourcesByWindow.clear();
+		this.loggerOwners.clear();
 	}
 }
 
