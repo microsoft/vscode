@@ -302,6 +302,7 @@ suite('Chat window grid', () => {
 		const group = new class extends mock<IEditorGroup>() {
 			override get isEmpty() { return empty; }
 			override readonly onDidModelChange = onDidModelChange.event;
+			override getEditors() { return []; }
 		}();
 		const part = new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
@@ -333,7 +334,8 @@ suite('Chat window grid', () => {
 		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 		const terminalsPart = createPartWithEditors('terminals');
 		const container = createAttachedContainer();
-		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, position, undefined, editorGroupsService));
+		const setTerminalPosition = (value: ChatWindowTerminalPosition) => position.set(value, undefined);
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals, setTerminalPosition }, mode, constObservable(0), undefined, position, undefined, editorGroupsService));
 		grid.layout(1000, 800);
 		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 		const open = () => {
@@ -606,6 +608,37 @@ suite('Chat window grid', () => {
 			inputOnly: { chatGrabber: false, mainGrabber: true, topEdge: 'sash', drags: false, mainDrags: true, movePart: false },
 			movedByCommand: false,
 			conversation: { chatGrabber: true, mainGrabber: true, topEdge: 'grabber', drags: true, mainDrags: true, movePart: true },
+		});
+	});
+
+	test('in Stacked, a part dropped at the left or right of the chat showing only its input goes to that edge of the window, as the chat\'s row would hold it to the height of the input; with its conversation, it goes beside the chat', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.Stacked);
+		const chatInputOnly = observableValue('chatInputOnly', true);
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(createPart('terminals')), chatInputOnly }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
+		// Without motion, where the pointer is says where the card goes beside a part
+		const drop = (fx: number) => {
+			const handle = container.querySelector<HTMLElement>(`[data-part-grid-cell="${ChatWindowGridCell.Terminals}"] .part-grid-drag-handle`)!;
+			const start = handle.getBoundingClientRect();
+			const chat = container.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Chat}"] > .part-grid-card`)!.getBoundingClientRect();
+			pointer(handle, 'pointerdown', start.left + start.width / 2, start.top + start.height / 2);
+			pointer(handle, 'pointermove', start.left + start.width / 2 + 10, start.top + start.height / 2 + 10);
+			pointer(handle, 'pointermove', chat.left + chat.width * fx, chat.top + chat.height / 2);
+			pointer(handle, 'pointerup', chat.left + chat.width * fx, chat.top + chat.height / 2);
+			const shape = grid.partGrid!.describe();
+			grid.reset();
+			return shape;
+		};
+
+		const inputOnly = { left: drop(0.1), right: drop(0.9) };
+		chatInputOnly.set(false, undefined);
+		const conversation = { left: drop(0.1), right: drop(0.9) };
+
+		assert.deepStrictEqual({ inputOnly, conversation }, {
+			inputOnly: { left: 'column(titleRow, row(terminals, column(main, chat), strip))', right: 'column(titleRow, row(column(main, chat), terminals, strip))' },
+			conversation: { left: 'column(titleRow, row(column(main, row(terminals, chat)), strip))', right: 'column(titleRow, row(column(main, row(chat, terminals)), strip))' },
 		});
 	});
 
@@ -1195,6 +1228,54 @@ suite('Chat window grid', () => {
 				{ topology: 'column(titleRow, row(chat, column(main, terminals), strip))', height: 200, asNew: true },
 				{ topology: 'column(titleRow, row(column(row(chat, main), terminals), strip))', height: 200, asNew: true },
 			],
+		});
+	});
+
+	test('the terminals dropped below the main part or below the chat take that terminal position, and full width again at the bottom edge of the window: a mode round trip, the terminals leaving and joining again, and a new grid show them there; dropped where no position puts them, the position stays', () => {
+		const { mode, position, grid, open, close, container } = setupWithTerminals();
+		open();
+		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
+		const cardOf = (cell: ChatWindowGridCell) => container.querySelector(`[data-part-grid-cell="${cell}"] > .part-grid-card`)!.getBoundingClientRect();
+		// Without motion, where the pointer is says where the card goes beside a part: at `fx`, `fy` of `over`, else at the bottom edge of the window
+		const drop = (over: ChatWindowGridCell | undefined, fx = 0.5, fy = 0.9) => {
+			const handle = container.querySelector<HTMLElement>(`[data-part-grid-cell="${ChatWindowGridCell.Terminals}"] .part-grid-drag-handle`)!;
+			const start = handle.getBoundingClientRect();
+			const [x, y] = [start.left + start.width / 2, start.top + start.height / 2];
+			const target = over && cardOf(over);
+			const [toX, toY] = target ? [target.left + target.width * fx, target.top + target.height * fy] : [300, 796];
+			pointer(handle, 'pointerdown', x, y);
+			pointer(handle, 'pointermove', x + 10, y + 10);
+			pointer(handle, 'pointermove', toX, toY);
+			pointer(handle, 'pointerup', toX, toY);
+		};
+		const read = () => {
+			const shape = grid.partGrid!.describe();
+			mode.set(ChatWindowLayoutMode.Stacked, undefined);
+			mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+			const afterModeRoundTrip = grid.partGrid!.describe();
+			close();
+			open();
+			const rejoined = grid.partGrid!.describe();
+			const fresh = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(createPart('terminals')) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, constObservable(position.get()), undefined, editorGroupsService));
+			fresh.layout(1000, 800);
+			return { position: position.get(), shape, afterModeRoundTrip, rejoined, asNew: fresh.partGrid!.describe() };
+		};
+		const arranged = (terminalPosition: ChatWindowTerminalPosition, shape: string) => ({ position: terminalPosition, shape, afterModeRoundTrip: shape, rejoined: shape, asNew: shape });
+
+		drop(ChatWindowGridCell.Main);
+		const underEditor = read();
+		drop(ChatWindowGridCell.Chat);
+		const underChat = read();
+		drop(undefined);
+		const fullWidth = read();
+		drop(ChatWindowGridCell.Main, 0.9, 0.5);
+		const besideMain = { position: position.get(), shape: grid.partGrid!.describe() };
+
+		assert.deepStrictEqual({ underEditor, underChat, fullWidth, besideMain }, {
+			underEditor: arranged(ChatWindowTerminalPosition.UnderEditor, 'column(titleRow, row(chat, column(main, terminals), strip))'),
+			underChat: arranged(ChatWindowTerminalPosition.UnderChat, 'column(titleRow, row(column(chat, terminals), main, strip))'),
+			fullWidth: arranged(ChatWindowTerminalPosition.FullWidth, 'column(titleRow, row(column(row(chat, main), terminals), strip))'),
+			besideMain: { position: ChatWindowTerminalPosition.FullWidth, shape: 'column(titleRow, row(chat, main, terminals, strip))' },
 		});
 	});
 

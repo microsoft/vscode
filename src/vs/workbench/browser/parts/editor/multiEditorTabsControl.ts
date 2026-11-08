@@ -36,6 +36,7 @@ import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/com
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, getTotalWidth, getContentWidth } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { PART_GRID_TOP_STRIP_CLASS } from './partGridClass.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -259,7 +260,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
+		this.tabsAndActionsContainer = $(`.tabs-and-actions-container.${PART_GRID_TOP_STRIP_CLASS}`);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });
@@ -1903,9 +1904,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set border BOTTOM if theme defined color
 		if (isActive) {
-			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderBottom = this.theme.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderColorBottom = activeTabBorderBottom?.toString();
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
+			// A theme whose active tab border has the editor's background color, at any opacity, joins the tab to its editor:
+			// with connected tabs, it joins the surface the tab flows into, which a part whose editors have a surface of their
+			// own sets.
+			const editorBackgroundColor = this.theme.getColor(editorBackground);
+			const joinsEditor = !!activeTabBorderBottom && !!editorBackgroundColor && activeTabBorderBottom.rgba.r === editorBackgroundColor.rgba.r && activeTabBorderBottom.rgba.g === editorBackgroundColor.rgba.g && activeTabBorderBottom.rgba.b === editorBackgroundColor.rgba.b;
+			tabContainer.style.setProperty('--tab-border-bottom-color', joinsEditor ? `var(--modern-ui-connected-tab-surface, ${activeTabBorderColorBottom})` : activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color
@@ -2624,7 +2631,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-background');
 		this.connectedTabBounds = undefined;
-		this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
+		this.forEachTab((_editor, _index, tab) => {
+			tab.style.removeProperty('clip-path');
+			tab.classList.remove('connected-tab-add-clipped');
+		});
 	}
 
 	private updateConnectedTabClipping(scrollLeft: number): void {
@@ -2643,8 +2653,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			});
 			if (this.connectedTabBounds) {
 				const activeLeft = this.connectedTabBounds.tab.getBoundingClientRect().left;
+				const leftShoulderFits = activeLeft - this.connectedTabBounds.shoulderExtent * scale >= addBounds.right;
 				const viewportLeft = rtl
-					? Math.max(this.connectedTabBounds.viewportLeft, ((activeLeft < viewportEdge ? viewportEdge : addBounds.right) - tabsBounds.left) / scale)
+					? Math.max(this.connectedTabBounds.viewportLeft, ((leftShoulderFits ? addBounds.right : viewportEdge) - tabsBounds.left) / scale)
 					: this.connectedTabBounds.viewportLeft;
 				const viewportRight = rtl ? this.tabsContainer.offsetWidth : (addBounds.left - tabsBounds.left) / scale;
 				this.connectedTabBounds.overflowEdge.style.left = `${viewportLeft}px`;
@@ -2653,7 +2664,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 			const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
 			for (const { tab, clipped } of clipping) {
-				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
+				// Retain the natural shoulder only when it fits entirely before Add Tab.
+				const shoulderFits = tab.classList.contains('active') && this.connectedTabBounds && clipped + this.connectedTabBounds.shoulderExtent <= shoulderSpace;
+				const inset = clipped - (shoulderFits ? shoulderSpace : 0);
+				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${inset}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${inset}px` : shoulderInset})` : '';
+				tab.classList.toggle('connected-tab-add-clipped', clipped > 0);
 			}
 		} else {
 			if (this.connectedTabBounds) {
@@ -2662,7 +2677,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
 				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);
 			}
-			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
+			this.forEachTab((_editor, _index, tab) => {
+				tab.style.removeProperty('clip-path');
+				tab.classList.remove('connected-tab-add-clipped');
+			});
 		}
 	}
 

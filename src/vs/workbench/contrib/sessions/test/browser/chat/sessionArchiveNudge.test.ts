@@ -41,8 +41,8 @@ import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../.
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
 import { GitHubPullRequestModel } from '../../../browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../common/github/types.js';
@@ -52,6 +52,7 @@ import { SESSION_ARCHIVE_TOUR_ID } from '../../../browser/tours/sessionArchiveTo
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../../browser/chat/sessionArchiveNudge.js';
 import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../browser/views/sessionsView.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('SessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,7 +72,7 @@ suite('SessionArchiveNudge', () => {
 	}
 
 	function createSession(id: string = 'session') {
-		return new class extends mock<IActiveSession>() {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = `test:${id}`;
 			override readonly resource = URI.from({ scheme: 'test-session', path: `/${id}` });
 			override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);

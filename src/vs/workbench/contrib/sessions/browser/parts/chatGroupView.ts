@@ -18,15 +18,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { ChatInteractivity, getChatCapabilities, IChat, ISession, isSessionCreated, isSideChatOf, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
@@ -39,7 +38,13 @@ import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../../browser/parts/
 export interface IChatGroupContext {
 
 	/** The session whose chats are partitioned across groups. */
-	readonly session: IActiveSession;
+	readonly session: ISession;
+
+	/** Whether the group is of a pane that shows one chat of its session apart from its slot, such as a detached pane. */
+	readonly isDetached: boolean;
+
+	/** Closes the pane of the group, as closing its main chat's tab does. */
+	closePane(): void;
 
 	/** Options forwarded to the new-chat views the group creates. */
 	readonly options: IChatViewOptions;
@@ -300,6 +305,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._chatHeader.setChat({
 			session: context.session,
 			chat: activeChat,
+			isDetached: context.isDetached,
 			activate: () => context.activate(),
 		});
 		this._contextDisposables.add(autorun(reader => {
@@ -313,6 +319,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		const delegate: IChatCompositeBarDelegate = {
 			session: context.session,
+			isDetached: context.isDetached,
+			closePane: () => context.closePane(),
 			chats: context.chats,
 			activeChatResource: context.activeChatResource,
 			mainChatResource: context.mainChatResource,
@@ -407,7 +415,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			let desiredKind: ChatViewKind;
-			if (session.isCreated.read(reader) === false) {
+			if (!isSessionCreated(session, reader)) {
 				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true || chat?.interactivity.read(reader) === ChatInteractivity.ReadOnly
 					? 'chat'
 					: 'newSession';
@@ -584,7 +592,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
 		this._chatViewTop.set(barHeight, undefined);
-		this._sessionActivityBar?.layout(barHeight);
+		this._sessionActivityBar?.layout(barHeight, height - barHeight);
 		this._currentView.value?.layout(Math.max(0, width - columnWidth), height - barHeight, top + barHeight, left);
 	}
 

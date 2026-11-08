@@ -20,7 +20,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { SessionComparisonResult } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';

@@ -15,12 +15,12 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { PRReviewStateKind, IPRReviewState, IPRReviewComment, IPRReviewCommentTarget, ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
 
 // --- Implementation ----------------------------------------------------------
 

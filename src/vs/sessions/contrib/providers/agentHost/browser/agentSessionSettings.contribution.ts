@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.js';

@@ -23,8 +23,8 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveBrowserOwnerSession } from './sessionBrowserView.js';
 
@@ -162,7 +162,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			return identity.connectionAuthority;
 		}
 		// Drafts are not yet known to the host; use their provider's host.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			return provider.remoteAddress ? agentHostAuthority(provider.remoteAddress) : AMBIENT_AGENT_HOST_AUTHORITY;
 		}

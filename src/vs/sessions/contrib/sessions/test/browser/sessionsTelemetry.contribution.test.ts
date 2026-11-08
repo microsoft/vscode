@@ -28,10 +28,10 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { ISessionsTasksService } from '../../../chat/browser/sessionsTasksService.js';
-import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
@@ -39,7 +39,7 @@ import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.c
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -223,7 +223,7 @@ class TestFileCountSearchService extends mock<ISearchService>() {
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel; chatEntitlementService?: IChatEntitlementService; providersService?: ISessionsProvidersService } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel>; onDidInvokeChangesetOperation: Emitter<ISessionChangesetOperationInvokedEvent>; onDidExecuteCommand: Emitter<ICommandEvent> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<ITestSessionWithChat | undefined>, visibleSessions: readonly (ITestSessionWithChat | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel; chatEntitlementService?: IChatEntitlementService; providersService?: ISessionsProvidersService } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel>; onDidInvokeChangesetOperation: Emitter<ISessionChangesetOperationInvokedEvent>; onDidExecuteCommand: Emitter<ICommandEvent> } {
 		const onWillSendRequest = disposables.add(new Emitter<ISession>());
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
@@ -245,7 +245,8 @@ suite('SessionsTelemetryContribution', () => {
 			override getSession(resource: URI): ISession | undefined { return sessions.find(s => s.resource.toString() === resource.toString()); }
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable(visibleSessions);
+			readonly gridShown = constObservable(visibleSessions);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			readonly activeSession = activeSession ?? constObservable(undefined);
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();
@@ -434,7 +435,7 @@ suite('SessionsTelemetryContribution', () => {
 		const secondSession = { ...session, sessionId: 'second', resource: URI.parse('test:///second'), isArchived: secondSessionArchived };
 		const archivedSession = { ...session, sessionId: 'archived', resource: URI.parse('test:///archived'), isArchived: constObservable(true) };
 		const automationSession = { ...session, sessionId: 'automation', resource: URI.parse('test:///automation'), isAutomation: constObservable(true) };
-		const visibleSession = upcastPartial<IActiveSession>(session);
+		const visibleSession = upcastPartial<ITestSessionWithChat>(session);
 		const { telemetryService, onDidSendRequest } = setup([session, secondSession, archivedSession, automationSession], undefined, [visibleSession]);
 
 		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
@@ -577,7 +578,7 @@ suite('SessionsTelemetryContribution', () => {
 		const worktree = URI.file('/repo/worktree');
 		const folder: ISessionFolder = { root: URI.file('/repo'), workingDirectory: worktree, name: 'repo', description: undefined };
 		const tracked = { ...session, workspace: constObservable(createWorkspace(worktree, [folder])) };
-		const { telemetryService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([tracked], constObservable(upcastPartial<IActiveSession>(tracked)));
+		const { telemetryService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([tracked], constObservable(upcastPartial<ITestSessionWithChat>(tracked)));
 		onDidSendRequest.fire({ session: tracked, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } });
 
 		const inWorktree = disposables.add(createTextModel('', null, undefined, URI.file('/repo/worktree/file.ts')));
@@ -613,7 +614,7 @@ suite('SessionsTelemetryContribution', () => {
 		});
 		const first = makeSession('first', URI.file('/repo/wt-first'));
 		const second = makeSession('second', URI.file('/repo/wt-second'));
-		const active = observableValue<IActiveSession | undefined>('active', upcastPartial<IActiveSession>(first));
+		const active = observableValue<ITestSessionWithChat | undefined>('active', upcastPartial<ITestSessionWithChat>(first));
 		const { telemetryService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([first, second], active);
 		onDidSendRequest.fire({ session: first, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } });
 		onDidSendRequest.fire({ session: second, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } });
@@ -627,7 +628,7 @@ suite('SessionsTelemetryContribution', () => {
 		// Typed while `first` was active, then the user switches before the
 		// buffered characters would have been reported on their own.
 		firstFile.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'abcde' }], false, typed);
-		active.set(upcastPartial<IActiveSession>(second), undefined);
+		active.set(upcastPartial<ITestSessionWithChat>(second), undefined);
 		secondFile.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'xyz' }], false, typed);
 
 		onDidArchiveSession.fire(first);
@@ -642,7 +643,7 @@ suite('SessionsTelemetryContribution', () => {
 		const worktree = URI.file('/repo/worktree');
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
 		const tracked = { ...session, workspace };
-		const { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([tracked], constObservable(upcastPartial<IActiveSession>(tracked)));
+		const { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([tracked], constObservable(upcastPartial<ITestSessionWithChat>(tracked)));
 		onDidSendRequest.fire({ session: tracked, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } });
 
 		const file = disposables.add(createTextModel('', null, undefined, URI.file('/repo/worktree/file.ts')));

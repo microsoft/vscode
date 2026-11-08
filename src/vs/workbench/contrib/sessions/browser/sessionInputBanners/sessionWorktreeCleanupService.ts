@@ -24,8 +24,8 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
-import { ISessionHostService } from '../sessionHost.js';
-import { ISession, SessionStatus } from '../../common/session.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 export const CLEANUP_THRESHOLD_BYTES = 5 * ByteSize.GB;
@@ -301,6 +301,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private async _measureWorktrees(token: CancellationToken, onProgress: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly IMeasuredSessionWorktree[]> {
 		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
+			&& session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri || folder.gitRepository.workTreeUri.scheme === Schemas.file)
 			&& isWorktreeCleanupBranchSupported({ session })
 		);
 		const totalWorktrees = worktreeSessions.reduce((total, session) => total + (session.isArchived.get() ? 0 : this._countWorktrees(session)), 0);
@@ -410,6 +411,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const seen = new Set<string>();
 		const unlinked: ISessionWorktree[] = [];
 		for (const worktree of inventory) {
+			if (URI.parse(worktree.worktree).scheme !== Schemas.file) {
+				continue;
+			}
 			const path = `${worktree.providerId}:${extUri.getComparisonKey(URI.parse(worktree.worktree))}`;
 			if (seen.has(path)) {
 				continue;

@@ -42,8 +42,7 @@ import { TestChatEntitlementService, TestLifecycleService, TestStorageService } 
 import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionNavigationRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { getSessionOnboardingTargetId, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
@@ -53,7 +52,7 @@ import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
-import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentsWindowInvitationOnboarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,7 +97,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		entitlement.entitlement = ChatEntitlement.Available;
 		entitlement.entitlementObs.set(ChatEntitlement.Available, undefined);
 		const session = createTestSession('Running session', { status: SessionStatus.InProgress }).session;
-		const activeSession = observableValue<IActiveSession | undefined>(store, upcastPartial<IActiveSession>({ resource: session.resource, isCreated: constObservable(true) }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>(store, upcastPartial<ITestSessionWithChat>({ resource: session.resource, ...withCreatedStatus(constObservable(true)) }));
 		const initialRestoreComplete = observableValue(store, true);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>(store, undefined);
 		const events: string[] = [];
@@ -406,7 +405,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token).then(() => { firstFinished = true; });
 		await timeout(0);
 		cancellation.cancel();
-		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource, isCreated: constObservable(true) }), undefined);
+		h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: replacement.resource, ...withCreatedStatus(constObservable(true)) }), undefined);
 		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
 		await timeout(0);
 		const whileBlocked = { firstFinished, pending: h.pending(), targets: [...targets] };
@@ -452,7 +451,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token);
 		await started.p;
 		cancellation.cancel();
-		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource, isCreated: constObservable(true) }), undefined);
+		h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: replacement.resource, ...withCreatedStatus(constObservable(true)) }), undefined);
 		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
 		await timeout(0);
 		const duringCleanup = { events: [...h.events], pending: h.pending() };
@@ -533,7 +532,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 	for (const hasDraft of [false, true]) {
 		test(`spotlights the invited session from the new-session view without activating it (draft: ${hasDraft})`, async () => {
 			const h = createHarness();
-			const active = hasDraft ? upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/draft' }), isCreated: constObservable(false) }) : undefined;
+			const active = hasDraft ? upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/draft' }), ...withCreatedStatus(constObservable(false)) }) : undefined;
 			h.activeSession.set(active, undefined);
 			await h.runner.runWithHandoff(h.handoff, h.resolveSession, CancellationToken.None, false);
 			assert.deepStrictEqual({
@@ -559,7 +558,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const running = h.runner.runWithHandoff(h.handoff, h.resolveSession, CancellationToken.None, false);
 		await timeout(0);
 		const beforeRestore = [...h.events];
-		const restoredSession = upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/draft' }), isCreated: constObservable(false) });
+		const restoredSession = upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/draft' }), ...withCreatedStatus(constObservable(false)) });
 		h.activeSession.set(restoredSession, undefined);
 		h.initialRestoreComplete.set(true, undefined);
 		await running;
@@ -574,7 +573,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 	test('a spotlight-only handoff allows automatic draft creation while resolving the invited session', async () => {
 		const h = createHarness();
 		h.activeSession.set(undefined, undefined);
-		const draft = upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/draft' }), isCreated: constObservable(false) });
+		const draft = upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/draft' }), ...withCreatedStatus(constObservable(false)) });
 		await h.runner.runWithHandoff(h.handoff, async () => {
 			h.activeSession.set(draft, undefined);
 			return h.resolveSession();
@@ -600,7 +599,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 	test('a spotlight-only handoff yields to navigation while the provider resolves the invited session', async () => {
 		const h = createHarness();
 		await h.runner.runWithHandoff(h.handoff, async () => {
-			h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }), isCreated: constObservable(true) }), undefined);
+			h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/another-session' }), ...withCreatedStatus(constObservable(true)) }), undefined);
 			return h.resolveSession();
 		}, CancellationToken.None, false);
 		assert.deepStrictEqual({ presented: h.presented, events: h.events }, { presented: [], events: ['handoff', 'resolve'] });
@@ -614,7 +613,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			async run(scenario, context) {
 				store.add(context.onAbort(() => { cancelled = true; }));
-				h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }), isCreated: constObservable(true) }), undefined);
+				h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/another-session' }), ...withCreatedStatus(constObservable(true)) }), undefined);
 				const payload = scenario.presentation.payload as ISpotlightPayload;
 				await payload.steps[0].onBeforeShow?.();
 				return { outcome: OnboardingOutcome.Aborted, shown: false, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex: 0, stepCount: 1 };
@@ -694,7 +693,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 
 	test('does not spotlight after the user navigates away from the invited session', async () => {
 		const h = createHarness();
-		h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }), isCreated: constObservable(true) }), undefined);
+		h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/another-session' }), ...withCreatedStatus(constObservable(true)) }), undefined);
 		await h.runner.runWithHandoff(h.handoff, h.resolveSession, CancellationToken.None);
 		assert.deepStrictEqual({ presented: h.presented, events: h.events }, { presented: [], events: ['handoff', 'resolve'] });
 	});
@@ -706,7 +705,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			async run(scenario, context) {
 				store.add(context.onAbort(() => { cancelled = true; }));
-				h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }), isCreated: constObservable(true) }), undefined);
+				h.activeSession.set(upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/another-session' }), ...withCreatedStatus(constObservable(true)) }), undefined);
 				const payload = scenario.presentation.payload as ISpotlightPayload;
 				await payload.steps[0].onBeforeShow?.();
 				return { outcome: OnboardingOutcome.Aborted, shown: false, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex: 0, stepCount: 1 };
@@ -800,7 +799,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 
 	test('renders experiment copy on an inactive session row without opening it and restores focus after keyboard dismissal', () => runWithFakedTimers({ startTime: 1 }, async () => {
 		const h = createHarness();
-		const active = upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/draft' }), isCreated: constObservable(false) });
+		const active = upcastPartial<ITestSessionWithChat>({ resource: h.session.resource.with({ path: '/draft' }), ...withCreatedStatus(constObservable(false)) });
 		h.activeSession.set(active, undefined);
 		h.treatments.set('onb.agentsWindowInvitation.title', 'Your active session');
 		h.treatments.set('onb.agentsWindowInvitation.description', 'Switch between your agent sessions here.');

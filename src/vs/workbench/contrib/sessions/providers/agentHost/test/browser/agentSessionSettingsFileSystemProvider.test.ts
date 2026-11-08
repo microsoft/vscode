@@ -17,7 +17,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../.
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import type { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import type { ISession } from '../../../../common/session.js';
+import type { ISession } from '../../../../../../services/sessions/common/session.js';
 import type { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { agentSessionSettingsUri, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../browser/agentSessionSettingsFileSystemProvider.js';
 
@@ -55,6 +55,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 	function createHarness(
 		initialConfig: ResolveSessionConfigResult | undefined,
 		registerProvider = true,
+		sessionScoped = false,
 	): ITestHarness {
 		const session = createSession();
 
@@ -86,8 +87,8 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 
 		const onDidChangeProvidersEmitter = store.add(new Emitter<{ added: readonly ISessionsProvider[]; removed: readonly ISessionsProvider[] }>());
 		const providersService: ISessionsProvidersService = {
-			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
-				if (registerProvider && providerId === PROVIDER_ID) {
+			getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined {
+				if (registerProvider && providerId === PROVIDER_ID && (!sessionScoped || sessionId === session.sessionId)) {
 					return sessionProvider as unknown as T;
 				}
 				return undefined;
@@ -106,6 +107,26 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 
 		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider };
 	}
+
+	test('reads, watches and writes through the session-scoped runtime rather than the catalog', async () => {
+		const { fs, uri, session, sessionProvider } = createHarness({
+			schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', sessionMutable: true } } },
+			values: { mode: 'interactive' },
+		}, true, true);
+		const contents = VSBuffer.wrap(await fs.readFile(uri)).toString();
+		const changes: string[] = [];
+		store.add(fs.onDidChangeFile(events => changes.push(...events.map(event => event.resource.toString()))));
+		store.add(fs.watch(uri, { recursive: false, excludes: [] }));
+		sessionProvider.onDidChangeSessionConfigEmitter.fire(session.sessionId);
+		await fs.writeFile(uri, VSBuffer.fromString('{"mode":"plan"}').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+		assert.deepStrictEqual({
+			read: JSON.parse(contents.slice(contents.indexOf('{'))),
+			changes, writes: sessionProvider.replaceCalls,
+		}, {
+			read: { mode: 'interactive' }, changes: [uri.toString(), uri.toString()],
+			writes: [{ sessionId: session.sessionId, values: { mode: 'plan' } }],
+		});
+	});
 
 	test('readFile returns mutable, non-readOnly config values as JSON', async () => {
 		const { fs, uri } = createHarness({

@@ -8,7 +8,7 @@ import { EventType } from '../../../../../../../base/browser/dom.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -22,19 +22,23 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../.
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';
-import { ISessionHost, ISessionHostService } from '../../../../browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
-import { IChat } from '../../../../common/session.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
-import { ITestSessionsService } from '../../../../test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, testGridPanes } from '../../../../test/browser/sessionHostTestUtils.js';
 
 class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
 	get tooltip(): string | undefined {
 		return this.getTooltip();
 	}
+}
+
+/** The grid's slots, which show `shown`, for the sessions service fake: the panes production reads, and what the host stubs show. */
+function gridOf(shown: IObservable<readonly (ITestSessionWithChat | undefined)[]>): Pick<ITestSessionsService, 'gridShown' | 'slotPanes'> {
+	return { gridShown: shown, slotPanes: testGridPanes(shown) };
 }
 
 suite('OpenSubagentChatActionViewItemContribution', () => {
@@ -49,7 +53,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		const resource = URI.parse('agent-host-copilotcli:/session');
 		const chats = observableValue<readonly IChat[]>('chats', Array.from({ length: 173 }, (_, index) =>
 			upcastPartial<IChat>({ resource: resource.with({ fragment: `worker-${index}` }) })));
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'session', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, resource, chats,
 		});
 		let backendLookups = 0;
@@ -65,7 +69,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		}());
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(session),
-			visibleSessions: constObservable([session]),
+			...gridOf(constObservable([session])),
 		}));
 		let factory: IActionViewItemFactory | undefined;
 		instantiationService.stub(IActionViewItemService, {
@@ -104,13 +108,13 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 				const instantiationService = workbenchInstantiationService(undefined, store);
 				const resource = URI.parse('agent-host-copilotcli:/session');
 				const chat = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
-				const session = upcastPartial<IActiveSession>({
+				const session = upcastPartial<ITestSessionWithChat>({
 					sessionId: 'session',
 					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource,
 					chats: constObservable([chat]),
 				});
-				const otherSession = upcastPartial<IActiveSession>({
+				const otherSession = upcastPartial<ITestSessionWithChat>({
 					sessionId: 'other',
 					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource: resource.with({ path: '/other' }),
@@ -129,7 +133,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 				const opened: { toSide: boolean; sessionId: string; resource: URI; referenceChatResource?: URI }[] = [];
 				instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 					activeSession: constObservable(otherSession),
-					visibleSessions: constObservable([otherSession, session]),
+					...gridOf(constObservable([otherSession, session])),
 					openChat: async (session, resource) => {
 						opened.push({ toSide: false, sessionId: session.sessionId, resource });
 					},
@@ -158,17 +162,58 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		}
 	}
 
+	test('looks a subagent up in the sessions of the grid\'s slots in their order, skipping the new-session slot', async () => {
+		const resource = URI.parse('agent-host-copilotcli:/first');
+		const sessionOf = (id: string) => upcastPartial<ITestSessionWithChat>({
+			sessionId: id, providerId: LOCAL_AGENT_HOST_PROVIDER_ID, resource: resource.with({ path: `/${id}` }),
+			chats: constObservable([upcastPartial<IChat>({ resource: resource.with({ path: `/${id}`, fragment: 'shared' }) })]),
+		});
+		const [first, second] = ['first', 'second'].map(sessionOf);
+		// Both sessions have a chat whose backend chat is the one the target names: the first in order owns it.
+		const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID,
+			getBackendChatResource: chat => URI.parse(`conversation:/${chat.fragment}`),
+		});
+		const openedFrom = async (slots: readonly (ITestSessionWithChat | undefined)[]) => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T | undefined { return provider as T; }
+			}());
+			const opened: string[] = [];
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: constObservable(undefined),
+				...gridOf(constObservable(slots)),
+				openChat: async session => { opened.push(session.sessionId); },
+				openChatToSide: async session => { opened.push(session.sessionId); },
+			}));
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) }));
+			// The command is registered once at a time: each grid's contribution goes before the next registers it.
+			const contribution = instantiationService.createInstance(OpenSubagentChatActionViewItemContribution);
+			try {
+				await instantiationService.invokeFunction(CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)!.handler, { chatResource: 'conversation:/shared' });
+			} finally {
+				contribution.dispose();
+			}
+			return opened;
+		};
+
+		assert.deepStrictEqual({
+			firstFirst: await openedFrom([undefined, first, second]),
+			secondFirst: await openedFrom([second, undefined, first]),
+		}, { firstFirst: ['first'], secondFirst: ['second'] });
+	});
+
 	test('opens a subagent from a chat window that is not the active session through the session its host shows', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const resource = URI.parse('agent-host-copilotcli:/session');
 		const parent = upcastPartial<IChat>({ resource: resource.with({ fragment: 'main' }) });
 		const subagent = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
-		const windowSession = upcastPartial<IActiveSession>({ sessionId: 'session', resource, chats: constObservable([parent, subagent]), scopedChatResource: parent.resource });
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: resource.with({ path: '/other' }), chats: constObservable([]) });
+		const windowSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource, chats: constObservable([parent, subagent]), detachedChat: parent.resource });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'other', resource: resource.with({ path: '/other' }), chats: constObservable([]) });
 		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(otherSession),
-			visibleSessions: constObservable([otherSession]),
+			...gridOf(constObservable([otherSession])),
 			openChatToSide: async (...args) => { opened.push(args); },
 		}));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
@@ -191,7 +236,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		const resource = URI.parse('agent-host-copilotcli:/session');
 		const parent = upcastPartial<IChat>({ resource: URI.parse('vendor-chat:/workers/parent') });
 		const nested = upcastPartial<IChat>({ resource: URI.parse('vendor-chat:/workers/nested?revision=2') });
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'session',
 			resource,
 			chats: constObservable([parent, nested]),
@@ -199,7 +244,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(session),
-			visibleSessions: constObservable([session]),
+			...gridOf(constObservable([session])),
 			openChatToSide: async (...args) => { opened.push(args); },
 		}));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
@@ -304,8 +349,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 	test('keeps the rich pill visible but disables opening until its peer chat resolves', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
-			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
+			...gridOf(observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [])),
 		}));
 		instantiationService.stub(ILanguageModelsService, {
 			onDidChangeLanguageModels: Event.None,
@@ -341,8 +386,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 	test('provides drag data and opens to the side from the keyboard', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
-			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
+			...gridOf(observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [])),
 		}));
 		instantiationService.stub(ILanguageModelsService, {
 			onDidChangeLanguageModels: Event.None,
@@ -395,8 +440,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 	test('refreshes accessible metadata when the active tool clears', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
-			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
+			...gridOf(observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [])),
 		}));
 		instantiationService.stub(ILanguageModelsService, {
 			onDidChangeLanguageModels: Event.None,
@@ -444,8 +489,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 	test('keeps matching model metadata in the hover while hiding it inline', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
-			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
+			...gridOf(observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [])),
 		}));
 		instantiationService.stub(ILanguageModelsService, {
 			onDidChangeLanguageModels: Event.None,
@@ -486,8 +531,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsShowCreditUsage, true);
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
-			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
+			...gridOf(observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [])),
 		}));
 		instantiationService.stub(ILanguageModelsService, {
 			onDidChangeLanguageModels: Event.None,

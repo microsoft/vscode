@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { match, spy, stub, useFakeTimers } from 'sinon';
+import { spy, stub, useFakeTimers } from 'sinon';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -71,7 +71,7 @@ import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewR
 import { getChatRequestOutcome } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
-import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
@@ -85,6 +85,7 @@ import { GitHubPullRequestModel } from '../../../../../workbench/contrib/session
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
@@ -2174,8 +2175,6 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stubInstance(ChatQuestionCarouselPart, {
 			domNode: document.createElement('div'), onDidChangeHeight: Event.None, dispose: () => { },
 		});
-		const createInstance = spy(TestInstantiationService.prototype, 'createInstance');
-		disposables.add({ dispose: () => createInstance.restore() });
 		view.render(container);
 		container.querySelector<HTMLElement>('[data-notification-id="first"]')!.click();
 		const first = scopes.at(-1)!;
@@ -2187,14 +2186,12 @@ suite('InboxNotificationsView', () => {
 		const second = scopes.at(-1)!;
 		ChatContextKeys.inChatQuestionCarousel.bindTo(second).reset();
 		assert.deepStrictEqual({
-			scopedDeduplication: createInstance.getCalls().some(call => call.args[0] === ChatQuestionCarouselPart && match({ hideDuplicateDetailedMessage: true }).test(call.args[3])),
 			windowQuestion: contextKeyService.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
 			windowTerminal: contextKeyService.getContextKeyValue(ChatContextKeys.chatQuestionCarouselHasTerminal.key),
 			firstQuestion,
 			firstTerminal,
 			secondQuestion: second.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
 		}, {
-			scopedDeduplication: true,
 			windowQuestion: undefined, windowTerminal: undefined,
 			firstQuestion: true, firstTerminal: true, secondQuestion: false,
 		});
@@ -3101,6 +3098,7 @@ suite('InboxNotificationsView', () => {
 		};
 		const { view, container, instantiationService } = createView(constObservable([item]));
 		const chatInstantiationService = workbenchInstantiationService(undefined, disposables);
+		chatInstantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 		const widget = disposables.add(chatInstantiationService.createInstance(ChatQuestionCarouselPart, carousel, undefined, { onSubmit: () => { }, shouldAutoFocus: false }));
 		instantiationService.stubInstance(ChatQuestionCarouselPart, widget);
 		container.style.setProperty('--vscode-cornerRadius-large', '8px');
@@ -3183,7 +3181,7 @@ suite('InboxNotificationsView', () => {
 			labels: ['Allow Once', 'Skip', 'Explain'],
 			menu: ['', 'Allow in Session', '', 'Always Allow'],
 			submissionsAfterExplain: 0, submittedIndex: 2, submittedId: 'session',
-			explanation: [part.chatResource, 'Explain what this terminal command will do.', { text: part.commandLine }, { sourceTurnId: part.requestId }],
+			explanation: [part.chatResource, `Explain what this terminal command will do. Do not run it.\n\n\`${part.commandLine}\``, undefined, { sourceTurnId: part.requestId, includeSourceContext: false }],
 			titleCount: 2, codeLanguage: true, radius: '6px', border: 'solid',
 		});
 	});
@@ -3785,7 +3783,7 @@ suite('InboxNotificationsView', () => {
 				id: 'pending', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
 				title: 'Pending request', description: '', timestamp: 1, actions: [], previewSignature: 'preview',
 				needsInputPart: kind === 'questionCarousel'
-					? { kind, chatResource, requestId: 'request', allowSkip: true, questions: [{ id: 'choice', type: 'text', title: 'Choose a direction' }] }
+					? { kind, chatResource, requestId: 'request', allowSkip: true, questions: [{ id: 'choice', type: 'singleSelect', title: 'Choose a direction', allowFreeformInput: false, options: [{ id: 'north', label: 'North', value: 'north' }] }] }
 					: { kind, chatResource, requestId: 'request', toolCallId: 'tool', confirmationKind: 'execution', title: 'Allow check?', message: 'Inspect the workspace.', buttons: [{ label: 'Allow', kind: 'approve', useUserActionReason: true }] },
 			};
 			const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());

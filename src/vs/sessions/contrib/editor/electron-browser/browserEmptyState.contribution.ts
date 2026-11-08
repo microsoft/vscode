@@ -16,8 +16,8 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { IBrowserViewModel } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../../../../workbench/contrib/browserView/electron-browser/browserEditor.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionsEmptyStateActions } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateLayout.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateLayout.js';
 
 export class SessionsBrowserEmptyState extends BrowserEditorContribution {
 	private readonly element = $('.sessions-browser-empty-state');

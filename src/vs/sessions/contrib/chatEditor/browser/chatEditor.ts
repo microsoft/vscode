@@ -18,16 +18,23 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
+import { IEditorPaneTitleMenu } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { ChatEditorContent } from './chatEditorContent.js';
-import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
+
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorInputCapabilities } from '../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../workbench/common/editor.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { getSessionChatAncestors } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeaderBar.js';
+import { getSessionConversationStatusAriaLabel } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
+import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** The view type of the chat of a session, shown as an editor: the chat part of a chat window shows it. */
 export const SESSION_CHAT_VIEW_TYPE = 'sessions.chat';
@@ -58,8 +65,13 @@ export interface IChatEditorWindow {
 
 /** What a chat editor shows, and the window it shows in, as whoever opens its editor gives it. */
 export interface ISessionChatViewHost {
-	/** The chat it shows, as a session of its own scoped to that chat (its active chat), once the chat is known. */
-	readonly session: IObservable<IActiveSession | undefined>;
+	/**
+	 * What its pane shows, once the chat is known: the provider's session, the chat, and how its pane closes, which closes the
+	 * chat in the window it shows in.
+	 */
+	readonly content: IObservable<ISessionPaneContent | undefined>;
+	/** A new-session composer that its pane shows while {@link content} is undefined, until the composer's session is created. */
+	readonly composer?: IObservable<IChatEditorComposer | undefined>;
 	/** The window the view shows in, once it shows. */
 	readonly window: IObservable<IChatEditorWindow | undefined>;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
@@ -236,8 +248,14 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	/** Whether the view shows: not while another editor of its group, as a tab, shows. */
 	private readonly _visible = observableValue(this, true);
 
+	/** Whether the view shows its title, the session header: not while its group shows its tabs, which show its actions. */
+	private readonly _providedTitleVisible = observableValue(this, true);
+
 	/** The title of the session header drags the chat. */
 	get dragHandle(): HTMLElement { return this.sessionView.headerTitleElement; }
+
+	/** The actions of the session header, which the tab bar of its group shows while the header hides. */
+	get titleMenu(): IEditorPaneTitleMenu { return this.sessionView.titleMenu; }
 
 	private readonly _onDidChange = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
@@ -295,8 +313,9 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 
 		const window = derived(this, reader => host?.window.read(reader));
 		this._inputOnly = this._register(new SessionChatViewInputOnly(sessionView, window));
-		// The command center of the window names the session while the chat shows only its input: its header hides.
-		this._register(autorun(reader => sessionView.setHeaderHidden(this._inputOnly.shownInputOnly.read(reader))));
+		// The command center of the window names the session while the chat shows only its input, and the tabs of its group
+		// name the chat while they show: its header hides.
+		this._register(autorun(reader => sessionView.setHeaderHidden(this._inputOnly.shownInputOnly.read(reader) || !this._providedTitleVisible.read(reader))));
 		this._register(autorun(reader => {
 			this._inputOnly.minimumHeight.read(reader);
 			this._inputOnly.maximumHeight.read(reader);
@@ -306,15 +325,17 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		if (!host) {
 			return;
 		}
-		this._register(host.attach(sessionView));
-		this._register(autorun(reader => sessionView.setSession(host.session.read(reader))));
 		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
-		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it.
+		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it. Its
+		// host sees it shown or hidden from the moment the view attaches, such as to mark its chat read only while it shows.
 		this._register(autorun(reader => {
 			const mode = host.window.read(reader)?.layoutMode.read(reader);
 			const visible = mode !== ChatWindowLayoutMode.EditorOnly && this._visible.read(reader);
 			sessionView.setVisible(visible, visible);
 		}));
+		this._register(host.attach(sessionView));
+		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
+		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		this._register(autorun(reader => sessionView.setActive(host.active.read(reader))));
 	}
 
@@ -332,6 +353,10 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		this._visible.set(visible, undefined);
 	}
 
+	setProvidedTitleVisible(visible: boolean): void {
+		this._providedTitleVisible.set(visible, undefined);
+	}
+
 	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
 	saveViewState(): void {
 		this.sessionView.primaryChatView.get()?.saveViewState();
@@ -346,21 +371,88 @@ Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
 });
 
 /**
+ * What the tab of the editor of `chat` of `session`, named `name`, shows of the chat besides its name: its status, as the
+ * sessions list shows it beside the chat, and its title with those of its session and parent chats, as its header does.
+ */
+export function getChatEditorInputDetails(session: ISession, chat: IChat, name: string, reader: IReader, sessionsListModelService: ISessionsListModelService, agentMergeConfiguration: () => IObservable<ISessionAgentMergeConfiguration | undefined>): IChatEditorInputDetails {
+	const status = chat.status.read(reader);
+	const isRead = chat.isRead.read(reader);
+	const isArchived = chat.isArchived.read(reader);
+	const statusIcon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, getChatCompletedStateIcon(session, chat, reader, agentMergeConfiguration));
+	// A tab shows a chat in progress spinning, as other work in progress shows; it stands still while motion is reduced.
+	const icon = status === SessionStatus.InProgress ? { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: statusIcon.color } : statusIcon;
+	const longTitle = [...getSessionChatAncestors(session, chat, reader), name].join(' / ');
+	const ariaLabel = localize('chatEditorInputAria', "{0}, {1}", longTitle, getSessionConversationStatusAriaLabel(status));
+	return { icon, longTitle, ariaLabel: !isRead && !isArchived ? localize('chatEditorInputUnreadAria', "{0}, unread", ariaLabel) : ariaLabel };
+}
+
+/** What the tab of a chat editor shows of its chat besides its name; see {@link ChatEditorInput.setDetails}. */
+export interface IChatEditorInputDetails {
+	/** The status of the chat, as the sessions list shows it beside the chat. */
+	readonly icon: ThemeIcon;
+	/** The title of the chat with those of its session and parent chats, such as for the tooltip of its tab. */
+	readonly longTitle: string;
+	/** The title of the chat with its session and its status, as screen readers read its tab. */
+	readonly ariaLabel: string;
+}
+
+/** Where a chat editor can move to ({@link ChatEditorInput.setMoveRestriction}). */
+export interface IChatEditorMoveRestriction {
+	/** Shown when a move is refused. */
+	readonly reason: string;
+	canMoveTo(group: GroupIdentifier): boolean;
+}
+
+/**
  * The editor of a chat, keyed by the chat's resource: one per chat, in the chat part of a chat window. Its tab shows the
  * title of the chat.
  */
 export class ChatEditorInput extends ViewEditorInput {
 
 	private _name = '';
+	private _details: IChatEditorInputDetails | undefined;
 	private _cannotClose = false;
+	private _moveRestriction: IChatEditorMoveRestriction | undefined;
 
 	constructor(readonly chatResource: URI) {
 		super(SESSION_CHAT_VIEW_TYPE, chatResource);
 	}
 
+	/**
+	 * Keeps the editor in the groups `restriction` allows, such as those of its own window, with its reason elsewhere and
+	 * for a new window. A copy of it is a move, as for any editor of a view.
+	 */
+	setMoveRestriction(restriction: IChatEditorMoveRestriction | undefined): void {
+		if (this._moveRestriction !== restriction) {
+			this._moveRestriction = restriction;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const restriction = this._moveRestriction;
+		return !restriction || restriction.canMoveTo(targetGroup) ? super.canMove(sourceGroup, targetGroup) : restriction.reason;
+	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): true | string {
+		return this._moveRestriction?.reason ?? super.canMoveToNewWindow(sourceGroup);
+	}
+
 	setName(name: string): void {
 		if (this._name !== name) {
 			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	/** What its tab shows of the chat besides its name: its status, its session, and what screen readers read of it. */
+	setDetails(details: IChatEditorInputDetails | undefined): void {
+		const current = this._details;
+		const changed = !current || !details
+			? current !== details
+			: !ThemeIcon.isEqual(current.icon, details.icon) || current.longTitle !== details.longTitle || current.ariaLabel !== details.ariaLabel;
+		if (changed) {
+			this._details = details;
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -376,8 +468,16 @@ export class ChatEditorInput extends ViewEditorInput {
 		return this._name || super.getName();
 	}
 
+	override getTitle(verbosity?: Verbosity): string {
+		return verbosity === Verbosity.LONG && this._details ? this._details.longTitle : this.getName();
+	}
+
+	override getAriaLabel(): string {
+		return this._details?.ariaLabel ?? super.getAriaLabel();
+	}
+
 	override getIcon(): ThemeIcon {
-		return Codicon.commentDiscussion;
+		return this._details?.icon ?? Codicon.commentDiscussion;
 	}
 
 	override get capabilities(): EditorInputCapabilities {

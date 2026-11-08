@@ -101,7 +101,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { getAgentHostProviderForTelemetry, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chatSelectedModel.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
@@ -198,6 +198,7 @@ import { InlineCompletionsController } from '../../../../../../editor/contrib/in
 import { bindSandboxPlaceholder } from './editor/chatInputSandboxContribution.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../chatOptions.js';
+import { isIChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
 const $ = dom.$;
 
@@ -1420,6 +1421,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
+		const contributedModelSessionType = derived(this, reader => {
+			const resource = this._currentSessionResourceObservable.read(reader);
+			return resource ? this.chatSessionsService.getChatSessionContribution(getChatSessionType(resource))?.modelSessionType?.(resource, reader) : undefined;
+		});
+		this._register(autorun(reader => {
+			if (this.options.hostModelSelection) {
+				return;
+			}
+			const target = contributedModelSessionType.read(reader);
+			const resource = this._currentSessionResourceObservable.read(reader);
+			if (resource && (target !== undefined || this.chatSessionsService.getChatSessionContribution(getChatSessionType(resource))?.modelSessionType)) {
+				this.revalidateContributedModelPool();
+			}
+		}));
+
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this._modelSelectionController.ensureCurrentModelSupported();
 		}));
@@ -2430,11 +2446,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _readBoundModelPoolOverride(reader?: IReader): { readonly sessionType: string | undefined } | undefined {
 		const override = this._modelSessionTypeOverride.read(reader);
-		return override && isEqual(override.resource, this._boundModelResource()) ? override : undefined;
+		const resource = this._boundModelResource();
+		if (override && isEqual(override.resource, resource)) {
+			return override;
+		}
+		const resolve = resource && this.chatSessionsService.getChatSessionContribution(getChatSessionType(resource))?.modelSessionType;
+		if (resolve && resource) {
+			this._currentSessionResourceObservable.read(reader);
+			return { sessionType: resolve(resource, reader) };
+		}
+		return undefined;
 	}
 
 	private _readModelSessionTypeOverride(reader?: IReader): string | undefined {
 		return this._readBoundModelPoolOverride(reader)?.sessionType;
+	}
+
+	private revalidateContributedModelPool(): void {
+		const current = this._currentLanguageModel.get();
+		if (!current || !this.getModels().some(model => model.identifier === current.identifier)) {
+			this._modelSelectionController.revalidateForSessionType(() => this.initSelectedModel());
+		}
 	}
 
 	/**
@@ -5135,7 +5167,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}
 
-		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options);
+		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, { ...options, editorOverflowWidgetsDomNode: this.options.editorOverflowWidgetsDomNode });
 		this._chatQuestionCarouselWidgets.set(carouselKey, part);
 		this._hasQuestionCarouselContextKey?.set(true);
 
