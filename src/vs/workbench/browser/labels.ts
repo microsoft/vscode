@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { normalizeDriveLetter } from '../../base/common/labels.js';
 import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
+import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { INotebookDocumentService, extractCellOutputDetails } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
@@ -676,12 +677,18 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.options && !this.options.hideIcon) {
+			// A theme icon with a modifier, such as a spinning one, shows in an element of its own, which the modifier
+			// applies to rather than to the whole label.
+			const ownIconElement = URI.isUri(this.options.icon) || (!!this.options.icon && !!ThemeIcon.getModifier(this.options.icon));
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+				this.computedIconClasses = ownIconElement ? [] : getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
 			}
 
-			if (URI.isUri(this.options.icon)) {
+			if (ownIconElement) {
 				iconLabelOptions.iconPath = this.options.icon;
+			}
+			if (ThemeIcon.isThemeIcon(this.options.icon) && this.options.icon.color) {
+				iconLabelOptions.iconColor = asCssVariable(this.options.icon.color.id);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);

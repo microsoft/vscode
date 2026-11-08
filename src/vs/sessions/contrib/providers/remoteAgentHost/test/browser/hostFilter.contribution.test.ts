@@ -28,8 +28,9 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../../browser/agentsWindowMenus.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AgentHostFilterContribution } from '../../browser/hostFilter.contribution.js';
 
 suite('AgentHostFilterContribution', () => {
@@ -181,7 +182,7 @@ suite('AgentHostFilterContribution', () => {
 	});
 
 	test('mobile sheet survives host and discovery updates with live status', async () => {
-		const { container, updateStatus, setDiscovering } = await createPicker(Menus.MobileTitleBarCenter);
+		const { container, updateStatus, setDiscovering } = await createPicker(AgentsWindowMenus.MobileTitleBarCenter);
 		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
 		assert.ok(button);
 		button.click();
@@ -205,7 +206,7 @@ suite('AgentHostFilterContribution', () => {
 	});
 
 	test('mobile updates preserve the focused unselected host without stealing focus from other controls', async () => {
-		const { container, updateStatus, setDiscovering } = await createPicker(Menus.MobileTitleBarCenter);
+		const { container, updateStatus, setDiscovering } = await createPicker(AgentsWindowMenus.MobileTitleBarCenter);
 		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
 		assert.ok(button);
 		button.click();
@@ -241,7 +242,7 @@ suite('AgentHostFilterContribution', () => {
 	});
 
 	test('mobile focus falls back inside the sheet when the focused host disappears', async () => {
-		const { container, removeHost } = await createPicker(Menus.MobileTitleBarCenter);
+		const { container, removeHost } = await createPicker(AgentsWindowMenus.MobileTitleBarCenter);
 		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
 		assert.ok(button);
 		button.click();
