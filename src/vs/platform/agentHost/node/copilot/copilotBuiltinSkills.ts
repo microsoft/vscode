@@ -68,7 +68,11 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
 			if (name === modelRouterName) {
-				return isModelRouterEnabled() ? modelRouterSkillContent.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath) : undefined;
+				return isModelRouterEnabled()
+					? modelRouterSkillContent
+						.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath)
+						.replace('{{COPILOT_SESSION_STATE}}', () => sessionStateDirectory.fsPath)
+					: undefined;
 			}
 			if (name !== troubleshootName) {
 				return undefined;
@@ -317,7 +321,9 @@ Quote any example or \`when\` text that contains \`: \`, such as a pasted error 
 ## Workflow
 
 1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list.
-2. Write or edit the file with your normal file tools.
-3. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
-4. Tell the user the router's name and that it appears in the model picker. A changed router is used from the next turn.
+2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks that have no \`agentId\` and whose \`data.source\` is missing, empty or \`user\`; the others are subagent prompts and injected content. Take the user's request from \`data.content\`, leaving out the \`<reminder>\`, \`<attachments>\`, \`<context>\`, \`<current_datetime>\` and similar blocks the host adds. Ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
+3. Make sure every kind of work the user does often is named in some route's \`when\` or examples. Write the examples in their style, but never copy file paths, names, links or other details from their messages into the router.
+4. Write or edit the file with your normal file tools.
+5. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
+6. Tell the user the router's name and that it appears in the model picker. A changed router is used from the next turn.
 `;
