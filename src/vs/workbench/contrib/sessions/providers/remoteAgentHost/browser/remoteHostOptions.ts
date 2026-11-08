@@ -14,7 +14,7 @@ import Severity from '../../../../../../base/common/severity.js';
 import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -70,9 +70,9 @@ export async function disconnectSSHEntry(
 export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
 	const { confirmed } = await dialogService.confirm({
 		type: 'warning',
-		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
-		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
-		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+		message: localize('tunnelForgetConfirmation', "Forget dev tunnel '{0}'?", name),
+		detail: localize('tunnelForgetDetail', "This removes the tunnel registration and disconnects all its clients, not just this device. The remote computer and its files are kept. The tunnel may reappear if the computer starts sharing again."),
+		primaryButton: localize('tunnelForgetButton', "&&Forget"),
 	});
 	return confirmed;
 }
@@ -298,12 +298,12 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 	switch (status.kind) {
 		case 'connected':
 			return address
-				? localize('workspacePicker.hoverConnectedAddr', "Remote agent host is connected and ready.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverConnected', "Remote agent host is connected and ready.");
+				? localize('workspacePicker.hoverConnectedAddr', "This window is connected to the host and ready to use its agents and folders.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverConnected', "This window is connected to the host and ready to use its agents and folders.");
 		case 'connecting':
 			return address
-				? localize('workspacePicker.hoverConnectingAddr', "Attempting to connect to remote agent host...\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...");
+				? localize('workspacePicker.hoverConnectingAddr', "Connecting this window to the remote agent host...\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverConnecting', "Connecting this window to the remote agent host...");
 		case 'reconnecting':
 			return address
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
@@ -315,8 +315,8 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 					: lastConnectionError;
 			}
 			return address
-				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");
+				? localize('workspacePicker.hoverDisconnectedAddr', "This window isn't connected. The host may still be online and running agents.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverDisconnected', "This window isn't connected. The host may still be online and running agents.");
 		case 'incompatible': {
 			const offered = status.supportedByClient.join(', ');
 			return address
@@ -470,14 +470,11 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	if (!preference) {
 		return;
 	}
-	options.locationPreferenceService.setPreference(options.preferenceKey, preference);
-
-	const provider = options.provider;
-	if (!provider) {
+	if (!options.provider) {
+		await applyRemoteAgentHostLocationPreference(options, preference);
 		options.notificationService.warn(localize('workspacePicker.locationPreferenceSavedNoProvider', "Preference saved for {0}, but no active connection was found. This takes effect the next time it connects.", options.hostLabel));
 		return;
 	}
-
 	await options.progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
@@ -486,13 +483,26 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 		},
 		async () => {
 			try {
-				await reconnectRemoteHost(provider, options.remoteAgentHostService);
+				await applyRemoteAgentHostLocationPreference(options, preference);
 				options.notificationService.info(localize('workspacePicker.locationPreferenceUpdated', "Preference updated for {0}.", options.hostLabel));
 			} catch (err) {
 				options.notificationService.error(localize('workspacePicker.locationPreferenceReconnectFailed', "Preference saved for {0}, but reconnection failed: {1}", options.hostLabel, err instanceof Error ? err.message : String(err)));
 			}
 		},
 	);
+}
+
+/** Applies an explicitly chosen preference without opening a second dialog. */
+export async function applyRemoteAgentHostLocationPreference(
+	options: Pick<IChangeRemoteAgentHostLocationPreferenceOptions, 'preferenceKey' | 'provider' | 'locationPreferenceService' | 'remoteAgentHostService' | 'hostLabel'>,
+	preference: RemoteAgentHostLocationPreference,
+): Promise<'saved' | 'reconnected'> {
+	options.locationPreferenceService.setPreference(options.preferenceKey, preference);
+	if (!options.provider) {
+		return 'saved';
+	}
+	await reconnectRemoteHost(options.provider, options.remoteAgentHostService);
+	return 'reconnected';
 }
 
 /** Show the per-remote management options quickpick for the given provider. */

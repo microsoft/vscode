@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -14,7 +15,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { CONFIGURATION_KEY_HOST_NAME, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { promptToRenameRemoteTunnel } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
+import { promptToRenameRemoteTunnel, validateRemoteTunnelName } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 export const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
 
@@ -34,6 +35,13 @@ export function getRemoteTunnelAccessState(mode: TunnelMode, status: TunnelStatu
 
 /** How this computer is shared for remote connections. */
 export type RemoteConnectionsMethod = 'off' | 'devTunnel' | 'githubEnvironment';
+
+export function validateSharingName(method: Exclude<RemoteConnectionsMethod, 'off'>, name: string): string | undefined {
+	if (!name.trim() || /[\r\n\x00-\x1f\x7f]/.test(name)) {
+		return localize('remoteConnections.invalidName', "Enter an environment name without control characters.");
+	}
+	return method === 'devTunnel' ? validateRemoteTunnelName(name) : undefined;
+}
 
 /** Whether GitHub Environments can be chosen, is shown disabled by organization policy, or is not offered. */
 export type GitHubEnvironmentsAvailability = 'enabled' | 'policyDisabled' | 'unavailable';
@@ -67,17 +75,17 @@ type RemoteConnectionsSelectMethodClassification = {
 };
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Only accessible from this machine.");
+	return localize('remoteConnections.off.detail', "Don't allow connections from other devices through this app.");
 }
 
 export function getDevTunnelsDetail(): string {
-	return localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents.");
+	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.");
 }
 
 export function getGitHubEnvironmentsDetail(availability: GitHubEnvironmentsAvailability): string {
 	return availability === 'policyDisabled'
 		? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
-		: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.");
+		: localize('remoteConnections.githubEnvironment.detail', "Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.");
 }
 
 export interface IRemoteConnectionsStateSource {
@@ -225,6 +233,10 @@ export class RemoteConnectionsSharing extends Disposable {
 		return this.usesGitHubEnvironment ? this._environmentName : this.getState().tunnelName ?? this._tunnelName;
 	}
 
+	getNameForMethod(method: Exclude<RemoteConnectionsMethod, 'off'>): string | undefined {
+		return method === 'githubEnvironment' ? this._environmentName : this._tunnelName;
+	}
+
 	get namesLoaded(): boolean {
 		return this._namesLoaded;
 	}
@@ -239,15 +251,17 @@ export class RemoteConnectionsSharing extends Disposable {
 		return this._configurationService.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true ? 'enabled' : 'unavailable';
 	}
 
-	async selectMethod(method: RemoteConnectionsMethod): Promise<void> {
+	async selectMethod(method: RemoteConnectionsMethod, name?: string): Promise<string | undefined> {
 		const previousMethod = this.activeMethod;
 		const gitHubEnvironments = this.gitHubEnvironmentsAvailability;
 		let result: RemoteConnectionsSelectionResult;
+		let errorMessage: string | undefined;
 		try {
-			result = await this._applyMethod(method);
+			result = await this._applyMethod(method, name);
 		} catch (error) {
 			result = 'failed';
 			this._notificationService.error(error);
+			errorMessage = toErrorMessage(error);
 		}
 		// Logged in every arm of the This Computer experiment, so sharing changes can be compared across them.
 		this._telemetryService.publicLog2<RemoteConnectionsSelectMethodEvent, RemoteConnectionsSelectMethodClassification>('remoteConnections.selectMethod', {
@@ -258,9 +272,11 @@ export class RemoteConnectionsSharing extends Disposable {
 			result,
 			gitHubEnvironments,
 		});
+		return errorMessage ?? (result === 'failed' || result === 'disabled' || result === 'unavailable'
+			? localize('remoteConnections.setupFailed', "Couldn't start sharing. Check your settings and try again.") : undefined);
 	}
 
-	private async _applyMethod(method: RemoteConnectionsMethod): Promise<RemoteConnectionsSelectionResult> {
+	private async _applyMethod(method: RemoteConnectionsMethod, name?: string): Promise<RemoteConnectionsSelectionResult> {
 		if (method === 'githubEnvironment' && !this._availabilityService.available.get()) {
 			this._notificationService.error(new Error(localize('remoteConnections.githubEnvironment.unavailable', "GitHub Environments are currently unavailable.")));
 			return 'unavailable';
@@ -273,6 +289,17 @@ export class RemoteConnectionsSharing extends Disposable {
 		const enabled = state.isSharing || state.isConnecting;
 		if (method === 'off') {
 			return enabled ? this._toggleSharing() : 'unchanged';
+		}
+		if (name !== undefined) {
+			const validation = validateSharingName(method, name);
+			if (validation) {
+				throw new Error(validation);
+			}
+			if (method === 'githubEnvironment') {
+				await this._missionControlSharingService.setEnvironmentName(name);
+			} else {
+				await this._configurationService.updateValue(CONFIGURATION_KEY_HOST_NAME, name, ConfigurationTarget.USER);
+			}
 		}
 		if (this.usesGitHubEnvironment !== isGitHubEnvironmentBackend(method)) {
 			await this._configurationService.updateValue(AgentHostRemoteConnectionsSettingId, method, ConfigurationTarget.USER);
@@ -298,9 +325,7 @@ export class RemoteConnectionsSharing extends Disposable {
 					title: localize('remoteConnections.rename', "Rename Remote Environment"),
 					prompt: localize('remoteConnections.renamePrompt', "Enter the name shown for this environment on other clients."),
 					value: currentName,
-					validateInput: async value => !value.trim() || /[\r\n\x00-\x1f\x7f]/.test(value)
-						? localize('remoteConnections.invalidName', "Enter an environment name without control characters.")
-						: undefined,
+					validateInput: async value => validateSharingName('githubEnvironment', value),
 				});
 				if (name !== undefined && name.trim() !== currentName && !this._store.isDisposed && this.usesGitHubEnvironment) {
 					await this._missionControlSharingService.setEnvironmentName(name);

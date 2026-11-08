@@ -2575,6 +2575,20 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via refresh -------
 
+	test('session list readiness includes an authoritative empty result and resets on disconnection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection);
+		const before = provider.sessionListVersion.get();
+		await timeout(0);
+		const resolved = provider.sessionListVersion.get() > 0;
+		provider.setConnection(disposables.add(new MockAgentConnection()));
+		const replacing = provider.sessionListVersion.get();
+		await timeout(0);
+		provider.clearConnection();
+		assert.deepStrictEqual({ before, resolved, replacing, disconnected: provider.sessionListVersion.get() }, {
+			before: 0, resolved: true, replacing: 0, disconnected: 0,
+		});
+	}));
+
 	test('getSessions populates from connection.listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('list-1', { summary: 'First' }));
 		connection.addSession(createSession('list-2', { summary: 'Second' }));

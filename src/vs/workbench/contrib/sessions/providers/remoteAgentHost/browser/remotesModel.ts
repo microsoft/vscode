@@ -6,8 +6,9 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -15,7 +16,7 @@ import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRe
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -25,14 +26,23 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IProgress, IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
+import { isActiveSessionStatus } from '../../../../../services/sessions/common/session.js';
+import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment'] as const;
 export type RemoteKind = typeof remoteKinds[number];
+const metadataKeyPrefix = 'remoteAgentHost.lastKnownMetadata.';
+
+export interface IRemoteMetadata {
+	readonly operatingSystem?: OperatingSystem;
+	readonly activeSessionCount?: number;
+	readonly lastConnectedAt?: number;
+	readonly observedAt: number;
+}
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
@@ -53,6 +63,8 @@ export interface ICustomizationRemote {
 	readonly unavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
+	readonly metadata?: IRemoteMetadata;
+	readonly metadataIsStale?: boolean;
 }
 
 export type IRemoteRefreshProgress =
@@ -69,7 +81,8 @@ export interface IRemotesModel extends IDisposable {
 	setConnected(id: string, connected: boolean): Promise<void>;
 	rename(id: string): Promise<void>;
 	copyAddress(id: string): Promise<void>;
-	changePreferredAgentLocation(id: string): Promise<void>;
+	getPreferredAgentLocation(id: string): RemoteAgentHostLocationPreference | undefined;
+	changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference): Promise<'saved' | 'reconnected' | undefined>;
 	updateServer(id: string): Promise<void>;
 	deleteTunnel(id: string): Promise<void>;
 	deleteSSHHost(id: string): Promise<void>;
@@ -107,6 +120,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private tunnelDiscoveryVersion = 0;
 	private sshConfigAddresses: ReadonlySet<string> | undefined;
 	private sshDiscoveryVersion = 0;
+	private readonly observedConnections = new Map<string, boolean>();
 
 	constructor(
 		@ISSHRemoteAgentHostService private readonly sshService: ISSHRemoteAgentHostService,
@@ -135,11 +149,15 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this._register(tunnelService.onDidChangeTunnels(() => this.update()));
 		this._register(wslService.onDidChangeConnections(() => this.update()));
 		const providersChanged = observableSignalFromEvent(this, providersService.onDidChangeProviders);
+		const sessionsChanged = observableSignal(this);
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
+			sessionsChanged.read(reader);
 			environmentAvailabilityService.available.read(reader);
 			for (const provider of providersService.getProviders().filter(isAgentHostProvider)) {
 				provider.localRegistration?.read(reader);
+				provider.sessionListVersion?.read(reader);
+				reader.store.add(provider.onDidChangeSessions(() => sessionsChanged.trigger(undefined)));
 			}
 			this.update(reader);
 		}));
@@ -299,7 +317,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		await this.clipboardService.writeText(id);
 	}
 
-	async changePreferredAgentLocation(id: string): Promise<void> {
+	getPreferredAgentLocation(id: string): RemoteAgentHostLocationPreference | undefined {
+		const target = this.targets.get(id);
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		return target ? this.locationPreferenceService.getPreference(provider?.remoteLocationPreferenceKey ?? this.getLocationPreferenceKey(target)) : undefined;
+	}
+
+	async changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference): Promise<'saved' | 'reconnected' | undefined> {
 		const remote = this._remotes.get().find(remote => remote.id === id);
 		if (!this.enabled || this._store.isDisposed || !remote) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
@@ -309,7 +333,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.locationUnavailable', "Preferred agent location can only be changed for SSH hosts and tunnels here."));
 		}
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
-		await changeRemoteAgentHostLocationPreference({
+		const options = {
 			preferenceKey: provider?.remoteLocationPreferenceKey ?? this.getLocationPreferenceKey(target),
 			hostLabel: remote.name,
 			productName: this.productService.nameShort,
@@ -319,7 +343,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			notificationService: this.notificationService,
 			remoteAgentHostService: this.remoteAgentHostService,
 			progressService: this.progressService,
-		});
+		};
+		if (preference) {
+			return applyRemoteAgentHostLocationPreference(options, preference);
+		}
+		await changeRemoteAgentHostLocationPreference(options);
+		return undefined;
 	}
 
 	async updateServer(id: string): Promise<void> {
@@ -371,9 +400,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			this.checkEnvironment(target);
 			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
-				message: localize('remotes.deleteEnvironmentConfirmation', "Are you sure you want to delete environment '{0}'?", remote.name),
-				detail: localize('remotes.deleteEnvironmentDetail', "This removes the environment registration and disconnects this client. Files on the machine will not be deleted. The environment may reappear if its owning application registers it again."),
-				primaryButton: localize('remotes.deleteEnvironmentButton', "&&Delete"),
+				message: localize('remotes.forgetEnvironmentConfirmation', "Forget environment '{0}'?", remote.name),
+				detail: localize('remotes.forgetEnvironmentDetail', "This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again."),
+				primaryButton: localize('remotes.forgetEnvironmentButton', "&&Forget"),
 			});
 			if (!confirmed) {
 				return;
@@ -383,6 +412,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			}
 			this.checkEnvironment(target);
 			await this.environmentService.delete(target.host.id, CancellationToken.None);
+			this.storageService.remove(`${metadataKeyPrefix}${this.getPickerKey(target)}`, StorageScope.PROFILE);
 			return;
 		} else {
 			const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
@@ -392,6 +422,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
 		}
 		this.targets.delete(id);
+		if (target) {
+			this.storageService.remove(`${metadataKeyPrefix}${this.getPickerKey(target)}`, StorageScope.PROFILE);
+		}
 		if (!this._store.isDisposed) {
 			this.update();
 		}
@@ -414,6 +447,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		this.checkTunnelDeletion(current.tunnel);
 		await this.tunnelService.deleteTunnel(current.tunnel, current.authProvider);
+		this.storageService.remove(`${metadataKeyPrefix}${this.getPickerKey(current)}`, StorageScope.PROFILE);
 		this.tunnelDiscoveryVersion++;
 		this.targets.delete(id);
 		if (!this._store.isDisposed) {
@@ -426,9 +460,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const remote = this._remotes.get().find(remote => remote.id === id);
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
-			message: localize('remotes.deleteSSHConfirmation', "Are you sure you want to delete saved SSH connection '{0}'?", remote?.name ?? id),
-			detail: localize('remotes.deleteSSHDetail', "This forgets the saved connection and disconnects this client. Your SSH configuration and files on the remote machine will not be deleted."),
-			primaryButton: localize('remotes.deleteSSHButton', "&&Delete"),
+			message: localize('remotes.forgetSSHConfirmation', "Forget saved SSH connection '{0}'?", remote?.name ?? id),
+			detail: localize('remotes.forgetSSHDetail', "This forgets the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept."),
+			primaryButton: localize('remotes.forgetSSHButton', "&&Forget"),
 		});
 		if (!confirmed) {
 			return;
@@ -437,12 +471,16 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (sshConnectionKey(current) !== sshConnectionKey(connection)) {
 			throw new CancellationError();
 		}
+		const target = this.targets.get(id);
 		removeSSHRemoteAgentHostEntry(this.storageService, id);
 		this.sshDiscoveryVersion++;
 		try {
 			await disconnectSSHEntry(current, this.remoteAgentHostService, this.sshService);
 		} finally {
 			this.targets.delete(id);
+			if (target) {
+				this.storageService.remove(`${metadataKeyPrefix}${this.getPickerKey(target)}`, StorageScope.PROFILE);
+			}
 			if (!this._store.isDisposed) {
 				this.update();
 			}
@@ -475,13 +513,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 
 	private checkTunnelDeletion(tunnel: ITunnelInfo): void {
 		if (!this.tunnelService.canDeleteTunnels) {
-			throw new Error(localize('remotes.tunnelDeleteUnsupported', "Deleting tunnels is not supported by this application."));
+			throw new Error(localize('remotes.tunnelForgetUnsupported', "Removing tunnel registrations is not supported by this application."));
 		}
 		if (!this.remoteTunnelStatus) {
 			throw new Error(localize('remotes.tunnelStatusUnavailable', "Tunnel hosting status is not available yet. Try again."));
 		}
 		if (isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, tunnel)) {
-			throw new Error(localize('remotes.tunnelDeleteHosted', "This application is currently hosting this tunnel. Stop hosting it before deleting it."));
+			throw new Error(localize('remotes.tunnelForgetHosted', "This application is currently hosting this tunnel. Stop sharing it before forgetting it."));
 		}
 	}
 
@@ -568,7 +606,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 
 	private getPickerUnavailableReason(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, hidden: boolean, reader?: IReader): string | undefined {
 		if (target.kind === 'environment' && target.host.status !== 'online') {
-			return localize('remotes.pickerOffline', "Available in the picker when the owning application is online.");
+			return localize('remotes.pickerOffline', "Available in the picker when this computer is online.");
 		}
 		if (!provider) {
 			return target.kind !== 'environment' && !this.registered.has(this.getId(target))
@@ -598,6 +636,65 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		return this.getId(target);
 	}
 
+	private readMetadata(key: string): IRemoteMetadata | undefined {
+		const raw = this.storageService.get(key, StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(raw);
+		} catch (error) {
+			if (!(error instanceof SyntaxError)) {
+				throw error;
+			}
+			this.logService.warn('[Remotes] Invalid cached environment metadata');
+			this.storageService.remove(key, StorageScope.PROFILE);
+			return undefined;
+		}
+		const value = isObject(parsed) ? parsed as Partial<Record<keyof IRemoteMetadata, unknown>> : undefined;
+		const validNumber = (candidate: unknown): candidate is number => typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0;
+		if (!value || !validNumber(value.observedAt)
+			|| value.operatingSystem !== undefined && value.operatingSystem !== OperatingSystem.Windows && value.operatingSystem !== OperatingSystem.Macintosh && value.operatingSystem !== OperatingSystem.Linux
+			|| value.activeSessionCount !== undefined && (!validNumber(value.activeSessionCount) || !Number.isInteger(value.activeSessionCount))
+			|| value.lastConnectedAt !== undefined && !validNumber(value.lastConnectedAt)) {
+			this.logService.warn('[Remotes] Invalid cached environment metadata');
+			this.storageService.remove(key, StorageScope.PROFILE);
+			return undefined;
+		}
+		return {
+			observedAt: value.observedAt,
+			operatingSystem: value.operatingSystem,
+			activeSessionCount: value.activeSessionCount,
+			lastConnectedAt: value.lastConnectedAt,
+		};
+	}
+
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, operatingSystem: OperatingSystem | undefined, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
+		const key = `${metadataKeyPrefix}${this.getPickerKey(target)}`;
+		const previous = this.readMetadata(key);
+		const sessionListVersion = provider?.sessionListVersion?.read(reader) ?? 0;
+		const live = RemoteAgentHostConnectionStatus.isConnected(status);
+		const sessions = live && sessionListVersion > 0 ? provider?.getSessions() : undefined;
+		const justConnected = live && this.observedConnections.get(key) === false;
+		this.observedConnections.set(key, live);
+		const next = {
+			operatingSystem: operatingSystem ?? (target.kind === 'wsl' ? OperatingSystem.Linux : previous?.operatingSystem),
+			activeSessionCount: sessions?.filter(session => isActiveSessionStatus(session.status.read(reader))).length ?? previous?.activeSessionCount,
+			lastConnectedAt: justConnected ? Date.now() : previous?.lastConnectedAt,
+		};
+		if (next.operatingSystem === undefined && next.activeSessionCount === undefined && next.lastConnectedAt === undefined) {
+			return {};
+		}
+		let metadata = previous;
+		if (!previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount
+			|| previous.lastConnectedAt !== next.lastConnectedAt) {
+			metadata = { ...next, observedAt: Date.now() };
+			this.storageService.store(key, metadata, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		return { metadata, metadataIsStale: !live || sessionListVersion === 0 };
+	}
+
 	private update(reader?: IReader): void {
 		const sshEntries = readSSHRemoteAgentHostEntries(this.storageService);
 		const distros = this.wslService.getCachedDistros();
@@ -622,6 +719,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
 		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
 		const connectionErrors = new Map<string, string>();
+		const operatingSystems = new Map(this.remoteAgentHostService.connections.map(connection => [connection.address, connection.operatingSystem]));
 		for (const connection of this.remoteAgentHostService.connections) {
 			if (!connectionStatuses.get(connection.address)) {
 				connectionStatuses.set(connection.address, connection.status);
@@ -669,7 +767,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					name = target.host.displayName ?? target.host.name;
 					detail = target.host.id;
 					unavailableReason = target.host.status !== 'online'
-						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
+						? localize('remotes.environmentOffline', "This computer is offline. Start sharing on it before connecting.") : undefined;
 					break;
 			}
 			const provider = providersByAddress.get(id);
@@ -684,6 +782,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
+				...this.getMetadata(target, provider, connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected, operatingSystems.get(id), reader),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),

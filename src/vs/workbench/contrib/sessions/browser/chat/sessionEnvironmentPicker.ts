@@ -48,6 +48,7 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
+	readonly hover?: string;
 }
 
 export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
@@ -58,10 +59,16 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		environments.push({
+			id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id),
+			hover: localize('environmentPicker.localHover', "Run this session directly on this computer"),
+		});
 	}
 	if (cloud.length) {
-		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
+		environments.push({
+			id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id),
+			hover: localize('environmentPicker.cloudHover', "Run this session in a cloud environment, not on this computer"),
+		});
 	}
 	for (const provider of visible) {
 		const environment = getRemoteSessionCreationEnvironment(provider);
@@ -227,6 +234,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
+			hover: environment.hover ? { content: environment.hover } : undefined,
 			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
@@ -274,8 +282,12 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			},
 		}, trigger, undefined, [], {
-			getAriaLabel: item => typeof item.description === 'string' && item.description
-				? localize('environmentPicker.item', "{0}, {1}", item.label ?? '', item.description) : item.label ?? '',
+			getAriaLabel: item => {
+				const label = typeof item.description === 'string' && item.description
+					? localize('environmentPicker.item', "{0}, {1}", item.label ?? '', item.description) : item.label ?? '';
+				return typeof item.hover?.content === 'string'
+					? localize('environmentPicker.itemWithHelp', "{0}. {1}", label, item.hover.content) : label;
+			},
 			getWidgetAriaLabel: () => localize('environmentPicker.title', "Environment"),
 		}, { className: 'sessions-new-chat-picker-list', minWidth: 240, hideDefaultKeybindingTooltip: true });
 	}

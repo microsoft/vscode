@@ -152,10 +152,6 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getListOptions(): IActionListOptions {
 		const options: IActionListOptions = {
-			minWidth: 300,
-			maxWidth: 320,
-			wrapDetails: true,
-			...this._getNameHeader(),
 			widgetClassName: 'remote-connections-picker',
 			hideDefaultKeybindingTooltip: true,
 		};
@@ -193,43 +189,6 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		};
 	}
 
-	/** Shows the name this computer is shared under above the connection methods, linked to rename it. */
-	private _getNameHeader(): Pick<IActionListOptions, 'headerIcon' | 'headerText' | 'headerAction'> {
-		const state = this._sharing.getState();
-		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
-		const name = this._sharing.name;
-		const headerText = name
-			? state.isSharing
-				? usesGitHubEnvironment
-					? localize('remoteConnections.registeredEnvironment', "Registered as GitHub environment: {0}", name)
-					: localize('remoteConnections.sharedTunnel', "Shared as Dev Tunnel: {0}", name)
-				: state.isConnecting
-					? localize('remoteConnections.connectingName', "Connecting as: {0}", name)
-					: localize('remoteConnections.name', "Will be shared as: {0}", name)
-			: this._sharing.namesLoaded
-				? localize('remoteConnections.nameUnavailable', "Remote name unavailable.")
-				: localize('remoteConnections.loadingName', "Loading remote name...");
-		return {
-			headerIcon: Codicon.deviceDesktop,
-			headerText,
-			headerAction: name ? toAction({
-				id: 'remoteConnections.rename',
-				label: name,
-				tooltip: localize('remoteConnections.rename', "Rename Remote Environment"),
-				enabled: this.isEnabled() && !state.isConnecting,
-				run: () => this._rename(usesGitHubEnvironment),
-			}) : undefined,
-		};
-	}
-
-	private async _rename(githubEnvironment: boolean): Promise<void> {
-		if (!this.isEnabled() || this._sharing.getState().isConnecting || githubEnvironment !== this._sharing.usesGitHubEnvironment) {
-			return;
-		}
-		this._dropdown.hide();
-		await this._sharing.rename();
-	}
-
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
 		const active = this._sharing.activeMethod;
@@ -241,53 +200,62 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: active === 'off',
 					run: () => this._selectConnectionMethod('off'),
 				}),
-				labelIcon: Codicon.circleSlash,
-				detail: getOffDetail(),
+				hover: { content: getOffDetail() },
+				ariaDescription: getOffDetail(),
 			},
 		];
 		if (environments !== 'unavailable') {
 			methods.push({
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
-					label: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
+					label: localize('remoteConnections.githubEnvironmentMethod', "GitHub Environment"),
 					enabled: environments === 'enabled',
 					checked: active === 'githubEnvironment',
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : Codicon.github,
-				detail: getGitHubEnvironmentsDetail(environments),
+				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : undefined,
+				hover: { content: getGitHubEnvironmentsDetail(environments) },
+				ariaDescription: getGitHubEnvironmentsDetail(environments),
 				badge: localize('remoteConnections.preview', "Preview"),
 			});
 		}
 		methods.push({
 			...toAction({
 				id: 'remoteConnections.devTunnel',
-				label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
+				label: localize('remoteConnections.devTunnelMethod', "Dev Tunnel"),
 				checked: active === 'devTunnel',
 				run: () => this._selectConnectionMethod('devTunnel'),
 			}),
-			labelIcon: Codicon.radioTower,
-			detail: getDevTunnelsDetail(),
+			hover: { content: getDevTunnelsDetail() },
+			ariaDescription: getDevTunnelsDetail(),
 		});
-		const management = this._options.getManagementAction?.();
-		if (management) {
-			// Uncategorized entries sort last, so the connection methods need their own category to stay first.
-			for (const method of methods) {
-				method.category = { label: 'methods', order: 0 };
-			}
-			methods.push({
-				...toAction({
-					id: management.id,
-					label: management.label,
-					enabled: management.enabled,
-					run: () => management.run(),
-				}),
-				// Keeps the label aligned with the checkable connection methods.
-				icon: Codicon.blank,
-				labelIcon: Codicon.settingsGear,
-				category: { label: 'management', order: 1 },
-			});
+		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
+		const management = this._options.getManagementAction?.() ?? toAction({
+			id: 'remoteConnections.rename',
+			label: localize('remoteConnections.renameComputer', "Rename This Computer..."),
+			enabled: this.isEnabled() && !!this._sharing.name && !this._sharing.getState().isConnecting,
+			run: async () => {
+				if (!this.isEnabled() || !this._sharing.name || this._sharing.getState().isConnecting || usesGitHubEnvironment !== this._sharing.usesGitHubEnvironment) {
+					return;
+				}
+				this._dropdown.hide();
+				await this._sharing.rename();
+			},
+		});
+		for (const method of methods) {
+			method.category = { label: 'methods', order: 0 };
 		}
+		methods.push({
+			...toAction({
+				id: management.id,
+				label: management.label,
+				enabled: management.enabled,
+				run: () => management.run(),
+			}),
+			// Keeps the label aligned with the checkable connection methods.
+			icon: Codicon.blank,
+			category: { label: 'management', order: 1 },
+		});
 		return methods;
 	}
 

@@ -16,6 +16,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/a
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { promptRemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
+import { RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../../../platform/layout/browser/layoutService.js';
@@ -28,6 +29,8 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
+import { RemoteEnvironmentDetails } from '../../browser/remoteEnvironmentDetails.js';
 
 const remotes: ICustomizationRemote[] = [
 	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
@@ -40,7 +43,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -61,6 +64,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			}());
 			reg.defineInstance(IPreferencesService, new class extends mock<IPreferencesService>() {
 				override async openSettings() { return undefined; }
+			}());
+			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
+				override async getSnapshot() { return { capturedAt: '2026-11-06T10:00:00Z', sections: [], text: 'Connection diagnostics' }; }
 			}());
 		},
 	});
@@ -105,9 +111,16 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async copyAddress(id: string) {
 			await instantiationService.get(IClipboardService).writeText(id);
 		}
-		async changePreferredAgentLocation(id: string) {
-			await promptRemoteAgentHostLocationPreference(instantiationService.get(IDialogService), id, 'Code - OSS');
+		readonly preferences = new Map<string, RemoteAgentHostLocationPreference>();
+		async changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference) {
+			const selected = preference ?? await promptRemoteAgentHostLocationPreference(instantiationService.get(IDialogService), id, 'Code - OSS');
+			if (selected) {
+				this.preferences.set(id, selected);
+				return 'saved' as const;
+			}
+			return undefined;
 		}
+		getPreferredAgentLocation(id: string) { return this.preferences.get(id); }
 		async updateServer(id: string) {
 			await this.setConnected(id, true);
 		}
@@ -130,6 +143,16 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			} : remote), undefined);
 		}
 	}());
+	if (options.runBehavior) {
+		const remote = model.remotes.get()[0];
+		model.preferences.set(remote.id, 'dedicated');
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }));
+		content.appendChild(details.domNode);
+		details.domNode.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+		details.layout();
+		await waitForFixtureCondition(() => details.domNode.getAnimations({ subtree: true }).every(animation => animation.playState === 'finished'), 'Segment selection should settle before capture');
+		return;
+	}
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setHeading(options.heading);
 	widget.setVisible(true);
@@ -160,6 +183,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	ConnectionRetry: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192', retrying: true }),
+	}),
+	Recovery: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: async context => {
+			await render(context, 900, OS, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
+			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!.click();
+		},
+	}),
+	RunBehaviorDraft: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { runBehavior: true }),
+	}),
+	RunBehaviorDraftNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 360, OS, false, [], false, undefined, false, { runBehavior: true }),
+	}),
+	RecoveryNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: async context => {
+			await render(context, 360, OS, false, [], false, undefined, false, { height: 500, connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
+			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!.click();
+		},
 	}),
 	ShortEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },

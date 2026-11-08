@@ -46,7 +46,7 @@ suite('remoteHostOptions', () => {
 			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
 		}, {
 			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
-			plain: 'Remote agent host is disconnected.',
+			plain: 'This window isn\'t connected. The host may still be online and running agents.',
 		});
 	});
 

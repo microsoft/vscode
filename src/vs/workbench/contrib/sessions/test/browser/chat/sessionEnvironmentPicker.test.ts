@@ -11,7 +11,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -182,13 +182,22 @@ suite('SessionEnvironmentPicker', () => {
 		let hide: (() => void) | undefined;
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
+		let help: { hover: string | undefined; aria: string | undefined }[] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
 		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			hide: () => hide?.(),
-			show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+			show: (...args: Parameters<IActionWidgetService['show']>) => {
+				const [, , items, delegate, , , , accessibilityProvider] = args;
 				labels = items.map(item => item.label);
+				help = items.map(item => {
+					const aria = accessibilityProvider?.getAriaLabel?.(item);
+					return {
+						hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined,
+						aria: typeof aria === 'string' ? aria : aria?.get(),
+					};
+				});
 				hide = () => delegate.onHide();
 				accept = index => delegate.onSelect(items[index].item!);
 			},
@@ -209,7 +218,8 @@ suite('SessionEnvironmentPicker', () => {
 		instantiation.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		instantiation.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
 		instantiation.stub(IMissionControlEnvironmentService, { enabled: false, hosts: constObservable([]) });
-		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
+		const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local'), provider('cloud', 'cloud')]);
+		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable(environments), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
 		store.add(picker.render(container, {
@@ -222,6 +232,7 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual({
 			order: container.textContent,
 			labels,
+			help,
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
@@ -229,6 +240,10 @@ suite('SessionEnvironmentPicker', () => {
 			tooltipLabels,
 		}, {
 			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			help: [
+				{ hover: 'Run this session directly on this computer', aria: 'This Computer. Run this session directly on this computer' },
+				{ hover: 'Run this session in a cloud environment, not on this computer', aria: 'Cloud. Run this session in a cloud environment, not on this computer' },
+			],
 			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
 	});

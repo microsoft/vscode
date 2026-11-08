@@ -6,28 +6,35 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { ActionRunner, IAction } from '../../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
+import { IUntitledTextResourceEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind, remoteKinds } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
+import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
@@ -94,9 +101,15 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.copiedAddresses.push(id);
 	}
 
-	async changePreferredAgentLocation(id: string): Promise<void> {
+	readonly preferences = new Map<string, RemoteAgentHostLocationPreference>();
+	getPreferredAgentLocation(id: string): RemoteAgentHostLocationPreference | undefined { return this.preferences.get(id); }
+	async changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference): Promise<'reconnected'> {
 		this.locationChanges.push(id);
 		await this.pendingManagement?.p;
+		if (preference) {
+			this.preferences.set(id, preference);
+		}
+		return 'reconnected';
 	}
 
 	async updateServer(id: string): Promise<void> {
@@ -141,19 +154,37 @@ class TestRemotesWidget extends RemotesWidget {
 
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const menus = new WeakMap<HTMLElement, () => readonly IAction[]>();
 
-	function createWidget(operatingSystem = OperatingSystem.Macintosh) {
+	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' = 'type') {
 		const parent = dom.append(document.body, dom.$('div'));
 		parent.style.width = '700px';
 		parent.style.height = '640px';
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => {
+			menuActions = delegate.getActions?.() ?? [];
+			delegate.onHide?.(true);
+		});
+		menus.set(parent, () => menuActions);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
 		const mouseHoverTargets = new Set<HTMLElement>();
-		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
+		const opened: { input: IResourceEditorInput | IUntitledTextResourceEditorInput; group: PreferredGroup | undefined }[] = [];
+		const copied: string[] = [];
+		const commands: string[] = [];
+		instantiationService.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
+		instantiationService.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
+		let snapshots = 0;
+		instantiationService.stub(IConnectionDiagnosticsService, {
+			getSnapshot: async () => {
+				snapshots++;
+				return { capturedAt: '2026-11-06T10:00:00Z', sections: [], text: 'Connection report' };
+			},
+		});
 		let configFailure: Error | undefined;
 		let configRequests = 0;
 		instantiationService.stub(ISSHRemoteAgentHostService, {
@@ -165,6 +196,7 @@ suite('RemotesWidget', () => {
 				return URI.file('/home/test/.ssh/config');
 			},
 		});
+
 		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput, group?: PreferredGroup) => { opened.push({ input, group }); return undefined; });
 		instantiationService.stub(IOpenerService, { open: async resource => { documentation.push(resource.toString()); return true; } });
 		instantiationService.stub(IPreferencesService, { openSettings: async options => { settings.push(options); return undefined; } });
@@ -189,20 +221,42 @@ suite('RemotesWidget', () => {
 		}());
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(TestRemotesWidget, parent, model, operatingSystem));
+		if (grouping === 'type') {
+			widget.setGrouping('type');
+		}
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, copied, commands, documentation, settings, snapshots: () => snapshots, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
-	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'delete'): HTMLElement {
+	function getMenuActions(parent: HTMLElement, id: string): readonly IAction[] {
 		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
-		const control = row?.querySelector<HTMLElement>(action === 'rename' ? '.codicon-edit' : '.codicon-trash');
-		assert.ok(control, `Missing ${action} action for ${id}`);
-		return control;
+		const overflow = row?.querySelector<HTMLElement>('.codicon-toolbar-more');
+		assert.ok(overflow, `Missing overflow for ${id}`);
+		overflow.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+		return menus.get(parent)!();
+	}
+
+	function findMenuAction(parent: HTMLElement, id: string, action: string): IAction | undefined {
+		return getMenuActions(parent, id).find(item => item.id === `remotes.${action}`);
+	}
+
+	function getMenuAction(parent: HTMLElement, id: string, action: string): IAction {
+		const item = findMenuAction(parent, id, action);
+		assert.ok(item, `Missing ${action} action for ${id}`);
+		return item;
+	}
+
+	function runMenuAction(parent: HTMLElement, id: string, action: string): void {
+		const item = getMenuAction(parent, id, action);
+		if (item.enabled) {
+			parent.querySelector<HTMLElement>(`[data-remote-id="${id}"] .codicon-toolbar-more`)!.focus();
+		}
+		void store.add(new ActionRunner()).run(item);
 	}
 
 	function getConnectionAction(parent: HTMLElement, id: string): HTMLElement {
 		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
-		const action = row?.querySelector<HTMLElement>('.remotes-actions-column [role="button"]');
+		const action = row?.querySelector<HTMLElement>('.remotes-actions-column > .monaco-button');
 		assert.ok(action, `Missing connection action for ${id}`);
 		return action;
 	}
@@ -223,7 +277,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['', 'Name', 'Status', ''],
+				columns: ['', 'Name', 'Type', 'System', 'Sessions', 'Last activity', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -233,6 +287,248 @@ suite('RemotesWidget', () => {
 			});
 		});
 	}
+
+	test('defaults to status groups, keeps hidden and offline hosts, and filters by type', () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status');
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([
+			...model.remotes.get(),
+			{ id: 'environment:offline', kind: 'environment', name: 'Offline host', detail: 'offline', hidden: true, canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the host.' },
+		], undefined);
+		const headings = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent);
+		const initial = headings();
+		const wslFilter = [...parent.querySelectorAll<HTMLElement>('.remotes-type-filter [role="button"]')].find(element => element.getAttribute('aria-label') === 'WSL')!;
+		wslFilter.click();
+		assert.deepStrictEqual({
+			initial, filtered: headings(),
+			remotes: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+			accessible: widget.getAccessibilityContent().includes('Build server'),
+		}, { initial: ['Ready to use', 'Available', 'Offline'], filtered: ['Available'], remotes: ['wsl:Ubuntu'], accessible: false });
+	});
+
+	test('type filters are separate label actions with one pressed state', () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		model.environmentsEnabled.set(true, undefined);
+		const filter = parent.querySelector('.remotes-type-filter')!;
+		const buttons = () => [...filter.querySelectorAll<HTMLElement>('[role="button"]')];
+		buttons().find(button => button.textContent === 'GitHub Environment (Preview)')!.click();
+		const selected = buttons().filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.textContent);
+		model.environmentsEnabled.set(false, undefined);
+		assert.deepStrictEqual({
+			selected,
+			afterUnavailable: buttons().filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.textContent),
+			labels: buttons().map(button => button.textContent),
+			radios: filter.querySelectorAll('[role="radio"]').length,
+			icons: filter.querySelectorAll('.codicon').length,
+		}, { selected: ['GitHub Environment (Preview)'], afterUnavailable: ['All'], labels: ['All', 'Dev Tunnel', 'WSL', 'SSH'], radios: 0, icons: 0 });
+	});
+
+	test('status explanations stay in hovers and accessible labels rather than repeating inline', () => {
+		const { parent, hoverContents } = createWidget(OperatingSystem.Windows, 'status');
+		const groups = [...parent.querySelectorAll('.remotes-group-row')].map(group => {
+			const label = group.querySelector<HTMLElement>('.remotes-name')!;
+			const description = hoverContents.get(label);
+			return {
+				label: label.textContent,
+				description,
+				inline: group.querySelector('.remotes-empty-description')?.textContent,
+				announced: group.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes(description!),
+			};
+		});
+		assert.deepStrictEqual(groups, [
+			{ label: 'Ready to use', description: 'connected from this computer', inline: '', announced: true },
+			{ label: 'Available', description: 'connect when you need them', inline: '', announced: true },
+		]);
+	});
+
+	test('status grouping never appends empty types or discovery failures as table groups', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status');
+		model.remotes.set([model.remotes.get()[0]], undefined);
+		model.tunnelAuthenticationRequired.set('github', undefined);
+		model.failedKinds = ['ssh'];
+		widget.setVisible(true);
+		await timeout(0);
+		const statusGroups = [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent);
+		const notice = parent.querySelector('.remotes-message')!;
+		const accessible = widget.getAccessibilityContent();
+		const noticeState = {
+			warning: notice.textContent?.includes('Could not read your SSH hosts.'),
+			signIn: !notice.querySelector<HTMLElement>('.monaco-button')!.hidden,
+		};
+		widget.setGrouping('type');
+		assert.deepStrictEqual({
+			statusGroups,
+			statusRows: accessible.split('\n').filter(line => ['SSH', 'WSL', 'Dev Tunnels'].includes(line)),
+			...noticeState,
+			typeGroups: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+		}, { statusGroups: ['Ready to use'], statusRows: [], warning: true, signIn: true, typeGroups: ['Dev Tunnels', 'WSL', 'SSH'] });
+	});
+
+	test('status groups omit repeated row status while preserving in-progress connection feedback', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		const visibleStatuses = () => [...parent.querySelectorAll('.remotes-connection-column:not([hidden]) .remotes-connection-state')].map(element => element.textContent);
+		const initial = visibleStatuses();
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, 'tunnel:laptop').click();
+		const connecting = visibleStatuses();
+		const progress = getConnectionAction(parent, 'tunnel:laptop').textContent?.trim();
+		const progressVisibleWithoutHover = dom.getWindow(parent).getComputedStyle(getConnectionAction(parent, 'tunnel:laptop').parentElement!).opacity;
+		const rowHeight = parent.querySelector('[data-remote-id="tunnel:laptop"]')!.getBoundingClientRect().height;
+		await model.pendingConnection.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			initial, connecting, connected: visibleStatuses(), progress, rowHeight, progressVisibleWithoutHover,
+			spinnerDisplayAfterCompletion: dom.getWindow(parent).getComputedStyle(getConnectionAction(parent, 'tunnel:laptop').querySelector<HTMLElement>('.codicon-loading')!).display,
+		}, {
+			initial: [], connecting: [], connected: [], progress: 'Connecting', rowHeight: 36, progressVisibleWithoutHover: '1', spinnerDisplayAfterCompletion: 'none',
+		});
+	});
+
+	test('a failed connection removes the painted spinner and permits another attempt', async () => {
+		const { parent, model, errors } = createWidget();
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, 'tunnel:laptop').click();
+		const error = new Error('Connection timed out');
+		await model.pendingConnection.error(error);
+		await timeout(0);
+		const action = getConnectionAction(parent, 'tunnel:laptop');
+		assert.deepStrictEqual({
+			label: action.textContent?.trim(),
+			disabled: action.getAttribute('aria-disabled'),
+			spinnerDisplay: dom.getWindow(parent).getComputedStyle(action.querySelector<HTMLElement>('.codicon-loading')!).display,
+			errors,
+		}, { label: 'Connect', disabled: 'false', spinnerDisplay: 'none', errors: [error] });
+	});
+
+	test('leaves unobserved metadata empty and identifies cached counts without connecting', () => {
+		const { parent, model } = createWidget();
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? {
+			...remote, metadata: { operatingSystem: OperatingSystem.Linux, activeSessionCount: 2, observedAt: 100000 }, metadataIsStale: true,
+		} : remote), undefined);
+		assert.deepStrictEqual({
+			columns: [...parent.querySelectorAll('.monaco-table-th')].map(element => element.textContent),
+			known: [...parent.querySelectorAll('[data-remote-id="ssh:build"] .remotes-metadata')].map(element => element.textContent),
+			missing: [...parent.querySelectorAll('[data-remote-id="tunnel:laptop"] .remotes-metadata')].map(element => element.textContent),
+			unknowns: parent.textContent?.includes('Unknown'),
+			connections: model.connectionChanges,
+		}, {
+			columns: ['', 'Name', 'Type', 'System', 'Sessions', 'Last activity', ''],
+			known: ['SSH', 'Linux', '2 active (last known)', ''], missing: ['Dev Tunnel', '', '', ''], unknowns: false, connections: [],
+		});
+	});
+
+	test('distinguishes no active sessions from an unobserved count', () => {
+		const { parent, model } = createWidget();
+		const labels = [undefined, 0, 1].map(activeSessionCount => {
+			model.remotes.set(model.remotes.get().map(remote => ({
+				...remote, metadata: { activeSessionCount, observedAt: 100000 },
+			})), undefined);
+			return parent.querySelector('[data-remote-id="ssh:build"] .remotes-sessions-column')?.textContent;
+		});
+		assert.deepStrictEqual(labels, ['', '0 active', '1 active']);
+	});
+
+	test('status groups use distinct icons and themed badges without dimming offline names', () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		parent.style.setProperty('--vscode-foreground', '#dddddd');
+		parent.style.setProperty('--vscode-descriptionForeground', '#888888');
+		parent.style.setProperty('--vscode-charts-green', '#22aa22');
+		parent.style.setProperty('--vscode-charts-blue', '#2266ff');
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([
+			...model.remotes.get(),
+			{ id: 'environment:offline', kind: 'environment', name: 'Offline environment', detail: 'offline', canRemove: true, unavailableReason: 'Offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		], undefined);
+		const groups = [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')];
+		const offline = parent.querySelector<HTMLElement>('[data-remote-id="environment:offline"]')!;
+		assert.deepStrictEqual({
+			icons: groups.map(group => group.querySelector('.remotes-name-icon .codicon')?.className),
+			counts: groups.map(group => group.querySelector('.monaco-count-badge')?.textContent),
+			colors: groups.map(group => dom.getWindow(group).getComputedStyle(group.querySelector('.remotes-name-icon .codicon')!).color),
+			offlineColor: dom.getWindow(offline).getComputedStyle(offline).color,
+			noGroupingDropdown: parent.querySelector('.remotes-group-by') === null,
+			standardAdd: parent.querySelector('.remotes-add .monaco-button.secondary')?.textContent,
+		}, {
+			icons: ['codicon codicon-circle-filled-compact', 'codicon codicon-circle-outline', 'codicon codicon-circle-slash-compact'],
+			counts: ['1', '2', '1'], colors: ['rgb(34, 170, 34)', 'rgb(34, 102, 255)', 'rgb(136, 136, 136)'],
+			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true, standardAdd: 'Add Environment',
+		});
+	});
+
+	test('group counts retain the standard badge shape and task pages replace the overview', () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		parent.style.setProperty('--vscode-toolbar-hoverBackground', '#333333');
+		parent.style.setProperty('--vscode-descriptionForeground', '#aaaaaa');
+		parent.style.setProperty('--vscode-spacing-size160', '16px');
+		parent.style.setProperty('--vscode-spacing-size100', '10px');
+		parent.style.setProperty('--vscode-spacing-size60', '6px');
+		parent.style.setProperty('--vscode-spacing-size280', '28px');
+		parent.style.setProperty('--vscode-spacing-size120', '12px');
+		parent.style.setProperty('--vscode-spacing-size320', '32px');
+		const remote = model.remotes.get()[0];
+		model.remotes.set([
+			remote,
+			...Array.from({ length: 12 }, (_, index) => ({ ...remote, id: `ssh:other-${index}`, name: `Other ${index}`, connectionStatus: RemoteAgentHostConnectionStatus.disconnected })),
+		], undefined);
+		const badges = [...parent.querySelectorAll<HTMLElement>('.remotes-group-count:not([hidden]) .monaco-count-badge')].map(element => ({
+			count: element.textContent, compact: element.getBoundingClientRect().width < 32,
+			rounded: dom.getWindow(element).getComputedStyle(element).borderRadius,
+			background: dom.getWindow(element).getComputedStyle(element).backgroundColor,
+		}));
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		const child = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const owner = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
+		const expanded = {
+			owner: child.querySelector('.remotes-details-owner')?.textContent,
+			inTable: !!child.closest('.monaco-list-row'),
+			overviewHidden: parent.querySelector<HTMLElement>('.remotes-overview')!.hidden,
+			title: child.querySelector('.remotes-task-title')?.textContent,
+			noDeviceIcon: owner.querySelector<HTMLElement>('.remotes-name-icon')?.hidden,
+		};
+		child.querySelector<HTMLElement>('.remotes-details-actions .secondary')!.click();
+		assert.deepStrictEqual({ badges, expanded, restored: !parent.querySelector<HTMLElement>('.remotes-overview')!.hidden }, {
+			badges: [{ count: '1', compact: true, rounded: '11px', background: 'rgb(51, 51, 51)' }, { count: '12', compact: true, rounded: '11px', background: 'rgb(51, 51, 51)' }],
+			expanded: { owner: `Environment: ${remote.name}`, inTable: false, overviewHidden: true, title: 'Agent run behavior', noDeviceIcon: true }, restored: true,
+		});
+	});
+
+	test('long labels ellipsize within their columns and dividers appear on intent', () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		parent.style.setProperty('--vscode-tree-tableColumnsBorder', '#123456');
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:long', kind: 'environment', name: 'Very long environment name '.repeat(20), detail: 'long',
+			canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+		const table = parent.querySelector<HTMLElement>('.monaco-table')!;
+		const header = table.querySelector<HTMLElement>(':scope > .monaco-split-view2')!;
+		const label = table.querySelector<HTMLElement>('[data-remote-id] .remotes-name')!;
+		const cell = label.closest('.monaco-table-td')!;
+		const idle = dom.getWindow(header).getComputedStyle(header).borderBottomColor;
+		table.classList.add('hovered');
+		const hovered = dom.getWindow(header).getComputedStyle(header).borderBottomColor;
+		assert.deepStrictEqual({
+			ellipsis: dom.getWindow(label).getComputedStyle(label).textOverflow,
+			truncated: label.scrollWidth > label.clientWidth,
+			contained: label.getBoundingClientRect().right <= cell.getBoundingClientRect().right,
+			idle, hovered,
+		}, { ellipsis: 'ellipsis', truncated: true, contained: true, idle: 'rgba(0, 0, 0, 0)', hovered: 'rgb(18, 52, 86)' });
+	});
+
+	test('status grouping moves connected hosts once and retains their identity', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
+		const read = () => [...parent.querySelectorAll<HTMLElement>('.monaco-table-tr')].map(row => row.dataset.remoteId ?? row.querySelector('.remotes-name')?.textContent);
+		getConnectionAction(parent, 'tunnel:laptop').click();
+		await timeout(0);
+		const connected = read();
+		getConnectionAction(parent, 'tunnel:laptop').click();
+		await timeout(0);
+		assert.deepStrictEqual({ connected, disconnected: read(), changes: model.connectionChanges }, {
+			connected: ['Ready to use', 'ssh:build', 'tunnel:laptop', 'Available', 'wsl:Ubuntu'],
+			disconnected: ['Ready to use', 'ssh:build', 'Available', 'tunnel:laptop', 'wsl:Ubuntu'],
+			changes: [{ id: 'tunnel:laptop', connected: true }, { id: 'tunnel:laptop', connected: false }],
+		});
+	});
 
 	test('orders enabled sections like the Environment picker in the table and accessible view', () => {
 		const { widget, parent, model } = createWidget(OperatingSystem.Windows);
@@ -250,28 +546,27 @@ suite('RemotesWidget', () => {
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
 		const cells = [...row.querySelectorAll<HTMLElement>('.monaco-table-td')];
 		assert.deepStrictEqual({
-			values: cells.slice(1, 3).map(cell => cell.textContent),
+			values: [row.querySelector('.remotes-name')?.textContent, row.querySelector('.remotes-connection-state')?.textContent],
 			aligned: cells.every((cell, index) => Math.abs(cell.getBoundingClientRect().x - headers[index].getBoundingClientRect().x) < 1),
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
 			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[3].getBoundingClientRect().width === 144,
+			actionsWidth: headers[6].getBoundingClientRect().width === 132,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
 			values: ['Build server', 'Connected'], aligned: true,
-			rowHeight: 26, groupHeight: 30, headerHeight: 30, actionsWidth: true, sashes: true,
+			rowHeight: 44, groupHeight: 32, headerHeight: 30, actionsWidth: true, sashes: true,
 		});
 	});
 
-	test('group chevrons and row visibility actions occupy distinct gutter positions', () => {
+	test('remote rows leave the compact group gutter empty', () => {
 		const { parent } = createWidget();
 		parent.style.setProperty('--vscode-spacing-size80', '8px');
-		const group = parent.querySelector<HTMLElement>('.remotes-group-row .remotes-gutter-column .action-label')!;
-		const visibility = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-gutter-column .action-label')!;
 		assert.deepStrictEqual({
-			offset: visibility.getBoundingClientRect().left - group.getBoundingClientRect().left,
+			groups: parent.querySelectorAll('.remotes-group-row .remotes-gutter-column .action-label').length > 0,
+			visibility: parent.querySelector('[data-remote-id="ssh:build"] .remotes-gutter-column')?.classList.contains('remotes-cell-action-hidden'),
 			width: parent.querySelector('.monaco-table-th')!.getBoundingClientRect().width,
-		}, { offset: 26, width: 64 });
+		}, { groups: true, visibility: true, width: 32 });
 	});
 
 	test('shows disconnected error details in a warning hover, row label and accessible view', async () => {
@@ -283,12 +578,12 @@ suite('RemotesWidget', () => {
 		} : remote), undefined);
 		const warning = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!;
 		const row = warning.closest('.monaco-list-row')!;
-		const label = parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')!;
+		const label = parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')!;
 		assert.deepStrictEqual({
 			visible: !warning.hidden, hover: hoverContents.get(warning), aria: row.getAttribute('aria-label')?.includes(error),
 			accessible: widget.getAccessibilityContent().includes(error),
 			afterLabel: warning.getBoundingClientRect().left > label.getBoundingClientRect().right,
-		}, { visible: true, hover: error, aria: true, accessible: true, afterLabel: true });
+		}, { visible: true, hover: `Connection failed. Select Troubleshoot for recovery steps.\n\n${error}`, aria: true, accessible: true, afterLabel: true });
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, 'ssh:build').click();
 		const connecting = { hidden: warning.hidden, hover: hoverContents.get(warning), accessible: widget.getAccessibilityContent().includes(error) };
@@ -317,7 +612,7 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			const empty = parent.querySelector<HTMLElement>('.remotes-empty-row')!;
 			assert.ok(empty, 'The final empty SSH row is rendered after scrolling');
-			const bottom = parent.querySelector('.remotes-table-container')!.getBoundingClientRect().bottom - (width === 360 ? 10 : 0);
+			const bottom = parent.querySelector('.remotes-table-container')!.getBoundingClientRect().bottom - 10;
 			assert.ok(empty.getBoundingClientRect().bottom <= bottom, 'The entire empty row is inside the visible viewport');
 			const link = empty.querySelector<HTMLElement>('.monaco-link')!;
 			link.focus();
@@ -344,10 +639,10 @@ suite('RemotesWidget', () => {
 			update(RemoteAgentHostConnectionStatus.connected),
 			update(RemoteAgentHostConnectionStatus.disconnected),
 		], [
-			{ visible: true, hover: 'First failure', accessible: true },
-			{ visible: true, hover: 'First failure', accessible: true },
-			{ visible: true, hover: 'Second failure', accessible: true },
-			{ visible: true, hover: 'Second failure', accessible: true },
+			{ visible: true, hover: 'Connection failed. Select Troubleshoot for recovery steps.\n\nFirst failure', accessible: true },
+			{ visible: true, hover: 'Connection failed. Select Troubleshoot for recovery steps.\n\nFirst failure', accessible: true },
+			{ visible: true, hover: 'Connection failed. Select Troubleshoot for recovery steps.\n\nSecond failure', accessible: true },
+			{ visible: true, hover: 'Connection failed. Select Troubleshoot for recovery steps.\n\nSecond failure', accessible: true },
 			{ visible: false, hover: undefined, accessible: false },
 			{ visible: false, hover: undefined, accessible: false },
 		]);
@@ -366,16 +661,16 @@ suite('RemotesWidget', () => {
 				RemoteAgentHostConnectionStatus.reconnecting,
 			].map(connectionStatus => {
 				model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus, lastConnectionError: 'Connection refused' } : remote), undefined);
-				const cell = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-column')!;
+				const cell = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-name-row')!;
 				const warning = cell.querySelector<HTMLElement>('.remotes-connection-warning')!;
-				const label = cell.querySelector<HTMLElement>('.remotes-connection-state')!;
+				const label = cell.querySelector<HTMLElement>('.remotes-name')!;
 				return {
 					right: warning.getBoundingClientRect().right,
 					inset: cell.getBoundingClientRect().right - warning.getBoundingClientRect().right,
 					separated: label.getBoundingClientRect().right < warning.getBoundingClientRect().left,
 				};
 			});
-			assert.deepStrictEqual(positions, positions.map(() => ({ right: positions[0].right, inset: 10, separated: true })));
+			assert.deepStrictEqual(positions, positions.map(() => ({ right: positions[0].right, inset: 0, separated: true })));
 		});
 	}
 
@@ -392,8 +687,7 @@ suite('RemotesWidget', () => {
 		const { parent } = createWidget();
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.closest<HTMLElement>('.monaco-list-row')!;
 		const actions = row.querySelector<HTMLElement>('.remotes-actions-column')!;
-		const toolbar = actions.querySelector<HTMLElement>('.monaco-toolbar')!;
-		const snapshot = () => ({ opacity: dom.getWindow(toolbar).getComputedStyle(toolbar).opacity, pointerEvents: dom.getWindow(toolbar).getComputedStyle(toolbar).pointerEvents });
+		const snapshot = () => ({ opacity: dom.getWindow(actions).getComputedStyle(actions).opacity, pointerEvents: dom.getWindow(actions).getComputedStyle(actions).pointerEvents });
 		const idle = snapshot();
 		row.classList.add('hovered');
 		const hovered = snapshot();
@@ -408,21 +702,16 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('eye action hides and restores a remote without changing its connection or keyboard focus', async () => {
+	test('overflow visibility action hides and restores a remote without changing its connection', async () => {
 		const { parent, model, widget } = createWidget();
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
 		row.click();
-		const action = row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!;
-		const before = { label: action.getAttribute('aria-label'), icon: action.classList.contains('codicon-eye') };
-		action.focus();
-		action.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		for (const type of ['keydown', 'keyup']) {
-			action.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
+		const before = getMenuAction(parent, 'ssh:build', 'visibility').label;
+		runMenuAction(parent, 'ssh:build', 'visibility');
 		await timeout(0);
 		const hidden = {
-			label: action.getAttribute('aria-label'), icon: action.classList.contains('codicon-eye-closed'),
-			dimmed: row.classList.contains('remotes-row-hidden'), focused: dom.getActiveElement() === action,
+			label: getMenuAction(parent, 'ssh:build', 'visibility').label,
+			dimmed: row.classList.contains('remotes-row-hidden'),
 			connection: row.querySelector('.remotes-connection-state')?.textContent,
 			accessible: widget.getAccessibilityContent().includes('Build server (hidden from Environment picker)'),
 		};
@@ -430,39 +719,38 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const retained = parent.querySelectorAll('[data-remote-id="ssh:build"]').length;
-		const show = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-gutter-column [role="button"]')!;
-		show.click();
+		runMenuAction(parent, 'ssh:build', 'visibility');
 		await timeout(0);
 		assert.deepStrictEqual({
 			before, hidden, retained,
 			restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
 			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 		}, {
-			before: { label: 'Hide Build server from Environment Picker', icon: true },
-			hidden: { label: 'Show Build server in Environment Picker', icon: true, dimmed: true, focused: true, connection: 'Connected', accessible: true },
+			before: 'Hide from Environment Picker',
+			hidden: { label: 'Show in Environment Picker', dimmed: true, connection: 'Connected', accessible: true },
 			retained: 1, restored: false,
 			visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
 			connectionChanges: [], managementChanges: [],
 		});
 	});
 
-	test('shown and hidden eligible remotes keep their eye visible at rest without exposing other actions', () => {
+	test('row actions expose only the connection button and overflow, with deletion last in the menu', () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
-			id: 'environment:online', kind: 'environment', name: 'Online host', detail: 'online', canRemove: false,
-			connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+			id: 'environment:online', kind: 'environment', name: 'Online host', detail: 'online',
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, canRemove: true,
 		}], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
-		const toolbar = row.querySelector<HTMLElement>('.remotes-gutter-column .monaco-toolbar')!;
-		const idle = dom.getWindow(toolbar).getComputedStyle(toolbar).opacity;
-		row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!.click();
 		assert.deepStrictEqual({
-			idle, hiddenOpacity: dom.getWindow(toolbar).getComputedStyle(toolbar).opacity,
-			connectionActionsOpacity: dom.getWindow(toolbar).getComputedStyle(row.querySelector('.remotes-actions-column .monaco-toolbar')!).opacity,
-			connection: row.querySelector('.remotes-connection-state')?.textContent,
+			buttons: [...row.querySelectorAll('.remotes-actions-column [role="button"]')].map(button => button.textContent),
+			menu: getMenuActions(parent, 'environment:online').map(action => action.id),
 			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
-		}, { idle: '1', hiddenOpacity: '1', connectionActionsOpacity: '0', connection: 'Disconnected', visibilityChanges: [{ id: 'environment:online', hidden: true }], connectionChanges: [] });
+		}, {
+			buttons: ['Connect', ''],
+			menu: ['remotes.actions', 'vs.actions.separator', 'remotes.visibility', 'vs.actions.separator', 'remotes.copyAddress', 'vs.actions.separator', 'remotes.rename', 'remotes.troubleshoot', 'remotes.delete'],
+			visibilityChanges: [], connectionChanges: [],
+		});
 	});
 
 	for (const hidden of [false, true]) {
@@ -475,35 +763,29 @@ suite('RemotesWidget', () => {
 			};
 			model.remotes.set([remote], undefined);
 			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
-			const action = row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!;
+			const action = getMenuAction(parent, remote.id, 'visibility');
 			const unavailable = {
-				label: action.getAttribute('aria-label'), disabled: action.getAttribute('aria-disabled'),
-				icon: action.classList.contains('codicon-eye-closed'),
-				opacity: dom.getWindow(action).getComputedStyle(action.closest('.monaco-toolbar')!).opacity,
+				label: action.label, tooltip: action.tooltip, disabled: !action.enabled,
 				accessible: widget.getAccessibilityContent().includes('not shown in Environment picker: Connect once'),
 			};
-			action.click();
-			for (const key of [{ key: 'Enter', keyCode: 13 }, { key: ' ', keyCode: 32 }]) {
-				for (const type of ['keydown', 'keyup']) {
-					action.dispatchEvent(new KeyboardEvent(type, { ...key, bubbles: true, cancelable: true }));
-				}
-			}
+			runMenuAction(parent, remote.id, 'visibility');
 			model.remotes.set([{ ...remote, pickerUnavailableReason: undefined }], undefined);
 			assert.deepStrictEqual({
 				unavailable,
 				restored: {
-					label: action.getAttribute('aria-label'), disabled: action.getAttribute('aria-disabled'),
+					label: action.label, disabled: !action.enabled,
 					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
 				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
 			}, {
 				unavailable: {
-					label: 'Debian is not shown in the Environment picker. Connect once to add this remote to the picker.',
-					disabled: 'true', icon: true, opacity: '1', accessible: true,
+					label: 'Show in Environment Picker',
+					tooltip: 'Connect once to add this remote to the picker.',
+					disabled: true, accessible: true,
 				},
 				restored: {
-					label: hidden ? 'Show Debian in Environment Picker' : 'Hide Debian from Environment Picker',
-					disabled: null, unavailableClass: false,
+					label: hidden ? 'Show in Environment Picker' : 'Hide from Environment Picker',
+					disabled: false, unavailableClass: false,
 				},
 				visibilityChanges: [], connectionChanges: [],
 			});
@@ -535,21 +817,18 @@ suite('RemotesWidget', () => {
 		}, { remotes: ['ssh:build'], expanded: 'true' });
 	});
 
-	test('Rename preserves keyboard focus and prevents duplicate management actions', async () => {
+	test('Rename in overflow prevents duplicate management actions', async () => {
 		const { parent, model } = createWidget();
-		const control = getManagementAction(parent, 'ssh:build', 'rename');
-		control.focus();
 		model.pendingManagement = new DeferredPromise<void>();
-		control.click();
-		control.click();
+		runMenuAction(parent, 'ssh:build', 'rename');
+		runMenuAction(parent, 'ssh:build', 'rename');
 		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			changes: model.managementChanges,
-			sameControl: getManagementAction(parent, 'ssh:build', 'rename') === control,
-			focused: dom.getActiveElement() === control,
+			enabled: getMenuAction(parent, 'ssh:build', 'rename').enabled,
 			name: parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')?.textContent,
-		}, { changes: [{ id: 'ssh:build', action: 'rename' }], sameControl: true, focused: true, name: 'Renamed remote' });
+		}, { changes: [{ id: 'ssh:build', action: 'rename' }], enabled: true, name: 'Renamed remote' });
 	});
 
 	test('environment and deletable tunnel rows offer Delete, including after refresh', async () => {
@@ -559,16 +838,16 @@ suite('RemotesWidget', () => {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
 		}], undefined);
-		const actions = () => [...parent.querySelectorAll('[data-remote-id]')].map(row =>
-			[...row.querySelectorAll('.remotes-actions-column [role="button"]')].map(action => action.getAttribute('aria-label')));
+		const actions = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row =>
+			getMenuActions(parent, row.dataset.remoteId!).filter(action => action.id !== 'vs.actions.separator').map(action => action.label));
 		const before = actions();
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect to Desktop', 'Rename Desktop...', 'Copy Address of Desktop', 'Delete Desktop'],
-			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Delete Laptop'],
-			['Connect to Ubuntu', 'Rename Ubuntu...', 'Copy Address of Ubuntu'],
-			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server', 'Change Preferred Agent Location for Build server'],
+			['Connect', 'Hide from Environment Picker', 'Copy Address', 'Rename...', 'Troubleshoot Connection', 'Forget...'],
+			['Connect', 'Hide from Environment Picker', 'Copy Address', 'Rename...', 'Agent Run Behavior', 'Troubleshoot Connection', 'Forget...'],
+			['Connect', 'Hide from Environment Picker', 'Copy Address', 'Rename...', 'Troubleshoot Connection'],
+			['Disconnect', 'Hide from Environment Picker', 'Copy Address', 'Rename...', 'Agent Run Behavior', 'Troubleshoot Connection'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
@@ -580,18 +859,13 @@ suite('RemotesWidget', () => {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
 		}], undefined);
-		const control = getManagementAction(parent, 'environment:desktop', 'delete');
-		control.focus();
-		control.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 		model.pendingManagement = new DeferredPromise<void>();
-		for (const type of ['keydown', 'keyup']) {
-			control.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
+		runMenuAction(parent, 'environment:desktop', 'delete');
 		assert.deepStrictEqual(model.managementChanges, [{ id: 'environment:desktop', action: 'remove' }]);
-		control.click();
+		runMenuAction(parent, 'environment:desktop', 'delete');
 		const busy = {
-			deletion: control.getAttribute('aria-disabled'),
-			rename: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
+			deletion: !getMenuAction(parent, 'environment:desktop', 'delete').enabled,
+			rename: !getMenuAction(parent, 'environment:desktop', 'rename').enabled,
 		};
 		await model.pendingManagement.complete();
 		await timeout(0);
@@ -599,44 +873,34 @@ suite('RemotesWidget', () => {
 			busy, changes: model.managementChanges,
 			remaining: parent.querySelector('[data-remote-id="environment:desktop"]') !== null,
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-		}, { busy: { deletion: 'true', rename: 'true' }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
+		}, { busy: { deletion: true, rename: true }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
 	});
 
-	test('tunnel Delete is keyboard accessible, distinct from Remove and guarded while pending', async () => {
+	test('tunnel Delete in overflow is distinct from Remove and guarded while pending', async () => {
 		const { parent, model } = createWidget();
-		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
-		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
-		location.focus();
-		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const deletion = row.querySelector<HTMLElement>('.codicon-trash')!;
-		assert.strictEqual(dom.getActiveElement(), deletion);
 		model.pendingManagement = new DeferredPromise<void>();
-		for (const type of ['keydown', 'keyup']) {
-			deletion.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
-		deletion.click();
-		const disabled = deletion.getAttribute('aria-disabled');
-		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		runMenuAction(parent, 'tunnel:laptop', 'delete');
+		runMenuAction(parent, 'tunnel:laptop', 'delete');
+		const disabled = !getMenuAction(parent, 'tunnel:laptop', 'delete').enabled;
+		runMenuAction(parent, 'tunnel:laptop', 'copyAddress');
 		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			disabled, deleted: model.tunnelDeletions, removed: model.managementChanges, copied: model.copiedAddresses,
 			present: !!parent.querySelector('[data-remote-id="tunnel:laptop"]'),
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-		}, { disabled: 'true', deleted: ['tunnel:laptop'], removed: [], copied: ['tunnel:laptop'], present: false, focused: true });
+		}, { disabled: true, deleted: ['tunnel:laptop'], removed: [], copied: ['tunnel:laptop'], present: false, focused: true });
 	});
 
 	test('failed tunnel deletion reports the error and keeps Delete available for retry', async () => {
 		const { parent, model, errors } = createWidget();
-		const deletion = parent.querySelector<HTMLElement>('[data-remote-id="tunnel:laptop"] .codicon-trash')!;
 		model.pendingManagement = new DeferredPromise<void>();
-		deletion.click();
+		runMenuAction(parent, 'tunnel:laptop', 'delete');
 		const error = new Error('Tunnel deletion forbidden');
 		await model.pendingManagement.error(error);
 		await timeout(0);
-		assert.deepStrictEqual({ errors, enabled: deletion.getAttribute('aria-disabled'), deleted: model.tunnelDeletions }, {
-			errors: [error], enabled: null, deleted: ['tunnel:laptop'],
+		assert.deepStrictEqual({ errors, enabled: getMenuAction(parent, 'tunnel:laptop', 'delete').enabled, deleted: model.tunnelDeletions }, {
+			errors: [error], enabled: true, deleted: ['tunnel:laptop'],
 		});
 	});
 
@@ -645,36 +909,27 @@ suite('RemotesWidget', () => {
 		const remote = model.remotes.get().find(remote => remote.kind === 'tunnel')!;
 		const states = [false, true, false].map(canDelete => {
 			model.remotes.set([{ ...remote, canDelete }], undefined);
-			return !!parent.querySelector('[data-remote-id="tunnel:laptop"] .codicon-trash');
+			return !!findMenuAction(parent, 'tunnel:laptop', 'delete');
 		});
 		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
-	test('SSH Delete appears only for eligible saved hosts and is keyboard accessible', async () => {
+	test('SSH Delete appears in overflow only for eligible saved hosts', async () => {
 		const { parent, model } = createWidget();
 		const ssh = model.remotes.get().find(remote => remote.kind === 'ssh')!;
-		const configuredDelete = !!parent.querySelector('[data-remote-id="ssh:build"] .codicon-trash');
+		const configuredDelete = !!findMenuAction(parent, 'ssh:build', 'delete');
 		model.remotes.set([{ ...ssh, canDelete: true }], undefined);
-		const row = parent.querySelector('[data-remote-id="ssh:build"]')!;
-		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
-		location.focus();
-		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const deletion = row.querySelector<HTMLElement>('.codicon-trash')!;
-		assert.strictEqual(dom.getActiveElement(), deletion);
 		model.pendingManagement = new DeferredPromise<void>();
-		for (const type of ['keydown', 'keyup']) {
-			deletion.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
-		deletion.click();
-		const busy = deletion.getAttribute('aria-disabled');
+		runMenuAction(parent, 'ssh:build', 'delete');
+		runMenuAction(parent, 'ssh:build', 'delete');
+		const busy = !getMenuAction(parent, 'ssh:build', 'delete').enabled;
 		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			configuredDelete, busy, deleted: model.sshDeletions, removed: model.managementChanges,
 			present: !!parent.querySelector('[data-remote-id="ssh:build"]'),
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-		}, { configuredDelete: false, busy: 'true', deleted: ['ssh:build'], removed: [], present: false, focused: true });
+		}, { configuredDelete: false, busy: true, deleted: ['ssh:build'], removed: [], present: false, focused: true });
 	});
 
 	test('SSH Delete disappears when the host becomes configured again', () => {
@@ -682,53 +937,281 @@ suite('RemotesWidget', () => {
 		const ssh = model.remotes.get().find(remote => remote.kind === 'ssh')!;
 		const states = [true, false].map(canDelete => {
 			model.remotes.set([{ ...ssh, canDelete }], undefined);
-			return !!parent.querySelector('[data-remote-id="ssh:build"] .codicon-trash');
+			return !!findMenuAction(parent, 'ssh:build', 'delete');
 		});
 		assert.deepStrictEqual(states, [true, false]);
 	});
 
-	test('Copy Address works on every visible remote without changing connections or focus', async () => {
+	test('Copy Address works from overflow on every visible remote without changing connections', async () => {
 		const { parent, model } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
 			id: 'environment:offline', name: 'Offline', kind: 'environment', detail: 'host', canRemove: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
 		}], undefined);
-		const buttons = [...parent.querySelectorAll<HTMLElement>('[data-remote-id] .remotes-actions-column .codicon-copy')];
-		const ids = buttons.map(button => button.closest<HTMLElement>('[data-remote-id]')!.dataset.remoteId);
-		for (const button of buttons) {
-			button.focus();
-			button.click();
+		const ids = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId!);
+		for (const id of ids) {
+			runMenuAction(parent, id, 'copyAddress');
 			await timeout(0);
-			assert.strictEqual(dom.getActiveElement(), button);
 		}
 		assert.deepStrictEqual({ copied: model.copiedAddresses, connections: model.connectionChanges }, { copied: ids, connections: [] });
 	});
 
 	for (const id of ['ssh:build', 'tunnel:laptop']) {
-		test(`${id} location action is keyboard accessible and guards duplicate requests while copying stays available`, async () => {
+		test(`${id} run behavior opens a task page and saves an explicit choice once`, async () => {
 			const { parent, model } = createWidget();
-			const row = parent.querySelector(`[data-remote-id="${id}"]`)!;
-			const copy = row.querySelector<HTMLElement>('.codicon-copy')!;
-			const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
-			copy.focus();
-			copy.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-			copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-			assert.strictEqual(dom.getActiveElement(), location);
 			model.pendingManagement = new DeferredPromise<void>();
-			for (const type of ['keydown', 'keyup']) {
-				location.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-			}
-			location.click();
-			const busy = location.getAttribute('aria-disabled');
-			copy.click();
+			runMenuAction(parent, id, 'locationPreference');
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			const choices = details.querySelectorAll<HTMLElement>('[role="radio"]');
+			const actionOrder = [...details.querySelectorAll('.remotes-details-footer .monaco-button')].map(button => button.textContent);
+			choices[0].click();
+			const save = details.querySelector<HTMLElement>('.remotes-details-actions .monaco-button:not(.secondary)')!;
+			save.click();
+			save.click();
+			const busy = save.getAttribute('aria-disabled');
+			runMenuAction(parent, id, 'copyAddress');
 			await model.pendingManagement.complete();
 			await timeout(0);
 			assert.deepStrictEqual({
-				busy, enabled: location.getAttribute('aria-disabled'), calls: model.locationChanges, copied: model.copiedAddresses,
-			}, { busy: 'true', enabled: null, calls: [id], copied: [id] });
+				busy, enabled: save.getAttribute('aria-disabled'), calls: model.locationChanges, preference: model.preferences.get(id), copied: model.copiedAddresses, actionOrder,
+			}, { busy: 'true', enabled: 'true', calls: [id], preference: 'dedicated', copied: [id], actionOrder: isWindows ? ['Save and Reconnect', 'Cancel'] : ['Cancel', 'Save and Reconnect'] });
 		});
 	}
+
+	for (const saved of [false, true]) {
+		test(`run behavior failure gives a recovery path without technical details when saved=${saved}`, async () => {
+			const { parent, model, widget } = createWidget();
+			model.pendingManagement = new DeferredPromise<void>();
+			runMenuAction(parent, 'tunnel:laptop', 'locationPreference');
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			details.querySelector<HTMLElement>('[role="radio"]')!.click();
+			const save = details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)')!;
+			save.click();
+			if (saved) {
+				model.preferences.set('tunnel:laptop', 'dedicated');
+			}
+			await model.pendingManagement.error(new Error('Internal transport stack and host path'));
+			await timeout(0);
+			details.querySelector<HTMLElement>('.remotes-task-back .action-label')!.click();
+			assert.deepStrictEqual({
+				technicalDetails: details.textContent?.includes('Internal transport stack'),
+				message: details.querySelector('.remotes-details-feedback')?.textContent,
+				retryDisabled: save.getAttribute('aria-disabled'),
+				backNavigated: !widget.detailsVisible.get(),
+			}, {
+				technicalDetails: false,
+				message: saved
+					? 'Your choice was saved, but reconnection failed. Go back and choose Troubleshoot Connection.'
+					: 'Couldn\'t save your choice. Try again.',
+				retryDisabled: String(saved),
+				backNavigated: true,
+			});
+		});
+	}
+
+	test('task Back preserves the overview query and filter and restores row focus', () => {
+		const { parent, widget } = createWidget();
+		parent.querySelector<HTMLElement>('.remotes-type-filter [aria-label="SSH"]')!.click();
+		widget.setSearchQuery('build');
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		const task = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		task.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+		const visibleContent = widget.getAccessibilityContent();
+		task.querySelector<HTMLElement>('.remotes-task-back .action-label')!.click();
+		assert.deepStrictEqual({
+			pageVisible: widget.detailsVisible.get(),
+			overviewHidden: parent.querySelector<HTMLElement>('.remotes-overview')!.hidden,
+			query: parent.querySelector<HTMLInputElement>('.remotes-search-row input')!.value,
+			filter: parent.querySelector('.remotes-type-filter [aria-pressed="true"]')?.textContent,
+			ids: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+			focus: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+			scopedContent: visibleContent.includes('Agent run behavior') && !visibleContent.includes('Ready to use'),
+		}, { pageVisible: false, overviewHidden: false, query: 'build', filter: 'SSH', ids: ['ssh:build'], focus: true, scopedContent: true });
+	});
+
+	test('task choices survive refresh, cancel without applying, and close when their environment disappears', () => {
+		const { parent, model } = createWidget();
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		details.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+		model.remotes.set([...model.remotes.get()], undefined);
+		const retained = parent.querySelector('.remotes-environment-details') === details;
+		const selection = details.querySelector('[aria-checked="true"]')?.textContent;
+		details.querySelector<HTMLElement>('.remotes-details-actions .secondary')!.click();
+		const cancelled = !parent.querySelector('.remotes-environment-details');
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		model.remotes.set(model.remotes.get().filter(remote => remote.id !== 'ssh:build'), undefined);
+		assert.deepStrictEqual({ retained, selectedEditor: selection?.startsWith('Use the remote VS Code window'), cancelled, removed: !parent.querySelector('.remotes-environment-details'), changes: model.locationChanges }, {
+			retained: true, selectedEditor: true, cancelled: true, removed: true, changes: [],
+		});
+	});
+
+	test('run behavior distinguishes the saved choice from a pending selection and updates it after saving', async () => {
+		const { parent, model } = createWidget();
+		model.preferences.set('ssh:build', 'dedicated');
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const choices = details.querySelectorAll<HTMLElement>('[role="radio"]');
+		choices[1].click();
+		const read = () => [...choices].map(choice => ({
+			selected: choice.getAttribute('aria-checked'),
+			current: choice.querySelector('.remotes-choice-current')?.textContent,
+		}));
+		const pending = read();
+		details.querySelector<HTMLElement>('.remotes-details-actions .monaco-button:not(.secondary)')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ pending, saved: read(), preference: model.preferences.get('ssh:build') }, {
+			pending: [{ selected: 'false', current: 'Current' }, { selected: 'true', current: '' }],
+			saved: [{ selected: 'false', current: '' }, { selected: 'true', current: 'Current' }],
+			preference: 'editor',
+		});
+	});
+
+	test('run behavior explains both choices before one is selected', () => {
+		const { parent } = createWidget();
+		runMenuAction(parent, 'ssh:build', 'locationPreference');
+		const choices = [...parent.querySelectorAll<HTMLElement>('.remotes-run-choices [role="radio"]')];
+		assert.deepStrictEqual(choices.map(choice => ({
+			selected: choice.getAttribute('aria-checked'),
+			description: choice.querySelector('.remotes-choice-description')?.textContent,
+		})), [
+			{ selected: 'false', description: 'Run agents separately from the remote editor. Keep the computer awake and online while they work.' },
+			{ selected: 'false', description: 'Use agents in an open VS Code window on the remote computer. They aren\'t available after that window closes.' },
+		]);
+	});
+
+	for (const kind of ['environment', 'tunnel'] as const) {
+		test(`${kind} recovery labels generated names and keeps registration IDs out of the page`, () => {
+			const { parent, model } = createWidget();
+			model.environmentsEnabled.set(true, undefined);
+			const remote: ICustomizationRemote = {
+				id: `${kind}:registration`, kind, name: 'giant-river-63l4ndx', detail: '199d7664-8edf-4130-aa41-caff68e2e95e',
+				canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
+			};
+			model.remotes.set([remote], undefined);
+			runMenuAction(parent, remote.id, 'troubleshoot');
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			assert.deepStrictEqual({
+				name: details.querySelector('.remotes-details-owner')?.textContent,
+				identity: [...details.querySelectorAll('.remotes-task-identity-detail > *')].map(element => element.textContent),
+				headings: [...details.querySelectorAll('.remotes-details-body h3')].map(element => element.textContent),
+				showsId: details.textContent?.includes(remote.detail),
+				reportGuidanceGrouped: details.querySelector('.remotes-recovery-report')?.textContent?.includes('Review before sharing.'),
+			}, {
+				name: 'Environment: giant-river-63l4ndx',
+				identity: ['Connection method', kind === 'environment' ? 'GitHub Environment (Preview)' : 'Dev Tunnel'],
+				headings: ['Connection status', 'Try these steps', 'More help', 'Diagnostic report'],
+				showsId: false, reportGuidanceGrouped: true,
+			});
+		});
+	}
+
+	test('recovery keeps technical details out of the modal and exports them only on request', async () => {
+		const { parent, model, snapshots, copied, opened, commands } = createWidget(OperatingSystem.Windows, 'status');
+		model.remotes.set([{ ...model.remotes.get()[0], connectionStatus: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'Network failed https://relay/?token=test-secret' }], undefined);
+		parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!.click();
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const before = {
+			snapshots: snapshots(), rawProblemVisible: details.textContent?.includes('Network failed'),
+			guidance: details.textContent?.includes('sign in to this address using SSH'),
+			localScope: details.textContent?.includes('not remote logs'),
+			actions: [...details.querySelectorAll('.remotes-details-footer .monaco-button')].map(button => button.textContent),
+			supportAfterActions: details.querySelector('.remotes-details-footer')?.nextElementSibling?.classList.contains('remotes-recovery-support'),
+			buttons: details.querySelectorAll('.monaco-button').length,
+			collapsible: !!details.querySelector('details'),
+		};
+		[...details.querySelectorAll<HTMLElement>('.monaco-link')].find(link => link.textContent === 'Open Diagnostic Report')!.click();
+		await timeout(0);
+		const report = 'Connection report\n\nLatest error for Build server:\nNetwork failed https://relay/?[redacted]';
+		assert.deepStrictEqual({
+			before, snapshots: snapshots(), copied, opened, commands, connections: model.connectionChanges,
+		}, {
+			before: { snapshots: 0, rawProblemVisible: false, guidance: true, localScope: true, actions: isWindows ? ['Retry Connection', 'Done'] : ['Done', 'Retry Connection'], supportAfterActions: true, buttons: 2, collapsible: false },
+			snapshots: 1, copied: [],
+			opened: [{ input: { contents: report, languageId: 'plaintext', options: { pinned: true } }, group: undefined }],
+			commands: ['workbench.action.closeModalEditor'], connections: [],
+		});
+	});
+
+	for (const action of ['locationPreference', 'troubleshoot'] as const) {
+		test(`${action} leads with the task and retains readable environment context when renamed`, () => {
+			const { parent, model } = createWidget();
+			runMenuAction(parent, 'ssh:build', action);
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			const read = () => ({
+				title: details.querySelector('h2.remotes-task-title')?.textContent,
+				name: details.querySelector('.remotes-task-heading p.remotes-details-owner')?.textContent,
+				detail: [...details.querySelectorAll('.remotes-task-identity-detail > *')].map(element => element.textContent),
+				taskInBody: !!details.querySelector('.remotes-details-body > .remotes-task-title'),
+			});
+			const before = read();
+			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? {
+				...remote, name: 'Renamed server', detail: 'new.example.com',
+			} : remote), undefined);
+			assert.deepStrictEqual({ before, after: read() }, {
+				before: { title: action === 'locationPreference' ? 'Agent run behavior' : 'Troubleshoot connection', name: 'Environment: Build server', detail: ['Connection method', 'SSH', 'Host address', 'build.example.com'], taskInBody: false },
+				after: { title: action === 'locationPreference' ? 'Agent run behavior' : 'Troubleshoot connection', name: 'Environment: Renamed server', detail: ['Connection method', 'SSH', 'Host address', 'new.example.com'], taskInBody: false },
+			});
+		});
+	}
+
+	test('recovery keeps its actions visible independently of the selected row position', () => {
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status');
+		parent.style.height = '500px';
+		const remote = { ...model.remotes.get()[0], name: 'Z build', connectionStatus: RemoteAgentHostConnectionStatus.disconnected };
+		model.remotes.set([
+			...Array.from({ length: 5 }, (_, i) => ({ ...remote, id: `ssh:${i}`, name: `A build ${i}` })),
+			remote,
+		], undefined);
+		widget.layout();
+		runMenuAction(parent, remote.id, 'troubleshoot');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const footer = details.querySelector<HTMLElement>('.remotes-details-footer')!.getBoundingClientRect();
+		const viewport = parent.getBoundingClientRect();
+		assert.ok(footer.height > 0 && footer.bottom <= viewport.bottom + 1, 'Recovery actions remain visible within the task page');
+	});
+
+	test('recovery offers refresh for offline environments and update only with advertised support', async () => {
+		const { parent, model } = createWidget();
+		const remote = { ...model.remotes.get()[2], unavailableReason: 'Offline' };
+		model.remotes.set([remote], undefined);
+		runMenuAction(parent, remote.id, 'troubleshoot');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const primary = () => details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)');
+		const offlineAction = primary()?.textContent;
+		primary()!.click();
+		await timeout(0);
+		model.remotes.set([{ ...remote, unavailableReason: undefined, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update') }], undefined);
+		const updateAction = primary()?.textContent;
+		primary()!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			offlineAction, refreshes: model.refreshCalls, updateAction, updates: model.serverUpdates,
+			title: details.querySelector('.remotes-recovery-status')?.textContent, primary: primary()?.textContent, connects: model.connectionChanges,
+		}, { offlineAction: 'Refresh', refreshes: 1, updateAction: 'Update Server', updates: [remote.id], title: 'Connected', primary: undefined, connects: [] });
+	});
+
+	test('failed recovery retains a short message and exports the error without leaving buttons stuck', async () => {
+		const { parent, model, opened } = createWidget();
+		const remote = model.remotes.get()[2];
+		runMenuAction(parent, remote.id, 'troubleshoot');
+		model.pendingConnection = new DeferredPromise<void>();
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)')!.click();
+		await model.pendingConnection.error(new Error('connect ECONNREFUSED'));
+		await timeout(0);
+		const failed = {
+			message: details.querySelector('.remotes-details-feedback')?.textContent,
+			enabled: details.querySelector('.remotes-details-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled'),
+		};
+		[...details.querySelectorAll<HTMLElement>('.monaco-link')].find(link => link.textContent === 'Open Diagnostic Report')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ failed, opened }, {
+			failed: { message: 'That didn\'t work. Try again, or open the diagnostic report for details.', enabled: 'false' },
+			opened: [{ input: { contents: 'Connection report\n\nLatest error for Laptop:\nconnect ECONNREFUSED', languageId: 'plaintext', options: { pinned: true } }, group: undefined }],
+		});
+	});
 
 	test('Update Server follows advertised capability as a row changes status', () => {
 		const { parent, model } = createWidget();
@@ -742,37 +1225,29 @@ suite('RemotesWidget', () => {
 		];
 		const labels = statuses.map(connectionStatus => {
 			model.remotes.set([{ ...remote, connectionStatus }], undefined);
-			return parent.querySelector('.remotes-actions-column .codicon-cloud-download')?.getAttribute('aria-label') ?? null;
+			return findMenuAction(parent, remote.id, 'updateServer')?.label ?? null;
 		});
-		assert.deepStrictEqual(labels, [null, null, 'Update Server for Build server', null, null]);
+		assert.deepStrictEqual(labels, [null, null, 'Update Server', null, null]);
 	});
 
-	test('Update Server supports keyboard activation, blocks duplicates and restores focus when it disappears', async () => {
+	test('Update Server in overflow blocks duplicates and restores focus when it disappears', async () => {
 		const { parent, model } = createWidget();
 		model.remotes.set([{
 			...model.remotes.get()[0],
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
 		}], undefined);
-		const location = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-server-process')!;
-		location.focus();
-		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const update = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-cloud-download')!;
-		assert.strictEqual(dom.getActiveElement(), update);
 		model.pendingManagement = new DeferredPromise<void>();
-		for (const type of ['keydown', 'keyup']) {
-			update.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
-		update.click();
-		const busy = update.getAttribute('aria-disabled');
-		parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-copy')!.click();
+		runMenuAction(parent, 'ssh:build', 'updateServer');
+		runMenuAction(parent, 'ssh:build', 'updateServer');
+		const busy = !getMenuAction(parent, 'ssh:build', 'updateServer').enabled;
+		runMenuAction(parent, 'ssh:build', 'copyAddress');
 		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			busy, updates: model.serverUpdates, copies: model.copiedAddresses,
-			present: !!parent.querySelector('.remotes-actions-column .codicon-cloud-download'),
+			present: !!findMenuAction(parent, 'ssh:build', 'updateServer'),
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-		}, { busy: 'true', updates: ['ssh:build'], copies: ['ssh:build'], present: false, focused: true });
+		}, { busy: true, updates: ['ssh:build'], copies: ['ssh:build'], present: false, focused: true });
 	});
 
 	test('failed Update Server reports the error and re-enables the action', async () => {
@@ -781,30 +1256,33 @@ suite('RemotesWidget', () => {
 			...model.remotes.get()[0],
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
 		}], undefined);
-		const update = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-cloud-download')!;
 		model.pendingManagement = new DeferredPromise<void>();
-		update.click();
+		runMenuAction(parent, 'ssh:build', 'updateServer');
 		const error = new Error('Cannot update server');
 		await model.pendingManagement.error(error);
 		await timeout(0);
-		assert.deepStrictEqual({ errors, enabled: update.getAttribute('aria-disabled'), updates: model.serverUpdates }, {
-			errors: [error], enabled: null, updates: ['ssh:build'],
+		assert.deepStrictEqual({ errors, enabled: getMenuAction(parent, 'ssh:build', 'updateServer').enabled, updates: model.serverUpdates }, {
+			errors: [error], enabled: true, updates: ['ssh:build'],
 		});
 	});
 
-	test('new inline actions report failures and location changes re-enable for retry', async () => {
+	test('task actions report failures and location changes re-enable for retry', async () => {
 		const { parent, model, errors } = createWidget();
-		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
 		const copyError = new Error('Clipboard unavailable');
 		const locationError = new Error('Cannot save preference');
 		model.copyFailure = copyError;
-		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		runMenuAction(parent, 'tunnel:laptop', 'copyAddress');
 		model.pendingManagement = new DeferredPromise<void>();
-		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
-		location.click();
+		runMenuAction(parent, 'tunnel:laptop', 'locationPreference');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		details.querySelector<HTMLElement>('[role="radio"]')!.click();
+		const save = details.querySelector<HTMLElement>('.remotes-details-actions .monaco-button:not(.secondary)')!;
+		save.click();
 		await model.pendingManagement.error(locationError);
 		await timeout(0);
-		assert.deepStrictEqual({ errors, enabled: location.getAttribute('aria-disabled') }, { errors: [copyError, locationError], enabled: null });
+		assert.deepStrictEqual({ errors, enabled: save.getAttribute('aria-disabled'), feedback: details.querySelector('.remotes-details-feedback')?.textContent }, {
+			errors: [copyError], enabled: 'false', feedback: 'Couldn\'t save your choice. Try again.',
+		});
 	});
 
 	test('failed Delete retains the row, reports the error and allows retry', async () => {
@@ -815,15 +1293,15 @@ suite('RemotesWidget', () => {
 			connectionStatus: RemoteAgentHostConnectionStatus.connected,
 		}], undefined);
 		model.pendingManagement = new DeferredPromise<void>();
-		getManagementAction(parent, 'environment:desktop', 'delete').click();
+		runMenuAction(parent, 'environment:desktop', 'delete');
 		const error = new Error('Deletion failed');
 		await model.pendingManagement.error(error);
 		await timeout(0);
 		assert.deepStrictEqual({
 			errors,
-			disabled: getManagementAction(parent, 'environment:desktop', 'delete').getAttribute('aria-disabled'),
+			disabled: !getMenuAction(parent, 'environment:desktop', 'delete').enabled,
 			changes: model.managementChanges,
-		}, { errors: [error], disabled: null, changes: [{ id: 'environment:desktop', action: 'remove' }] });
+		}, { errors: [error], disabled: false, changes: [{ id: 'environment:desktop', action: 'remove' }] });
 	});
 
 	test('renaming a sorted row does not leave keyboard focus on another remote action', async () => {
@@ -832,9 +1310,7 @@ suite('RemotesWidget', () => {
 			id: 'ssh:other', kind: 'ssh', name: 'Other', detail: 'other.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
 		}], undefined);
 		parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
-		const rename = getManagementAction(parent, 'ssh:build', 'rename');
-		rename.focus();
-		rename.click();
+		runMenuAction(parent, 'ssh:build', 'rename');
 		await timeout(0);
 		assert.deepStrictEqual({
 			focusedRemote: parent.querySelector<HTMLElement>('.monaco-list-row.focused [data-remote-id]')?.dataset.remoteId,
@@ -845,15 +1321,14 @@ suite('RemotesWidget', () => {
 	test('surfaces failed management operations and re-enables the action', async () => {
 		const { parent, model, errors } = createWidget();
 		model.pendingManagement = new DeferredPromise<void>();
-		const control = getManagementAction(parent, 'tunnel:laptop', 'rename');
-		control.click();
+		runMenuAction(parent, 'tunnel:laptop', 'rename');
 		const error = new Error('Could not save name');
 		await model.pendingManagement.error(error);
 		await timeout(0);
 		assert.deepStrictEqual({
-			disabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
+			disabled: !getMenuAction(parent, 'tunnel:laptop', 'rename').enabled,
 			errors,
-		}, { disabled: null, errors: [error] });
+		}, { disabled: false, errors: [error] });
 	});
 
 	test('preserves collapsed groups through inventory updates', () => {
@@ -892,7 +1367,7 @@ suite('RemotesWidget', () => {
 		const accessible = widget.getAccessibilityContent();
 		model.remotes.set(model.remotes.get().filter(remote => remote.kind !== 'ssh'), undefined);
 		const removed = groups();
-		const noMatches = parent.querySelector('.remotes-message')?.textContent;
+		const noMatches = parent.querySelector('.remotes-message [role="status"]')?.textContent;
 		widget.setVisible(true);
 		await timeout(0);
 		const refreshed = groups();
@@ -901,7 +1376,7 @@ suite('RemotesWidget', () => {
 			matched, omittedFromAccessibleView: !accessible.includes('Dev Tunnels') && !accessible.includes('GitHub Environments') && !accessible.includes('WSL'),
 			removed, noMatches, refreshed, restored: groups(),
 		}, {
-			matched: ['SSH'], omittedFromAccessibleView: true, removed: [], noMatches: 'No matching remotes.', refreshed: [],
+			matched: ['SSH'], omittedFromAccessibleView: true, removed: [], noMatches: 'No environments match your search.', refreshed: [],
 			restored: ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'],
 		});
 	});
@@ -913,8 +1388,8 @@ suite('RemotesWidget', () => {
 		control.click();
 		assert.deepStrictEqual({
 			disabled: control.getAttribute('aria-disabled'), changes: model.connectionChanges,
-			renameDisabled: getManagementAction(parent, 'ssh:unavailable', 'rename').getAttribute('aria-disabled'),
-		}, { disabled: 'true', changes: [], renameDisabled: null });
+			renameDisabled: !getMenuAction(parent, 'ssh:unavailable', 'rename').enabled,
+		}, { disabled: 'true', changes: [], renameDisabled: false });
 	});
 
 	test('shows live connection states and the corresponding inline action', () => {
@@ -937,8 +1412,8 @@ suite('RemotesWidget', () => {
 			observed: [
 				{ status: 'Connected', action: 'Disconnect Build server', disabled: false },
 				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
-				{ status: 'Connecting', action: 'Connect to Build server', disabled: true },
-				{ status: 'Disconnected', action: 'Connect to Build server', disabled: true },
+				{ status: '', action: 'Connecting: Build server', disabled: true },
+				{ status: '', action: 'Reconnecting: Build server', disabled: true },
 				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
 			],
 			accessible: true,
@@ -957,21 +1432,21 @@ suite('RemotesWidget', () => {
 			action.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		}
 		const busy = {
-			actionDisabled: action.getAttribute('aria-disabled'), renameDisabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
-			state: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
+			actionDisabled: action.getAttribute('aria-disabled'), renameDisabled: !getMenuAction(parent, 'tunnel:laptop', 'rename').enabled,
+			state: action.textContent?.trim(),
 		};
 		action.click();
-		getManagementAction(parent, 'tunnel:laptop', 'rename').click();
+		runMenuAction(parent, 'tunnel:laptop', 'rename');
 		await model.pendingConnection.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			tabIndex, busy, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
-			action: action.getAttribute('aria-label'), renameDisabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
+			action: action.getAttribute('aria-label'), renameDisabled: !getMenuAction(parent, 'tunnel:laptop', 'rename').enabled,
 			sameControl: getConnectionAction(parent, 'tunnel:laptop') === action, focused: dom.getActiveElement() === action,
 		}, {
-			tabIndex: 0, busy: { actionDisabled: 'true', renameDisabled: 'true', state: 'Connecting' },
+			tabIndex: 0, busy: { actionDisabled: 'true', renameDisabled: true, state: 'Connecting' },
 			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], managementChanges: [],
-			action: 'Disconnect Laptop', renameDisabled: null, sameControl: true, focused: true,
+			action: 'Disconnect Laptop', renameDisabled: false, sameControl: true, focused: true,
 		});
 	});
 
@@ -980,20 +1455,20 @@ suite('RemotesWidget', () => {
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, 'ssh:build').click();
 		const busy = {
-			state: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
+			state: getConnectionAction(parent, 'ssh:build').textContent?.trim(),
 			accessible: widget.getAccessibilityContent().includes('Status: Disconnecting'),
-			renameDisabled: getManagementAction(parent, 'ssh:build', 'rename').getAttribute('aria-disabled'),
+			renameDisabled: !getMenuAction(parent, 'ssh:build', 'rename').enabled,
 		};
 		await model.pendingConnection.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			busy,
 			connectionChanges: model.connectionChanges, action: getConnectionAction(parent, 'ssh:build').getAttribute('aria-label'),
-			renameDisabled: getManagementAction(parent, 'ssh:build', 'rename').getAttribute('aria-disabled'),
+			renameDisabled: !getMenuAction(parent, 'ssh:build', 'rename').enabled,
 			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
-			busy: { state: 'Disconnecting', accessible: true, renameDisabled: 'true' },
-			connectionChanges: [{ id: 'ssh:build', connected: false }], action: 'Connect to Build server', renameDisabled: null, expanded: 'true',
+			busy: { state: 'Disconnecting', accessible: true, renameDisabled: true },
+			connectionChanges: [{ id: 'ssh:build', connected: false }], action: 'Connect to Build server', renameDisabled: false, expanded: 'true',
 		});
 	});
 
@@ -1006,9 +1481,9 @@ suite('RemotesWidget', () => {
 		await model.pendingConnection.error(error);
 		await timeout(0);
 		assert.deepStrictEqual({
-			errors, disabled: action.getAttribute('aria-disabled'), renameDisabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
+			errors, disabled: action.getAttribute('aria-disabled'), renameDisabled: !getMenuAction(parent, 'tunnel:laptop', 'rename').enabled,
 			status: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
-		}, { errors: [error], disabled: null, renameDisabled: null, status: 'Disconnected' });
+		}, { errors: [error], disabled: 'false', renameDisabled: false, status: 'Disconnected' });
 	});
 
 	test('shows refresh warnings on the failed groups, with simple tooltips and accessible labels', async () => {
@@ -1026,7 +1501,7 @@ suite('RemotesWidget', () => {
 		});
 		assert.deepStrictEqual({
 			warnings,
-			message: parent.querySelector('.remotes-message')?.textContent,
+			message: parent.querySelector('.remotes-message [role="status"]')?.textContent,
 			retainedHosts: parent.querySelectorAll('[data-remote-id]').length,
 			accessibleWarnings: widget.getAccessibilityContent().match(/See the Window log for more details\./g)?.length,
 		}, {
@@ -1262,24 +1737,25 @@ suite('RemotesWidget', () => {
 		const connect = getConnectionAction(parent, 'environment:desktop');
 		assert.deepStrictEqual({
 			connect: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled'),
-			renameDisabled: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
-			deleteDisabled: getManagementAction(parent, 'environment:desktop', 'delete').getAttribute('aria-disabled'),
+			renameDisabled: !getMenuAction(parent, 'environment:desktop', 'rename').enabled,
+			deleteDisabled: !getMenuAction(parent, 'environment:desktop', 'delete').enabled,
 		}, {
 			connect: 'Connect to Desktop: Start the owning application.', disabled: 'true',
-			renameDisabled: null, deleteDisabled: null,
+			renameDisabled: false, deleteDisabled: false,
 		});
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		assert.deepStrictEqual({ label: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled') }, {
-			label: 'Disconnect Desktop', disabled: null,
+			label: 'Disconnect Desktop', disabled: 'false',
 		});
 	});
 
-	test('offline environment shows Offline without an address or info icon and preserves row focus on updates', () => {
+	test('offline environment identifies the host without an address or info icon and preserves row focus on updates', () => {
 		const { parent, model, widget, hoverContents } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+			pickerUnavailableReason: 'Available when the owning application is online.',
 		}], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="environment:desktop"]')!;
 		row.click();
@@ -1288,10 +1764,12 @@ suite('RemotesWidget', () => {
 		const connection = row.querySelector<HTMLElement>('.remotes-connection-state')!;
 		const offline = {
 			connection: connection.textContent,
+			offlineIndicator: !!row.querySelector('.remotes-connection-indicator .codicon-circle-slash-compact'),
+			nameOpacity: dom.getWindow(row).getComputedStyle(row.querySelector<HTMLElement>('.remotes-name')!).opacity,
 			tooltip: hoverContents.get(connection),
 			infoIcons: row.querySelectorAll('.codicon-info').length,
 			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Offline. Start the owning application.'),
+			accessibleView: widget.getAccessibilityContent().includes('Status: Host offline') && widget.getAccessibilityContent().includes('Start the owning application.'),
 		};
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
@@ -1299,13 +1777,13 @@ suite('RemotesWidget', () => {
 			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
 			tableFocused: dom.getActiveElement() === table,
 		}, {
-			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			offline: { connection: 'Host offline', offlineIndicator: true, nameOpacity: '1', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
 			available: 'Disconnected', tableFocused: true,
 		});
 	});
 
 	test('offline availability does not override an active connection or pending action', async () => {
-		const { parent, model } = createWidget();
+		const { parent, model, widget, hoverContents } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		const offline: ICustomizationRemote = {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
@@ -1319,39 +1797,89 @@ suite('RemotesWidget', () => {
 		];
 		const observed = states.map(remote => {
 			model.remotes.set([remote], undefined);
-			return parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent;
+			const label = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-state')!;
+			return {
+				label: label.textContent,
+				offlineHover: hoverContents.get(label) === offline.unavailableReason,
+				offlineAccessible: widget.getAccessibilityContent().includes(offline.unavailableReason!),
+			};
 		});
 		model.remotes.set([{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, offline.id).click();
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
+		const readPending = () => ({
+			label: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent ?? '',
+			offlineHover: hoverContents.get(parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-state')!) === offline.unavailableReason,
+			offlineAccessible: widget.getAccessibilityContent().includes(offline.unavailableReason!),
+		});
+		observed.push(readPending());
 		await model.pendingConnection.complete();
 		await timeout(0);
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
+		observed.push(readPending());
+		assert.deepStrictEqual(observed, [
+			{ label: 'Host offline', offlineHover: true, offlineAccessible: true },
+			{ label: 'Connected', offlineHover: false, offlineAccessible: false },
+			{ label: '', offlineHover: false, offlineAccessible: false },
+			{ label: '', offlineHover: false, offlineAccessible: false },
+			{ label: '', offlineHover: false, offlineAccessible: false },
+			{ label: 'Host offline', offlineHover: true, offlineAccessible: true },
+		]);
 	});
 
-	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {
+	test('connection indicators follow this window and clear during pending actions and row reuse', async () => {
 		const { parent, model } = createWidget();
-		const connection = getConnectionAction(parent, 'ssh:build');
-		connection.focus();
-		connection.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		connection.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const rename = getManagementAction(parent, 'ssh:build', 'rename');
-		assert.strictEqual(dom.getActiveElement(), rename);
-		for (const type of ['keydown', 'keyup']) {
-			rename.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
+		const remote = model.remotes.get()[0];
+		const read = () => {
+			const cell = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-column')!;
+			const indicator = cell.querySelector<HTMLElement>('.remotes-connection-indicator')!;
+			return {
+				label: cell.querySelector('.remotes-connection-state')?.textContent,
+				connected: indicator.classList.contains('connected'), pending: !!indicator.querySelector('.codicon-loading-compact'), hidden: indicator.hidden, decorative: indicator.getAttribute('aria-hidden'),
+			};
+		};
+		const states = [
+			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting,
+		].map(connectionStatus => {
+			model.remotes.set([{ ...remote, connectionStatus }], undefined);
+			return read();
+		});
+		model.remotes.set([{ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, remote.id).click();
+		states.push(read());
+		await model.pendingConnection.complete();
 		await timeout(0);
-		rename.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const copy = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-copy')!;
-		assert.strictEqual(dom.getActiveElement(), copy);
-		copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const location = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-server-process')!;
-		assert.strictEqual(dom.getActiveElement(), location);
-		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({ changes: model.managementChanges, focused: dom.getActiveElement() === connection }, {
-			changes: [{ id: 'ssh:build', action: 'rename' }], focused: true,
+		states.push(read());
+		model.remotes.set([], undefined);
+		assert.deepStrictEqual({ states, groupIndicators: [...parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-connection-indicator')].every(indicator => indicator.hidden) }, {
+			states: [
+				{ label: 'Connected', connected: true, pending: false, hidden: false, decorative: 'true' },
+				{ label: 'Disconnected', connected: false, pending: false, hidden: false, decorative: 'true' },
+				{ label: '', connected: false, pending: true, hidden: true, decorative: 'true' },
+				{ label: '', connected: false, pending: true, hidden: true, decorative: 'true' },
+				{ label: '', connected: false, pending: true, hidden: true, decorative: 'true' },
+				{ label: 'Disconnected', connected: false, pending: false, hidden: false, decorative: 'true' },
+			],
+			groupIndicators: true,
+		});
+	});
+
+	test('overflow opens from the keyboard and supplies the selected environment actions', () => {
+		const { parent, model } = createWidget();
+		parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.click();
+		const overflow = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-toolbar-more')!;
+		overflow.focus();
+		overflow.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		for (const type of ['keydown', 'keyup']) {
+			overflow.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		assert.deepStrictEqual({
+			rename: menus.get(parent)!().find(action => action.id === 'remotes.rename')?.label,
+			changes: model.managementChanges,
+			focused: dom.getActiveElement() === overflow,
+		}, {
+			rename: 'Rename...', changes: [], focused: true,
 		});
 	});
 
@@ -1567,10 +2095,10 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const refreshed = labels();
 		widget.setSearchQuery('nonexistent');
-		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), message: parent.querySelector('.remotes-message')?.textContent, setupLinks: parent.querySelectorAll('.remotes-empty-actions:not([hidden]) .monaco-link').length }, {
+		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), message: parent.querySelector('.remotes-message [role="status"]')?.textContent, setupLinks: parent.querySelectorAll('.remotes-empty-actions:not([hidden]) .monaco-link').length }, {
 			loading: [],
 			refreshed: ['Could not refresh Dev Tunnels.', 'No SSH hosts configured.'],
-			filtered: [], message: 'No matching remotes.',
+			filtered: [], message: 'No environments match your search.',
 			setupLinks: 0,
 		});
 	});
