@@ -11,6 +11,7 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 import { getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
+import { getMotionCssVariables } from '../../../../platform/theme/common/motionRecipes.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { WebviewStyles } from './webview.js';
@@ -88,6 +89,7 @@ export class WebviewThemeDataProvider extends Disposable {
 				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors,
 				...exportedSizes,
+				...Object.fromEntries(Object.entries(getMotionCssVariables()).map(([name, value]) => [name.slice(2), value])),
 				'vscode-editor-font-feature-settings': editorFontLigatures,
 			};
 

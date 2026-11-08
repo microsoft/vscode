@@ -53,5 +53,5 @@
 
 .monaco-enable-motion .monaco-table > .monaco-split-view2,
 .monaco-enable-motion .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
-	transition: border-color 0.2s ease-out;
+	transition: var(--vscode-motion-border-transition, border-color 200ms ease-out);
 }

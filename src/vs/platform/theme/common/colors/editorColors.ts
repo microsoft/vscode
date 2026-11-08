@@ -12,12 +12,13 @@ import { registerColor, transparent, lessProminent, darken, lighten } from '../c
 // Import the colors we need
 import { foreground, contrastBorder, activeContrastBorder } from './baseColors.js';
 import { scrollbarShadow, badgeBackground } from './miscColors.js';
+import { colorBackgroundCanvas, colorBackgroundRaised, colorIconError, colorIconInfo, colorIconWarning } from './semanticColors.js';
 
 
 // ----- editor
 
 export const editorBackground = registerColor('editor.background',
-	{ light: '#ffffff', dark: '#1E1E1E', hcDark: Color.black, hcLight: Color.white },
+	colorBackgroundCanvas,
 	nls.localize('editorBackground', "Editor background color."));
 
 export const editorForeground = registerColor('editor.foreground',
@@ -47,7 +48,7 @@ export const editorStickyScrollShadow = registerColor('editorStickyScroll.shadow
 
 
 export const editorWidgetBackground = registerColor('editorWidget.background',
-	{ dark: '#252526', light: '#F3F3F3', hcDark: '#0C141F', hcLight: Color.white },
+	colorBackgroundRaised,
 	nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 
 export const editorWidgetForeground = registerColor('editorWidget.foreground',
@@ -68,7 +69,7 @@ export const editorErrorBackground = registerColor('editorError.background',
 	nls.localize('editorError.background', 'Background color of error text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const editorErrorForeground = registerColor('editorError.foreground',
-	{ dark: '#F14C4C', light: '#E51400', hcDark: '#F48771', hcLight: '#B5200D' },
+	colorIconError,
 	nls.localize('editorError.foreground', 'Foreground color of error squigglies in the editor.'));
 
 export const editorErrorBorder = registerColor('editorError.border',
@@ -81,7 +82,7 @@ export const editorWarningBackground = registerColor('editorWarning.background',
 	nls.localize('editorWarning.background', 'Background color of warning text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const editorWarningForeground = registerColor('editorWarning.foreground',
-	{ dark: '#CCA700', light: '#BF8803', hcDark: '#FFD370', hcLight: '#895503' },
+	colorIconWarning,
 	nls.localize('editorWarning.foreground', 'Foreground color of warning squigglies in the editor.'));
 
 export const editorWarningBorder = registerColor('editorWarning.border',
@@ -94,7 +95,7 @@ export const editorInfoBackground = registerColor('editorInfo.background',
 	nls.localize('editorInfo.background', 'Background color of info text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const editorInfoForeground = registerColor('editorInfo.foreground',
-	{ dark: '#59a4f9', light: '#0063d3', hcDark: '#59a4f9', hcLight: '#0063d3' },
+	colorIconInfo,
 	nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
 
 export const editorInfoBorder = registerColor('editorInfo.border',

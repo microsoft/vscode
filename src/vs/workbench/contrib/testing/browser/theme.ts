@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { activityErrorBadgeBackground, activityErrorBadgeForeground, badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { activityErrorBadgeBackground, activityErrorBadgeForeground, badgeBackground, badgeForeground, chartsGreen, chartsRed, colorIconSuccess, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colors/listColors.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { TestResultState } from '../common/testTypes.js';
@@ -14,10 +14,10 @@ export const testingColorIconFailed = registerColor('testing.iconFailed', listEr
 export const testingColorIconErrored = registerColor('testing.iconErrored', listErrorForeground, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
 
 export const testingColorIconPassed = registerColor('testing.iconPassed', {
-	dark: '#73c991',
+	dark: colorIconSuccess,
 	light: '#73c991',
-	hcDark: '#73c991',
-	hcLight: '#007100'
+	hcDark: colorIconSuccess,
+	hcLight: colorIconSuccess
 }, localize('testing.iconPassed', "Color for the 'passed' icon in the test explorer."));
 
 export const testingColorRunAction = registerColor('testing.runAction', testingColorIconPassed, localize('testing.runAction', "Color for 'run' icons in the editor."));

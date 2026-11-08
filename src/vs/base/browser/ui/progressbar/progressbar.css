@@ -23,7 +23,7 @@
 
 .monaco-progress-container.discrete .progress-bit {
 	left: 0;
-	transition: width 100ms linear;
+	transition: width var(--vscode-motion-duration-normal, 200ms) var(--vscode-motion-easing-linear, linear);
 }
 
 .monaco-progress-container.discrete.done .progress-bit {
@@ -32,10 +32,10 @@
 
 .monaco-progress-container.infinite .progress-bit {
 	animation-name: progress;
-	animation-duration: 4s;
-	animation-iteration-count: infinite;
+	animation-duration: var(--vscode-motion-progress-duration, 4000ms);
+	animation-iteration-count: var(--vscode-motion-iterations-loop, infinite);
 	transform: translate3d(0px, 0px, 0px);
-	animation-timing-function: linear;
+	animation-timing-function: var(--vscode-motion-progress-easing, linear);
 }
 
 .monaco-progress-container.infinite.infinite-long-running .progress-bit {
@@ -45,7 +45,7 @@
 		https://github.com/microsoft/vscode/issues/97900 &
 		https://github.com/microsoft/vscode/issues/138396
 	*/
-	animation-timing-function: steps(100);
+	animation-timing-function: var(--vscode-motion-easing-progressSteps, steps(100));
 }
 
 /**
@@ -59,3 +59,23 @@
  * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
  */
 @keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }
+
+.monaco-reduce-motion .monaco-progress-container.infinite .progress-bit {
+	animation: none;
+	transform: none;
+}
+
+.monaco-reduce-motion .monaco-progress-container.discrete .progress-bit {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-progress-container.infinite .progress-bit {
+		animation: none;
+		transform: none;
+	}
+
+	.monaco-progress-container.discrete .progress-bit {
+		transition: none;
+	}
+}

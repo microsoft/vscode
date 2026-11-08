@@ -181,7 +181,7 @@ suite('Radio', () => {
 			reducedDuration: targetWindow.getComputedStyle(indicator).transitionDuration,
 			animations: indicator.getAnimations().length,
 		}, {
-			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.16s, 0.16s, 0.1s',
+			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.25s, 0.25s, 0.1s',
 			reducedDuration: '0s',
 			animations: 0,
 		});

@@ -61,6 +61,10 @@ Key points:
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
 
+### Fixture labels
+
+Use `labels: { primitive: true }` for fixtures whose subject is a general-purpose design-system building block, not a feature UI that happens to contain one. It works on an individual fixture or a themed group and appears as the `primitive` filter in Component Explorer. It is independent of screenshot/animation and CI labels; for example, an animated primitive can use `labels: { primitive: true, kind: 'animated' }`.
+
 ### File icon themes
 
 Fixtures use Seti file icons by default. Select another built-in theme, or disable file icons, on the individual fixture:

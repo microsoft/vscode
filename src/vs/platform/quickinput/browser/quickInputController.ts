@@ -40,6 +40,7 @@ import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
 import { AnchorAlignment, AnchorPosition, IRect, layout2d } from '../../../base/common/layout.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { motionTokenRegistry } from '../../theme/common/motionRegistry.js';
 
 const $ = dom.$;
 
@@ -48,7 +49,7 @@ const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
 const QUICK_INPUT_MOTION_SETTLED_CLASS = 'quick-input-widget-motion-settled';
 const QUICK_INPUT_MOTION_OPEN_ANIMATION = 'quick-input-widget-open';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
-const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
+const QUICK_INPUT_CLOSE_ANIMATION_DURATION = motionTokenRegistry.getNumber('motion.surface.exit.duration', 'duration');
 const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
 
 type QuickInputViewState = {
@@ -897,7 +898,9 @@ export class QuickInputController extends Disposable {
 					for (const event of ['finish', 'cancel']) {
 						animationDisposables.add(dom.addDisposableListener(animation, event, () => this.completeCloseAnimation()));
 					}
-					animationDisposables.add(disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION));
+					const endTime = animation.effect?.getComputedTiming().endTime;
+					const timeout = typeof endTime === 'number' && Number.isFinite(endTime) ? endTime : QUICK_INPUT_CLOSE_ANIMATION_DURATION;
+					animationDisposables.add(disposableTimeout(() => this.completeCloseAnimation(), timeout));
 				} else {
 					this.completeCloseAnimation();
 				}

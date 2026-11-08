@@ -15,7 +15,17 @@
 }
 
 .monaco-hover.fade-in {
-	animation: fadein 100ms linear;
+	animation: fadein var(--vscode-motion-duration-normal, 200ms) var(--vscode-motion-easing-linear, linear);
+}
+
+.monaco-reduce-motion .monaco-hover.fade-in {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-hover.fade-in {
+		animation: none;
+	}
 }
 
 .monaco-hover.hidden {

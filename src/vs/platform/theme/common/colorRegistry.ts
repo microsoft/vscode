@@ -7,6 +7,7 @@ export * from './colorUtils.js';
 
 // Make sure all color files are exported
 export * from './colors/baseColors.js';
+export * from './colors/semanticColors.js';
 export * from './colors/chartsColors.js';
 export * from './colors/confettiColors.js';
 export * from './colors/editorColors.js';

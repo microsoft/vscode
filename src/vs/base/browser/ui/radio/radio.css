@@ -151,15 +151,15 @@
 
 @media (prefers-reduced-motion: no-preference) {
 	.monaco-custom-radio.segmented > .monaco-radio-selection {
-		transition: scale 100ms ease-out;
+		transition: var(--vscode-motion-press-transition, scale 100ms ease-out);
 	}
 
 	.monaco-custom-radio.segmented.animate-selection > .monaco-radio-selection {
-		transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), width 160ms cubic-bezier(0.2, 0.8, 0.2, 1), scale 100ms ease-out;
+		transition: var(--vscode-motion-selection-transition, transform 250ms cubic-bezier(0.2, 0, 0, 1), width 250ms cubic-bezier(0.2, 0, 0, 1), scale 100ms ease-out);
 	}
 
 	.monaco-custom-radio.segmented:active > .monaco-radio-selection {
-		scale: 0.96;
+		scale: var(--vscode-motion-scale-press, 0.96);
 	}
 }
 

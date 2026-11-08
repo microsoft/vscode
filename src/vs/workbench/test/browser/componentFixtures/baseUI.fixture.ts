@@ -9,18 +9,30 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 
 // UI Components
-import { Button, ButtonBar, ButtonWithDescription, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar, ButtonWithDescription } from '../../../../base/browser/ui/button/button.js';
 import { Toggle, Checkbox, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
-import { InputBox, MessageType, unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
+import { SelectBox, unthemedSelectBoxStyles } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { USLayoutResolvedKeybinding } from '../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { defaultButtonStyles as themedButtonStyles, defaultInputBoxStyles as themedInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ labels: { primitive: true } }, {
 	Buttons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderButtons,
@@ -67,23 +79,125 @@ export default defineThemedFixtureGroup({
 		labels: { kind: 'screenshot' },
 		render: renderHighlightedLabels,
 	}),
+	Checkboxes: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCheckboxes }),
+	Switches: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderSwitches }),
+	Radios: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderRadios }),
+	SelectBoxes: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderSelectBoxes }),
+	IconToggles: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderIconToggles }),
+	IconLabels: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderIconLabels }),
+	KeybindingLabels: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderKeybindingLabels }),
+	PixelSpinners: defineComponentFixture({ labels: { kind: 'animated' }, render: renderPixelSpinners }),
 });
+
+function primitiveRow(container: HTMLElement, label: string): HTMLElement {
+	container.style.padding = '12px';
+	container.style.display = 'flex';
+	container.style.flexDirection = 'column';
+	container.style.gap = '12px';
+	const item = $('div');
+	item.style.display = 'flex';
+	item.style.alignItems = 'center';
+	item.style.gap = '8px';
+	item.appendChild($('span', undefined, label));
+	container.appendChild(item);
+	return item;
+}
+
+function renderCheckboxes({ container, disposableStore }: ComponentFixtureContext): void {
+	for (const [label, checked, disabled] of [['Include source files', true, false], ['Include tests', false, false], ['Unavailable option', false, true]] as const) {
+		const item = primitiveRow(container, label);
+		const checkbox = disposableStore.add(new Checkbox(label, checked, themedCheckboxStyles));
+		if (disabled) { checkbox.disable(); }
+		item.prepend(checkbox.domNode);
+	}
+}
+
+function renderSwitches({ container, disposableStore }: ComponentFixtureContext): void {
+	for (const [label, checked, disabled] of [['Auto save', false, false], ['Show guides', true, false], ['Unavailable setting', false, true]] as const) {
+		const item = primitiveRow(container, label);
+		const control = disposableStore.add(new Switch({ ariaLabel: label, checked, disabled }));
+		item.prepend(control.domNode);
+	}
+}
+
+function renderRadios({ container, disposableStore }: ComponentFixtureContext): void {
+	for (const segmented of [false, true]) {
+		const item = primitiveRow(container, segmented ? 'Segmented selection' : 'Single selection');
+		const control = disposableStore.add(new Radio({
+			ariaLabel: segmented ? 'Segmented view' : 'View',
+			className: segmented ? 'segmented' : undefined,
+			items: [{ text: 'List', isActive: true }, { text: 'Grid' }, { text: 'Unavailable', disabled: true }],
+		}));
+		item.style.flexWrap = 'wrap';
+		item.appendChild(control.domNode);
+	}
+}
+
+function renderSelectBoxes({ container, disposableStore }: ComponentFixtureContext): void {
+	const context = disposableStore.add(new ContextView(container, ContextViewDOMPosition.ABSOLUTE));
+	for (const enabled of [true, false]) {
+		const item = primitiveRow(container, enabled ? 'Indentation' : 'Unavailable setting');
+		const select = disposableStore.add(new SelectBox(
+			[{ text: 'Spaces: 2' }, { text: 'Spaces: 4' }, { text: 'Tabs' }], 0,
+			{ showContextView: delegate => context.show(delegate), hideContextView: () => context.hide(), layout: () => context.layout() },
+			{
+				...unthemedSelectBoxStyles,
+				selectBackground: 'var(--vscode-dropdown-background)',
+				selectForeground: 'var(--vscode-dropdown-foreground)',
+				selectBorder: 'var(--vscode-dropdown-border)',
+				selectListBackground: 'var(--vscode-dropdown-listBackground)',
+				focusBorder: 'var(--vscode-focusBorder)',
+				listActiveSelectionBackground: 'var(--vscode-list-activeSelectionBackground)',
+				listActiveSelectionForeground: 'var(--vscode-list-activeSelectionForeground)',
+				listFocusBackground: 'var(--vscode-list-focusBackground)',
+				listFocusForeground: 'var(--vscode-list-focusForeground)',
+			},
+			{ useCustomDrawn: true, ariaLabel: enabled ? 'Indentation' : 'Unavailable setting' },
+		));
+		select.render(item);
+		select.setEnabled(enabled);
+	}
+}
+
+function renderIconToggles({ container, disposableStore }: ComponentFixtureContext): void {
+	const item = primitiveRow(container, 'Search modes');
+	for (const [title, icon, isChecked] of [['Match case', Codicon.caseSensitive, false], ['Match whole word', Codicon.wholeWord, true]] as const) {
+		const toggle = disposableStore.add(new Toggle({ ...themedToggleStyles, title, icon, isChecked }));
+		item.appendChild(toggle.domNode);
+	}
+}
+
+function renderIconLabels({ container, disposableStore }: ComponentFixtureContext): void {
+	const item = primitiveRow(container, 'Name and description');
+	const label = disposableStore.add(new IconLabel(item, { supportIcons: true, supportHighlights: true }));
+	label.setLabel('$(file-code) settings.ts', 'src/config', { matches: [{ start: 13, end: 21 }] });
+}
+
+function renderKeybindingLabels({ container, disposableStore }: ComponentFixtureContext): void {
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Macintosh]) {
+		const item = primitiveRow(container, os === OperatingSystem.Macintosh ? 'macOS' : 'Windows / Linux');
+		const label = disposableStore.add(new KeybindingLabel(item, os, {
+			keybindingLabelBackground: 'var(--vscode-keybindingLabel-background)',
+			keybindingLabelForeground: 'var(--vscode-keybindingLabel-foreground)',
+			keybindingLabelBorder: 'var(--vscode-keybindingLabel-border)',
+			keybindingLabelBottomBorder: 'var(--vscode-keybindingLabel-bottomBorder)',
+			keybindingLabelShadow: undefined,
+		}));
+		label.set(new USLayoutResolvedKeybinding([new KeyCodeChord(os !== OperatingSystem.Macintosh, true, false, os === OperatingSystem.Macintosh, KeyCode.KeyP)], os));
+	}
+}
+
+function renderPixelSpinners({ container, disposableStore }: ComponentFixtureContext): void {
+	for (const variant of ['grid', 'ring'] as const) {
+		const item = primitiveRow(container, variant === 'grid' ? 'Loading files' : 'Checking changes');
+		disposableStore.add(createPixelSpinner(item, { variant }));
+	}
+}
 
 
 // ============================================================================
 // Styles (themed versions for fixture display)
 // ============================================================================
-
-const themedButtonStyles = {
-	...unthemedButtonStyles,
-	buttonBackground: 'var(--vscode-button-background)',
-	buttonHoverBackground: 'var(--vscode-button-hoverBackground)',
-	buttonForeground: 'var(--vscode-button-foreground)',
-	buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
-	buttonSecondaryHoverBackground: 'var(--vscode-button-secondaryHoverBackground)',
-	buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
-	buttonBorder: 'var(--vscode-button-border)',
-};
 
 const themedToggleStyles = {
 	...unthemedToggleStyles,
@@ -98,19 +212,6 @@ const themedCheckboxStyles = {
 	checkboxForeground: 'var(--vscode-checkbox-foreground)',
 	checkboxDisabledBackground: undefined,
 	checkboxDisabledForeground: undefined,
-};
-
-const themedInputBoxStyles = {
-	...unthemedInboxStyles,
-	inputBackground: 'var(--vscode-input-background)',
-	inputForeground: 'var(--vscode-input-foreground)',
-	inputBorder: 'var(--vscode-input-border)',
-	inputValidationInfoBackground: 'var(--vscode-inputValidation-infoBackground)',
-	inputValidationInfoBorder: 'var(--vscode-inputValidation-infoBorder)',
-	inputValidationWarningBackground: 'var(--vscode-inputValidation-warningBackground)',
-	inputValidationWarningBorder: 'var(--vscode-inputValidation-warningBorder)',
-	inputValidationErrorBackground: 'var(--vscode-inputValidation-errorBackground)',
-	inputValidationErrorBorder: 'var(--vscode-inputValidation-errorBorder)',
 };
 
 const themedBadgeStyles = {
@@ -137,6 +238,7 @@ function renderButtons({ container, disposableStore }: ComponentFixtureContext):
 	// Section: Primary Buttons
 	const primarySection = $('div');
 	primarySection.style.display = 'flex';
+	primarySection.style.flexWrap = 'wrap';
 	primarySection.style.gap = '8px';
 	primarySection.style.alignItems = 'center';
 	container.appendChild(primarySection);
@@ -153,6 +255,7 @@ function renderButtons({ container, disposableStore }: ComponentFixtureContext):
 	// Section: Secondary Buttons
 	const secondarySection = $('div');
 	secondarySection.style.display = 'flex';
+	secondarySection.style.flexWrap = 'wrap';
 	secondarySection.style.gap = '8px';
 	secondarySection.style.alignItems = 'center';
 	container.appendChild(secondarySection);
@@ -166,6 +269,7 @@ function renderButtons({ container, disposableStore }: ComponentFixtureContext):
 	// Section: Disabled Buttons
 	const disabledSection = $('div');
 	disabledSection.style.display = 'flex';
+	disabledSection.style.flexWrap = 'wrap';
 	disabledSection.style.gap = '8px';
 	disabledSection.style.alignItems = 'center';
 	container.appendChild(disabledSection);
@@ -303,7 +407,9 @@ function renderInputBoxes({ container, disposableStore }: ComponentFixtureContex
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
 	container.style.gap = '16px';
-	container.style.width = '350px';
+	container.style.width = '100%';
+	container.style.maxWidth = '350px';
+	container.style.boxSizing = 'border-box';
 
 	// Input with value
 	const filledInput = disposableStore.add(new InputBox(container, undefined, {
