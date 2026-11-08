@@ -15,7 +15,8 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { DesktopLayoutContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
@@ -187,6 +188,26 @@ suite('Sessions - Layout Actions', () => {
 			layoutActions: [false, true],
 			position: [false, true],
 			toggledFromCommandPalette: false,
+		});
+	});
+
+	test('shows Position in the main window only, and Size in the main window while docked and always in a chat window, whose column always shows the bar', () => {
+		const submenus = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isISubmenuItem);
+		const shown = (values: Record<string, unknown>) => submenus
+			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => values[key] as T }) ?? true)
+			.map(item => typeof item.title === 'string' ? item.title : item.title.value)
+			.sort();
+		const desktop = { [DesktopLayoutContext.key]: true };
+		const fixedColumn = `config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`;
+
+		assert.deepStrictEqual({
+			mainWindowDocked: shown({ ...desktop, [fixedColumn]: true }),
+			mainWindowFloating: shown({ ...desktop, [fixedColumn]: false }),
+			chatWindow: shown({ ...desktop, [fixedColumn]: false, [LayoutModeContext.key]: 'sideBySide' }),
+		}, {
+			mainWindowDocked: ['Position', 'Size'],
+			mainWindowFloating: ['Position'],
+			chatWindow: ['Size'],
 		});
 	});
 

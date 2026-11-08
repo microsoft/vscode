@@ -127,7 +127,8 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	submenu: Menus.SessionActivityBarSize,
 	group: '2_configure',
 	order: 1,
-	when: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true)),
+	// The column of a chat window always shows the bar at the chosen size; the main window's only while docked.
+	when: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.or(LayoutModeContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true))),
 });
 
 export const TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarFixedColumn';
@@ -155,7 +156,8 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	submenu: Menus.SessionActivityBarPosition,
 	group: '2_configure',
 	order: 0,
-	when: DesktopLayoutContext,
+	// Chat windows always show the bar in a column of their own.
+	when: ContextKeyExpr.and(DesktopLayoutContext, LayoutModeContext.toNegated()),
 });
 
 for (const [docked, order, title] of [
