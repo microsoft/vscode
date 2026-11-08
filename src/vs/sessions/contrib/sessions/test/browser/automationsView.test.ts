@@ -2094,9 +2094,9 @@ suite('AutomationsCardsWidget', () => {
 		const accepted = state();
 		automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
 		assert.deepStrictEqual({ starting, accepted, restored: state(), requests: runner.runCalls }, {
-			starting: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
-			accepted: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
-			restored: { disabled: 'false', label: 'Run now', spinner: false, prompt: 'Updated prompt' },
+			starting: { disabled: 'true', label: 'Running Daily review', spinner: true, prompt: 'Starting run...' },
+			accepted: { disabled: 'true', label: 'Running Daily review', spinner: true, prompt: 'Starting run...' },
+			restored: { disabled: 'false', label: 'Run Daily review now', spinner: false, prompt: 'Updated prompt' },
 			requests: 1,
 		});
 		widget.dispose();
@@ -3919,13 +3919,36 @@ suite('AutomationsCardsWidget', () => {
 			movedToMoreActions: true,
 			movedLeft: true,
 			runCalls: 1,
-			actionLabels: ['Run now', 'More Actions for Daily review'],
+			actionLabels: ['Run Daily review now', 'More Actions for Daily review'],
 			moreActionsAriaLabel: 'More Actions for Daily review',
 			moreActionsRole: 'button',
 			moreActionsHasPopup: 'menu',
 			moreActionsUsesVerticalIcon: true,
 			keyboardMenuIds: [AgentsWindowMenus.AutomationCardContext, AgentsWindowMenus.AutomationCardContext],
 		});
+	});
+
+	test('every automation card Run button has an accessible name including the automation name (#346732)', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([
+			automation({ id: 'a1', name: 'Catch up on main' }),
+			automation({ id: 'a2', name: 'Daily standup notes' }),
+		]);
+		const cards = widget.element.querySelectorAll<HTMLElement>('.automations-card');
+		assert.strictEqual(cards.length, 2);
+
+		const runButtons = widget.element.querySelectorAll<HTMLElement>('.automations-card-run-button');
+		assert.strictEqual(runButtons.length, 2);
+
+		assert.strictEqual(runButtons.item(0).getAttribute('aria-label'), 'Run Catch up on main now');
+		assert.strictEqual(runButtons.item(1).getAttribute('aria-label'), 'Run Daily standup notes now');
+
+		// Renaming an automation updates the accessible name
+		automationService.setAutomations([
+			automation({ id: 'a1', name: 'Catch up on upstream' }),
+			automation({ id: 'a2', name: 'Daily standup notes' }),
+		]);
+		assert.strictEqual(runButtons.item(0).getAttribute('aria-label'), 'Run Catch up on upstream now');
 	});
 
 	test('tapping the card opens edit without intercepting action taps', async () => {

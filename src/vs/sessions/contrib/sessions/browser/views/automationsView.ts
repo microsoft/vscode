@@ -774,6 +774,7 @@ class AutomationCardsSection extends Disposable {
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
 		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, !this.automationService.canRunAutomation(automation.id));
+		runBtn.setAriaLabel(localize('runAutomationNow', "Run {0} now", automation.name));
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
@@ -926,7 +927,8 @@ class AutomationCardsSection extends Disposable {
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
 		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
 		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
-		card.runButton.setAriaLabel(label);
+		const ariaLabel = starting ? localize('runningAutomation', "Running {0}", automation.name) : localize('runAutomationNow', "Run {0} now", automation.name);
+		card.runButton.setAriaLabel(ariaLabel);
 		card.runButton.setTitle(label);
 	}
 
