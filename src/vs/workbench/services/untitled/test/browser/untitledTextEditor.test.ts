@@ -264,12 +264,14 @@ suite('Untitled text editors', () => {
 
 		await model.resolve();
 
+		assert.strictEqual(accessor.workingCopyBackupService.resolved.has(model), false);
 		assert.strictEqual(accessor.modelService.getModel(model.resource), null);
 		assert.strictEqual(accessor.untitledTextEditorService.get(model.resource), undefined);
 	});
 
 	test('disposing while resolving a backup does not create a text model', async () => {
 		const model = disposables.add(accessor.untitledTextEditorService.create({ initialValue: 'Discarded initial contents' }));
+		await accessor.workingCopyBackupService.backup(model, (await model.backup(CancellationToken.None)).content);
 		const resolving = model.resolve();
 		model.dispose();
 
