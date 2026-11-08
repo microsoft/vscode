@@ -76,7 +76,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
-			experiment: { mode: 'auto' },
+			experiment: { mode: 'startup' },
 			markdownDescription: localize('sessions.sessionActivityBar.fixedColumn', "Controls whether the Session Activity Bar shows in a column of its own at the right edge of the Agents window, beside the side pane, rather than beside the active chat. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
 		},
 	},

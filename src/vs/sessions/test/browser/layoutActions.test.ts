@@ -148,35 +148,45 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('toggles the session activity bar layout actions and its docking to the window edge from its context menu', async () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
-			.filter(item => item.group === 'navigation')
-			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
-			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+	test('groups the session activity bar context menu into its layout actions, its position and size, and hiding it, and sets its position from a submenu', async () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext)
+			.map(item => ({ group: item.group, order: item.order, title: isIMenuItem(item) ? item.command.title : `${item.title} >` }))
+			.sort((first, second) => (first.group ?? '').localeCompare(second.group ?? '') || (first.order ?? 0) - (second.order ?? 0))
+			.map(({ group, title }) => `${group}: ${title}`);
+		const positions = MenuRegistry.getMenuItems(Menus.SessionActivityBarPosition).filter(isIMenuItem)
+			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0))
+			.map(item => ({ id: item.command.id, title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value, toggled: item.command.toggled }));
 		const configurationService = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
 			}
-		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true, [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: false });
+		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true, [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: true });
 		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
 		const run = async (commandId: string, setting: string) => {
 			await CommandsRegistry.getCommand(commandId)!.handler(accessor);
 			return configurationService.getValue(setting);
 		};
-		const runTwice = async (commandId: string, setting: string) => [await run(commandId, setting), await run(commandId, setting)];
 
 		assert.deepStrictEqual({
 			items,
-			layoutActions: await runTwice(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING),
-			fixedColumn: await runTwice(TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
+			positions,
+			layoutActions: [await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING), await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING)],
+			position: [await run(positions[1].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING), await run(positions[0].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING)],
+			toggledFromCommandPalette: await run(TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
 		}, {
 			items: [
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, title: 'Dock to Window Edge', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true), order: -2 },
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, title: 'Show Layout Actions', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true), order: 0 },
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, title: 'Hide Session Activity Bar', toggled: undefined, order: 1 },
+				'1_layoutActions: Show Layout Actions',
+				'2_configure: Position >',
+				'2_configure: Size >',
+				'3_visibility: Hide',
+			],
+			positions: [
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.docked', title: 'Docked', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true) },
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.floating', title: 'Floating', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, false) },
 			],
 			layoutActions: [false, true],
-			fixedColumn: [true, false],
+			position: [false, true],
+			toggledFromCommandPalette: false,
 		});
 	});
 
@@ -189,7 +199,7 @@ suite('Sessions - Layout Actions', () => {
 			chat: describe(find(MenuId.ChatContext)),
 			newSession: describe(find(Menus.SessionChatBackgroundContext)),
 		}, {
-			activityBar: { title: 'Hide Session Activity Bar', toggled: undefined, group: 'navigation', when: undefined },
+			activityBar: { title: 'Hide', toggled: undefined, group: '3_visibility', when: undefined },
 			chat: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
 			newSession: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
 		});
