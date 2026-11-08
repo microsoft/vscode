@@ -130,6 +130,37 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	when: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true)),
 });
 
+export const TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarFixedColumn';
+
+registerAction2(class ToggleSessionActivityBarFixedColumnAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarFixedColumn', "Toggle Session Activity Bar Docked to Window Edge"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	command: {
+		id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID,
+		title: localize('dockSessionActivityBarToWindowEdge', "Dock to Window Edge"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true),
+	},
+	group: 'navigation',
+	order: -2,
+	when: DesktopLayoutContext,
+});
+
 for (const [size, order, title] of [
 	[MenuActivityBarSize.Normal, 0, localize2('sessionActivityBarSize.normal', "Normal")],
 	[MenuActivityBarSize.Compact, 1, localize2('sessionActivityBarSize.compact', "Compact")],

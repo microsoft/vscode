@@ -20,8 +20,8 @@ import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelA
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
-import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -148,7 +148,7 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('toggles the session activity bar layout actions from its context menu', async () => {
+	test('toggles the session activity bar layout actions and its docking to the window edge from its context menu', async () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
 			.filter(item => item.group === 'navigation')
 			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
@@ -157,20 +157,26 @@ suite('Sessions - Layout Actions', () => {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
 			}
-		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true });
+		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true, [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: false });
 		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
-		const run = async () => {
-			await CommandsRegistry.getCommand(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID)!.handler(accessor);
-			return configurationService.getValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING);
+		const run = async (commandId: string, setting: string) => {
+			await CommandsRegistry.getCommand(commandId)!.handler(accessor);
+			return configurationService.getValue(setting);
 		};
+		const runTwice = async (commandId: string, setting: string) => [await run(commandId, setting), await run(commandId, setting)];
 
-		assert.deepStrictEqual({ items, afterFirstRun: await run(), afterSecondRun: await run() }, {
+		assert.deepStrictEqual({
+			items,
+			layoutActions: await runTwice(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING),
+			fixedColumn: await runTwice(TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
+		}, {
 			items: [
+				{ id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, title: 'Dock to Window Edge', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true), order: -2 },
 				{ id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, title: 'Show Layout Actions', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true), order: 0 },
 				{ id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, title: 'Hide Session Activity Bar', toggled: undefined, order: 1 },
 			],
-			afterFirstRun: false,
-			afterSecondRun: true,
+			layoutActions: [false, true],
+			fixedColumn: [true, false],
 		});
 	});
 
