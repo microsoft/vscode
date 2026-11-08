@@ -52,7 +52,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}>());
 
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostGenericConfigChips] Failed to resolve initial session configuration', error), this._workspaceTrustManagementService));
+	private readonly _initialConfig: AgentHostInitialSessionConfig;
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -65,9 +65,10 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostService agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostGenericConfigChips] Failed to resolve initial session configuration', error), workspaceTrustManagementService));
 		this._register(this._initialConfig.onDidInvalidate(() => {
 			this._initialResolved = undefined;
 			this._reattach();

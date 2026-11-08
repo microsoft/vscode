@@ -444,7 +444,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _pickerVisible = false;
 	private _generic = false;
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostChatInputPicker] Failed to resolve initial session configuration', error), this._workspaceTrustManagementService));
+	private readonly _initialConfig: AgentHostInitialSessionConfig;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _splitTrigger = this._register(new MutableDisposable<IModePickerTrigger>());
 	private readonly _pickerDisposables = this._register(new DisposableStore());
@@ -489,10 +489,11 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
+		this._initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostChatInputPicker] Failed to resolve initial session configuration', error), workspaceTrustManagementService));
 		this._register(this._initialConfig.onDidInvalidate(() => {
 			this._initialResolved = undefined;
 			this._reattach();
