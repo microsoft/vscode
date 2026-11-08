@@ -378,21 +378,22 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('docks at the right of the chat area at a fixed distance below its top, without a grip, and shows only while active', () => {
+	test('docks at the right of the chat area at a fixed distance below its top, with a grip, and shows only while active', () => {
 		const { createDocked, root, setEntries } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		const element = docked.element!;
 		const state = () => {
 			const style = mainWindow.getComputedStyle(element);
-			return { displayed: style.display !== 'none', top: element.style.top, right: style.right, grip: !!element.querySelector('.session-activity-bar-drag-handle') };
+			const grip = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle');
+			return { displayed: style.display !== 'none', top: element.style.top, right: style.right, grip: !!grip && mainWindow.getComputedStyle(grip).display !== 'none' };
 		};
 
-		docked.layout(40);
+		docked.layout(40, 400);
 		const inactive = state().displayed;
 		docked.setActive(true);
 		const active = state();
 		setEntries([changes, browser, canvas]);
-		docked.layout(60);
+		docked.layout(60, 400);
 		const areaMoved = state().top;
 		root.classList.add('phone-layout');
 		const phoneLayout = state().displayed;
@@ -402,10 +403,48 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({ inactive, active, areaMoved, phoneLayout, deactivated }, {
 			inactive: false,
-			active: { displayed: true, top: '44px', right: '2px', grip: false },
+			active: { displayed: true, top: '44px', right: '2px', grip: true },
 			areaMoved: '64px',
 			phoneLayout: false,
 			deactivated: false,
+		});
+	});
+
+	test('floating beside the chat, drags up and down by its grip within the area, clear of the input, and double-clicking the grip resets it; docked in a column, it has no grip', () => {
+		const { createDocked, root } = createActivityBar(store, [changes, browser]);
+		const hostElement = append(root, $('.external-host'));
+		const inColumn = observableValue('inColumn', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: inColumn, fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		const element = docked.element!;
+		const grip = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const top = () => Number.parseFloat(element.style.top);
+		const drag = (deltaY: number) => {
+			const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 0 };
+			grip.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+			grip.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: deltaY }));
+			grip.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: deltaY }));
+		};
+
+		docked.layout(40, 400);
+		docked.setActive(true);
+		drag(50);
+		const dragged = top();
+		drag(2000);
+		const bottomGap = 40 + 400 - top() - element.offsetHeight;
+		docked.layout(40, 600);
+		const bottomGapAfterAreaGrew = 40 + 600 - top() - element.offsetHeight;
+		grip.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		const reset = top();
+		inColumn.set(true, undefined);
+		const inColumnState = { top: element.style.top, grip: mainWindow.getComputedStyle(grip).display !== 'none' };
+
+		assert.deepStrictEqual({ dragged, bottomGap, bottomGapAfterAreaGrew, reset, inColumn: inColumnState }, {
+			dragged: 94,
+			bottomGap: 30,
+			bottomGapAfterAreaGrew: 30,
+			reset: 44,
+			inColumn: { top: '0px', grip: false },
 		});
 	});
 
@@ -431,7 +470,7 @@ suite('Sessions - Session Activity Bar', () => {
 		// The tree sticky-scroll surface that pins a scrolled chat request to the top of the transcript.
 		const scrollable = append(append(element.parentElement!, $('.monaco-list')), $('.monaco-scrollable-element'));
 		append(append(scrollable, $('.monaco-tree-sticky-container')), $('.sticky-row')).style.cssText = 'height: 300px; background: black;';
-		docked.layout(0);
+		docked.layout(0, 400);
 		docked.setActive(true);
 
 		const bounds = element.getBoundingClientRect();
@@ -443,7 +482,7 @@ suite('Sessions - Session Activity Bar', () => {
 	test('uses a slim shell with minimum-size buttons in a column of its own at the right edge, with an equal 2px gap on either side, the chat to its left', () => {
 		const { createDocked } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
-		docked.layout(0);
+		docked.layout(0, 400);
 		docked.setActive(true);
 		const element = docked.element!;
 		const host = element.parentElement!;
@@ -515,7 +554,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const element = docked.element!;
 		const state = () => ({ inHost: hostElement.contains(element), shown: !element.classList.contains('inactive'), reserved: docked.reservedWidth.get() });
 
-		docked.layout(40);
+		docked.layout(40, 400);
 		docked.setActive(true);
 		const besideChat = state();
 		active.set(true, undefined);
@@ -548,7 +587,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const element = docked.element!;
 		const state = () => ({ inHost: hostElement.contains(element), shown: !element.classList.contains('inactive'), reserved: docked.reservedWidth.get(), offered: offers > 0 });
 
-		docked.layout(40);
+		docked.layout(40, 400);
 		const inactiveChat = state();
 		docked.setActive(true);
 		const off = state();
@@ -575,7 +614,7 @@ suite('Sessions - Session Activity Bar', () => {
 		hostElement.style.cssText = `--agents-floating-panel-gap: 8px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; position: relative; width: ${8 + MenuActivityBar.getWidth(false)}px; height: 200px;`;
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
 		const docked = createDocked();
-		docked.layout(40);
+		docked.layout(40, 400);
 		docked.setActive(true);
 		const element = docked.element!;
 		const bounds = element.getBoundingClientRect();
@@ -604,7 +643,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const inColumn = observableValue('inColumn', true);
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: inColumn, fullSize: true, setOccupied: () => { } }));
 		const docked = createDocked();
-		docked.layout(0);
+		docked.layout(0, 400);
 		docked.setActive(true);
 		const element = docked.element!;
 		const state = () => ({ compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating') });
@@ -631,7 +670,7 @@ suite('Sessions - Session Activity Bar', () => {
 	test('right-clicking an entry or the rest of the strip offers to hide the activity bar and lists the entries to show, the rest of the strip without the actions of an entry', () => {
 		const { createDocked, contextMenus, contextMenuActions } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
-		docked.layout(0);
+		docked.layout(0, 400);
 		docked.setActive(true);
 		const element = docked.element!;
 		const rightClick = (target: HTMLElement) => {
