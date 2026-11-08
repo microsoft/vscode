@@ -263,7 +263,7 @@ const modelRouterExample = [
 	'version: 1                 # required',
 	'description: Opus for building, Haiku for quick work, Sol for figuring out why.   # required; shown in the model picker',
 	'effort: auto               # optional: auto (default), off, or a fixed level',
-	'switching: auto            # optional: auto (default) or first-turn',
+	'switching: first-turn      # optional: first-turn (default) or auto',
 	'routes:                    # 2 to 10 routes; the first is used when the router can\'t tell',
 	'  - model: [claude-opus-4.8, claude-opus-4.7]   # fallbacks, in order',
 	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research.',
@@ -304,7 +304,7 @@ ${modelRouterExample}
 - Put first the model the user wants when the router can't tell which route fits: usually their strongest everyday model, not the cheapest. This happens on about one first turn in five, mostly between quick work and bigger work, and the bigger one is usually right.
 - Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
-- \`switching: first-turn\` picks a model and effort on the first turn and keeps them; \`auto\` may switch later when the work clearly changes.
+- \`switching: first-turn\`, the default, picks a model and effort on the first turn and keeps them; \`auto\` may also switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
 
 ## YAML rules
