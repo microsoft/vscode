@@ -40,7 +40,7 @@ suite('DecisionsModelRouterPicker', () => {
 			firstContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nplan the migration' },
 			firstQuestions: ['model', 'effort'],
 			followUpTurns: [{ prompt: 'earlier', response: 'done' }],
-			followUpQuestions: ['model', 'effort', 'scope'],
+			followUpQuestions: ['model', 'effort'],
 		});
 	});
 

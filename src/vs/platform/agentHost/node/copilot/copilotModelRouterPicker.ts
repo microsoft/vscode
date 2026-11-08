@@ -7,7 +7,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { hash } from '../../../../base/common/hash.js';
 import { agentDecisionErrorKind, type IAgentDecisionQuestion, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
 import { MODEL_ROUTER_DECISION_MODEL, MODEL_ROUTER_MAX_ROUTES } from '../../common/modelRouter.js';
-import { ModelRouterPickerError, ModelRouterPickerFailure, type IModelRouterPick, type IModelRouterPicker, type IModelRouterPickRequest, type ModelRouterScopeChange } from './copilotModelRouter.js';
+import { ModelRouterPickerError, ModelRouterPickerFailure, type IModelRouterPick, type IModelRouterPicker, type IModelRouterPickRequest } from './copilotModelRouter.js';
 
 /** Routing holds up the turn, so a slow decision falls back to the router's first route. */
 const DECISION_TIMEOUT_MS = 5000;
@@ -20,12 +20,6 @@ export const modelRouterRequestLimits = {
 } as const;
 
 export type ModelRouterAskDecisions = (request: IAgentDecisionsRequest) => Promise<IAgentDecisionsResult>;
-
-const scopeCriteria: Readonly<Record<ModelRouterScopeChange, string>> = {
-	same: 'The same work as the chat so far, or a small follow-up to it.',
-	expanded: 'The work has grown substantially: many more files, harder reasoning, real ambiguity, or the current model is struggling with it.',
-	different: 'A different task, unrelated to what the chat has been doing.',
-};
 
 /** Without this, the decision model judges a request by its length and routes most of them to the lightest model. */
 const agentFraming = 'The request goes to an AI coding agent that works in the user\'s repositories with tools: it can read files, run commands and edit code. Judge the work the request needs to be done well, not how short the message is: a short message can start a long investigation.';
@@ -60,7 +54,7 @@ export class DecisionsModelRouterPicker implements IModelRouterPicker {
 				`decisions.ask failed: ${kind ?? (error instanceof Error ? error.name : 'unknown')}`,
 			);
 		}
-		return toPick(result, request);
+		return toPick(result);
 	}
 }
 
@@ -112,14 +106,6 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
 		});
 	}
-	if (followUp) {
-		questions.push({
-			kind: 'choice',
-			name: 'scope',
-			instructions: 'How does this message relate to the work the chat has been doing?',
-			options: Object.entries(scopeCriteria).map(([value, description]) => ({ value, description })),
-		});
-	}
 	let prompt = truncateToEscapedBytes(request.text, modelRouterRequestLimits.prompt);
 	let recentTurns = followUp?.recentTurns.map(turn => {
 		const prompt = truncateToEscapedBytes(turn.prompt, modelRouterRequestLimits.recentTurn / 2);
@@ -156,20 +142,15 @@ function describeRoute(candidate: IModelRouterPickRequest['candidates'][number])
 }
 
 /** A tied or refused model answer is no pick, so the router falls back rather than choosing between equals. */
-function toPick(result: IAgentDecisionsResult, request: IModelRouterPickRequest): IModelRouterPick {
+function toPick(result: IAgentDecisionsResult): IModelRouterPick {
 	const answer = (name: string) => result.answers.find(candidate => candidate.name === name);
 	const model = answer('model');
 	const effort = answer('effort');
-	const scope = answer('scope');
 	const clearModel = model?.kind === 'choice' && !model.tied ? model : undefined;
-	const scopeKind = scope?.kind === 'choice' && !scope.tied && Object.hasOwn(scopeCriteria, scope.value) ? scope.value as ModelRouterScopeChange : undefined;
 	return {
 		model: clearModel?.value,
 		confidence: clearModel?.confidence ?? 0,
 		probabilities: model?.kind === 'choice' ? Object.fromEntries(model.probabilities.map(entry => [entry.value, entry.probability])) : {},
 		...(effort?.kind === 'score' ? { effortScore: effort.score } : {}),
-		...(request.followUp && scopeKind && scope?.kind === 'choice'
-			? { scope: { kind: scopeKind, probability: scope.probabilities.find(entry => entry.value === scopeKind)?.probability ?? 0 } }
-			: {}),
 	};
 }
