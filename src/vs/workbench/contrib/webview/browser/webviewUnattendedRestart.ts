@@ -14,6 +14,8 @@ import { WebviewElement } from './webviewElement.js';
  * Blocks an unattended restart while a webview that retains its context is loaded, for example
  * the Simple Browser, the video player or an MCP app: webviews retain their context when their
  * state can't be saved and restored. Their element is only created once they are first shown.
+ * Webviews declared `restorable`, like those of custom text editors, retain their context only to
+ * show again faster.
  */
 export class WebviewUnattendedRestartParticipant extends Disposable implements IWorkbenchContribution {
 
@@ -26,7 +28,7 @@ export class WebviewUnattendedRestartParticipant extends Disposable implements I
 		super();
 
 		this._register(unattendedRestartService.registerParticipant({
-			check: () => Iterable.some(webviewService.webviews, webview => webview instanceof WebviewElement && !!webview.options.retainContextWhenHidden) ? 'webview.retainedContext' : undefined
+			check: () => Iterable.some(webviewService.webviews, webview => webview instanceof WebviewElement && !!webview.options.retainContextWhenHidden && !webview.options.restorable) ? 'webview.retainedContext' : undefined
 		}));
 	}
 }
