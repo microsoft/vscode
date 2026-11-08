@@ -15,7 +15,7 @@ import { ApiRequestOptions } from '../../../../../../platform/github/common/clie
 import { compareRequestPriority, RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { IGitHubIssue } from '../../../common/github/types.js';
 import { GitHubIssueFetcher } from '../fetchers/githubIssueFetcher.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 const LOG_PREFIX = '[GitHubIssueModel]';
 

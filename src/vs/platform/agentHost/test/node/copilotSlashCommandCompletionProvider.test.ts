@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
@@ -197,13 +197,58 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					rangeEnd: 6,
 				})),
 				subcommands: ['search', 'standup'].map(name => ({
-					insertText: `${name} `,
+					insertText: `/chronicle ${name} `,
 					command: 'chronicle',
-					rangeStart: 11,
+					rangeStart: 0,
 					rangeEnd: 12,
 				})),
 				freeText: [],
 			});
+		});
+
+		test('accepts full Chronicle command references while preserving aliases and following arguments', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'chronicle',
+					aliases: ['history'],
+					description: 'Session history tools and insights',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: { hint: '[tips]', choices: [{ name: 'tips', description: 'Session tips' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const complete = async (text: string, offset = text.length) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset,
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				range: [item.rangeStart, item.rangeEnd],
+				label: item.attachment.label,
+				command: item.attachment._meta?.command,
+				acceptedText: text.slice(0, item.rangeStart) + item.insertText + text.slice(item.rangeEnd),
+			}));
+
+			assert.deepStrictEqual(await Promise.all([
+				complete('/chron'),
+				complete('/chronicle ti'),
+				complete('/chronicle '),
+				complete('/HiStOrY ti'),
+				complete('/chronicle ti  keep these\narguments', 13),
+				complete('/history tiZZ keep these arguments', 11),
+			]), [
+				[
+					{ insertText: '/chronicle ', range: [0, 6], label: 'chronicle', command: 'chronicle', acceptedText: '/chronicle ' },
+					{ insertText: '/chronicle tips ', range: [0, 6], label: 'chronicle tips', command: 'chronicle', acceptedText: '/chronicle tips ' },
+					{ insertText: '/history ', range: [0, 6], label: 'history', command: 'chronicle', acceptedText: '/history ' },
+					{ insertText: '/history tips ', range: [0, 6], label: 'history tips', command: 'chronicle', acceptedText: '/history tips ' },
+				],
+				[{ insertText: '/chronicle tips ', range: [0, 13], label: 'chronicle tips', command: 'chronicle', acceptedText: '/chronicle tips ' }],
+				[{ insertText: '/chronicle tips ', range: [0, 11], label: 'chronicle tips', command: 'chronicle', acceptedText: '/chronicle tips ' }],
+				[{ insertText: '/HiStOrY tips ', range: [0, 11], label: 'HiStOrY tips', command: 'chronicle', acceptedText: '/HiStOrY tips ' }],
+				[{ insertText: '/chronicle tips ', range: [0, 13], label: 'chronicle tips', command: 'chronicle', acceptedText: '/chronicle tips   keep these\narguments' }],
+				[{ insertText: '/history tips ', range: [0, 13], label: 'history tips', command: 'chronicle', acceptedText: '/history tips  keep these arguments' }],
+			]);
 		});
 
 		test('hides Chronicle suggestions while local indexing is disabled and restores them when enabled', async () => {
@@ -234,7 +279,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				enabled: await complete('/chronicle s'),
 			}, {
 				disabled: { root: ['/review '], subcommands: [] },
-				enabled: ['search ', 'standup '],
+				enabled: ['/chronicle search ', '/chronicle standup '],
 			});
 		});
 
@@ -343,8 +388,8 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				old: await complete('/sandbox-policy'),
 				resolvedOld: await commands.resolveSlashCommand('sandbox-policy'),
 			}, {
-				arguments: [{ insertText: 'policy ', rangeStart: 9, rangeEnd: 9 }],
-				partial: [{ insertText: 'policy ', rangeStart: 9, rangeEnd: 10 }],
+				arguments: [{ insertText: '/sandbox policy ', rangeStart: 0, rangeEnd: 9 }],
+				partial: [{ insertText: '/sandbox policy ', rangeStart: 0, rangeEnd: 10 }],
 				hidden: [],
 				old: [],
 				resolvedOld: undefined,
@@ -431,12 +476,15 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/plugin marketplace ',
 				offset: 20,
-			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText), [
-				'add ',
-				'browse ',
-				'list ',
-				'remove ',
-				'update ',
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				range: [item.rangeStart, item.rangeEnd],
+			})), [
+				{ insertText: 'add ', range: [20, 20] },
+				{ insertText: 'browse ', range: [20, 20] },
+				{ insertText: 'list ', range: [20, 20] },
+				{ insertText: 'remove ', range: [20, 20] },
+				{ insertText: 'update ', range: [20, 20] },
 			]);
 		});
 
@@ -537,11 +585,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				offset: 11,
 			}, { chat: undefined }, CancellationToken.None));
 
-			assert.deepStrictEqual(items.filter(item => item.insertText === 'install ').map(item => ({
+			assert.deepStrictEqual(items.filter(item => item.insertText === '/plugin install ').map(item => ({
 				insertText: item.insertText,
 				retriggerSuggestions: item.attachment._meta?.retriggerSuggestions,
 			})), [{
-				insertText: 'install ',
+				insertText: '/plugin install ',
 				retriggerSuggestions: true,
 			}]);
 		});
@@ -990,12 +1038,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					{ insertText: '/mcp show ', label: 'mcp show', rangeStart: 0, rangeEnd: 4 },
 				],
 				[
-					{ insertText: 'disable ', label: 'disable', rangeStart: 5, rangeEnd: 5 },
-					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 5 },
-					{ insertText: 'show ', label: 'show', rangeStart: 5, rangeEnd: 5 },
+					{ insertText: '/mcp disable ', label: 'mcp disable', rangeStart: 0, rangeEnd: 5 },
+					{ insertText: '/mcp enable ', label: 'mcp enable', rangeStart: 0, rangeEnd: 5 },
+					{ insertText: '/mcp show ', label: 'mcp show', rangeStart: 0, rangeEnd: 5 },
 				],
 				[
-					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 7 },
+					{ insertText: '/mcp enable ', label: 'mcp enable', rangeStart: 0, rangeEnd: 7 },
 				],
 			]);
 
@@ -1010,8 +1058,8 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					.map(item => item.insertText)));
 			assert.deepStrictEqual(retriggeringItems, [
 				['/mcp ', '/mcp disable ', '/mcp enable ', '/mcp show '],
-				['disable ', 'enable ', 'show '],
-				['enable '],
+				['/mcp disable ', '/mcp enable ', '/mcp show '],
+				['/mcp enable '],
 			]);
 		});
 
@@ -1047,9 +1095,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				retriggerSuggestions: item.attachment._meta?.retriggerSuggestions === true,
 				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
 			})), [
-				{ insertText: 'info ', retriggerSuggestions: true, submitOnAccept: false },
-				{ insertText: 'list ', retriggerSuggestions: false, submitOnAccept: true },
-				{ insertText: 'reload ', retriggerSuggestions: false, submitOnAccept: true },
+				{ insertText: '/skills info ', retriggerSuggestions: true, submitOnAccept: false },
+				{ insertText: '/skills list ', retriggerSuggestions: false, submitOnAccept: true },
+				{ insertText: '/skills reload ', retriggerSuggestions: false, submitOnAccept: true },
 			]);
 
 			const commandItems = await gated.provideCompletionItems({
@@ -1098,8 +1146,8 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				insertText: item.insertText,
 				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
 			})), [
-				{ insertText: 'list ', submitOnAccept: true },
-				{ insertText: 'reload ', submitOnAccept: true },
+				{ insertText: '/mcp list ', submitOnAccept: true },
+				{ insertText: '/mcp reload ', submitOnAccept: true },
 			]);
 
 			const commandItems = await gated.provideCompletionItems({

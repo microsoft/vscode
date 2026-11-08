@@ -10,9 +10,9 @@ import { localize } from '../../../../../../nls.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISession, toSessionId } from '../../../common/session.js';
+import { ISession, toSessionId } from '../../../../../services/sessions/common/session.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
 	AbstractSessionsAgentHostConfigFileSystemProvider,
@@ -136,6 +136,11 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 		return parseSessionSettingsUri(resource);
 	}
 
+	protected override _resolveTarget(ctx: ISessionSettingsContext): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(ctx.providerId, ctx.sessionId);
+		return provider && isAgentHostProvider(provider) ? provider : undefined;
+	}
+
 	protected _serialize(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): string {
 		return serializeSessionSettings(provider, ctx.sessionId);
 	}
@@ -196,7 +201,7 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _getConfig(session: ISession): IAgentHostConfigLike | undefined {
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		return provider?.getSessionOwnConfig(session.sessionId);
 	}
 

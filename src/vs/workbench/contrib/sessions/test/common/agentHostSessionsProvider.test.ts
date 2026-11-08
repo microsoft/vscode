@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildMutableConfigSchema } from '../../common/agentHostSessionsProvider.js';
-import { ChatInteractivity, effectiveChatInteractivity } from '../../common/session.js';
+import { ChatInteractivity, effectiveChatInteractivity } from '../../../../services/sessions/common/session.js';
 
 suite('buildMutableConfigSchema', () => {
 

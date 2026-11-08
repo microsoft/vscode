@@ -49,12 +49,11 @@ import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../common/sessionsProvider.js';
-import { IActiveSession } from '../../../../../common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../browser/sessionsService.js';
 import { IUnavailablePermissionLevel } from '../../../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IChatPhoneInputPresenter } from '../../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../../services/environment/common/environmentService.js';
-import { sessionChatSourceOf } from '../../../../../browser/sessionHost.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../../test/browser/sessionHostTestUtils.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -172,7 +171,7 @@ interface ITestRig {
 	readonly instantiationService: TestInstantiationService;
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
-	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+	readonly activeSessionObs: ReturnType<typeof observableValue<ITestSessionWithChat | undefined>>;
 	readonly setCustomTerminalToolEnabled: (enabled: boolean) => void;
 	readonly setManagedSandboxEnforced: (enforced: boolean) => void;
 	readonly localManagedSandboxEnforced: ReturnType<typeof observableValue<boolean>>;
@@ -184,7 +183,7 @@ interface ITestRig {
 	readonly setManagedSettings: (settings: ManagedSettingsData) => void;
 }
 
-function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string, configurationOverride?: IConfigurationService): ITestRig {
+function setup(store: Pick<DisposableStore, 'add'>, activeSession: ITestSessionWithChat | undefined, configValue?: string, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string, configurationOverride?: IConfigurationService): ITestRig {
 	const provider = new FakeProvider(activeSession?.providerId);
 	store.add({ dispose: () => provider.dispose() });
 	if (configValue !== undefined) {
@@ -198,7 +197,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 			return id === provider.id ? (provider as unknown as T) : undefined;
 		}
 	})();
-	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const activeSessionObs = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
 	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 	const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 	let customTerminalToolEnabled = false;
@@ -219,7 +218,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	const managedSettingsChanged = store.add(new Emitter<void>());
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		readonly activeSession = activeSessionObs;
-		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 	})();
 
 	const insta = store.add(new TestInstantiationService());
@@ -255,7 +254,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		managedSandboxAllowsBypass,
 	});
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(activeSessionObs)));
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, testChatSourceOf(activeSessionObs)));
 	return {
 		instantiationService: insta,
 		delegate,
@@ -282,9 +281,9 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	};
 }
 
-function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
+function makeActiveSession(sessionType = 'copilotcli'): ITestSessionWithChat {
 	const resource = URI.from({ scheme: `agent-host-${sessionType}`, path: '/s1' });
-	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource, activeChat: constObservable({ resource }) } as unknown as IActiveSession;
+	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource, activeChat: constObservable({ resource }) } as unknown as ITestSessionWithChat;
 }
 
 suite('AgentHostPermissionPickerDelegate', () => {
@@ -294,10 +293,10 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		const active = makeActiveSession();
 		const { instantiationService, delegate: activeDelegate, provider } = setup(store, active);
 		const windowResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/s2' });
-		const windowSession = { providerId: PROVIDER_ID, sessionId: 'session-2', sessionType: 'copilotcli', resource: windowResource, activeChat: constObservable({ resource: windowResource }) } as unknown as IActiveSession;
+		const windowSession = { providerId: PROVIDER_ID, sessionId: 'session-2', sessionType: 'copilotcli', resource: windowResource, activeChat: constObservable({ resource: windowResource }) } as unknown as ITestSessionWithChat;
 		provider.sessionConfigs.set(SESSION_ID, makeWellKnownConfig('default'));
 		provider.sessionConfigs.set('session-2', makeWellKnownConfig('autoApprove'));
-		const windowDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(constObservable(windowSession))));
+		const windowDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, testChatSourceOf(constObservable(windowSession))));
 		const shown = { window: windowDelegate.currentPermissionLevel.get(), active: activeDelegate.currentPermissionLevel.get() };
 
 		await windowDelegate.setPermissionLevel(ChatPermissionLevel.Assisted);
@@ -553,7 +552,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 	test('shares unified enablement across sessions without requesting the host OS', async () => {
 		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
 		const { delegate, activeSessionObs, diagnosticsRequests, instantiationService } = setup(store, makeActiveSession(), 'default', () => pending.p);
-		const secondDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(activeSessionObs)));
+		const secondDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, testChatSourceOf(activeSessionObs)));
 		activeSessionObs.set({ ...makeActiveSession(), sessionId: 'local-agent-host:s2', resource: URI.parse('agent-host-copilotcli:/s2') }, undefined);
 		await pending.complete({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
 		await timeout(0);
@@ -652,7 +651,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}());
 		const action = instantiationService.createInstance(MenuItemAction, { id: 'test.permissions', title: 'Permissions' }, undefined, undefined, undefined, undefined);
 		const compact = observableValue('compact', false);
-		const picker = store.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact }, sessionChatSourceOf(activeSessionObs)));
+		const picker = store.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact }, testChatSourceOf(activeSessionObs)));
 		const container = document.createElement('div');
 		picker.render(container);
 		const trigger = container.querySelector<HTMLElement>('a.action-label');

@@ -7,7 +7,7 @@ import { filterConfigurationToSchema } from '../../chat/browser/widget/input/cha
 import { isModelComparisonSupported } from '../../chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../chat/common/languageModels.js';
 import { localize } from '../../../../nls.js';
-import { ISessionType } from '../common/session.js';
+import { ISessionType } from '../../../services/sessions/common/session.js';
 import { ISessionComparisonHarness } from '../common/sessionComparison.js';
 import { ISessionPermissionOption } from '../common/sessionsProvider.js';
 

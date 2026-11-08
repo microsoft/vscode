@@ -12,7 +12,6 @@ import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DesktopChangesEditorTransitionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISidePaneState } from '../../../browser/workbench.js';
-import { IHostSession, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
 import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
@@ -21,6 +20,9 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
+import { IChat, isSessionCreated, ISession, isWorkspacelessQuickChat } from '../../../../workbench/services/sessions/common/session.js';
+import { getLayoutWorkspace, isQuickChatShown } from './desktop/desktopSharedHelpers.js';
+import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
@@ -74,8 +76,8 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	private _compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined {
 		const ownerKey = this._ownerKeyFor(shown, reader);
-		return ownerKey && this._sharedChatLayout && shown.session.isCreated.read(reader)
-			&& !shown.session.isQuickChat?.read(reader) && shown.chat.workspace.read(reader)
+		return ownerKey && this._sharedChatLayout && isSessionCreated(shown.session, reader)
+			&& !isQuickChatShown(shown, reader) && shown.chat.workspace.read(reader)
 			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
 	}
 
@@ -119,9 +121,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {
 					if (that._changesEditorTransitionPhase === 'reconciling') {
-						const session = that._mainWindowSession.get();
+						const shown = that._shownByMainWindow();
 						// An uncreated workspace-less composer has no Changes editor to await.
-						if (session?.isCreated.get() && session.isQuickChat?.get() !== true && !session.workspace.get()) {
+						if (shown && isSessionCreated(shown.session) && !isQuickChatShown(shown) && !getLayoutWorkspace(shown)) {
 							return;
 						}
 						that._setChangesEditorTransitionPhase('idle');
@@ -232,19 +234,19 @@ export class DesktopLayoutController extends BaseLayoutController {
 	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
 		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
 		if ((this._changesEditorTransitionPhase ?? 'idle') !== 'idle'
-			|| this._shouldPreserveChangesEditor(this._mainWindowSession.get())) {
+			|| this._shouldPreserveChangesEditor(this._mainWindowSession.get(), this._mainWindowChat.get())) {
 			this._setChangesEditorTransitionPhase('restoringWorkingSet');
 		}
 	}
 
 	protected override _onActiveSessionSwitched(_previous: IShownChat, shown: IShownChat | undefined): void {
-		this._setChangesEditorTransitionPhase(this._shouldPreserveChangesEditor(shown?.session) ? 'awaitingWorkingSet' : 'idle');
+		this._setChangesEditorTransitionPhase(this._shouldPreserveChangesEditor(shown?.session, shown?.chat) ? 'awaitingWorkingSet' : 'idle');
 	}
 
-	private _shouldPreserveChangesEditor(session: IHostSession | undefined): boolean {
+	private _shouldPreserveChangesEditor(session: ISession | undefined, chat: IChat | undefined): boolean {
 		const editorResource = this._editorGroupsService.mainPart.activeGroup.activeEditor?.resource;
 		return !!session
-			&& session.isQuickChat?.get() !== true
+			&& !isWorkspacelessQuickChat(session, chat)
 			&& !!editorResource
 			&& !!this._sessionChangesService.getSessionResource(editorResource);
 	}
