@@ -795,7 +795,7 @@ class UserKeybindings extends Disposable {
 	private watch(): void {
 		this.watchDisposables.clear();
 		this.watchDisposables.add(this.fileService.watch(dirname(this.userDataProfileService.currentProfile.keybindingsResource)));
-		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		// Also listen to the resource in case the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
 		this.watchDisposables.add(this.fileService.watch(this.userDataProfileService.currentProfile.keybindingsResource));
 	}
 
