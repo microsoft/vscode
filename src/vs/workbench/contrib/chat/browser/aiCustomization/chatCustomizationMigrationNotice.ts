@@ -40,6 +40,7 @@ export interface IChatCustomizationMigrationNoticeContext {
 /** Controls migration discovery behavior for a notice host. */
 export interface IChatCustomizationMigrationNoticeOptions {
 	readonly skipDiscoveryWhenDismissed?: boolean;
+	readonly discoveryEnabled?: IObservable<boolean>;
 }
 
 const CUSTOMIZATION_MIGRATION_NOTICE_DISMISSED_STORAGE_KEY_PREFIX = 'chat.customizationMigrationNotice.dismissed.';
@@ -136,7 +137,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			this.currentContext = currentContext;
 			const nextContextKey = currentContext
 				? [
-					currentContext.sessionResource.toString(),
+					getChatSessionType(currentContext.sessionResource),
 					currentContext.workspace ? uriIdentityService.extUri.getComparisonKey(currentContext.workspace) : 'noWorkspace',
 					currentContext.projectRoot ? uriIdentityService.extUri.getComparisonKey(currentContext.projectRoot) : 'noProject',
 				].join('\n')
@@ -162,6 +163,9 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				.map(category => category.migrationType);
 			if (enabledTypes.length === 0) {
 				this.migrationHint.set(undefined, undefined);
+				return;
+			}
+			if (options?.discoveryEnabled?.read(reader) === false) {
 				return;
 			}
 			void this.refresh(currentContext, cancelOnDispose(reader.store));

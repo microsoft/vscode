@@ -7,13 +7,15 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { getTestSessionResource } from '../../../../services/sessions/test/common/testSessionBuilder.js';
-import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { getTestSessionResource } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
+import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
 //#region Data
 
@@ -290,10 +292,56 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 const ONBOARDING_FRAME = { width: 760, height: 420 };
 /** Room beside and below the list for an open context menu. */
 const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
+const INLINE_ACTION_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'combined', title: 'Update authentication flow', workspace: 'vscode', inlineAction: 'combined', minutesAgo: 1, pinned: true },
+	{
+		id: 'checks', title: 'Fix reconnect handling', workspace: 'vscode', inlineAction: 'checks', minutesAgo: 2, chats: [
+			{ id: 'peer', title: 'Review retry tests', workspace: 'vscode', inlineAction: 'comments' },
+		]
+	},
+	{ id: 'comments', title: 'Polish accessibility help', workspace: 'vscode', inlineAction: 'comments', minutesAgo: 3 },
+	{ id: 'none', title: 'Prepare release notes', workspace: 'vscode', minutesAgo: 4 },
+];
 
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Inbox: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		settings: { [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true },
+		sessions: [
+			{ id: 'pinned', title: 'Pinned investigation', workspace: 'vscode', pinned: true, status: SessionStatus.InProgress },
+			{ id: 'input', title: 'Approve the test run', workspace: 'vscode', status: SessionStatus.NeedsInput, minutesAgo: 15 },
+			{ id: 'completed', title: 'Review the navigation fix', workspace: 'vscode-tools', minutesAgo: 2 },
+			{ id: 'ci', title: 'Fix failing CI checks', workspace: 'vscode', minutesAgo: 20, inboxAttention: { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now } },
+			{ id: 'merge', title: 'Merge the search improvements', workspace: 'vscode-tools', minutesAgo: 10, inboxAttention: { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next } },
+			{ id: 'working', title: 'Add regression tests', workspace: 'vscode', status: SessionStatus.InProgress },
+			{ id: 'snoozed', title: 'Waiting for more context', workspace: 'vscode-tools', inboxState: 'untilActivity', minutesAgo: 30 },
+			{ id: 'held', title: 'Paused for a decision', workspace: 'vscode', inboxState: 'hold', minutesAgo: 40 },
+			{ id: 'done', title: 'Update the documentation', workspace: 'vscode', inboxState: 'done', minutesAgo: 60 },
+		],
+		view: { grouping: SessionsGrouping.Inbox, height: 800 },
+		interaction: { hovered: { session: 'completed' } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Empty: defineSessionsListFixture({
+		header: { automationsEnabled: true },
+		sessions: [],
+		view: { grouping: SessionsGrouping.Inbox, height: 360 },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Expanded: defineSessionsListFixture({
+		header: { automationsEnabled: true },
+		sessions: [
+			{ id: 'ready', title: 'Review the navigation fix', workspace: 'vscode' },
+			{ id: 'held', title: 'Waiting for more context', workspace: 'vscode', inboxState: 'hold' },
+			...Array.from({ length: 20 }, (_, i) => ({ id: `working-${i}`, title: `Background task ${i + 1}`, workspace: 'vscode', status: SessionStatus.InProgress })),
+		],
+		view: { grouping: SessionsGrouping.Inbox, height: 420, expanded: [{ section: SessionInboxSection.Working }, { section: SessionInboxSection.OnHold }] },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Long: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		sessions: Array.from({ length: 25 }, (_, i) => ({ id: `ready-${i}`, title: `Review completed task ${i + 1}`, workspace: 'vscode', minutesAgo: i })),
+		view: { grouping: SessionsGrouping.Inbox, height: 420 },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	SessionsList_Bakeoff: defineSessionsListFixture({
 		sessions: BAKEOFF_SESSIONS,
 		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
@@ -337,6 +385,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		virtualTime: { enabled: false },
 		expectedVisualDescriptions: ['With indented items, the comparison inside Release work starts one level to the right of the Release work header, like a session in that group would. Its attempts line up with the comparison header, and the guide from the comparison header connects to each attempt.'],
 	}),
+
+	SessionsList_InlineActions: defineSessionsListFixture({
+		sessions: INLINE_ACTION_SESSIONS,
+		view: { width: 340, height: 580, expanded: [{ section: 'pinned' }, { session: 'checks' }] },
+		settings: { [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true },
+	}, { labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast'] }),
+	SessionsList_InlineActionsCompact: defineSessionsListFixture({
+		sessions: INLINE_ACTION_SESSIONS,
+		view: { width: 280, height: 500, compact: true, grouping: SessionsGrouping.Date, expanded: [{ section: 'pinned' }, { session: 'checks' }] },
+		settings: { [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true },
+	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_InlineActionsPhone: defineSessionsListFixture({
+		sessions: INLINE_ACTION_SESSIONS,
+		view: { width: 390, height: 650, phone: true, expanded: [{ section: 'pinned' }, { session: 'checks' }] },
+		settings: { [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true },
+	}, { labels: { kind: 'screenshot' } }),
 
 	//#region Sections and placement
 

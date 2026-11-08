@@ -17,8 +17,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { comparePaths } from '../../../../../base/common/comparers.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { IFileDiffViewData } from './mobileDiffView.js';
 
 const $ = DOM.$;

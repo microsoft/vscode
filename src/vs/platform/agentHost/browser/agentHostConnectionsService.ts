@@ -229,6 +229,34 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return resource;
 	}
 
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable {
+		const alias = resource.with({ fragment: '' });
+		const entry = { backend: backendSession, authority, provider };
+		const previous = this._backendSessions.get(alias);
+		if (previous) {
+			throw new Error(`Catalog resource already has an execution: ${alias.toString()}`);
+		}
+		const canonical = this.registerSessionResource(backendSession, authority, provider);
+		this._backendSessions.set(alias, entry);
+		const key = this._backendIdentityKey(backendSession, authority);
+		const original = this._frontendByBackend.get(key);
+		this._frontendByBackend.set(key, alias);
+		this._fireSessionResolutionChanged();
+		return toDisposable(() => {
+			if (this._backendSessions.get(alias) === entry) {
+				this._backendSessions.delete(alias);
+				if (this._frontendByBackend.get(key) === alias) {
+					if (original && this._backendSessions.has(original)) {
+						this._frontendByBackend.set(key, original);
+					} else {
+						this._frontendByBackend.set(key, canonical);
+					}
+				}
+				this._fireSessionResolutionChanged();
+			}
+		});
+	}
+
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
 		return this._frontendByBackend.get(this._backendIdentityKey(backendSession, authority));
 	}
