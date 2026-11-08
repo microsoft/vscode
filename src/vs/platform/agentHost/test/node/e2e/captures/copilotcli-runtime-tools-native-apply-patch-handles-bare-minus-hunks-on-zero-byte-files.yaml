@@ -1,0 +1,75 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            The files replacement.txt and deletion.txt both exist and contain zero bytes. Call apply_patch exactly once with the following exact patch, preserving each bare minus line. Do not substitute another edit tool or change the patch. Then reply exactly PATCH_COMPLETE.
+            *** Begin Patch
+            *** Update File: replacement.txt
+            @@
+            -
+            +A
+            *** Update File: deletion.txt
+            @@
+            -
+            *** End Patch
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: apply_patch
+          format: custom
+          input: |
+            *** Begin Patch
+            *** Update File: replacement.txt
+            @@
+            -
+            +A
+            *** Update File: deletion.txt
+            @@
+            -
+            *** End Patch
+      stopReason: tool_use
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            The files replacement.txt and deletion.txt both exist and contain zero bytes. Call apply_patch exactly once with the following exact patch, preserving each bare minus line. Do not substitute another edit tool or change the patch. Then reply exactly PATCH_COMPLETE.
+            *** Begin Patch
+            *** Update File: replacement.txt
+            @@
+            -
+            +A
+            *** Update File: deletion.txt
+            @@
+            -
+            *** End Patch
+        - role: assistant
+          content:
+            - type: tool_use
+              name: apply_patch
+              format: custom
+              input: |
+                *** Begin Patch
+                *** Update File: replacement.txt
+                @@
+                -
+                +A
+                *** Update File: deletion.txt
+                @@
+                -
+                *** End Patch
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Modified 2 file(s): ${workdir}/replacement.txt, ${workdir}/deletion.txt'
+    response:
+      content: PATCH_COMPLETE
+      stopReason: end_turn

@@ -8,6 +8,8 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AICustomizationManagementSection, resolveAICustomizationManagementOpenEditorTarget } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import { CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 suite('aiCustomizationManagement', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +18,11 @@ suite('aiCustomizationManagement', () => {
 		const titleSessionResource = URI.parse('agent-host-copilot:/title-session');
 		const fallbackSessionResource = URI.parse('local:/fallback-session');
 		const revealUri = URI.file('/workspace/skill.md');
+		const migrationHint = {
+			migrationFlowId: 'migration-flow-id',
+			message: 'Migration hint',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+		};
 		const getSessionResourceForHarness = (sessionType: string) => URI.from({ scheme: sessionType, path: '/new-session' });
 
 		const results = [
@@ -27,6 +34,9 @@ suite('aiCustomizationManagement', () => {
 				section: AICustomizationManagementSection.Skills,
 				sessionType: 'agent-host-copilot',
 				revealUri,
+				migration: true,
+				migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+				migrationHint,
 			}, 'agent-host-claude', fallbackSessionResource, getSessionResourceForHarness),
 			resolveAICustomizationManagementOpenEditorTarget(
 				AICustomizationManagementSection.Instructions,
@@ -35,17 +45,25 @@ suite('aiCustomizationManagement', () => {
 				getSessionResourceForHarness,
 			),
 			resolveAICustomizationManagementOpenEditorTarget(undefined, undefined, fallbackSessionResource, getSessionResourceForHarness),
+			resolveAICustomizationManagementOpenEditorTarget({
+				sessionResource: titleSessionResource,
+				migration: true,
+			}, 'agent-host-claude', fallbackSessionResource, getSessionResourceForHarness),
 		].map(result => ({
 			section: result.section,
 			revealUri: result.revealUri?.toString(),
 			sessionResource: result.sessionResource?.toString(),
+			migration: result.migration,
+			migrationCategory: result.migrationCategory,
+			migrationFlowId: result.migrationHint?.migrationFlowId,
 		}));
 
 		assert.deepStrictEqual(results, [
-			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session' },
-			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session' },
-			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session' },
-			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session' },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session', migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles, migrationFlowId: 'migration-flow-id' },
+			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: true, migrationCategory: undefined, migrationFlowId: undefined },
 		]);
 	});
 });

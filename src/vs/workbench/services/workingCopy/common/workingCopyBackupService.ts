@@ -7,9 +7,9 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { equals, deepClone } from '../../../../base/common/objects.js';
-import { Promises, ResourceQueue } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, ResourceQueue } from '../../../../base/common/async.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from './workingCopyBackup.js';
-import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { IFileService, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isReadableStream, peekStream } from '../../../../base/common/stream.js';
 import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
@@ -20,6 +20,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { hash } from '../../../../base/common/hash.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from './workingCopy.js';
+import { WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../../../../platform/backup/common/backup.js';
 
 export class WorkingCopyBackupsModel {
 
@@ -56,7 +57,7 @@ export class WorkingCopyBackupsModel {
 						// additional `update` calls.
 						if (backupSchemaFolderStat.children) {
 							for (const backupForSchema of backupSchemaFolderStat.children) {
-								if (!backupForSchema.isDirectory) {
+								if (!backupForSchema.isDirectory && !backupForSchema.name.endsWith(WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX)) {
 									this.add(backupForSchema.resource);
 								}
 							}
@@ -121,6 +122,8 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	declare readonly _serviceBrand: undefined;
 
 	private impl: WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
+	private readonly pendingOperations = new Set<Promise<void>>();
+	private backupPathTransition: DeferredPromise<void> | undefined;
 
 	constructor(
 		backupWorkspaceHome: URI | undefined,
@@ -157,15 +160,15 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	}
 
 	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		return this.impl.backup(identifier, content, versionId, meta, token);
+		return this.trackOperation(() => this.impl.backup(identifier, content, versionId, meta, token));
 	}
 
 	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
-		return this.impl.discardBackup(identifier, token);
+		return this.trackOperation(() => this.impl.discardBackup(identifier, token));
 	}
 
 	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
-		return this.impl.discardBackups(filter);
+		return this.trackOperation(() => this.impl.discardBackups(filter));
 	}
 
 	getBackups(): Promise<IWorkingCopyIdentifier[]> {
@@ -181,7 +184,39 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	}
 
 	joinBackups(): Promise<void> {
+		if (this.backupPathTransition) {
+			return this.backupPathTransition.p.then(() => this.joinBackups());
+		}
+		if (this.pendingOperations.size > 0) {
+			return Promise.allSettled([...this.pendingOperations]).then(() => this.impl.joinBackups());
+		}
 		return this.impl.joinBackups();
+	}
+
+	/** Drains current writes and defers mutations until the backup directory has been migrated. */
+	async withBackupPathTransition<T>(transition: () => Promise<T>): Promise<T> {
+		if (this.backupPathTransition) {
+			throw new Error('Backup path transition already in progress');
+		}
+
+		const pending = this.backupPathTransition = new DeferredPromise<void>();
+		try {
+			await Promises.settled([...this.pendingOperations]);
+			return await transition();
+		} finally {
+			this.backupPathTransition = undefined;
+			pending.complete();
+		}
+	}
+
+	private trackOperation(operation: () => Promise<void>): Promise<void> {
+		const pending = this.backupPathTransition ? this.backupPathTransition.p.then(operation) : operation();
+		this.pendingOperations.add(pending);
+		pending.then(
+			() => this.pendingOperations.delete(pending),
+			() => this.pendingOperations.delete(pending)
+		);
+		return pending;
 	}
 }
 
@@ -276,8 +311,22 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
 			}
 
-			// Write backup via file service
-			await this.fileService.writeFile(backupResource, backupBuffer);
+			if (this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicRename)) {
+				const temporaryResource = backupResource.with({ path: `${backupResource.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
+				try {
+					await this.fileService.writeFile(temporaryResource, backupBuffer);
+					await this.fileService.move(temporaryResource, backupResource, true, { atomic: true });
+				} catch (error) {
+					try {
+						await this.deleteIgnoreFileNotFound(temporaryResource);
+					} catch (cleanupError) {
+						this.logService.error(cleanupError);
+					}
+					throw error;
+				}
+			} else {
+				await this.fileService.writeFile(backupResource, backupBuffer);
+			}
 
 			//
 			// Update model

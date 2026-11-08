@@ -1,0 +1,20 @@
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - playwright*
+  - typescript
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+allowBuilds:
+  fsevents@2.3.2: true
+overrides:
+  serialize-javascript: ^7.0.3

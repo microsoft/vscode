@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -11,13 +11,16 @@ exchanges:
       content: ready
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Remember the code word ORCHID. Reply exactly "ready".
         - role: assistant
-          content: ready
+          content:
+            - type: thinking
+            - type: text
+              text: ready
         - role: user
           content: What code word did I ask you to remember? Reply with only the code word.
     response:

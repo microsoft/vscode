@@ -53,14 +53,25 @@ export interface ITelemetryService {
 	setExperimentProperty(name: string, value: string): void;
 
 	/**
-	 * Sets a common property that will be attached to all telemetry events.
+	 * Sets a common property that will be attached to all telemetry events, or removes it when the value is undefined.
 	 * Common properties are added after PII cleaning and cannot be overridden by event data.
 	 */
-	setCommonProperty(name: string, value: string | boolean): void;
+	setCommonProperty(name: string, value: string | boolean | undefined): void;
 }
 
 export function telemetryLevelEnabled(service: ITelemetryService, level: TelemetryLevel): boolean {
 	return service.telemetryLevel >= level;
+}
+
+/** What every model router reports as in telemetry: router names are written by users. */
+export const MODEL_ROUTER_TELEMETRY_ID = 'modelRouter';
+
+/**
+ * Replaces a model router's id (`model-router:<name>`, possibly vendor-prefixed) with
+ * {@link MODEL_ROUTER_TELEMETRY_ID}, leaving other model ids unchanged.
+ */
+export function normalizeModelRouterTelemetryId<T extends string | undefined>(modelId: T): T | typeof MODEL_ROUTER_TELEMETRY_ID {
+	return modelId?.includes('model-router:') ? MODEL_ROUTER_TELEMETRY_ID : modelId;
 }
 
 /**
@@ -68,7 +79,7 @@ export function telemetryLevelEnabled(service: ITelemetryService, level: Telemet
  * telemetry pipeline from redacting them as file paths.
  */
 export function escapeModelIdForTelemetry(modelId: string | undefined): string | undefined {
-	return modelId?.replace(/[\/\\]/g, '|');
+	return normalizeModelRouterTelemetryId(modelId)?.replace(/[\/\\]/g, '|');
 }
 
 export interface ITelemetryEndpoint {

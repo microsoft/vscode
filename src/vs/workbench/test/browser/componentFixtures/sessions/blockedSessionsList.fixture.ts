@@ -16,33 +16,25 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat, IGitHubInfo, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
+import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
-// eslint-disable-next-line local/code-import-patterns
 import { registerBlockedSessionsHeaderActions, registerBlockedSessionsHeaderCommands } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/contrib/sessions/browser/media/sessionsList.css';
+import '../../../../contrib/sessions/browser/media/sessionsList.css';
 
 // ============================================================================
 // Mock helpers
@@ -119,9 +111,19 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		}()];
 	}
 
+	const sessionResource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = sessionResource.with({ path: `${sessionResource.path}/chat/main` });
+		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
+		override readonly status: IObservable<SessionStatus> = constObservable(options.status);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
+	}();
+
 	return new class extends mock<ISession>() {
 		override readonly sessionId = `local:${options.title}`;
-		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
+		override readonly resource = sessionResource;
 		override readonly providerId = 'local';
 		override readonly sessionType = 'local';
 		override readonly icon = Codicon.account;
@@ -133,10 +135,10 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly isArchived: IObservable<boolean> = constObservable<boolean>(false);
 		override readonly isRead: IObservable<boolean> = constObservable<boolean>(true);
 		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsDelete: true });
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable<ISessionChangesSummary | undefined>(options.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable<IMarkdownString | undefined>(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable<readonly IChat[]>(chats);
+		override readonly mainChat: IObservable<IChat> = constObservable<IChat>(mainChat);
 	}();
 }
 
@@ -251,7 +253,8 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 				}();
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
+				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 			}());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -270,6 +273,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore);
 
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.

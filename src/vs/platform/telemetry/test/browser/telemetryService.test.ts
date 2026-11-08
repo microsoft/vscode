@@ -113,6 +113,11 @@ suite('TelemetryService', () => {
 
 	const TestProductService: IProductService = { _serviceBrand: undefined, ...product };
 
+	// Tests replace the global error handler, restore it so that later tests still report uncaught errors
+	let originalOnError: OnErrorEventHandler;
+	setup(() => originalOnError = mainWindow.onerror);
+	teardown(() => mainWindow.onerror = originalOnError);
+
 	test('Disposing', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -176,6 +181,34 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Event data redacts file paths beneath user content paths', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const userHome = '/home/someone';
+		const appRoot = '/home/someone/.local/share/code/resources/app';
+		const extensionsPath = '/home/someone/.vscode/extensions';
+		const service = new TelemetryService({ appenders: [testAppender], piiPaths: [appRoot, extensionsPath, userHome], userContentPaths: [userHome] }, new TestConfigurationService(), TestProductService);
+
+		const data = {
+			userFile: `Failed to read ${userHome}/projects/sample/config.py`,
+			userNodeModulesFile: `at load (${userHome}/projects/sample/node_modules/@scope/pkg/index.js:1:2)`,
+			userExtensionsFile: `at activate (${userHome}/projects/sample/.vscode/extensions/sample.extension/out/main.js:1:2)`,
+			appNodeModulesFile: `at load (${appRoot}/node_modules/pkg/index.js:1:2)`,
+			extensionFile: `at activate (${extensionsPath}/publisher.extension-1.0.0/out/extension.js:1:2)`,
+		};
+		service.publicLog('testEvent', data);
+
+		const sent = testAppender.events[0].data;
+		assert.deepStrictEqual(Object.fromEntries(Object.keys(data).map(key => [key, sent[key]])), {
+			userFile: 'Failed to read <REDACTED: user-file-path>',
+			userNodeModulesFile: 'at load (<REDACTED: user-file-path>:1:2)',
+			userExtensionsFile: 'at activate (<REDACTED: user-file-path>:1:2)',
+			appNodeModulesFile: 'at load (/node_modules/pkg/index.js:1:2)',
+			extensionFile: 'at activate (/publisher.extension-1.0.0/out/extension.js:1:2)',
+		});
+
+		service.dispose();
+	}));
+
 	test('common properties added to *all* events, simple event', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
@@ -227,7 +260,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
-	test('setCommonProperty adds property to all subsequent events', function () {
+	test('setCommonProperty adds and removes property from subsequent events', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
 			appenders: [testAppender],
@@ -236,9 +269,14 @@ suite('TelemetryService', () => {
 		service.publicLog('eventBeforeSet');
 		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
 		service.publicLog('eventAfterSet');
+		service.setCommonProperty('common.copilotTrackingId', undefined);
+		service.publicLog('eventAfterClear');
 
-		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
-		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+		assert.deepStrictEqual(testAppender.events.map(event => event.data['common.copilotTrackingId']), [
+			undefined,
+			'test-tracking-id',
+			undefined,
+		]);
 
 		service.dispose();
 	});

@@ -13,9 +13,9 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export class SessionsCopilotConfigSlashSubmitHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -54,9 +54,11 @@ export class SessionsCopilotConfigSlashSubmitHandlerContribution extends Disposa
 		if (!provider || !isAgentHostProvider(provider)) {
 			return false;
 		}
+		// The submitting chat's settings change, not its session's other chats'.
+		const chat = request.sessionResource;
 		await applyAgentHostCompletionAction({ applyConfig: configAction.applyConfig }, this._dialogService, this._storageService, async config => {
-			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(sessionId, key, value)));
-		});
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(sessionId, chat, key, value)));
+		}, provider.getSessionConfig(sessionId, chat));
 		return !configAction.strippedPrompt;
 	}
 }

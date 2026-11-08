@@ -1,0 +1,154 @@
+{
+  "$comment": "Conformance vectors for the verbatim SDK SessionUsageInfoData snapshot carried by `copilot.usageInfo` on SessionState._meta.",
+  "key": "copilot.usageInfo",
+  "carrier": "SessionState._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: serializes every SDK v1.0.8 field in camelCase",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "conversationTokens": 2100,
+          "currentTokens": 3000,
+          "isInitial": true,
+          "messagesLength": 12,
+          "systemTokens": 500,
+          "tokenLimit": 128000,
+          "toolDefinitionsTokens": 400
+        }
+      },
+      "expected": {
+        "meta": {
+          "conversationTokens": 2100,
+          "currentTokens": 3000,
+          "isInitial": true,
+          "messagesLength": 12,
+          "systemTokens": 500,
+          "tokenLimit": 128000,
+          "toolDefinitionsTokens": 400
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: omits absent optional token categories",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "currentTokens": 3000,
+          "messagesLength": 12,
+          "tokenLimit": 128000
+        }
+      },
+      "expected": {
+        "meta": {
+          "currentTokens": 3000,
+          "messagesLength": 12,
+          "tokenLimit": 128000
+        }
+      }
+    },
+    {
+      "name": "set: stamps the snapshot onto empty _meta",
+      "op": "set",
+      "input": {
+        "meta": {},
+        "value": { "currentTokens": 3000, "messagesLength": 12, "tokenLimit": 128000 }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageInfo": {
+            "currentTokens": 3000,
+            "messagesLength": 12,
+            "tokenLimit": 128000
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserves sibling metadata",
+      "op": "set",
+      "input": {
+        "meta": { "copilot.context": { "cwd": "/work/repo" } },
+        "value": { "currentTokens": 3000, "messagesLength": 12, "tokenLimit": 128000 }
+      },
+      "expected": {
+        "meta": {
+          "copilot.context": { "cwd": "/work/repo" },
+          "copilot.usageInfo": {
+            "currentTokens": 3000,
+            "messagesLength": 12,
+            "tokenLimit": 128000
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns a non-empty snapshot",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.usageInfo": {
+            "currentTokens": 3000,
+            "messagesLength": 12,
+            "tokenLimit": 128000
+          }
+        }
+      },
+      "expected": {
+        "usageInfo": { "currentTokens": 3000, "messagesLength": 12, "tokenLimit": 128000 }
+      }
+    },
+    {
+      "name": "extract: absent key returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.context": { "cwd": "/work/repo" } } },
+      "expected": { "usageInfo": null }
+    },
+    {
+      "name": "extract: empty _meta returns null",
+      "op": "extract",
+      "input": { "meta": {} },
+      "expected": { "usageInfo": null }
+    },
+    {
+      "name": "extract: empty object returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.usageInfo": {} } },
+      "expected": { "usageInfo": null }
+    },
+    {
+      "name": "extract: wrong type returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.usageInfo": 3000 } },
+      "expected": { "usageInfo": null }
+    },
+    {
+      "name": "wireShape: pins the complete camelCase SDK snapshot",
+      "op": "wireShape",
+      "input": {
+        "sdk": {
+          "conversationTokens": 2100,
+          "currentTokens": 3000,
+          "isInitial": true,
+          "messagesLength": 12,
+          "systemTokens": 500,
+          "tokenLimit": 128000,
+          "toolDefinitionsTokens": 400
+        }
+      },
+      "expected": {
+        "json": {
+          "copilot.usageInfo": {
+            "conversationTokens": 2100,
+            "currentTokens": 3000,
+            "isInitial": true,
+            "messagesLength": 12,
+            "systemTokens": 500,
+            "tokenLimit": 128000,
+            "toolDefinitionsTokens": 400
+          }
+        }
+      }
+    }
+  ]
+}

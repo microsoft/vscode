@@ -12,8 +12,6 @@ import {
 	PullRequestFragment,
 	PullRequestInlineComment,
 	PullRequestMergeability,
-	PullRequestParticipant,
-	PullRequestParticipants,
 	PullRequestRef,
 	PullRequestReview,
 	PullRequestReviewThread,
@@ -22,21 +20,26 @@ import {
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
+import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredId, requiredString, stringProperty } from './githubResponse.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
+import { annotateRequiredCheckDependencies, getRequiredPullRequestCheckNames, getUnfinishedRequiredPullRequestCheckNames, parseWorkflowJobs, WorkflowJob } from './pullRequestRequiredChecks.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+
+/** How long an idle check suite of an app other than GitHub Actions is awaited before it is considered not to report. */
+const idleCheckSuiteGracePeriod = 10 * 1000;
 
 export type PullRequestFragmentResult =
 	| { readonly fragment: 'core'; readonly value: PullRequestCore; readonly complete: true }
 	| { readonly fragment: 'topLevelComments'; readonly value: readonly PullRequestComment[]; readonly complete: true }
 	| { readonly fragment: 'submittedReviews'; readonly value: readonly PullRequestReview[]; readonly complete: true }
-	| { readonly fragment: 'inlineComments'; readonly value: readonly PullRequestInlineComment[]; readonly complete: true }
 	| { readonly fragment: 'reviewThreads'; readonly value: readonly PullRequestReviewThread[]; readonly complete: boolean; readonly headSha: string }
 	| { readonly fragment: 'checks'; readonly value: PullRequestChecks; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'participants'; readonly value: PullRequestParticipants; readonly complete: true };
+	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string };
 
 export interface IPullRequestQuery {
+	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void;
 	fetch(
 		fragment: PullRequestFragment,
 		ref: PullRequestRef,
@@ -93,7 +96,7 @@ const checksQuery = (includeRequiredness: boolean, includeWorkflowNames: boolean
 									__typename
 									... on CheckRun {
 										databaseId name status conclusion detailsUrl
-										${includeWorkflowNames ? 'checkSuite { workflowRun { workflow { name } } }' : ''}
+										${includeWorkflowNames ? 'checkSuite { workflowRun { databaseId file { path } workflow { name } } }' : ''}
 										${includeRequiredness ? 'isRequired(pullRequestNumber: $number)' : ''}
 									}
 									... on StatusContext {
@@ -118,7 +121,7 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 			... on Commit {
 				oid
 				checkSuites(first: 100, after: $after) {
-					nodes { id status conclusion app { name slug } checkRuns(first: 1) { totalCount } }
+					nodes { id status conclusion createdAt app { name slug } workflowRun { workflow { name } } checkRuns(first: 1) { totalCount } }
 					pageInfo { hasNextPage endCursor }
 				}
 			}
@@ -141,6 +144,20 @@ const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRe
 	rateLimit { limit remaining used resetAt }
 }`;
 
+/** Reads workflow files at a commit, each named by a `<commit>:<path>` expression in `$fileN`. */
+const workflowFilesQuery = (count: number) => `query AgentHostPullRequestWorkflowFiles($owner: String!, $repo: String!${Array.from({ length: count }, (_, index) => `, $file${index}: String!`).join('')}) {
+	repository(owner: $owner, name: $repo) {
+		${Array.from({ length: count }, (_, index) => `file${index}: object(expression: $file${index}) { ... on Blob { text isTruncated } }`).join('\n\t\t')}
+	}
+	rateLimit { limit remaining used resetAt }
+}`;
+
+/** How long the required checks of a base branch are reused before its protection and rulesets are read again. */
+const requiredContextsLifetime = 5 * 60 * 1000;
+
+/** How many parsed workflow files are kept; a workflow at a commit never changes. */
+const maximumCachedWorkflows = 50;
+
 export class PullRequestQueryService implements IPullRequestQuery {
 
 	private readonly _planner = new PullRequestRequestPlanner();
@@ -148,12 +165,23 @@ export class PullRequestQueryService implements IPullRequestQuery {
 	/** Repositories whose host refused the workflow-name subselection, keyed by `owner/repo`. */
 	private readonly _workflowNamesUnavailable = new Set<string>();
 
+	/** The required checks of each base branch, keyed by `host/owner/repo#branch`. */
+	private readonly _requiredContexts = new Map<string, { readonly contexts: readonly string[]; readonly observedAt: number }>();
+
+	/** The jobs of each workflow file, keyed by `host/owner/repo@commit:path`, or `undefined` when unreadable. */
+	private readonly _workflowJobs = new Map<string, ReadonlyMap<string, WorkflowJob> | undefined>();
+
 	constructor(
 		private readonly _transport: IGitHubTransport,
 		private readonly _capabilities: IGitHubCapabilities,
 		private readonly _endpoint: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
+		private readonly _clock: Pick<IRequestScheduler, 'now'> = systemRequestScheduler,
 	) { }
+
+	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
+		this._transport.promote(signal, priority);
+	}
 
 	async fetch(
 		fragment: PullRequestFragment,
@@ -164,7 +192,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		signal: AbortSignal,
 	): Promise<PullRequestFragmentResult> {
 		const capabilities = needsCapabilities(fragment)
-			? await this._capabilities.getCapabilities(credential, undefined, signal)
+			? await this._capabilities.getCapabilities(credential, signal)
 			: restCapabilities;
 		const plan = this._planner.plan(fragment, options.priority, capabilities);
 		switch (fragment) {
@@ -182,13 +210,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					fragment,
 					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/reviews?per_page=100`, signal, plan.priority))
 						.map(item => toReview(item, options.conversation?.includeBodies === true)),
-					complete: true,
-				};
-			case 'inlineComments':
-				return {
-					fragment,
-					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/comments?per_page=100`, signal, plan.priority))
-						.map(item => toInlineComment(item, options.conversation?.includeBodies === true)),
 					complete: true,
 				};
 			case 'reviewThreads':
@@ -251,17 +272,12 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					headSha: mergeability.headSha,
 				};
 			}
-			case 'participants':
-				return {
-					fragment,
-					value: await this._fetchParticipants(ref, core, credential, signal, plan.priority),
-					complete: true,
-				};
 		}
 	}
 
-	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./githubTypes.js').GitHubRequestPriority): Promise<PullRequestCore> {
+	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./types.js').RequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			etag: true,
@@ -275,12 +291,13 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		credential: GitHubCredential,
 		route: string,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<readonly unknown[]> {
 		const result: unknown[] = [];
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -303,7 +320,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<readonly PullRequestReviewThread[]> {
 		const result: PullRequestReviewThread[] = [];
@@ -317,6 +334,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -341,7 +359,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		value: unknown,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<PullRequestReviewThread> {
 		const thread = asObject(value, 'GitHub review thread was malformed');
@@ -360,6 +378,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ threadId: id, after: requiredCursor(after) },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const nextConnection = objectAt(response.data, 'node', 'comments');
@@ -382,27 +401,167 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		};
 	}
 
+	/**
+	 * Loads the checks of the pull request head. A subscriber that needs to
+	 * know which checks are required (`loadRequired`) also gets the expected
+	 * check suites, the checks the base branch requires and, while a required
+	 * check has not finished, the checks it waits for; see
+	 * {@link annotateRequiredCheckDependencies}.
+	 */
 	private async _fetchChecks(
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
-		loadExpectedSuites: boolean,
+		loadRequired: boolean,
 		includeOptional: boolean,
 	): Promise<PullRequestChecks> {
-		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, signal, priority, includeRequiredness, includeOptional);
-		const expected = loadExpectedSuites
+		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, signal, priority, includeRequiredness);
+		const expected = loadRequired
 			? await this._fetchExpectedCheckSuitesWhenPermitted(ref, core.headSha, credential, signal, priority)
 			: { suites: [], complete: false };
-		return {
+		const requiredContexts = loadRequired ? await this._fetchRequiredContexts(ref, core.baseRef, credential, signal, priority) : undefined;
+		let value: PullRequestChecks = {
 			headSha: rollup.headSha,
 			checks: rollup.checks,
 			requirednessComplete: includeRequiredness,
+			...(requiredContexts ? { requiredContexts } : {}),
 			expectedSuites: expected.suites,
 			expectedSuitesComplete: expected.complete,
 		};
+		const unfinished = loadRequired ? getUnfinishedRequiredPullRequestCheckNames(value) : [];
+		if (unfinished.length > 0) {
+			const workflows = await this._fetchWorkflowJobs(ref, rollup.headSha, rollup.checks, credential, signal, priority);
+			value = { ...value, checks: annotateRequiredCheckDependencies(value.checks, unfinished, path => workflows.get(path)) };
+		}
+		// When nothing is required every check counts, so none is dropped as optional.
+		const everyCheckCounts = getRequiredPullRequestCheckNames(value).size === 0;
+		return { ...value, checks: filterChecks(value.checks, includeRequiredness, includeOptional || everyCheckCounts) };
+	}
+
+	/**
+	 * Reads the checks the base branch requires from its branch protection and
+	 * rulesets, which name a required check even before it reports. Falls back
+	 * to the last value read, or `undefined` when there is none, so callers
+	 * only see the checks GitHub reports as required.
+	 */
+	private async _fetchRequiredContexts(
+		ref: PullRequestRef,
+		baseRef: string,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./types.js').RequestPriority,
+	): Promise<readonly string[] | undefined> {
+		// Branch names are case-sensitive, unlike the host, owner and repository.
+		const key = `${ref.host}/${ref.owner}/${ref.repo}`.toLowerCase() + `#${baseRef}`;
+		const cached = this._requiredContexts.get(key);
+		if (cached && this._clock.now() - cached.observedAt < requiredContextsLifetime) {
+			return cached.contexts;
+		}
+		try {
+			const branch = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
+				method: 'GET',
+				url: this._restUrl(ref, `branches/${encodeURIComponent(baseRef)}`),
+				etag: true,
+				priority,
+			}, signal);
+			const contexts = new Set(toBranchProtectionContexts(branch.data));
+			for (const context of await this._fetchRulesetContexts(ref, baseRef, credential, signal, priority)) {
+				contexts.add(context);
+			}
+			const result = [...contexts].sort();
+			this._requiredContexts.set(key, { contexts: result, observedAt: this._clock.now() });
+			return result;
+		} catch (error) {
+			if (signal.aborted || !(error instanceof GitHubRequestError)) {
+				throw error;
+			}
+			this._logService?.warn(`[PullRequestQueryService] Could not read the required checks of ${ref.owner}/${ref.repo}@${baseRef} (${error.kind}): ${error.message}`);
+			return cached?.contexts;
+		}
+	}
+
+	/** Reads the checks the base branch's rulesets require; a host without rulesets requires none through them. */
+	private async _fetchRulesetContexts(
+		ref: PullRequestRef,
+		baseRef: string,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./types.js').RequestPriority,
+	): Promise<readonly string[]> {
+		try {
+			const rules = await this._fetchRestArray(ref, credential, `rules/branches/${encodeURIComponent(baseRef)}?per_page=100`, signal, priority);
+			return rules.flatMap(toRulesetContexts);
+		} catch (error) {
+			if (error instanceof GitHubRequestError && error.kind === 'notFound') {
+				return [];
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Reads the jobs of the workflows that reported checks on the head, as of
+	 * the head commit. GitHub runs a pull request's workflows as of its merge
+	 * with the base branch, which only differs when the base changed a workflow
+	 * after the branch was created. A workflow that cannot be read contributes
+	 * no dependencies.
+	 */
+	private async _fetchWorkflowJobs(
+		ref: PullRequestRef,
+		headSha: string,
+		checks: readonly PullRequestCheck[],
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./types.js').RequestPriority,
+	): Promise<ReadonlyMap<string, ReadonlyMap<string, WorkflowJob> | undefined>> {
+		const keyOf = (path: string) => `${ref.host}/${ref.owner}/${ref.repo}`.toLowerCase() + `@${headSha}:${path}`;
+		const result = new Map<string, ReadonlyMap<string, WorkflowJob> | undefined>();
+		const unread: string[] = [];
+		for (const path of new Set(checks.flatMap(check => check.workflowRunId !== undefined && check.workflowPath !== undefined ? [check.workflowPath] : []))) {
+			const key = keyOf(path);
+			if (this._workflowJobs.has(key)) {
+				result.set(path, this._workflowJobs.get(key));
+			} else {
+				unread.push(path);
+			}
+		}
+		if (unread.length === 0) {
+			return result;
+		}
+		try {
+			const response = await this._transport.graphql<unknown>(
+				credential.account,
+				credential.token,
+				this._endpoint.getGraphQlUri(),
+				workflowFilesQuery(unread.length),
+				{ owner: ref.owner, repo: ref.repo, ...Object.fromEntries(unread.map((path, index) => [`file${index}`, `${headSha}:${path}`])) },
+				signal,
+				priority,
+				{ caller: 'github.pullRequestQuery' },
+			);
+			throwGraphQLErrors(response.errors);
+			const repository = objectAt(response.data, 'repository');
+			unread.forEach((path, index) => {
+				const blob = optionalObjectProperty(repository, `file${index}`);
+				const text = blob && booleanProperty(blob, 'isTruncated') !== true ? stringProperty(blob, 'text') : undefined;
+				const jobs = text === undefined ? undefined : parseWorkflowJobs(text);
+				this._workflowJobs.set(keyOf(path), jobs);
+				if (this._workflowJobs.size > maximumCachedWorkflows) {
+					this._workflowJobs.delete(this._workflowJobs.keys().next().value!);
+				}
+				result.set(path, jobs);
+			});
+		} catch (error) {
+			if (signal.aborted || !(error instanceof GitHubRequestError)) {
+				throw error;
+			}
+			this._logService?.warn(`[PullRequestQueryService] Could not read the workflows of ${ref.owner}/${ref.repo}@${headSha}, so the checks that required checks wait for are unknown (${error.kind}): ${error.message}`);
+		}
+		return result;
 	}
 
 	/**
@@ -414,21 +573,20 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
-		includeOptional: boolean,
 	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
 		const repositoryKey = `${ref.owner}/${ref.repo}`.toLowerCase();
 		const includeWorkflowNames = !this._workflowNamesUnavailable.has(repositoryKey);
 		try {
-			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, includeWorkflowNames);
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeWorkflowNames);
 		} catch (error) {
 			if (!includeWorkflowNames || !(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
 				throw error;
 			}
 			this._workflowNamesUnavailable.add(repositoryKey);
 			this._logService?.warn(`[PullRequestQueryService] Retrying checks for ${ref.owner}/${ref.repo}#${ref.number} without workflow names because GitHub refused them: ${error.message}`);
-			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, false);
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, false);
 		}
 	}
 
@@ -438,7 +596,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		headSha: string,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<{ readonly suites: readonly PullRequestCheckSuite[]; readonly complete: boolean }> {
 		try {
 			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, signal, priority), complete: true };
@@ -456,9 +614,8 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
-		includeOptional: boolean,
 		includeWorkflowNames: boolean,
 	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
 		const checks: PullRequestCheck[] = [];
@@ -472,6 +629,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -490,7 +648,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			checks.push(...arrayProperty(contexts, 'nodes').map(toCheck));
 			const pageInfo = pageInfoFrom(contexts);
 			if (!pageInfo.hasNextPage) {
-				return { headSha: observedHead, checks: filterChecks(checks, includeRequiredness, includeOptional) };
+				return { headSha: observedHead, checks };
 			}
 			after = requiredCursor(pageInfo.endCursor);
 		}
@@ -502,7 +660,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		headSha: string,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<readonly PullRequestCheckSuite[]> {
 		const suites: PullRequestCheckSuite[] = [];
 		let after: string | undefined;
@@ -515,14 +673,20 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, headSha, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
-			throwGraphQLErrors(response.errors);
+			throwGraphQLErrors(response.errors.filter(error => !isRefusedCheckSuiteLabel(error)));
 			const commit = objectAt(response.data, 'repository', 'object');
 			if (requiredString(commit, 'oid') !== headSha) {
 				throw new GitHubRequestError('GitHub expected check suites were for an old pull request head', 'unknown');
 			}
 			const connection = objectProperty(commit, 'checkSuites');
-			suites.push(...arrayProperty(connection, 'nodes').map(toCheckSuite));
+			for (const node of arrayProperty(connection, 'nodes')) {
+				const suite = toExpectedCheckSuite(node, this._clock.now());
+				if (suite) {
+					suites.push(suite);
+				}
+			}
 			const pageInfo = pageInfoFrom(connection);
 			if (!pageInfo.hasNextPage) {
 				return suites;
@@ -537,12 +701,13 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestChecks> {
 		const checks: PullRequestCheck[] = [];
 		let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/check-runs?per_page=100`);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -556,6 +721,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			throw new GitHubRequestError('GitHub check-run pagination exceeded its page limit', 'malformedResponse');
 		}
 		const statuses = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/status?per_page=100`),
 			etag: true,
@@ -577,7 +743,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		mergeQueueSupported: boolean,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.graphql<unknown>(
@@ -590,6 +756,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				: { owner: ref.owner, repo: ref.repo, number: ref.number },
 			signal,
 			priority,
+			{ caller: 'github.pullRequestQuery' },
 		);
 		throwGraphQLErrors(response.errors);
 		const repository = objectProperty(asObject(response.data, 'GitHub mergeability response was malformed'), 'repository');
@@ -628,9 +795,10 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			unconditional: true,
@@ -653,36 +821,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		};
 	}
 
-	private async _fetchParticipants(
-		ref: PullRequestRef,
-		core: PullRequestCore | undefined,
-		credential: GitHubCredential,
-		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
-	): Promise<PullRequestParticipants> {
-		const values = await this._fetchRestArray(ref, credential, `issues/${ref.number}/timeline?per_page=100`, signal, priority);
-		const participants = new Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>();
-		if (core?.author) {
-			addParticipant(participants, core.author, 'author');
-		}
-		for (const value of values) {
-			const item = asObject(value, 'GitHub timeline event was malformed');
-			const actor = toActor(optionalObjectProperty(item, 'actor') ?? optionalObjectProperty(item, 'user'));
-			if (actor) {
-				addParticipant(participants, actor, 'commenter');
-			}
-			const reviewer = toActor(optionalObjectProperty(item, 'requested_reviewer'));
-			if (reviewer) {
-				addParticipant(participants, reviewer, 'reviewer');
-			}
-		}
-		return {
-			participants: [...participants.values()]
-				.map(({ actor, roles }) => ({ ...actor, roles: [...roles].sort() }))
-				.sort((left, right) => left.login.localeCompare(right.login)),
-		};
-	}
-
 	private _restUrl(ref: PullRequestRef, route: string): string {
 		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${route}`;
 	}
@@ -691,7 +829,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 const restCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
-	internalMergeStatus: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -770,21 +907,6 @@ function toReview(value: unknown, includeBody: boolean): PullRequestReview {
 	};
 }
 
-function toInlineComment(value: unknown, includeBody: boolean): PullRequestInlineComment {
-	const item = asObject(value, 'GitHub pull request inline comment was malformed');
-	return {
-		...toComment(value, includeBody),
-		reviewId: idProperty(item, 'pull_request_review_id'),
-		replyToId: idProperty(item, 'in_reply_to_id'),
-		path: stringProperty(item, 'path'),
-		line: numberProperty(item, 'line'),
-		originalLine: numberProperty(item, 'original_line'),
-		side: stringProperty(item, 'side'),
-		commitId: stringProperty(item, 'commit_id'),
-		originalCommitId: stringProperty(item, 'original_commit_id'),
-	};
-}
-
 function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: string | undefined): PullRequestInlineComment {
 	const item = asObject(value, 'GitHub review-thread comment was malformed');
 	const commit = optionalObjectProperty(item, 'commit');
@@ -797,6 +919,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
+		state: stringProperty(item, 'state'),
 		path: stringProperty(item, 'path'),
 		line: numberProperty(item, 'line'),
 		originalLine: numberProperty(item, 'originalLine'),
@@ -813,6 +936,9 @@ function toCheck(value: unknown): PullRequestCheck {
 		const suite = optionalObjectProperty(item, 'checkSuite');
 		const workflowRun = suite ? optionalObjectProperty(suite, 'workflowRun') : undefined;
 		const workflow = workflowRun ? optionalObjectProperty(workflowRun, 'workflow') : undefined;
+		const file = workflowRun ? optionalObjectProperty(workflowRun, 'file') : undefined;
+		const workflowRunId = workflowRun ? idProperty(workflowRun, 'databaseId') : undefined;
+		const workflowPath = file ? stringProperty(file, 'path') : undefined;
 		return {
 			id: requiredId(item, 'databaseId'),
 			type: 'checkRun',
@@ -822,6 +948,8 @@ function toCheck(value: unknown): PullRequestCheck {
 			required: booleanProperty(item, 'isRequired'),
 			detailsUrl: stringProperty(item, 'detailsUrl'),
 			workflowName: workflow ? stringProperty(workflow, 'name') : undefined,
+			...(workflowRunId !== undefined ? { workflowRunId } : {}),
+			...(workflowPath !== undefined ? { workflowPath } : {}),
 		};
 	}
 	return {
@@ -857,21 +985,83 @@ function toRestStatus(value: unknown): PullRequestCheck {
 	};
 }
 
-function toCheckSuite(value: unknown): PullRequestCheckSuite {
+/**
+ * GitHub withholds the app of some suites, including GitHub Actions ones, from a token without SSO access to the organization,
+ * while still returning the suite itself. The app and the workflow only name the suite, so it stays usable without them.
+ */
+function isRefusedCheckSuiteLabel(error: GitHubGraphQLError): boolean {
+	const path = error.path;
+	return error.type?.toUpperCase() === 'FORBIDDEN' && path !== undefined && path.length >= 6 && path[0] === 'repository' && path[1] === 'object'
+		&& path[2] === 'checkSuites' && path[3] === 'nodes' && typeof path[4] === 'number' && (path[5] === 'app' || path[5] === 'workflowRun');
+}
+
+/**
+ * GitHub queues a suite for every installed checks app on each push, and an app that does not report on the commit leaves
+ * it queued without check runs indefinitely. A third-party CI app that will report can also take a moment to create its
+ * runs, so an idle suite stays expected until the grace period after its creation passes. Only GitHub Actions creates a
+ * suite for a triggered workflow, so its suites and those whose app or creation time is unknown always stay expected.
+ */
+function toExpectedCheckSuite(value: unknown, now: number): PullRequestCheckSuite | undefined {
 	const item = asObject(value, 'GitHub check suite was malformed');
+	const id = requiredId(item, 'id');
 	const app = optionalObjectProperty(item, 'app');
-	const checkRuns = objectProperty(item, 'checkRuns');
+	const slug = app && stringProperty(app, 'slug');
+	const status = normalizedEnumProperty(item, 'status');
+	const checkRunsReported = (numberProperty(objectProperty(item, 'checkRuns'), 'totalCount') ?? 0) > 0;
+	const createdAt = Date.parse(stringProperty(item, 'createdAt') ?? '');
+	if (!checkRunsReported && status === 'QUEUED' && slug && slug !== 'github-actions' && now - createdAt >= idleCheckSuiteGracePeriod) {
+		return undefined;
+	}
+	// A GitHub Actions suite is named after its workflow, which tells it apart from the suites of other workflows; GitHub
+	// names a workflow that fails to start, such as an invalid one, after its file.
+	const workflowRun = optionalObjectProperty(item, 'workflowRun');
+	const workflow = workflowRun ? optionalObjectProperty(workflowRun, 'workflow') : undefined;
 	return {
-		id: requiredId(item, 'id'),
-		name: app ? stringProperty(app, 'name') ?? stringProperty(app, 'slug') ?? 'unknown' : 'unknown',
-		status: normalizedEnumProperty(item, 'status'),
+		id,
+		name: (workflow && stringProperty(workflow, 'name')) ?? (app ? stringProperty(app, 'name') ?? slug ?? 'unknown' : 'unknown'),
+		status,
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		checkRunsReported: (numberProperty(checkRuns, 'totalCount') ?? 0) > 0,
+		checkRunsReported,
 	};
 }
 
+/** Drops the checks GitHub reports as optional, unless a required check that has not finished waits for them. */
 function filterChecks(checks: readonly PullRequestCheck[], requirednessAvailable: boolean, includeOptional: boolean): readonly PullRequestCheck[] {
-	return includeOptional || !requirednessAvailable ? checks : checks.filter(check => check.required !== false);
+	return includeOptional || !requirednessAvailable ? checks : checks.filter(check => check.required !== false || check.requiredBy !== undefined);
+}
+
+/** The checks a branch's protection requires, which GitHub also reports to collaborators without admin access. */
+function toBranchProtectionContexts(value: unknown): readonly string[] {
+	const branch = asObject(value, 'GitHub branch response was malformed');
+	const protection = optionalObjectProperty(branch, 'protection');
+	const required = protection ? optionalObjectProperty(protection, 'required_status_checks') : undefined;
+	if (!required || stringProperty(required, 'enforcement_level') === 'off') {
+		return [];
+	}
+	const contexts: unknown = Reflect.get(required, 'contexts');
+	return [
+		...Array.isArray(contexts) ? contexts.filter((context: unknown): context is string => typeof context === 'string') : [],
+		...toContexts(Reflect.get(required, 'checks')),
+	];
+}
+
+/** The checks one rule of a branch's rulesets requires. */
+function toRulesetContexts(value: unknown): readonly string[] {
+	if (!value || typeof value !== 'object' || stringProperty(value, 'type') !== 'required_status_checks') {
+		return [];
+	}
+	const parameters = optionalObjectProperty(value, 'parameters');
+	return parameters ? toContexts(Reflect.get(parameters, 'required_status_checks')) : [];
+}
+
+/** The `context` of each `{ context }` entry of a required status check list. */
+function toContexts(value: unknown): readonly string[] {
+	return Array.isArray(value)
+		? value.flatMap((check: unknown) => {
+			const context = check && typeof check === 'object' ? stringProperty(check, 'context') : undefined;
+			return context !== undefined ? [context] : [];
+		})
+		: [];
 }
 
 function toActor(value: object | undefined, association?: string): { readonly id?: string; readonly login: string; readonly association?: string } | undefined {
@@ -890,26 +1080,12 @@ function toActor(value: object | undefined, association?: string): { readonly id
 	};
 }
 
-function addParticipant(
-	participants: Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>,
-	actor: { readonly id?: string; readonly login: string },
-	role: 'author' | 'commenter' | 'reviewer',
-): void {
-	const key = actor.id ?? actor.login.toLowerCase();
-	let participant = participants.get(key);
-	if (!participant) {
-		participant = { actor: { ...actor, roles: [] }, roles: new Set() };
-		participants.set(key, participant);
-	}
-	participant.roles.add(role);
-}
-
 function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	if (errors.length === 0) {
 		return;
 	}
 	const kinds = errors.map(error => error.type?.toUpperCase());
-	const kind = kinds.includes('RATE_LIMITED')
+	const kind = kinds.includes('RATE_LIMIT') || kinds.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: kinds.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'
@@ -927,19 +1103,6 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	);
 }
 
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
 function pageInfoFrom(connection: object): { readonly hasNextPage: boolean; readonly endCursor?: string } {
 	const pageInfo = objectProperty(connection, 'pageInfo');
 	return {
@@ -955,90 +1118,11 @@ function requiredCursor(cursor: string | undefined): string {
 	return cursor;
 }
 
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = objectProperty(current, part);
-	}
-	return current;
-}
-
 function firstObject(values: readonly unknown[], message: string): object {
 	if (values.length === 0) {
 		throw new GitHubRequestError(message, 'malformedResponse');
 	}
 	return asObject(values[0], message);
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function objectProperty(value: object, key: string): object {
-	return asObject(Reflect.get(value, key), `GitHub response property ${key} was malformed`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	const property = Reflect.get(value, key);
-	if (!Array.isArray(property)) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not an array`, 'malformedResponse');
-	}
-	return property;
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function normalizedEnumProperty(value: object, key: string): string | undefined {
-	return nullableStringProperty(value, key)?.toUpperCase();
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
-}
-
-function requiredId(value: object, ...keys: readonly string[]): string {
-	for (const key of keys) {
-		const id = idProperty(value, key);
-		if (id) {
-			return id;
-		}
-	}
-	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
 }
 
 function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T): T {

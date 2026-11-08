@@ -9,6 +9,8 @@ import type WebSocket from 'ws';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { createTunnelServiceCorrelation, tunnelServiceHeaders } from '../../remoteTunnel/common/tunnelServiceHeaders.js';
 import {
 	PendingGatewaySelection,
 	TunnelAgentHostConnector,
@@ -103,19 +105,26 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 	private readonly _onDidReceiveMessage = this._register(new Emitter<string>());
 	readonly onDidReceiveMessage: Event<string> = this._onDidReceiveMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData: Event<void> = this._onDidReceiveData.event;
+
 	private readonly _onDidClose = this._register(new Emitter<ITunnelSocketCloseEvent>());
 	readonly onDidClose: Event<ITunnelSocketCloseEvent> = this._onDidClose.event;
 
-	constructor(private readonly _socket: WebSocket) {
+	constructor(private readonly _socket: WebSocket, stream: ITunnelDuplexStream) {
 		super();
 		const onMessage = (data: WebSocket.RawData) => this._onDidReceiveMessage.fire(rawGatewayDataToString(data));
+		const onData = () => this._onDidReceiveData.fire();
 		const onClose = (code: number, reason: Buffer) => this._onDidClose.fire({ code, reason: reason?.toString() || undefined });
 		const onError = (error: Error) => this._onDidClose.fire({ error });
 		this._socket.on('message', onMessage);
+		// ws subscribed to 'data' before emitting 'open', so this runs after it fires any message the chunk completes.
+		stream.on('data', onData);
 		this._socket.on('close', onClose);
 		this._socket.on('error', onError);
 		this._register(toDisposable(() => {
 			this._socket.off('message', onMessage);
+			stream.removeListener('data', onData);
 			this._socket.off('close', onClose);
 			this._socket.off('error', onError);
 		}));
@@ -136,7 +145,8 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 	}
 }
 
-class NodeTunnelSocketFactory implements ITunnelSocketFactory {
+/** Opens `ws` WebSockets over dev tunnel relay streams. Exported for tests. */
+export class NodeTunnelSocketFactory implements ITunnelSocketFactory {
 	async open(stream: ITunnelDuplexStream, path: string): Promise<ITunnelMessageSocket> {
 		const WS = await import('ws');
 		return new Promise((resolve, reject) => {
@@ -149,7 +159,7 @@ class NodeTunnelSocketFactory implements ITunnelSocketFactory {
 			};
 			const onOpen = () => {
 				socket.off('error', onError);
-				resolve(new NodeTunnelMessageSocket(socket));
+				resolve(new NodeTunnelMessageSocket(socket, stream));
 			};
 			socket.once('open', onOpen);
 			socket.once('error', onError);
@@ -172,23 +182,26 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	private readonly _connector: TunnelAgentHostConnector;
 
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage>;
+	readonly onDidRelayActivity: Event<string>;
 	readonly onDidRelayClose: Event<string>;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._connector = this._register(new TunnelAgentHostConnector(
-			new NodeTunnelRelayClientFactory((token, authProvider) => this._createManagementClient(token, authProvider)),
+			new NodeTunnelRelayClientFactory((token, authProvider) => this._createManagementClient(token, authProvider, 'connect')),
 			new NodeTunnelSocketFactory(),
 			this._logService,
 		));
 		this.onDidRelayMessage = this._connector.onDidRelayMessage;
+		this.onDidRelayActivity = this._connector.onDidRelayActivity;
 		this.onDidRelayClose = this._connector.onDidRelayClose;
 	}
 
 	async listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[]): Promise<ITunnelInfo[]> {
-		const client = await this._createManagementClient(token, authProvider);
+		const client = await this._createManagementClient(token, authProvider, 'list');
 		const results: ITunnelInfo[] = [];
 		const seen = new Set<string>();
 
@@ -238,7 +251,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	}
 
 	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void> {
-		const client = await this._createManagementClient(token, authProvider);
+		const client = await this._createManagementClient(token, authProvider, 'delete');
 		this._logService.info(`${LOG_PREFIX} Deleting tunnel ${tunnelId} in cluster ${clusterId}...`);
 		await client.deleteTunnel({ tunnelId, clusterId });
 		this._connector.closeTunnelConnections(tunnelId, 'deleting');
@@ -269,14 +282,16 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		return this._connector.disconnect(connectionId);
 	}
 
-	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft'): Promise<TunnelManagementHttpClient> {
+	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft', operation: 'list' | 'connect' | 'delete'): Promise<TunnelManagementHttpClient> {
 		const management = await import('@microsoft/dev-tunnels-management');
 		const authHeader = authProvider === 'github' ? `github ${token}` : `Bearer ${token}`;
-		return new management.TunnelManagementHttpClient(
+		const client = new management.TunnelManagementHttpClient(
 			'vscode-sessions',
 			management.ManagementApiVersions.Version20230927preview,
 			async () => authHeader,
 		);
+		client.additionalRequestHeaders = tunnelServiceHeaders(createTunnelServiceCorrelation(this._telemetryService, operation));
+		return client;
 	}
 }
 

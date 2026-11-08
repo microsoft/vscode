@@ -31,7 +31,7 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		properties['version'] = this.clientVersionDelegate();
+		properties.version = this.clientVersionDelegate();
 
 		reporter.postEventObj(eventName, properties);
 	}

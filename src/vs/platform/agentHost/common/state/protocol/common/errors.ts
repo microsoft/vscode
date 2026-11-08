@@ -92,6 +92,8 @@ export const AhpErrorCodes = {
 	 * fresh token or surface the conflict to the user.
 	 */
 	Conflict: -32011,
+	/** The host could not open the requested TCP connection. */
+	TcpConnectionOpenFailed: -32012,
 } as const;
 
 /** Union type of all AHP application error codes. */

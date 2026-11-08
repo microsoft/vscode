@@ -17,13 +17,23 @@ suite('Request', () => {
 
 	let port: number;
 	let server: http.Server;
+	let redirectTargetRequests: number;
 
 	setup(async () => {
 		const http = await import('http');
+		redirectTargetRequests = 0;
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
 					return; // never respond
+				}
+				if (req.url === '/redirect') {
+					res.writeHead(302, { location: `http://127.0.0.1:${port}/redirect-target` });
+					res.end();
+					return;
+				}
+				if (req.url === '/redirect-target') {
+					redirectTargetRequests++;
 				}
 				res.setHeader('Content-Type', 'application/json');
 				if (req.headers['echo-header']) {
@@ -85,6 +95,22 @@ suite('Request', () => {
 		assert.strictEqual(body.method, 'POST');
 		assert.strictEqual(body.url, '/postpath');
 		assert.strictEqual(body.data, 'Some data');
+	});
+
+	test('does not follow redirects when disabled', async () => {
+		const context = await request({
+			url: `http://127.0.0.1:${port}/redirect`,
+			followRedirects: 0,
+			callSite: 'request.test.noRedirects'
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			statusCode: context.res.statusCode,
+			redirectTargetRequests
+		}, {
+			statusCode: 0,
+			redirectTargetRequests: 0
+		});
 	});
 
 	test('timeout', async () => {

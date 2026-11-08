@@ -14,7 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { IAgentHostFileCompletionRoots, resolveAgentHostFileCompletionRoots } from './agentHostFileCompletionUtils.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
@@ -116,7 +116,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 		private readonly _logService: ILogService,
 	) { }
 
-	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const workingDirectoryStrings = this._stateManager.getSessionState(params.channel)?.workingDirectories;
 		if (!workingDirectoryStrings?.length) {
 			return [];

@@ -252,6 +252,9 @@ class DeleteOperation implements IFileOperation {
 				useTrash: !edit.options.skipTrashBin && this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash')
 			});
 
+			if (!fileStat.isFile && !fileStat.isDirectory) {
+				continue;
+			}
 
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;

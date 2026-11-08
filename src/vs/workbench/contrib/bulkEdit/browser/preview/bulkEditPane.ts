@@ -14,8 +14,8 @@ import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import './bulkEdit.css';
 import { ResourceEdit } from '../../../../../editor/browser/services/bulkEditService.js';
-import { IMultiDiffEditorOptions, IMultiDiffResourceId } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { IMultiDiffEditorOptions, IMultiDiffResourceId } from '../../../../../editor/common/multiDiffEditor.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -181,7 +181,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _setState(state: State): void {
-		this.element.dataset['state'] = state;
+		this.element.dataset.state = state;
 	}
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {

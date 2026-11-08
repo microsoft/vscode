@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
+import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -25,7 +27,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { migratedCopilotCliResource } from '../copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 //#region Session Opener Registry
 
@@ -68,12 +71,12 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
  * the caller would fall back to opening the legacy session it just migrated away
  * from. Refresh that one provider and look again.
  */
-async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI): Promise<IAgentSession | undefined> {
+async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI, onError?: (error: unknown) => void): Promise<IAgentSession | undefined> {
 	const existing = agentSessionsService.getSession(migrated);
 	if (existing) {
 		return existing;
 	}
-	await agentSessionsService.model.resolve(getChatSessionType(migrated));
+	await agentSessionsService.model.resolve(getChatSessionType(migrated), onError);
 	return agentSessionsService.getSession(migrated);
 }
 
@@ -90,7 +93,8 @@ async function resolveMigratedSession(agentSessionsService: IAgentSessionsServic
 async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resource: URI): Promise<IAgentSession | undefined> {
 	// Only a superseded legacy resource can redirect; skip the progress wrapper for every
 	// normal open so they stay overhead-free.
-	if (!migratedCopilotCliResource(resource)) {
+	const twin = migratedCopilotCliResource(resource);
+	if (!twin) {
 		return undefined;
 	}
 
@@ -100,15 +104,45 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	const configurationService = accessor.get(IConfigurationService);
 	const connection = accessor.get(IAgentHostConnectionsService).ambientConnection;
 
+	// External sessions (origin "other") are never migrated — the host declines
+	// to adopt them. But discovery still surfaces them under their agent-host
+	// twin, so once surfaced we open that twin directly and skip the adopt probe
+	// entirely (it would waste a round-trip only to be declined, and the EH
+	// resource can no longer be resolved once the extension provider is retired).
+	// A still-adoptable session carries the marker and must keep migrating.
+	// External sessions (origin "other") are never migrated — the host declines
+	// to adopt them. But discovery still surfaces them under their agent-host
+	// twin, so once surfaced we open that twin directly and skip the adopt probe
+	// entirely (it would waste a round-trip only to be declined, and the EH
+	// resource can no longer be resolved once the extension provider is retired).
+	// A still-adoptable session carries the marker and must keep migrating.
+	const surfacedTwin = agentSessionsService.getSession(twin);
+	if (surfacedTwin && !surfacedTwin.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY]) {
+		return surfacedTwin;
+	}
+
 	return accessor.get(IProgressService).withProgress(
 		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening chat…") },
 		async () => {
 			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
 			if (!migrated) {
-				return undefined;
+				// Not adopted. This also covers timeout/failure/no-connection, so
+				// re-check the marker on the refreshed result: only an external
+				// (or already-adopted) twin opens as-is while the legacy provider
+				// still lists the original resource; once the legacy session is
+				// absent (extension provider retired), redirect to the twin.
+				const fallback = await resolveMigratedSession(agentSessionsService, twin);
+				return fallback && (!fallback.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] || !agentSessionsService.getSession(resource)) ? fallback : undefined;
 			}
-			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
-			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+			let surfaced: IAgentSession | undefined;
+			let resolveError: unknown;
+			try {
+				surfaced = await resolveMigratedSession(agentSessionsService, migrated, error => resolveError ??= error);
+			} catch (error) {
+				reportLegacyMigrationOpen(telemetryService, 'open', migrated, false, error);
+				throw error;
+			}
+			reportLegacyMigrationOpen(telemetryService, 'open', migrated, !!surfaced, resolveError);
 			if (!surfaced) {
 				logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
 			}
@@ -117,15 +151,38 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	);
 }
 
+function createFallbackAgentSession(resource: URI): IAgentSession {
+	const providerType = getChatSessionType(resource);
+	return {
+		resource,
+		providerType,
+		providerLabel: getAgentSessionProviderName(providerType),
+		icon: getAgentSessionProviderIcon(providerType),
+		label: resource.path.replace(/^\//, ''),
+		timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
+		status: AgentSessionStatus.Completed,
+		isArchived: () => false,
+		setArchived: () => { },
+		isPinned: () => false,
+		setPinned: () => { },
+		isRead: () => true,
+		isMarkedUnread: () => false,
+		setRead: () => { },
+	};
+}
+
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 
+	const twin = migratedCopilotCliResource(resource);
 	// A superseded legacy resource is redirected (and adopted) before anything
 	// looks it up, so opening by URI migrates instead of reaching the old provider.
 	const migratedSession = await resolveMigratedSessionForOpen(accessor, resource);
 	if (migratedSession) {
 		resource = migratedSession.resource;
+	} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && (!accessor.get(IAgentSessionsService).getSession(resource) || !accessor.get(IChatSessionsService).getChatSessionContribution?.(resource.scheme)))) {
+		resource = twin;
 	}
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
@@ -143,12 +200,24 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		}
 	}
 
-	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
+	const session = migratedSession
+		?? instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource))
+		?? (twin && resource === twin ? createFallbackAgentSession(twin) : undefined);
 	if (!session) {
 		throw new Error(`Chat session not found: ${resource.toString()}`);
 	}
 
 	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
+}
+
+/**
+ * With `chat.agentSessions.openInEditor`, sessions open like files: an existing
+ * editor is revealed, including an inactive tab without a widget, while a session
+ * shown in the Chat view opens in a new editor, which moves it out of the Chat view.
+ */
+export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService, sessionResource: URI): boolean {
+	const existingWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+	return !existingWidget || !isIChatViewViewContext(existingWidget.viewContext);
 }
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
@@ -161,9 +230,12 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	// has to happen on this path too or those opens never migrate. A no-op for
 	// anything that is not a superseded legacy resource.
 	if (!alreadyResolved) {
+		const twin = migratedCopilotCliResource(session.resource);
 		const migratedSession = await resolveMigratedSessionForOpen(accessor, session.resource);
 		if (migratedSession) {
 			session = migratedSession;
+		} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && !accessor.get(IChatSessionsService).getChatSessionContribution?.(session.resource.scheme))) {
+			session = { ...session, resource: twin, providerType: getChatSessionType(twin) };
 		}
 	}
 
@@ -187,6 +259,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const configurationService = accessor.get(IConfigurationService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
 
@@ -210,7 +283,11 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (openOptions?.sideBySide) {
+		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+			// Like files: a click opens the session in the active group, a modifier-click to the side.
+			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };
+		} else if (openOptions?.sideBySide) {
 			target = ACTIVE_GROUP;
 		} else {
 			target = ChatViewPaneTarget;

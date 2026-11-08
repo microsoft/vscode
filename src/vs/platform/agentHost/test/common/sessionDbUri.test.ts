@@ -43,6 +43,15 @@ suite('buildSessionDbUri / parseSessionDbUri', () => {
 		assert.strictEqual(parsed.part, 'after');
 	});
 
+	test('round-trips a Working Set baseline URI', () => {
+		assert.deepStrictEqual(parseSessionDbUri(buildSessionDbUri('copilot:/s1', 'tc-3', '/file.ts', 'workingSetBaseline')), {
+			sessionUri: 'copilot:/s1',
+			toolCallId: 'tc-3',
+			filePath: '/file.ts',
+			part: 'workingSetBaseline',
+		});
+	});
+
 	test('round-trips with special characters in toolCallId', () => {
 		const uri = buildSessionDbUri('copilot:/s1', 'call_abc=123&x', '/file.ts', 'before');
 		const parsed = parseSessionDbUri(uri);

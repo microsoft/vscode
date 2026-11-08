@@ -25,9 +25,9 @@ import { getJavaScriptMode } from './javascriptMode.js';
 import { FileSystemProvider } from '../requests.js';
 
 export {
-	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
+	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, type Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
 	DocumentLink, FoldingRange, FoldingRangeKind, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
+	Hover, Location, Position, Range, type SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	SignatureInformation, ParameterInformation, DiagnosticSeverity,
 	SelectionRange, TextDocumentIdentifier
@@ -36,7 +36,7 @@ export {
 export type { DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 export { ClientCapabilities, TokenType };
 
-export { TextDocument, DocumentUri } from 'vscode-languageserver-textdocument';
+export { TextDocument, type DocumentUri } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	readonly css?: any;
@@ -123,13 +123,13 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	modelCaches.push(documentRegions);
 
 	let modes = Object.create(null);
-	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
-	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
+	modes.html = getHTMLMode(htmlLanguageService, workspace);
+	if (supportedLanguages.css) {
+		modes.css = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
-	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+	if (supportedLanguages.javascript) {
+		modes.javascript = getJavaScriptMode(documentRegions, 'javascript', workspace);
+		modes.typescript = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
 		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {

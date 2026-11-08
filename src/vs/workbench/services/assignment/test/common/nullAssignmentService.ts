@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../common/assignmentService.js';
+import { IAssignmentFilter, ITreatmentWithAssignment, IWorkbenchAssignmentService } from '../../common/assignmentService.js';
 
 export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentService {
 	_serviceBrand: undefined;
@@ -17,6 +17,10 @@ export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentServi
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		return undefined;
+	}
+
+	async getTreatmentWithAssignment<T extends string | number | boolean>(name: string): Promise<ITreatmentWithAssignment<T>> {
+		return { value: await this.getTreatment<T>(name), hasAssignment: Promise.resolve(false) };
 	}
 
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void { }

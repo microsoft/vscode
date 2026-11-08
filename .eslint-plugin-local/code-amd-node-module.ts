@@ -8,6 +8,23 @@ import type * as ESTree from 'estree';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+// Lazy initialization for module list generation to optimize performance on demand
+let cachedModules: Set<string> | undefined;
+
+function getModules(): Set<string> {
+	if (!cachedModules) {
+		try {
+			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
+			const { dependencies = {}, optionalDependencies = {} } = packageJson;
+			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
+			cachedModules = new Set(all);
+		} catch (e) {
+			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
+			throw e; // Rethrow the error to prevent silencing it
+		}
+	}
+	return cachedModules;
+}
 
 export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
@@ -20,22 +37,6 @@ export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const modules = new Set<string>();
-
-		try {
-			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
-			const { dependencies, optionalDependencies } = packageJson;
-			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
-			for (const key of all) {
-				modules.add(key);
-			}
-
-		} catch (e) {
-			console.error(e);
-			throw e;
-		}
-
-
 		const checkImport = (node: ESTree.Literal & { parent?: ESTree.Node & { importKind?: string } }) => {
 
 			if (typeof node.value !== 'string') {
@@ -46,6 +47,7 @@ export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 				return;
 			}
 
+			const modules = getModules();
 			if (!modules.has(node.value)) {
 				return;
 			}

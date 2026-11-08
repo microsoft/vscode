@@ -53,6 +53,14 @@ export async function awaitStatsForSession(model: IChatModel): Promise<IChatSess
 		return undefined;
 	}
 
+	return getStatsForSession(model);
+}
+
+export function getStatsForSession(model: IChatModel): IChatSessionStats | undefined {
+	if (!model.editingSession) {
+		return undefined;
+	}
+
 	const diffs = model.editingSession.entries.get();
 	const reduceResult = diffs.reduce((acc, diff) => {
 		acc.fileUris.add(diff.originalURI);

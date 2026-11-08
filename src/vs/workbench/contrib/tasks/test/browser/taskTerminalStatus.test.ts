@@ -93,14 +93,14 @@ suite('Task Terminal Status', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
-	test('Should add failed status when there is an exit code on task end', async () => {
+	test('Should add failed status when there is an exit code on task end', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.End });
-		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
+		ok(testTerminal.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
@@ -113,14 +113,14 @@ suite('Task Terminal Status', () => {
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 	});
-	test('Should drop status when a background task exits', async () => {
+	test('Should drop status when a background task exits', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.Background });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessEnded, exitCode: 0 });
-		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.statuses?.includes(SUCCEEDED_TASK_STATUS) === false, 'terminal should have dropped status');
+		ok(!testTerminal.statusList.statuses.includes(SUCCEEDED_TASK_STATUS), 'terminal should have dropped status');
 	});
 	test('Should add succeeded status when a non-background task exits', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
@@ -137,36 +137,4 @@ function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): v
 	ok(actual.statuses.length === 1, '# of statuses');
 	ok(actual.primary?.id === expected.id, 'ID');
 	ok(actual.primary?.severity === expected.severity, 'Severity');
-}
-
-async function poll<T>(
-	fn: () => Thenable<T>,
-	acceptFn: (result: T) => boolean,
-	timeoutMessage: string,
-	retryCount: number = 200,
-	retryInterval: number = 10 // millis
-): Promise<T> {
-	let trial = 1;
-	let lastError: string = '';
-
-	while (true) {
-		if (trial > retryCount) {
-			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.\r${lastError}`);
-		}
-
-		let result;
-		try {
-			result = await fn();
-			if (acceptFn(result)) {
-				return result;
-			} else {
-				lastError = 'Did not pass accept function';
-			}
-		} catch (e: any) {
-			lastError = Array.isArray(e.stack) ? e.stack.join('\n') : e.stack;
-		}
-
-		await new Promise(resolve => setTimeout(resolve, retryInterval));
-		trial++;
-	}
 }
