@@ -30,7 +30,7 @@ import { isLocation } from '../../../util/common/types';
 import { getToolName, ToolName } from '../../../extension/tools/common/toolNames';
 // eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { isCustomizationsIndex, isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
-// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';

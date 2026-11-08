@@ -35,6 +35,16 @@ const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirnam
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+// The layers of `local/code-layering`: each folder name maps to the layers it may import, besides its own.
+const codeLayers = {
+	'common': [],
+	'node': ['common'],
+	'browser': ['common'],
+	'electron-browser': ['common', 'browser'],
+	'electron-utility': ['common', 'node'],
+	'electron-main': ['common', 'node', 'electron-utility'],
+};
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -113,31 +123,7 @@ export default defineConfig(
 			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-no-private-agent-host-meta-import': 'error',
-			'local/code-layering': [
-				'warn',
-				{
-					'common': [],
-					'node': [
-						'common'
-					],
-					'browser': [
-						'common'
-					],
-					'electron-browser': [
-						'common',
-						'browser'
-					],
-					'electron-utility': [
-						'common',
-						'node'
-					],
-					'electron-main': [
-						'common',
-						'node',
-						'electron-utility'
-					]
-				}
-			],
+			'local/code-layering': ['warn', codeLayers],
 			'header/header': [
 				2,
 				'block',
@@ -2800,61 +2786,22 @@ export default defineConfig(
 				'vscode-tas-client',
 				'web-tree-sitter'
 			],
+			// Copilot's own layers, in addition to VS Code's
+			'local/code-layering': [
+				'warn',
+				{
+					...codeLayers,
+					'vscode': ['common'],
+					'vscode-node': ['common', 'vscode', 'node'],
+					'worker': ['common'],
+					'vscode-worker': ['common', 'vscode', 'worker'],
+				}
+			],
+			// Rules between folders, which the layers can't express
 			'local/code-no-restricted-zone-imports': [
 				'warn',
 				{
 					zones: [
-						{
-							target: '**/common/**',
-							from: [
-								'**/vscode/**',
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode/**',
-							from: [
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/node/**',
-							from: [
-								'**/vscode/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode-node/**',
-							from: [
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/worker/**',
-							from: [
-								'**/vscode/**',
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode-worker/**',
-							from: [
-								'**/node/**',
-								'**/vscode-node/**'
-							]
-						},
 						{
 							target: './extensions/copilot/src/',
 							from: './extensions/copilot/test/'
@@ -3159,6 +3106,7 @@ export default defineConfig(
 			'extensions/copilot/src/lib/node/chatLibMain.ts',
 		],
 		rules: {
+			'local/code-layering': 'off',
 			'local/code-no-restricted-zone-imports': 'off'
 		}
 	},
