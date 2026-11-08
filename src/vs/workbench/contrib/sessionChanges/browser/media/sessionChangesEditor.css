@@ -234,6 +234,11 @@
 	flex-shrink: 0;
 }
 
+/* While the Changes editor does not show the changes its stats are of yet. */
+.changes-picker-action-rich.changes-pending :is(.changes-picker-summary, .changes-picker-separator) {
+	display: none;
+}
+
 .changes-picker-action-rich .action-label > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact) !important;
 	width: auto;
