@@ -526,6 +526,8 @@ suite('SessionChangesEditorInput', () => {
 	function createSwitchingEditor() {
 		const activeSession = observableValue<URI | undefined>('activeSession', URI.parse('agent-host-copilotcli:/outgoing'));
 		const changesLoading = observableValue('changesLoading', false);
+		// Whether the session still initializes: the service's loading covers it as well as its changes loading.
+		const sessionLoading = observableValue('sessionLoading', false);
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
 			override contextMatchesRules(): boolean { return true; }
@@ -547,7 +549,7 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 			override readonly activeSessionResourceObs = activeSession;
 			override readonly activeSessionChangesetLoadingObs = changesLoading;
-			override readonly activeSessionLoadingObs = changesLoading;
+			override readonly activeSessionLoadingObs = derived(reader => sessionLoading.read(reader) || changesLoading.read(reader));
 			override readonly activeSessionChangesObs = changes;
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
@@ -587,9 +589,12 @@ suite('SessionChangesEditorInput', () => {
 		const viewModelRequests = new Map<string, DeferredPromise<MultiDiffEditorViewModel>[]>();
 		const onDidRequestViewModel = disposables.add(new Emitter<void>());
 		const itemsByInput = new Map<string, ISettableObservable<readonly DocumentDiffItemViewModel[]>>();
+		const resolvingDocumentsByInput = new Map<string, ISettableObservable<boolean>>();
 		const createInput = (name: string, hasChanges: boolean) => {
 			const items = observableValue<readonly DocumentDiffItemViewModel[]>('items', hasChanges ? [upcastPartial<DocumentDiffItemViewModel>({})] : []);
 			itemsByInput.set(name, items);
+			const resolvingDocuments = observableValue('resolvingDocuments', false);
+			resolvingDocumentsByInput.set(name, resolvingDocuments);
 			const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
 				override readonly isLoading = observableValue('isLoading', false);
 				override readonly items = items;
@@ -604,6 +609,7 @@ suite('SessionChangesEditorInput', () => {
 			};
 			// The editor lets go of what the input resolved.
 			input.clear = () => disposedViewModels.push(name);
+			Object.defineProperty(input, 'multiDiffInput', { value: upcastPartial<MultiDiffEditorInput>({ isResolvingDocuments: resolvingDocuments }) });
 			return input;
 		};
 		/** Waits until the editor asks `name` for its diffs the `count`th time. */
@@ -649,9 +655,12 @@ suite('SessionChangesEditorInput', () => {
 			await timeout(250);
 			return { progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')), ...state() };
 		};
-		/** Lets the view model of `name` show the diffs of `count` changes. */
-		const showDiffs = (name: string, count: number) => itemsByInput.get(name)!.set(Array.from({ length: count }, () => upcastPartial<DocumentDiffItemViewModel>({})), undefined);
-		return { editor, activeSession, changesLoading, summary, changes, shownViewModel, disposedViewModels, createInput, whenRequested, settleViewModel, showDiffs, state, presentation };
+		/** Lets the multi-diff of `name` resolve the documents of its changes, then show the diffs of `count` of them. */
+		const resolveDocuments = (name: string, resolving: boolean, count = 0) => transaction(tx => {
+			resolvingDocumentsByInput.get(name)!.set(resolving, tx);
+			itemsByInput.get(name)!.set(Array.from({ length: count }, () => upcastPartial<DocumentDiffItemViewModel>({})), tx);
+		});
+		return { editor, activeSession, changesLoading, sessionLoading, summary, changes, shownViewModel, disposedViewModels, createInput, whenRequested, settleViewModel, resolveDocuments, state, presentation };
 	}
 
 	for (const loadingSettles of [true, false]) {
@@ -762,32 +771,57 @@ suite('SessionChangesEditorInput', () => {
 		});
 	});
 
-	test('while the diffs of its changes resolve after its view model, it shows its progress rather than that there are none, and its header no stats', async () => {
-		const { editor, activeSession, summary, changes, createInput, settleViewModel, showDiffs, state } = createSwitchingEditor();
-		activeSession.set(URI.parse('agent-host-copilotcli:/many'), undefined);
-		summary.set({ files: 1, additions: 1, deletions: 0 }, undefined);
-		// The changes are known, while the multi-diff still resolves their diffs: its view model has none yet.
-		changes.set([createFileChange(1)], undefined);
-		const input = createInput('many', false);
-		const opened = editor.setInput(input, undefined, {}, CancellationToken.None);
-		await settleViewModel('many');
-		await opened;
-		const whileDiffsResolve = state();
-		showDiffs('many', 1);
-		const resolved = state();
-		// Once there are no changes any more, it shows that there are none.
-		transaction(tx => {
-			changes.set([], tx);
-			summary.set(undefined, tx);
-			showDiffs('many', 0);
+	for (const outcome of ['resolve', 'fail'] as const) {
+		test(`while the documents of its changes resolve after its view model, it shows its progress rather than that there are none, and its header no stats, until they settle (${outcome})`, async () => {
+			const { editor, activeSession, summary, changes, createInput, settleViewModel, resolveDocuments, presentation } = createSwitchingEditor();
+			activeSession.set(URI.parse('agent-host-copilotcli:/many'), undefined);
+			summary.set({ files: 1, additions: 1, deletions: 0 }, undefined);
+			changes.set([createFileChange(1)], undefined);
+			const input = createInput('many', false);
+			const opened = editor.setInput(input, undefined, {}, CancellationToken.None);
+			await settleViewModel('many');
+			await opened;
+			editor.setVisible(true);
+			// The changes are known while the multi-diff still resolves their documents: it shows none yet.
+			resolveDocuments('many', true);
+			const whileResolving = await presentation();
+			// The documents of all the changes resolved, or every one of them failed to.
+			resolveDocuments('many', false, outcome === 'resolve' ? 1 : 0);
+			const settled = await presentation();
+			editor.clearInput();
+
+			const pending = { progress: true, shown: 'many', placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] };
+			assert.deepStrictEqual({ whileResolving, settled }, {
+				whileResolving: pending,
+				settled: { progress: false, shown: 'many', placeholderHidden: false, emptyState: outcome === 'fail', headerStats: '1 File +1 -0', headerAriaLabel: 'Branch Changes, 1 file, 1 additions, 0 deletions', disposed: [] },
+			});
 		});
-		const noChanges = state();
+	}
+
+	test('while the session of its input initializes, with its changes not loading, it shows its progress and its header no stats, also once it shows what it resolved meanwhile', async () => {
+		const { editor, activeSession, sessionLoading, summary, createInput, settleViewModel, presentation } = createSwitchingEditor();
+		activeSession.set(URI.parse('agent-host-copilotcli:/initializing'), undefined);
+		sessionLoading.set(true, undefined);
+		const input = createInput('initializing', false);
+		const opened = editor.setInput(input, undefined, {}, CancellationToken.None);
+		const whileWaiting = await presentation();
+		// What it resolves while the session still initializes shows no diffs, which need not be all its changes.
+		await settleViewModel('initializing');
+		await opened;
+		const stillInitializing = await presentation();
+		// The session initialized: its summary is its own, and it has no changes.
+		transaction(tx => {
+			sessionLoading.set(false, tx);
+			summary.set(undefined, tx);
+		});
+		const initialized = await presentation();
 		editor.clearInput();
 
-		assert.deepStrictEqual({ whileDiffsResolve, resolved, noChanges }, {
-			whileDiffsResolve: { shown: 'many', placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] },
-			resolved: { shown: 'many', placeholderHidden: false, emptyState: false, headerStats: '1 File +1 -0', headerAriaLabel: 'Branch Changes, 1 file, 1 additions, 0 deletions', disposed: [] },
-			noChanges: { shown: 'many', placeholderHidden: false, emptyState: true, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] },
+		const pending = { progress: true, placeholderHidden: true, emptyState: false, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] };
+		assert.deepStrictEqual({ whileWaiting, stillInitializing, initialized }, {
+			whileWaiting: { ...pending, shown: 'undefined' },
+			stillInitializing: { ...pending, shown: 'initializing' },
+			initialized: { progress: false, shown: 'initializing', placeholderHidden: false, emptyState: true, headerStats: 'hidden', headerAriaLabel: 'Branch Changes', disposed: [] },
 		});
 	});
 });

@@ -68,6 +68,7 @@ import { IDiffEditorOptionsService } from '../../../services/editor/common/diffE
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../multiDiffEditor/common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 
@@ -257,13 +258,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			? this._inputChangesLoadingObs.read(reader)
 			: isEqual(this.changesViewService.activeSessionResourceObs.read(reader), source.session) && this.changesViewService.activeSessionLoadingObs.read(reader);
 	});
+	/** The multi-diff input of the view model the editor shows. */
+	private readonly _shownMultiDiffInput = observableValue<MultiDiffEditorInput | undefined>(this, undefined);
 	/**
-	 * Whether the diffs of the changes of the input are still resolving: it shows none of them yet. The multi-diff replaces
-	 * the diffs it shows only once those of all the changes resolved.
+	 * Whether the editor shows no diffs while those of the changes of the input are still resolving: the multi-diff keeps
+	 * the documents it shows until those of all the changes resolved or failed to, then its view model computes their diffs.
 	 */
 	private readonly _inputDiffsResolvingObs = derived(this, reader => {
 		const viewModel = this.widget?.viewModel.read(reader);
-		return !!viewModel && viewModel.items.read(reader).length === 0 && (this._inputChangesObs.read(reader)?.changes.read(reader).length ?? 0) > 0;
+		return !!viewModel && viewModel.items.read(reader).length === 0
+			&& ((this._shownMultiDiffInput.read(reader)?.isResolvingDocuments.read(reader) ?? false) || viewModel.isLoading.read(reader));
 	});
 	/** The input whose diffs this editor resolves to show instead of those of another input, which it no longer shows. */
 	private readonly _resolvingInput = observableValue<SessionChangesEditorInput | undefined>(this, undefined);
@@ -602,6 +606,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			preserveFocus: !!options?.preserveFocus,
 			hasPersistedViewState: !!viewState,
 		});
+		this._shownMultiDiffInput.set(input.multiDiffInput, undefined);
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
 		this._releaseOutgoingContent(false);
 		this._applyOptions(options);
@@ -763,7 +768,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			}
 		}
 		if (!this._outgoingContent.value) {
-			this.widget?.setViewModel(undefined);
+			this._clearWidget();
 			return;
 		}
 		queueMicrotask(() => {
@@ -802,9 +807,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 		if (clearWidget) {
-			this.widget?.setViewModel(undefined);
+			this._clearWidget();
 		}
 		this._outgoingContent.clear();
+	}
+
+	private _clearWidget(): void {
+		this.widget?.setViewModel(undefined);
+		this._shownMultiDiffInput.set(undefined, undefined);
 	}
 
 	override focus(): void {
