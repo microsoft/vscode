@@ -533,7 +533,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
-		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const tooltip = iconResource?.decorations.tooltip || '';
 		const hidePath = this.viewMode() === ViewMode.Tree;
 
 		let matches: IMatch[] | undefined;
@@ -880,7 +880,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 
 	getAriaLabel(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {
-			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
+			const label = this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
+			const tooltip = element.element?.decorations.tooltip;
+			return tooltip ? [label, tooltip].join(', ') : label;
 		} else if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
