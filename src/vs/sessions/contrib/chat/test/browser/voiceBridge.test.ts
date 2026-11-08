@@ -19,13 +19,16 @@ import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib
 import { ChatRequestQueueKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-import { INewSessionComposer, INewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IOpenNewSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
+import { INewSessionComposer, INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { INewChatComposerInputOptions } from '../../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, SessionsVoiceBridgeContribution, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +50,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 				readonly activeSession = constObservable(undefined);
 			}(),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
 				override readonly activeComposer = constObservable(composer);
@@ -254,10 +257,10 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			new class extends mock<IChatWidgetService>() { }(),
 			// The main window shows the idle session; the focused chat window, the active one.
 			new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: idleResource }));
+				readonly activeSession = constObservable(upcastPartial<ITestSessionWithChat>({ resource: idleResource }));
 			}(),
-			focusedSessionHostServiceOf(constObservable(upcastPartial<IActiveSession>({ resource: activeResource }))),
-			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(upcastPartial<IActiveSession>({ resource: idleResource })), visibleSessions: constObservable([]), windowSessions: constObservable([upcastPartial<IActiveSession>({ resource: activeResource })]) }),
+			focusedSessionHostServiceOf(constObservable(upcastPartial<ITestSessionWithChat>({ resource: activeResource }))),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(upcastPartial<ITestSessionWithChat>({ resource: idleResource })), gridShown: constObservable([]), windowSessions: constObservable([upcastPartial<ITestSessionWithChat>({ resource: activeResource })]) }),
 			new class extends mock<ISessionsManagementService>() {
 				override getSessions(): ISession[] {
 					return sessions;
@@ -302,7 +305,7 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 	function createDraftOwner() {
 		const connected = observableValue('connected', true);
 		const draft = observableValue('draft', true);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const composer = upcastPartial<INewChatVoiceComposer & INewSessionComposer>({});
 		const activeComposer = observableValue<INewChatVoiceComposer | undefined>('composer', composer);
 		const willSend = disposables.add(new Emitter<{ options: ISendRequestOptions; selection: undefined }>());
@@ -383,8 +386,8 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 	test('waits for the exact send result when the draft becomes created before its chat resource is ready', () => {
 		const owner = createDraftOwner();
 		const created = observableValue('isCreated', false);
-		owner.activeSession.set(upcastPartial<IActiveSession>({
-			isCreated: created,
+		owner.activeSession.set(upcastPartial<ITestSessionWithChat>({
+			...withCreatedStatus(created),
 			activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/untitled') })),
 		}), undefined);
 		const options: ISendRequestOptions = { query: 'Voice request' };
@@ -428,7 +431,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 
 	function createTarget(): NewChatVoiceTargetService {
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = Event.None;
@@ -522,6 +525,36 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		assert.strictEqual(getDisconnectCount(), 0);
 	});
 
+	test('a composer of a host of its own, such as a chat window\'s, never takes Voice Mode from the main window\'s composer, as it mounts or gains focus, so a running Voice Mode stays connected; the main window\'s composers still do', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, getDisconnectCount } = createController(isConnected);
+		/** A shared input composer as it mounts, registering for Voice Mode as its options say; `focus` fires its focus. */
+		const mount = (options: Pick<INewChatComposerInputOptions, 'voiceTarget'>) => {
+			const focused = disposables.add(new Emitter<void>());
+			const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { options, newChatVoiceTargetService: target, onDidFocus: focused.event }) as SharedChatInputComposer;
+			disposables.add(Reflect.get(SharedChatInputComposer.prototype, '_registerVoiceTarget').call(input) as IDisposable);
+			return { input, focus: () => focused.fire() };
+		};
+
+		const main = mount({});
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+		const hosted = mount({ voiceTarget: false });
+		const afterMount = { mainActive: target.activeComposer.get() === main.input, disconnects: getDisconnectCount() };
+		hosted.focus();
+		const afterFocus = { mainActive: target.activeComposer.get() === main.input, disconnects: getDisconnectCount() };
+		// Another main window composer, such as one of a new session, takes it as before.
+		const next = mount({});
+		const afterMainMount = { nextActive: target.activeComposer.get() === next.input, disconnects: getDisconnectCount() };
+
+		assert.deepStrictEqual({ afterMount, afterFocus, afterMainMount }, {
+			afterMount: { mainActive: true, disconnects: 0 },
+			afterFocus: { mainActive: true, disconnects: 0 },
+			afterMainMount: { nextActive: true, disconnects: 1 },
+		});
+	});
+
 	test('does not disconnect when voice is not connected', () => {
 		const target = disposables.add(createTarget());
 		const isConnected = observableValue<boolean>('isConnected', false);
@@ -541,7 +574,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file('/workspace');
 		}();
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'hidden-provider';
 			override readonly sessionType = 'hidden-type';
 			override readonly workspace = constObservable(workspace);
@@ -613,7 +646,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file('/workspace');
 		}();
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'selected-provider';
 			override readonly sessionType = 'selected-type';
 			override readonly workspace = constObservable(workspace);
@@ -666,7 +699,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file('/workspace');
 		}();
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly workspace = constObservable(workspace);
 			override readonly isQuickChat = constObservable(false);
 		}();

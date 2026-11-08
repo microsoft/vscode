@@ -58,7 +58,7 @@ import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillCo
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
-import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { reportSessionArtifactOpen } from '../../../../../common/sessionArtifactOpenTelemetry.js';
@@ -84,6 +84,7 @@ import { GitHubCommitResolver } from '../../../../github/browser/githubCommitRes
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { ChatPillHoverCache } from '../../../../../browser/chatPillHover.js';
+import { type IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
 	[SessionArtifactType.PullRequest, Codicon.gitPullRequest],
@@ -767,7 +768,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const authority = getAgentHostResourceAuthority(currentResolution);
 			return files
 				.map(file => {
-					const diff = agentHostChangesetFileToEntryDiff(file, authority);
+					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connection, authority);
 					if (diff && file.nonce !== undefined) {
 						this._fileChangeNonces.set(diff, file.nonce);
 					}
@@ -1520,10 +1521,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					break;
 				}
 				const currentFile = state.files.find(file => {
-					const candidate = agentHostChangesetFileToEntryDiff(file, authority);
+					const candidate = agentHostChangesetFileToEntryDiff(file, connection, authority);
 					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
 				});
-				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, authority);
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connection, authority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;

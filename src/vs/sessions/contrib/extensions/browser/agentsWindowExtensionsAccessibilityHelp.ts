@@ -18,7 +18,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
-import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 export class AgentsWindowExtensionsAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;

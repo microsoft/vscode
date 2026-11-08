@@ -15,11 +15,11 @@ import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agen
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
+import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListChatMove.js';
 import { createListHarness, createTestSession, ITestSession, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -28,24 +28,25 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import '../../browser/views/sessionsViewActions.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { TestSessionsList } from './testSessionsList.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
-import { registerSessionChatDragEndHandler } from '../../../../browser/dnd.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
+import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { registerSessionChatDragEndHandler } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
@@ -593,7 +594,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
 	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly activeSession?: IObservable<IActiveSession | undefined> }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly activeSession?: IObservable<ITestSessionWithChat | undefined> }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
@@ -631,6 +632,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			override readonly onDidReplaceSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get() && !options?.fixed?.includes(chat.title.get()); }
 			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
@@ -1264,7 +1267,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const open = listSession('Open', []);
 		const single = listSession('Single', [], listChat('Moved'));
 		const tree = listSession('Tree', ['t1']);
-		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...open, activeChat: constObservable(open.mainChat.get()) }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', upcastPartial<ITestSessionWithChat>({ ...open, activeChat: constObservable(open.mainChat.get()) }));
 		const list = render([open, single, tree], { simulateMoves: true, activeSession });
 		list.setExpanded('Tree', true);
 		await settle();
@@ -1283,12 +1286,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	test('after the open chat is moved, the list selects it where it went', async () => {
 		const single = listSession('Single', [], listChat('Moved'));
 		const tree = listSession('Tree', ['t1']);
-		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...single, activeChat: constObservable(single.mainChat.get()) }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', upcastPartial<ITestSessionWithChat>({ ...single, activeChat: constObservable(single.mainChat.get()) }));
 		const list = render([single, tree], { simulateMoves: true, activeSession });
 		list.setExpanded('Tree', true);
 		await settle();
 		// The sessions service follows the open chat into the session it moved to.
-		activeSession.set(upcastPartial<IActiveSession>({ ...tree, activeChat: constObservable(listChat('Moved')) }), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>({ ...tree, activeChat: constObservable(listChat('Moved')) }), undefined);
 
 		await list.dragOver('Single', 'Tree', 0.5).drop();
 		await settle();

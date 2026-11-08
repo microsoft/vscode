@@ -26,15 +26,15 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { logSessionsInteraction } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
-import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
@@ -188,7 +188,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarCenterRight,
+			AgentsWindowMenus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
@@ -848,7 +848,7 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 
 // Register the Run split button submenu on the workbench title bar (background sessions only).
 // Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
-MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
@@ -868,7 +868,7 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
+				id: AgentsWindowMenus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
 				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
