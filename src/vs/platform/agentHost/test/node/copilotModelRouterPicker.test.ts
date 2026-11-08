@@ -40,7 +40,7 @@ suite('DecisionsModelRouterPicker', () => {
 			firstContext: { kind: 'json', value: { request: 'plan the migration' } },
 			firstQuestions: ['model', 'effort'],
 			followUpTurns: [{ prompt: 'earlier', response: 'done' }],
-			followUpQuestions: ['model', 'effort', 'scope'],
+			followUpQuestions: ['model', 'effort'],
 		});
 	});
 

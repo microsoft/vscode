@@ -85,7 +85,7 @@ suite('CopilotModelRouter', () => {
 
 	test('a follow-up stays on its model without a decision model, or when switching is first-turn only', async () => {
 		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'opus' })];
-		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 }, scope: { kind: 'different', probability: 0.9 } });
+		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
 		const results = [
 			await resolve({ file: routerFile(), previousTurns }),
 			await resolve({ file: routerFile('switching: first-turn\n'), previousTurns, picker }),
@@ -94,9 +94,9 @@ suite('CopilotModelRouter', () => {
 		assert.strictEqual(picker.requests.length, 0);
 	});
 
-	test('a follow-up switches when the work clearly moved on, sending recent turns as text', async () => {
+	test('a follow-up moves to the route its message clearly fits, sending recent turns as text', async () => {
 		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'opus' })];
-		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 }, scope: { kind: 'different', probability: 0.9 } });
+		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
 		const result = await resolve({ file: routerFile(), previousTurns, picker, text: 'rename this variable' });
 		assert.deepStrictEqual({ selection: result.selection?.id, switchedFrom: result.routed?.switchedFrom, recent: picker.requests[0].followUp?.recentTurns }, {
 			selection: 'haiku', switchedFrom: 'opus', recent: [{ prompt: 'earlier', response: '' }],
@@ -104,7 +104,7 @@ suite('CopilotModelRouter', () => {
 	});
 
 	test('the switch policy stays on near ties and holds in long chats', () => {
-		const pick: IModelRouterPick = { model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 }, scope: { kind: 'expanded', probability: 0.9 } };
+		const pick: IModelRouterPick = { model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } };
 		assert.deepStrictEqual([
 			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined, switches: 0 }),
 			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined, switches: 0 }),
