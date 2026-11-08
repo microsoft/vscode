@@ -783,34 +783,90 @@ suite('Part Grid', () => {
 
 	const round = (rects: ReadonlyMap<string, IPartGridRect> | undefined) => Object.fromEntries(Array.from(rects ?? [], ([id, { left, top, width, height }]) => [id, [left, top, width, height].map(Math.round)]));
 
-	test('a part dropped beside a part at an edge of the window goes where a drop at that edge puts it, with the same size: an even share of where it goes; and the drop ends where its preview showed', async () => {
+	test('a part dropped at an edge of the window goes there, with an even share of where it goes; and the drop ends where its preview showed', async () => {
 		const { container, grid, cards } = await createVideoLayout();
 
-		const besideChat = round(grid.previewArrangement('terminals', { location: { reference: 'chat', direction: Direction.Right } }));
 		const atRightEdge = round(grid.previewArrangement('terminals', { location: { edge: Direction.Right } }));
 		// Dropped there by its card, without motion: at once
 		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="terminals"] .part-grid-drag-handle')!.getBoundingClientRect();
 		dragCard(container, 'terminals', [[handle.left + handle.width / 2, 300], [996, 300]]);
 
-		assert.deepStrictEqual({ besideChat, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
-			besideChat: atRightEdge,
-			dropped: { shape: 'row(main, chat, terminals)', cards: atRightEdge }
-		});
+		assert.deepStrictEqual({ shape: grid.describe(), cards: round(cards()) }, { shape: 'row(main, chat, terminals)', cards: atRightEdge });
 		// An even share: a third of the window, the others making room in proportion to their 580 and 420
 		assert.deepStrictEqual(atRightEdge.terminals[2], 333);
 	});
 
-	test('editors dropped into a new part at an edge of the window or on the rim of the part at that edge give the same part, with an even share of where it goes, as its preview showed', async () => {
+	test('a part dropped on the bottom of a part at the bottom of the window splits that part\'s cell, as its preview showed; dropped at the bottom edge of the window, it goes across the window again', async () => {
+		const { container, grid, cards } = await createVideoLayout();
+		const rectOf = (id: string) => container.querySelector(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+		// Without motion, where the pointer is says where the card goes beside a part
+		const dropOnBottomOf = (target: string) => {
+			const over = rectOf(target);
+			dragCard(container, 'terminals', [[over.left + over.width / 2, over.top + over.height * 0.9]]);
+			return { shape: grid.describe(), cards: round(cards()) };
+		};
+		const dropAtBottomEdge = () => {
+			dragCard(container, 'terminals', [[300, 796]]);
+			return grid.describe();
+		};
+
+		const underMainPreview = round(grid.previewArrangement('terminals', { location: { reference: 'main', direction: Direction.Down } }));
+		const underMain = dropOnBottomOf('main');
+		const backAcross = dropAtBottomEdge();
+		const underChatPreview = round(grid.previewArrangement('terminals', { location: { reference: 'chat', direction: Direction.Down } }));
+		const underChat = dropOnBottomOf('chat');
+
+		assert.deepStrictEqual({ underMain, backAcross, underChat }, {
+			underMain: { shape: 'row(column(main, terminals), chat)', cards: underMainPreview },
+			backAcross: 'column(row(main, chat), terminals)',
+			underChat: { shape: 'row(main, column(chat, terminals))', cards: underChatPreview },
+		});
+	});
+
+	test('editors dropped into a new part on the rim of a part at an edge of the window split that part\'s cell, not the window, with an even share of where it goes, as its preview showed', async () => {
 		const { parts, grid, main, file, cards } = await createVideoLayout();
 		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
 
-		const atEdge = round(grid.previewNewPart('new', { edge: Direction.Right }, 'main', false, true));
 		const onRim = round(grid.previewNewPart('new', { reference: 'chat', direction: Direction.Right }, 'main', false, true));
 		grid.moveEditorsIntoNewPart([{ editor: file, groupId: main.activeGroup.id }], { reference: 'chat', direction: Direction.Right }, { dropped: true });
 
-		assert.deepStrictEqual({ onRim, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
-			onRim: atEdge,
-			dropped: { shape: 'row(column(row(main, chat), terminals), new)', cards: atEdge }
+		// An even share: a third of the row of the main part and the chat, above the terminals
+		assert.deepStrictEqual({ dropped: { shape: grid.describe(), cards: round(cards()) }, share: onRim.new[2] }, {
+			dropped: { shape: 'column(row(main, chat, new), terminals)', cards: onRim },
+			share: 333
+		});
+	});
+
+	test('a part that keeps its size, dropped below a part, keeps its height in the column it joins, as its preview showed; dropped beside a part, it takes an even share of the row', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.layout(1000, 800);
+		grid.resizeCell('terminals', { height: 200 });
+		const across = grid.getCellSize('terminals').height;
+		const cards = () => round(new Map(['main', 'chat', 'terminals'].map(id => {
+			const { left, top, width, height } = container.querySelector(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+			return [id, { left, top, width, height }];
+		})));
+
+		const underMainPreview = round(grid.previewArrangement('terminals', { location: { reference: 'main', direction: Direction.Down } }));
+		const mainRect = container.querySelector('[data-part-grid-cell="main"] > .part-grid-card')!.getBoundingClientRect();
+		dragCard(container, 'terminals', [[mainRect.left + mainRect.width / 2, mainRect.top + mainRect.height * 0.9]]);
+		const underMain = { shape: grid.describe(), height: grid.getCellSize('terminals').height, asPreviewed: JSON.stringify(cards()) === JSON.stringify(underMainPreview) };
+		const chatRect = container.querySelector('[data-part-grid-cell="chat"] > .part-grid-card')!.getBoundingClientRect();
+		dragCard(container, 'terminals', [[chatRect.left + chatRect.width * 0.1, chatRect.top + chatRect.height / 2]]);
+		const besideChat = { shape: grid.describe(), width: grid.getCellSize('terminals').width };
+
+		assert.deepStrictEqual({ across, underMain, besideChat }, {
+			across: 200,
+			// Its height, not an even share of the column (400)
+			underMain: { shape: 'row(column(main, terminals), chat)', height: 200, asPreviewed: true },
+			besideChat: { shape: 'row(main, terminals, chat)', width: 333 },
 		});
 	});
 
@@ -1320,6 +1376,27 @@ suite('Part Grid', () => {
 			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 385, terminals: 385 },
 			up: true,
 			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 385, terminals: 385 }
+		});
+	});
+
+	test('Move Part gives a part that keeps its size an even share of the column it joins too: only a drop keeps its size', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('terminals', { height: 200 });
+		const heights = () => ({ shape: grid.describe(), chat: grid.getCellSize('chat').height, terminals: grid.getCellSize('terminals').height });
+		const before = heights();
+
+		const up = grid.moveCellInDirection('terminals', Direction.Up);
+
+		assert.deepStrictEqual({ before, up, movedUp: heights() }, {
+			before: { shape: 'column(row(chat, main), terminals)', chat: 600, terminals: 200 },
+			up: true,
+			movedUp: { shape: 'row(column(terminals, chat), main)', chat: 400, terminals: 400 }
 		});
 	});
 
