@@ -26,7 +26,8 @@ import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
-import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
+import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -207,6 +208,12 @@ export interface IAgentImportChatOptions {
 	 * otherwise block the chat for good.
 	 */
 	readonly takeOver?: boolean;
+	/**
+	 * The host already had the chat loaded, so the provider's copy may predate
+	 * turns another client ran since. Reload the chat from storage when that
+	 * may be the case.
+	 */
+	readonly reloadIfStale?: boolean;
 }
 
 /** The selection an imported chat continues with, as its provider's runtime restored it. */
@@ -214,6 +221,8 @@ export interface IAgentImportedChat {
 	readonly model: ModelSelection | undefined;
 	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
 	readonly agent: AgentSelection | undefined;
+	/** The provider reloaded the chat from storage, so the turns the host has for it may be out of date. */
+	readonly reloaded?: boolean;
 }
 
 /** A fresh provider transcript for a chat being observed without running a host turn. */
@@ -1006,6 +1015,8 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/** Original user-facing message text before outgoing contributions, supplied only for its send. */
+	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
@@ -1225,6 +1236,8 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Defaults to true; false retains provenance without forking or injecting source conversation context. */
+	readonly includeSourceContext?: boolean;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -1387,6 +1400,12 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Returns the input restriction recorded when `getMessages` recovered history read-only after a resume failure.
+	 * Providers implementing this are only prepared when they report a restriction or the host already tracks an input state for the chat.
+	 */
+	getInputRestriction?(chat: URI): ErrorInfo | undefined;
+
+	/**
 	 * Optionally starts the runtime of a chat that was created with a deferred
 	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
 	 * so its MCP servers and plugins load while the user composes. The warm
@@ -1420,6 +1439,12 @@ export interface IAgentChats {
 
 	/** Return whether the addressed chat can currently release its in-memory backing. */
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+
+	/**
+	 * Whether the provider's runtime marks the chat as in use while this host has it loaded, so another client asks
+	 * before continuing it. The host releases a session with such a chat shortly after no client observes it.
+	 */
+	isChatHeldInUse?(chat: URI): boolean;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
 	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
@@ -1645,6 +1670,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
 	 */
 	readonly managedApprovalRequired?: boolean;
+	/** Host-only requirement for an explicit user decision instead of host auto-approval. */
+	readonly requiresUserConfirmation?: true;
 	/**
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
@@ -1938,6 +1965,25 @@ export interface IAgentChatCanvasWatchHost {
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
+export interface IAgentTurnModelRequest {
+	readonly turnId: string;
+	/** The turn's selection, such as `model-router:<name>`. */
+	readonly selection: ModelSelection;
+	readonly text: string;
+	readonly previousTurns: readonly Turn[];
+	/** The turn's custom agent, whose own model can take the place of a router's pick. */
+	readonly agent?: AgentSelection;
+}
+
+export interface IAgentTurnModelResolution {
+	/** The concrete model for this turn, or `undefined` to keep the chat's current model. */
+	readonly selection: ModelSelection | undefined;
+	/** What was chosen and why, recorded on the turn's usage. */
+	readonly routed?: IModelRoutedInfo;
+	/** Short notices shown in the turn. */
+	readonly notices: readonly string[];
+}
+
 export interface IAgent {
 	/** Host-internal opt-in to client-backed, non-file working directories. */
 	readonly supportsVirtualWorkspaces?: true;
@@ -1961,6 +2007,20 @@ export interface IAgent {
 
 	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
 	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Chooses the model for a main-agent turn that selected a model router
+	 * (`model-router:<name>`). The host never passes a router id to `changeModel`, and removes
+	 * it from turns of agents without this method.
+	 */
+	resolveTurnModel?(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution>;
+
+	/**
+	 * Asks a decision model one-off yes/no, choice or score questions, as the given account (the
+	 * host's own when omitted). Calls are deduplicated and paused after failures, per account.
+	 * Rejects with typed error data (`agentDecisionErrorData`) when decisions are unavailable.
+	 */
+	askDecisions?(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult>;
 
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
@@ -2244,7 +2304,10 @@ export interface IAgent {
 	 * chat off may still be exiting. A provider may also align
 	 * the chat's configuration with the state its runtime persisted for the chat,
 	 * and returns the model and agent the chat continues with so the host can
-	 * offer them for the next turn.
+	 * offer them for the next turn. With {@link IAgentImportChatOptions.reloadIfStale},
+	 * a provider whose loaded copy of the chat may be out of date reloads it from
+	 * storage and reports {@link IAgentImportedChat.reloaded}, so the host rebuilds
+	 * the chat's turns.
 	 */
 	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 

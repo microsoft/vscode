@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -22,22 +23,21 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/services/sessions/common/session.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChangesHeaderChangesetOperationsActionContribution } from '../../../changes/browser/changesActions.js';
-import { bindSessionActionContextKeys } from '../../../changes/browser/sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import '../../../changes/browser/changesetReviewActions.js';
-import { ChangesetReviewSupportContext } from '../../../changes/browser/changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../changes/browser/sessionChangesEditor.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { bindSessionScopeContextKeys } from '../../../changes/browser/sessionActionsHost.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { bindSessionScopeContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
+import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Chat window changeset actions', () => {
 
@@ -47,8 +47,8 @@ suite('Chat window changeset actions', () => {
 		const invoked: string[] = [];
 		const main = createTestActiveSession('main');
 		const chat = createTestActiveSession('chat');
-		const file = (session: IActiveSession) => URI.file(`/${session.sessionId}/a.txt`);
-		const changesOf = (session: IActiveSession, review: boolean): IChangesSessionObservables => {
+		const file = (session: ITestSessionWithChat) => URI.file(`/${session.sessionId}/a.txt`);
+		const changesOf = (session: ITestSessionWithChat, review: boolean): IChangesSessionObservables => {
 			const operations: ISessionChangesetOperation[] = [
 				upcastPartial<ISessionChangesetOperation>({ id: 'commit', label: 'Commit', scopes: [SessionChangesetOperationScope.Changeset] }),
 				upcastPartial<ISessionChangesetOperation>({ id: 'discard', label: 'Discard Changes', scopes: [SessionChangesetOperationScope.Resource] }),
@@ -83,7 +83,7 @@ suite('Chat window changeset actions', () => {
 				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
 			}),
 		}));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ onDidChangeProviders: Event.None, getProvider: () => undefined }));
 		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => Disposable.None }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditorPane: undefined }));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ mainWindowActiveSession: constObservable(main), activeSession: constObservable(main) }));
@@ -93,7 +93,7 @@ suite('Chat window changeset actions', () => {
 			activeSessionChangesetOperationsObs: mainChanges.changesetOperationsObs,
 			activeSessionChangesObs: mainChanges.changesObs,
 			getSessionChanges: sessionObs => sessionObs.get() === chat ? chatChanges : mainChanges,
-			setChangesetFilesReviewState: (_resources: readonly URI[], _reviewed: boolean, session?: IActiveSession) => { invoked.push(`${session?.sessionId}:review`); },
+			setChangesetFilesReviewState: (_resources: readonly URI[], _reviewed: boolean, session?: ITestSessionWithChat) => { invoked.push(`${session?.sessionId}:review`); },
 		}));
 
 		// The context of the chat window, scoped to the global one as a window's is; its main part's groups scope theirs to it.
@@ -127,7 +127,7 @@ suite('Chat window changeset actions', () => {
 
 		// Shows the Changes editor in a window and invokes every action that changesets contribute to its title and to the
 		// toolbars of its files, with the arguments they get there.
-		const runIn = async (windowContextKeyService: IContextKeyService, groupId: number, session: IActiveSession) => {
+		const runIn = async (windowContextKeyService: IContextKeyService, groupId: number, session: ITestSessionWithChat) => {
 			const editor = editors.get(groupId)!;
 			const scope = editor.changesScope;
 			invoked.length = 0;

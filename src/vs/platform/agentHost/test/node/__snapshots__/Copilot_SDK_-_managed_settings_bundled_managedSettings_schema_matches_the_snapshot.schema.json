@@ -458,6 +458,39 @@
 				"strategy": "deny-wins"
 			}
 		},
+		"pluginAssignments": {
+			"description": "Soft plugin defaults with an optional explanation. The runtime installs and activates assigned plugins on a best-effort basis. Explicit user choices override defaults. Hard enabledPlugins policy remains authoritative.",
+			"type": "object",
+			"propertyNames": {
+				"pattern": "^[A-Za-z0-9-](?:[A-Za-z0-9.-]{0,62}[A-Za-z0-9-])?@[A-Za-z0-9-](?:[A-Za-z0-9.-]{0,62}[A-Za-z0-9-])?$",
+				"not": {
+					"pattern": "\\.\\.|[^A-Za-z0-9.@-]"
+				}
+			},
+			"additionalProperties": {
+				"type": "object",
+				"required": [
+					"state"
+				],
+				"additionalProperties": false,
+				"properties": {
+					"state": {
+						"type": "string",
+						"enum": [
+							"defaultEnabled"
+						]
+					},
+					"reason": {
+						"description": "Administrator-provided explanation. It does not grant authorization or change user preferences.",
+						"type": "string"
+					}
+				}
+			},
+			"x-composition": {
+				"strategy": "highest-layer-wins-per-entry",
+				"description": "Combine distinct plugin entries. For the same plugin, select the complete entry from MDM, then server, then Policy Helper. Empty maps contribute no entries."
+			}
+		},
 		"extraKnownMarketplaces": {
 			"description": "Managed additional marketplace sources beyond built-ins. Each entry defines how to resolve a marketplace name to a source.",
 			"type": "object",
@@ -1103,6 +1136,16 @@
 								},
 								"readonlyPaths": {
 									"description": "Paths granted read-only access. Managed policy can only shrink the effective grant (intersection).",
+									"type": "array",
+									"items": {
+										"type": "string"
+									},
+									"x-composition": {
+										"strategy": "allowlist-intersection"
+									}
+								},
+								"enumeratePaths": {
+									"description": "Paths granted enumerate-only access on Windows (list a directory and query its attributes, not read file contents). Managed policy can only shrink the effective grant (intersection).",
 									"type": "array",
 									"items": {
 										"type": "string"

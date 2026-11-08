@@ -23,7 +23,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
-import { getRemoteTunnelAccessState } from './remoteConnectionsSharing.js';
+import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -31,7 +31,7 @@ export const TOGGLE_SHARING_ID = 'sessions.tunnelHost.toggleSharing';
 
 const CATEGORY = localize2('tunnelHost.category', 'Remote Connections');
 
-export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
+export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<RemoteConnectionsToggleResult> {
 	const remoteTunnelService = accessor.get(IRemoteTunnelService);
 	const configurationService = accessor.get(IConfigurationService);
 	if (isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
@@ -48,9 +48,10 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 			if (!isCancellationError(error)) {
 				logService.error('Failed to toggle GitHub environment sharing', error);
 				notificationService.error(error);
+				return 'failed';
 			}
 		}
-		return;
+		return 'completed';
 	}
 	const commandService = accessor.get(ICommandService);
 	const [mode, status] = await Promise.all([
@@ -64,6 +65,7 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 	} else {
 		await commandService.executeCommand(command);
 	}
+	return 'completed';
 }
 
 export class TunnelHostContribution extends Disposable implements IWorkbenchContribution {
@@ -178,8 +180,8 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await executeToggleRemoteConnections(accessor);
+	run(accessor: ServicesAccessor): Promise<RemoteConnectionsToggleResult> {
+		return executeToggleRemoteConnections(accessor);
 	}
 });
 

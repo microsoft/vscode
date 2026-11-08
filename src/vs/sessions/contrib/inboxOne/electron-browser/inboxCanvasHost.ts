@@ -21,11 +21,12 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../../../workbench/contrib/browserView/electron-browser/webContentsViewHost.js';
-import { ICanvas, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IInboxCanvasHost, IInboxCanvasHostService } from '../browser/inboxCanvasHost.js';
-import { CHAT_INBOX_ENABLED_SETTING } from '../browser/inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
+import { ICanvas } from '../../../../workbench/common/canvasReference.js';
 
 export class InboxCanvasHostService implements IInboxCanvasHostService {
 	declare readonly _serviceBrand: undefined;

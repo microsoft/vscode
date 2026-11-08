@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -75,7 +75,8 @@ export interface IAgentHostSharedNetworkClient {
  *
  * Proxy configuration is a property of the machine, not of a particular window,
  * so any connected renderer can serve the lookup; the resolver calls the first
- * available connection and falls through to the next on failure. Clients that
+ * available connection and falls through to the next on failure. Kerberos
+ * tickets come from this machine directly, as renderers share it. Clients that
  * share the network of a remote agent host serve the same lookups over the
  * protocol (see {@link IAgentHostSharedNetworkClient}).
  */
@@ -108,6 +109,13 @@ export interface IAgentHostProxyResolver {
 	 */
 	lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 
+	/**
+	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from this machine's Kerberos ticket for `spn`, falling back
+	 * to a client that shares this agent host's network, which derives the principal for `proxyUrl` itself. `undefined`
+	 * when none supplies one.
+	 */
+	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined>;
+
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
 	/**
@@ -118,6 +126,12 @@ export interface IAgentHostProxyResolver {
 	 * that runs in VS Code (Electron session) via the reverse channel.
 	 */
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	/**
+	 * Like {@link resolveProxy}, with the type of the result and the configuration that determined it, such as `remote`
+	 * when no client was connected to resolve the system proxy with.
+	 */
+	resolveProxyByURL(url: string): Promise<ResolvedProxyInfo>;
 
 	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
@@ -309,8 +323,16 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return undefined;
 	}
 
+	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined> {
+		return this._lookupMachineOrClientKerberosAuthorization(proxyUrl, spn);
+	}
+
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._getProxyResolver().resolver.resolveProxyURL(url);
+	}
+
+	resolveProxyByURL(url: string): Promise<ResolvedProxyInfo> {
+		return this._getProxyResolver().resolver.resolveProxyByURL(url);
 	}
 
 	async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -342,7 +364,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				lookupProxyAuthorization: createProxyAuthorizationLookup({
 					log: proxyLog,
 					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
-					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
+					lookupKerberosAuthorization: url => this._lookupMachineOrClientKerberosAuthorization(url, this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)),
 				}),
 				getProxyURL: () => this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
 				getProxySupport: () => 'override',
@@ -406,17 +428,12 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return undefined;
 	}
 
-	private async _hostLookupKerberosAuthorization(url: string): Promise<string | undefined> {
-		for (const connection of this._connections.values()) {
-			try {
-				return await connection.lookupKerberosAuthorization(url);
-			} catch {
-				// This renderer could not serve the lookup; try the next one.
-			}
-		}
-		// Like a remote extension host, use this machine's tickets before falling back to a client sharing its network.
+	/**
+	 * This machine's ticket for `spn`, or the one derived from `url`, else a ticket from a client sharing its network,
+	 * like a remote extension host with `useHostProxy`.
+	 */
+	private async _lookupMachineOrClientKerberosAuthorization(url: string, spn: string | undefined): Promise<string | undefined> {
 		try {
-			const spn = this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
 			return `Negotiate ${await this._lookupKerberosAuthorization(url, spn)}`;
 		} catch (error) {
 			this._logService.debug('AgentHostProxyResolver#lookupKerberosAuthorization Kerberos authentication failed', error);
