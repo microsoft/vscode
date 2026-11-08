@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, getActiveDocument, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IQuickInputService, IQuickPick, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, PicksWithActive, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
@@ -72,21 +73,25 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			picker.valueSelection = restoreState.valueSelection;
 		}
 		if (CopyAction) {
-			disposables.add(CopyAction.addImplementation(110, 'terminal-picker', accessor => {
-				if (accessor.get(IQuickInputService).currentQuickInput !== picker) {
-					return false;
-				}
-				const selection = picker.valueSelection;
-				if (picker.inputHasFocus() && selection && selection[0] !== selection[1]) {
-					return false;
-				}
-				const terminal = (picker.activeItems[0] as ITerminalQuickPick | undefined)?.terminal;
-				if (!terminal || !this._isAvailable(terminal)) {
+			disposables.add(CopyAction.addImplementation(110, 'terminal-picker', () => {
+				const terminal = this._getCopyTarget(picker);
+				if (!terminal) {
 					return false;
 				}
 				return this._commandService.executeCommand<void>(TerminalCommandId.CopyInstanceId, new InstanceContext(terminal));
 			}));
 		}
+		// Browsers handle Ctrl/Cmd+C through a copy event instead of the editor copy command.
+		disposables.add(addDisposableListener(getActiveDocument(), 'copy', (event: ClipboardEvent) => {
+			if (event.defaultPrevented || !event.clipboardData || !isHTMLElement(event.target) || !event.target.closest('.quick-input-widget')) {
+				return;
+			}
+			const terminal = this._getCopyTarget(picker);
+			if (terminal) {
+				event.clipboardData.setData('text/plain', String(terminal.instanceId));
+				event.preventDefault();
+			}
+		}));
 		disposables.add(toDisposable(() => {
 			if (this._picker === picker) {
 				this._picker = undefined;
@@ -96,6 +101,18 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			}
 		}));
 		return disposables;
+	}
+
+	private _getCopyTarget(picker: IQuickPick<IPickerQuickAccessItem, { useSeparators: true }>): ITerminalInstance | undefined {
+		if (this._quickInputService.currentQuickInput !== picker) {
+			return;
+		}
+		const selection = picker.valueSelection;
+		if (picker.inputHasFocus() && selection && selection[0] !== selection[1]) {
+			return;
+		}
+		const terminal = (picker.activeItems[0] as ITerminalQuickPick | undefined)?.terminal;
+		return terminal && this._isAvailable(terminal) ? terminal : undefined;
 	}
 
 	protected _getPicks(filter: string): PicksWithActive<IPickerQuickAccessItem> {

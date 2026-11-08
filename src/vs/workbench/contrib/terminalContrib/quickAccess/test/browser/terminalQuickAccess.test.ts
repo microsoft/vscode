@@ -7,7 +7,7 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -227,6 +227,55 @@ suite('TerminalQuickAccess', () => {
 		deepStrictEqual({ clipboardWrites, nativeCopies, focused, hidden: picker.hidden }, {
 			clipboardWrites: ['12', '99'], nativeCopies: 0, focused: [], hidden: false
 		});
+	});
+
+	function copyFromBrowser(target: HTMLElement): ClipboardEvent {
+		const event = new ClipboardEvent('copy', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true });
+		target.dispatchEvent(event);
+		return event;
+	}
+
+	function createCopyInput(): HTMLInputElement {
+		const widget = document.createElement('div');
+		widget.className = 'quick-input-widget';
+		const input = document.createElement('input');
+		input.value = 'term Build';
+		input.setSelectionRange(5, 5);
+		widget.appendChild(input);
+		document.body.appendChild(widget);
+		store.add(toDisposable(() => widget.remove()));
+		input.focus();
+		return input;
+	}
+
+	test('copies the highlighted terminal through the browser copy event without a command keybinding', () => {
+		const picker = openPicker();
+		const input = createCopyInput();
+		const event = copyFromBrowser(input);
+		deepStrictEqual({ text: event.clipboardData?.getData('text/plain'), prevented: event.defaultPrevented, clipboardWrites, focused, hidden: picker.hidden }, {
+			text: '12', prevented: true, clipboardWrites: [], focused: [], hidden: false
+		});
+	});
+
+	test('leaves browser copying of selected search text unchanged', () => {
+		const picker = openPicker();
+		picker.valueSelection = [0, 4];
+		const event = copyFromBrowser(createCopyInput());
+		deepStrictEqual({ text: event.clipboardData?.getData('text/plain'), prevented: event.defaultPrevented }, { text: '', prevented: false });
+	});
+
+	test('does not intercept browser copy outside this picker or after disposal', () => {
+		openPicker();
+		const input = createCopyInput();
+		const outside = document.createElement('input');
+		document.body.appendChild(outside);
+		store.add(toDisposable(() => outside.remove()));
+		const outsideEvent = copyFromBrowser(outside);
+		pickerSession?.dispose();
+		const disposedEvent = copyFromBrowser(input);
+		deepStrictEqual([outsideEvent, disposedEvent].map(event => ({ text: event.clipboardData?.getData('text/plain'), prevented: event.defaultPrevented })), [
+			{ text: '', prevented: false }, { text: '', prevented: false }
+		]);
 	});
 
 	test('preserves native copying of selected search text', async () => {
