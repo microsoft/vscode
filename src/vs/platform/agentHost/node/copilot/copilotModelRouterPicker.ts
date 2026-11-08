@@ -30,6 +30,9 @@ const scopeCriteria: Readonly<Record<ModelRouterScopeChange, string>> = {
 /** Without this, the decision model judges a request by its length and routes most of them to the lightest model. */
 const agentFraming = 'The request goes to an AI coding agent that works in the user\'s repositories with tools: it can read files, run commands and edit code. Judge the work the request needs to be done well, not how short the message is: a short message can start a long investigation.';
 
+/** Short follow-ups read as easy on their own; the work they hand over usually isn't. */
+const followUpEffortNote = 'This is a follow-up in an ongoing chat; recentTurns are the earlier messages and replies. Read the latest message together with them: a short message such as "fix it", "do that", "go ahead and implement it" or "open a PR with the fix" asks the agent to carry out the work the earlier turns discussed, so judge the work that involves, not the length of the message.';
+
 const effortCriteria: readonly string[] = [
 	'Low: a trivial lookup, mechanical edit, or simple explanation.',
 	'Medium: a well-specified, multi-step task in a familiar area.',
@@ -105,7 +108,7 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 		questions.push({
 			kind: 'score',
 			name: 'effort',
-			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}`,
+			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}${followUp ? `\n\n${followUpEffortNote}` : ''}`,
 			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
 		});
 	}
