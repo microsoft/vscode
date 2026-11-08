@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Limiter, Promises, RunOnceScheduler, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Limiter, Promises, RunOnceScheduler, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -169,6 +169,9 @@ class StructuralDiffEntry extends Disposable {
 	readonly cancellation = this._register(new CancellationTokenSource());
 	readonly listeners = this._register(new DisposableStore());
 	readonly references = this._register(new DisposableStore());
+	private readonly disposal = new DeferredPromise<void>();
+	/** Settles when the entry is disposed, for example because its file was collapsed or the view was hidden. */
+	readonly whenDisposed = this.disposal.p;
 	pending?: Promise<readonly SCMStructuralDiffElement[]>;
 	children?: readonly SCMStructuralDiffElement[];
 	disposed = false;
@@ -182,6 +185,7 @@ class StructuralDiffEntry extends Disposable {
 		if (!this.disposed) {
 			this.disposed = true;
 			this.cancellation.cancel();
+			this.disposal.complete();
 			super.dispose();
 		}
 	}
@@ -302,7 +306,9 @@ export class SCMStructuralDiffModel extends Disposable {
 		if (entry.children !== undefined) {
 			return Promise.resolve(entry.children);
 		}
-		entry.pending ??= this.loadLimiter.queue(() => this.loadWithinBudget(entry));
+		// The tree makes refreshes of the group and the root wait for this request, so it settles as soon as the entry is
+		// disposed, even while the file still waits for a load slot. A timeout does not dispose the entry and shows its status.
+		entry.pending ??= Promise.race([this.loadLimiter.queue(() => this.loadWithinBudget(entry)), entry.whenDisposed.then(() => [])]);
 		return entry.pending;
 	}
 

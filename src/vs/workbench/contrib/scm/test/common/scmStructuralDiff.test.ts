@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, isCancellationError, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -890,6 +890,28 @@ suite('SCM structural diff model', () => {
 				lateReleases: resolver.released.filter(uri => extUri.isEqual(uri, original.uri)).length,
 			}, { elapsed: 0, other: ['Calculator'], loads: [0, 0, 0], lateReleases: 3 });
 		}));
+	}
+
+	for (const cancel of ['collapse', 'dispose'] as const) {
+		test(`settles the requests of files waiting for a load slot right away when ${cancel === 'collapse' ? 'they are collapsed' : 'the model is disposed'}`, async () => {
+			provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+			const files = createResources(5);
+			const loads = files.map(file => model.getChildren(file));
+			await timeout(0);
+			if (cancel === 'collapse') {
+				model.release(files[3]);
+				model.release(files[4]);
+			} else {
+				model.dispose();
+			}
+			// The load slots stay busy until the provider completes, so the waiting requests must settle before any timer fires.
+			const waiting = await raceTimeout(Promise.all(loads.slice(3)).then(all => all.map(children => children.length)), 0);
+			await provider.pending.complete(provider.result);
+			const running = (await Promise.all(loads.slice(0, 3))).map(children => children.length);
+			assert.deepStrictEqual({ waiting, running, calls: provider.calls }, {
+				waiting: [0, 0], running: cancel === 'collapse' ? [1, 1, 1] : [0, 0, 0], calls: 3,
+			});
+		});
 	}
 
 	test('shows a status row and stops the provider when loading takes too long', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
