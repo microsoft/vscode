@@ -30,6 +30,9 @@ const scopeCriteria: Readonly<Record<ModelRouterScopeChange, string>> = {
 /** Without this, the decision model judges a request by its length and routes most of them to the lightest model. */
 const agentFraming = 'The request goes to an AI coding agent that works in the user\'s repositories with tools: it can read files, run commands and edit code. Judge the work the request needs to be done well, not how short the message is: a short message can start a long investigation.';
 
+/** A first turn's message goes as plain text, as the Decisions API expects its input; this routes better than a JSON field. */
+const firstTurnLead = 'A user sent this message to an AI coding agent:\n\n';
+
 const effortCriteria: readonly string[] = [
 	'Low: a trivial lookup, mechanical edit, or simple explanation.',
 	'Medium: a well-specified, multi-step task in a familiar area.',
@@ -124,7 +127,9 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	}) ?? [];
 	const build = (): IAgentDecisionsRequest => ({
 		model: MODEL_ROUTER_DECISION_MODEL,
-		context: { kind: 'json', value: { request: prompt, ...(followUp ? { ...followUp, recentTurns } : {}) } },
+		context: followUp
+			? { kind: 'json', value: { request: prompt, ...followUp, recentTurns } }
+			: { kind: 'text', text: `${firstTurnLead}${prompt}` },
 		questions,
 		timeoutMs: DECISION_TIMEOUT_MS,
 		purpose: 'vscode.modelRouter.route',
