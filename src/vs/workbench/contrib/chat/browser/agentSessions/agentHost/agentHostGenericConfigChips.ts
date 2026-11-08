@@ -21,6 +21,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -51,7 +52,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}>());
 
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostGenericConfigChips] Failed to resolve initial session configuration', error)));
+	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostGenericConfigChips] Failed to resolve initial session configuration', error), this._workspaceTrustManagementService));
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -64,8 +65,13 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostService agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._register(this._initialConfig.onDidInvalidate(() => {
+			this._initialResolved = undefined;
+			this._reattach();
+		}));
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (affectsAgentHostProviderPreference(event, true)) {

@@ -9,6 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -41,10 +42,11 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { AgentHostGenericConfigChips } from '../../../browser/agentSessions/agentHost/agentHostGenericConfigChips.js';
@@ -67,7 +69,7 @@ function createSubscription<T>(): IAgentSubscription<T> {
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createChips(generic: boolean, { sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration'), configuration = new TestConfigurationService(), initialConfig, preparedConfig }: { sessionResource?: URI; configuration?: TestConfigurationService; initialConfig?: Record<string, unknown>; preparedConfig?: ResolveSessionConfigResult } = {}) {
+	function createChips(generic: boolean, { sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration'), configuration = new TestConfigurationService(), initialConfig, preparedConfig, trustService }: { sessionResource?: URI; configuration?: TestConfigurationService; initialConfig?: Record<string, unknown>; preparedConfig?: ResolveSessionConfigResult; trustService?: IWorkspaceTrustManagementService } = {}) {
 		const requests: Parameters<IAgentHostService['resolveSessionConfig']>[0][] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
 		const acquired: string[] = [];
@@ -130,6 +132,7 @@ suite('AgentHostGenericConfigChips', () => {
 		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => URI.file('/workspace') });
 		instantiation.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined });
 		instantiation.stub(IWorkspaceContextService, {});
+		instantiation.set(IWorkspaceTrustManagementService, trustService ?? disposables.add(new TestWorkspaceTrustManagementService(true, new ResourceSet([URI.file('/workspace')]))));
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.set(IConfigurationService, configuration);
 		instantiation.stub(IActionWidgetService, { isVisible: false, hide: () => { } });
@@ -166,6 +169,24 @@ suite('AgentHostGenericConfigChips', () => {
 	}
 
 	for (const generic of [false, true]) {
+		test(`${generic ? 'generic' : 'dedicated'} chips defer initial configuration until the target folder is trusted`, async () => {
+			const trustedFoldersChanged = disposables.add(new Emitter<void>());
+			const trustService = disposables.add(new class extends TestWorkspaceTrustManagementService {
+				override readonly onDidChangeTrustedFolders = trustedFoldersChanged.event;
+			}());
+			const rig = createChips(generic, { trustService });
+			await timeout(0);
+			const blocked = rig.requests.length;
+			await trustService.setTrustedUris([URI.file('/workspace')]);
+			trustedFoldersChanged.fire();
+			await timeout(0);
+			const resumed = rig.requests.length;
+			for (const answer of rig.answers) {
+				await answer.complete({ schema: { type: 'object', properties: {} }, values: {} });
+			}
+			assert.deepStrictEqual({ blocked, resumed }, { blocked: 0, resumed: 1 });
+		});
+
 		test(`${generic ? 'generic' : 'dedicated'} chips clear prepared controls when the first snapshot fails`, () => {
 			const property = generic ? 'choice' : 'mode';
 			const preparedConfig: ResolveSessionConfigResult = {
@@ -225,9 +246,9 @@ suite('AgentHostGenericConfigChips', () => {
 			const initialConfig = { mode: 'autopilot', autoApprove: 'autoApprove', isolation: 'folder' };
 			const rig = createChips(generic, { initialConfig });
 			await timeout(0);
-			assert.deepStrictEqual(rig.requests, [{
+			assert.deepStrictEqual(rig.requests.map(request => ({ ...request, workingDirectory: request.workingDirectory?.toString() })), [{
 				provider: 'copilotcli',
-				workingDirectory: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace').toString(),
 				config: initialConfig,
 			}]);
 			await rig.answers[0].complete({ schema: { type: 'object', properties: {} }, values: initialConfig });
@@ -457,6 +478,7 @@ suite('AgentHostGenericConfigChips', () => {
 						new NullLogService(),
 						agentHost,
 						configuration,
+						disposables.add(new TestWorkspaceTrustManagementService()),
 					));
 					chips.dispose();
 				}
@@ -520,6 +542,7 @@ suite('AgentHostGenericConfigChips', () => {
 			new NullLogService(),
 			agentHostService,
 			configuration,
+			disposables.add(new TestWorkspaceTrustManagementService()),
 		));
 
 		currentBackend = secondBackend;
@@ -540,6 +563,30 @@ suite('AgentHostGenericConfigChips', () => {
 suite('AgentHostInitialSessionConfig', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('retries skipped configuration reads rather than caching denied trust', async () => {
+		const folder = URI.file('/workspace');
+		const trustService = store.add(new TestWorkspaceTrustManagementService());
+		const requests: Parameters<IAgentConnection['resolveSessionConfig']>[0][] = [];
+		const result: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { mode: 'interactive' } };
+		const connection = new class extends mock<IAgentConnection>() {
+			override async resolveSessionConfig(request: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
+				requests.push(request);
+				return result;
+			}
+		}();
+		const resolver = store.add(new AgentHostInitialSessionConfig(error => { throw error; }, trustService));
+		const resource = URI.parse('agent-host-copilotcli:/untitled-trust');
+		const resolution = { connection, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/opaque') };
+		const blocked = { result: await resolver.resolve(resource, 'copilotcli', resolution, folder), requests: [...requests] };
+		await trustService.setTrustedUris([folder]);
+		const retried = await resolver.resolve(resource, 'copilotcli', resolution, folder);
+		assert.deepStrictEqual({ blocked, retried, requests }, {
+			blocked: { result: undefined, requests: [] },
+			retried: result,
+			requests: [{ provider: 'copilotcli', workingDirectory: folder }],
+		});
+	});
+
 	test('shares equal defaults and discards results for superseded defaults', async () => {
 		const configs: (Record<string, unknown> | undefined)[] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
@@ -553,7 +600,7 @@ suite('AgentHostInitialSessionConfig', () => {
 		}();
 		const resource = URI.parse('agent-host-copilotcli:/untitled-test');
 		const resolution = { connection, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/opaque') };
-		const resolver = store.add(new AgentHostInitialSessionConfig(error => { throw error; }));
+		const resolver = store.add(new AgentHostInitialSessionConfig(error => { throw error; }, store.add(new TestWorkspaceTrustManagementService())));
 		const initial = resolver.resolve(resource, 'copilotcli', resolution, undefined, { mode: 'interactive' });
 		const shared = resolver.resolve(resource, 'copilotcli', resolution, undefined, { mode: 'interactive' });
 		await timeout(0);
@@ -583,7 +630,7 @@ suite('AgentHostInitialSessionConfig', () => {
 		const second = { ...first, connection: makeConnection('second') };
 		const resource = URI.parse('remote-opaque-host-test-agent:/untitled-test');
 		const folder = URI.file('/folder');
-		const resolver = store.add(new AgentHostInitialSessionConfig(error => errors.push(error)));
+		const resolver = store.add(new AgentHostInitialSessionConfig(error => errors.push(error), store.add(new TestWorkspaceTrustManagementService(true, new ResourceSet([folder, URI.file('/new-folder')])))));
 		const failing = resolver.resolve(resource, 'test-agent', first, folder);
 		const shared = resolver.resolve(resource, 'test-agent', first, folder);
 		await timeout(0);
@@ -610,6 +657,28 @@ suite('AgentHostInitialSessionConfig', () => {
 			shared: true, requests: ['first', 'first', 'second', 'second'], errors: [failure],
 			staleResult: undefined, currentResult: { current: true }, clearedResult: undefined, currentValue: undefined,
 		});
+	});
+
+	test('does not dispatch after disposal during target trust resolution', async () => {
+		const trustCheck = new DeferredPromise<boolean>();
+		const trustService = store.add(new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: await trustCheck.p }; }
+		}());
+		const requests: Parameters<IAgentConnection['resolveSessionConfig']>[0][] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override async resolveSessionConfig(request: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
+				requests.push(request);
+				return { schema: { type: 'object', properties: {} }, values: {} };
+			}
+		}();
+		const resolver = store.add(new AgentHostInitialSessionConfig(error => { throw error; }, trustService));
+		const pending = resolver.resolve(URI.parse('agent-host-copilotcli:/untitled-trust'), 'copilotcli', {
+			connection, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/opaque'),
+		}, URI.file('/workspace'));
+		await timeout(0);
+		resolver.dispose();
+		await trustCheck.complete(true);
+		assert.deepStrictEqual({ result: await pending, requests }, { result: undefined, requests: [] });
 	});
 });
 
@@ -770,6 +839,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined,

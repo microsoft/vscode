@@ -52,6 +52,7 @@ import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandbox
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -443,7 +444,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _pickerVisible = false;
 	private _generic = false;
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostChatInputPicker] Failed to resolve initial session configuration', error)));
+	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostChatInputPicker] Failed to resolve initial session configuration', error), this._workspaceTrustManagementService));
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _splitTrigger = this._register(new MutableDisposable<IModePickerTrigger>());
 	private readonly _pickerDisposables = this._register(new DisposableStore());
@@ -488,9 +489,14 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
+		this._register(this._initialConfig.onDidInvalidate(() => {
+			this._initialResolved = undefined;
+			this._reattach();
+		}));
 		this._register(toDisposable(() => {
 			this._container = undefined;
 			this._trigger = undefined;

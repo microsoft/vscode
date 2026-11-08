@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -13,9 +14,21 @@ import { SessionState } from '../../../../../../platform/agentHost/common/state/
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 
-/** Shares initial config reads until the chat, owning connection, backend, working directory or defaults change. */
+/** Checks the target folder's trust, falling back to workspace trust only when no folder is known. */
+export async function isAgentHostTargetFolderTrusted(workingDirectory: URI | undefined, workspaceTrustManagementService: IWorkspaceTrustManagementService): Promise<boolean> {
+	if (workingDirectory) {
+		const { trusted } = await workspaceTrustManagementService.getUriTrustInfo(workingDirectory);
+		return trusted;
+	}
+	return workspaceTrustManagementService.isWorkspaceTrusted();
+}
+
+/** Shares initial config reads until the chat, owning connection, backend, working directory, defaults or trust change. */
 export class AgentHostInitialSessionConfig extends Disposable {
+	private readonly _onDidInvalidate = this._register(new Emitter<void>());
+	readonly onDidInvalidate = this._onDidInvalidate.event;
 	private _generation = 0;
 	private _value: ResolveSessionConfigResult | undefined;
 	private _request: {
@@ -27,9 +40,16 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		readonly promise: Promise<ResolveSessionConfigResult | undefined>;
 	} | undefined;
 
-	constructor(private readonly _onError: (error: unknown) => void) {
+	constructor(
+		private readonly _onError: (error: unknown) => void,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	) {
 		super();
 		this._register(toDisposable(() => this.clear()));
+		this._register(Event.any(this._workspaceTrustManagementService.onDidChangeTrust, this._workspaceTrustManagementService.onDidChangeTrustedFolders)(() => {
+			this.clear();
+			this._onDidInvalidate.fire();
+		}));
 	}
 
 	get value(): ResolveSessionConfigResult | undefined { return this._value; }
@@ -62,11 +82,16 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		}
 		const generation = ++this._generation;
 		this._value = undefined;
-		const operation = Promise.resolve().then(() => generation === this._generation ? resolution.connection.resolveSessionConfig({
-			provider,
-			workingDirectory,
-			...(config ? { config } : {}),
-		}) : undefined);
+		const operation = Promise.resolve().then(async () => {
+			if (!await isAgentHostTargetFolderTrusted(workingDirectory, this._workspaceTrustManagementService) || generation !== this._generation) {
+				return undefined;
+			}
+			return resolution.connection.resolveSessionConfig({
+				provider,
+				workingDirectory,
+				...(config ? { config } : {}),
+			});
+		});
 		const promise = this._read(operation, generation);
 		this._request = { sessionResource, provider, resolution, workingDirectory, config, promise };
 		return promise;
@@ -76,7 +101,11 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		try {
 			const result = await operation;
 			if (generation === this._generation) {
-				this._value = result;
+				if (result === undefined) {
+					this.clear();
+				} else {
+					this._value = result;
+				}
 				return result;
 			}
 			return undefined;
