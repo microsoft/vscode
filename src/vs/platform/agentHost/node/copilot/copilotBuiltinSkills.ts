@@ -261,21 +261,21 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 /** Built from lines because YAML needs leading spaces, which source lines here can't start with. */
 const modelRouterExample = [
 	'version: 1                 # required',
-	'description: Haiku for quick work, Opus for building, Sol for figuring out why.   # required; shown in the model picker',
+	'description: Opus for building, Haiku for quick work, Sol for figuring out why.   # required; shown in the model picker',
 	'effort: auto               # optional: auto (default), off, or a fixed level',
-	'switching: auto            # optional: auto (default) or first-turn',
-	'routes:                    # 2 to 10 routes; the first is the fallback',
-	'  - model: claude-haiku-4.5',
-	'    when: Quick answers and small chores that need little investigation, such as where something is, what a setting does, a one-file edit or a git command.',
-	'    examples:              # optional, up to 10',
-	'      - where is the code for the login page?',
-	'      - undo that test',
+	'switching: first-turn      # optional: first-turn (default) or auto',
+	'routes:                    # 2 to 10 routes; the first is used when the router can\'t tell',
 	'  - model: [claude-opus-4.8, claude-opus-4.7]   # fallbacks, in order',
 	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research.',
-	'    examples:',
+	'    examples:              # optional, up to 10',
 	'      - prototype this',
 	'      - review the PR and tell me what to change',
 	'    effort: high           # optional; overrides the router\'s effort',
+	'  - model: claude-haiku-4.5',
+	'    when: Quick answers and small chores that need little investigation, such as where something is, what a setting does, a one-file edit or a git command.',
+	'    examples:',
+	'      - where is the code for the login page?',
+	'      - undo that test',
 	'  - model: gpt-6.1-sol',
 	'    when: Figuring out why, such as debugging a failure, analyzing data or telemetry, explaining surprising numbers, or judging whether a proposal works.',
 	'    examples:',
@@ -301,9 +301,10 @@ ${modelRouterExample}
 
 - \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
 - \`when\` says which requests the route is for. The decision model sees only the user's message, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
+- Put first the model the user wants when the router can't tell which route fits: usually their strongest everyday model, not the cheapest.
 - Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
-- \`switching: first-turn\` picks a model and effort on the first turn and keeps them; \`auto\` may switch later when the work clearly changes.
+- \`switching: first-turn\`, the default, picks a model and effort on the first turn and keeps them; \`auto\` may also switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
 
 ## YAML rules

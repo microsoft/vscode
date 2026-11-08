@@ -83,21 +83,21 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
-	test('a follow-up stays on its model without a decision model, or when switching is first-turn only', async () => {
+	test('a follow-up stays on its model without a decision model, or when switching is first-turn, the default', async () => {
 		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'opus' })];
 		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
 		const results = [
-			await resolve({ file: routerFile(), previousTurns }),
-			await resolve({ file: routerFile('switching: first-turn\n'), previousTurns, picker }),
+			await resolve({ file: routerFile('switching: auto\n'), previousTurns }),
+			await resolve({ file: routerFile(), previousTurns, picker }),
 		];
 		assert.deepStrictEqual(results.map(r => [r.selection?.id, r.routed?.kept]), [['opus', true], ['opus', true]]);
 		assert.strictEqual(picker.requests.length, 0);
 	});
 
-	test('a follow-up moves to the route its message clearly fits, sending recent turns as text', async () => {
+	test('with switching auto, a follow-up moves to the route its message clearly fits, sending recent turns as text', async () => {
 		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'opus' })];
 		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
-		const result = await resolve({ file: routerFile(), previousTurns, picker, text: 'rename this variable' });
+		const result = await resolve({ file: routerFile('switching: auto\n'), previousTurns, picker, text: 'rename this variable' });
 		assert.deepStrictEqual({ selection: result.selection?.id, switchedFrom: result.routed?.switchedFrom, recent: picker.requests[0].followUp?.recentTurns }, {
 			selection: 'haiku', switchedFrom: 'opus', recent: [{ prompt: 'earlier', response: '' }],
 		});
