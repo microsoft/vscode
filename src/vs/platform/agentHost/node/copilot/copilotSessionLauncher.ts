@@ -1420,7 +1420,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, config.featureFlags?.MCP_SKILLS === true, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, config.featureFlags?.MCP_SKILLS === true, plan.accountSelection, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
