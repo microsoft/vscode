@@ -7,7 +7,7 @@ import { $, append, size, trackFocus } from '../../../../../base/browser/dom.js'
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -131,6 +131,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	// Stop observing the session before disposing the view those observers can replace.
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
+	/**
+	 * Chat views this group showed recently, least recently shown first. They stay bound to their chats while hidden
+	 * and detached, so showing one of those chats again only swaps its view in rather than reloading and re-rendering it.
+	 */
+	private readonly _warmChatViews = this._register(new DisposableMap<string, AbstractChatView>());
+	/** How many chat views stay warm besides the one the group shows. */
+	private static readonly WARM_CHAT_VIEW_LIMIT = 4;
 	private _draftChatResource: URI | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
@@ -426,10 +433,17 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			let view = this._currentView.value;
-			if (!view || view.kind !== desiredKind) {
-				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
-					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
+			const chatResource = desiredKind === 'chat' ? chat?.resource : undefined;
+			if (!view || view.kind !== desiredKind || (chatResource && view.chatResource && !isEqual(view.chatResource, chatResource))) {
+				view = this._takeView(desiredKind, chatResource, context.options);
+			}
+			// A warm view shown least recently still shows its previous chat: bind it before it is shown and laid out,
+			// so that only its new chat is laid out.
+			const rebindsHidden = !!chatResource && !!view.chatResource && !isEqual(view.chatResource, chatResource);
+			const shown = view !== this._currentView.value;
+			if (shown) {
+				this._parkCurrentView();
+				// Attach before binding: a detached chat list measures every row as 0px.
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
@@ -437,19 +451,67 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				this._sessionActivityBar?.setChatActions(view.activityBarActions);
 				view.setPrimary(this._primary, this._split);
 				view.setActive(this._sessionActive && this._groupActive);
-				view.setVisible(this._sessionVisible);
-				this._layoutChildren();
+				if (!rebindsHidden) {
+					view.setVisible(this._sessionVisible);
+					this._layoutChildren();
+				}
 			}
 
 			if (chat) {
 				const needsConnectionFeedback = chat.interactivity.read(reader) === ChatInteractivity.DraftOnly || view.isInputBlocked.read(reader);
 				view.setChat(chat, session.sessionId, session, needsConnectionFeedback ? () => this._connection.connectOnInput() : undefined);
 			}
+			if (shown && rebindsHidden) {
+				view.setVisible(this._sessionVisible);
+				this._layoutChildren();
+			}
 
 			const surfaceContent = surface.read(reader);
 			this._setRemoteHostUnavailableEmptyState(surfaceContent.recovery);
 			this._setReadOnlyBanner(surfaceContent.banner);
 		}));
+	}
+
+	/**
+	 * The view to show `chatResource`, or a view of `kind`: the warm view of the chat, else, once as many views stay
+	 * warm as may, the one shown least recently, else a new view.
+	 */
+	private _takeView(kind: ChatViewKind, chatResource: URI | undefined, options: IChatViewOptions): AbstractChatView {
+		if (kind === 'chat' && chatResource) {
+			const warm = this._warmChatViews.deleteAndLeak(chatResource.toString());
+			if (warm) {
+				return warm;
+			}
+			const stayingWarm = this._warmChatViews.size + (this._currentView.value?.chatResource ? 1 : 0);
+			if (stayingWarm > ChatGroupView.WARM_CHAT_VIEW_LIMIT) {
+				const [leastRecentlyShown] = this._warmChatViews.keys();
+				const recycled = this._warmChatViews.deleteAndLeak(leastRecentlyShown);
+				if (recycled) {
+					return recycled;
+				}
+			}
+		}
+		return kind === 'chat'
+			? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: options.session })
+			: this._chatViewFactory.createNewChatView(kind === 'newChatInSession', options, this._scopedInstantiationService);
+	}
+
+	/** Takes the current view out of the group: a view of a chat stays warm, hidden and detached; others are disposed. */
+	private _parkCurrentView(): void {
+		const view = this._currentView.clearAndLeak();
+		const chatResource = view?.chatResource;
+		if (!view || !chatResource) {
+			view?.dispose();
+			return;
+		}
+		view.setVisible(false);
+		view.setActive(false);
+		view.element.remove();
+		this._warmChatViews.set(chatResource.toString(), view);
+		while (this._warmChatViews.size > ChatGroupView.WARM_CHAT_VIEW_LIMIT) {
+			const [leastRecentlyShown] = this._warmChatViews.keys();
+			this._warmChatViews.deleteAndDispose(leastRecentlyShown);
+		}
 	}
 
 	private _setReadOnlyBanner(content: ISessionReadOnlyBannerContent | undefined): void {

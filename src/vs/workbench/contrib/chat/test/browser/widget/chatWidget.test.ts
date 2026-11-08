@@ -1596,7 +1596,7 @@ suite('ChatWidget', () => {
 				isScrolledToBottom: false,
 				isAutoScrollHeld: false,
 				lastItem: undefined,
-				updateRendererOptions: () => { },
+				updateRendererOptions: () => true,
 				setVisible: () => { },
 				layout: (height: number) => layoutHeights.push(height),
 				rerender: () => rerenders++,
@@ -1605,7 +1605,7 @@ suite('ChatWidget', () => {
 		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
 	}
 
-	test('passes read-only transitions to the renderer independently of request editing', () => {
+	test('passes read-only transitions to the renderer independently of request editing, re-rendering rows only when they change', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
 		const inputVisibility: boolean[] = [];
 		let rerenders = 0;
@@ -1619,7 +1619,11 @@ suite('ChatWidget', () => {
 			setInputVisible: (visible: boolean) => inputVisibility.push(visible),
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
-				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				updateRendererOptions: (options: IChatListItemRendererOptions) => {
+					const previous = rendererOptions.at(-1);
+					rendererOptions.push(options);
+					return previous?.editable !== options.editable || previous?.readOnly !== options.readOnly;
+				},
 				domNode: { isConnected: true, offsetHeight: 100 },
 				rerender: () => rerenders++,
 			},
@@ -1631,7 +1635,7 @@ suite('ChatWidget', () => {
 
 		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
 			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 3,
+			rerenders: 2,
 			inputVisibility: [false, true, true],
 		});
 	});

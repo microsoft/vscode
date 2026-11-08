@@ -118,14 +118,36 @@ class TestChatView extends AbstractChatView {
 	}
 
 	override setChat(chat: IChat, _historyKey?: string, session?: ISession, onInput?: () => void): void {
+		// A chat view starts loading the transcript of each chat it binds, as `ChatView` does.
+		if (this.loadOnBind && this._chatResource?.toString() !== chat.resource.toString()) {
+			this.isLoadingTranscript.set(true, undefined);
+		}
+		this._chatResource = chat.resource;
 		this.boundChats.push({ chat: chat.resource.toString(), sessionId: session?.sessionId });
 		this.connectedOnBind.push(this.element.isConnected);
+		this.visibleOnBind.push(this.visible);
 		this.onInput = onInput;
+	}
+
+	readonly visibleOnBind: boolean[] = [];
+	loadOnBind = false;
+	private _chatResource: URI | undefined;
+
+	override get chatResource(): URI | undefined {
+		return this._chatResource;
+	}
+
+	visible = true;
+
+	override setVisible(visible: boolean): void {
+		this.visible = visible;
 	}
 }
 
 class TestChatViewFactory extends mock<IChatViewFactory>() {
 	readonly views: TestChatView[] = [];
+	/** Whether the views start loading the transcript of each chat they bind. */
+	loadTranscriptsOnBind = false;
 
 	override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
 		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
@@ -138,6 +160,7 @@ class TestChatViewFactory extends mock<IChatViewFactory>() {
 	private _createView(kind: ChatViewKind, instantiationService?: IInstantiationService): TestChatView {
 		assert.ok(instantiationService);
 		const view = instantiationService.createInstance(TestChatView, kind);
+		view.loadOnBind = this.loadTranscriptsOnBind;
 		this.views.push(view);
 		return view;
 	}
@@ -2663,15 +2686,15 @@ suite('Sessions - ChatGroupsView', () => {
 
 	test('does not show a transient read-only banner while a peer transcript loads', () => {
 		const { chatViewFactory, view } = createHarness(disposables);
+		chatViewFactory.loadTranscriptsOnBind = true;
 		const main = createChat('main');
 		const peer = createChat('peer');
 		const session = new TestActiveSession([main, peer]);
 		view.setSession(paneContent(view, session), options);
-		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
-		current.isLoadingTranscript.set(true, undefined);
 		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
 		session.activeChat.set(peer, undefined);
 		const loading = readBanner(view).visible;
+		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
 
 		transaction(tx => {
 			peer.interactivity.set(ChatInteractivity.Full, tx);
@@ -2683,8 +2706,8 @@ suite('Sessions - ChatGroupsView', () => {
 		current.isLoadingTranscript.set(true, undefined);
 		session.isArchived.set(true, undefined);
 
-		assert.deepStrictEqual({ loading, ready, readOnly, archived: readBanner(view).message }, {
-			loading: false, ready: false, readOnly: true, archived: 'Archived sessions are read-only.',
+		assert.deepStrictEqual({ peerShown: current.chatResource?.toString(), loading, ready, readOnly, archived: readBanner(view).message }, {
+			peerShown: 'test-chat://peer', loading: false, ready: false, readOnly: true, archived: 'Archived sessions are read-only.',
 		});
 	});
 
@@ -3707,7 +3730,14 @@ suite('Sessions - ChatGroupsView', () => {
 			override readonly resource = URI.parse('test-session://other-session');
 		}
 
-		test('reuses the chat view when switching between single-group sessions', () => {
+		/** A session of its own with the one chat `id`. */
+		function sessionWithChat(id: string): TestActiveSession {
+			const session = new TestActiveSession([createChat(id)]);
+			Object.assign(session, { sessionId: `${id}-session`, resource: URI.parse(`test-session://${id}`) });
+			return session;
+		}
+
+		test('keeps the chat view of the previous session warm, hidden and detached, when switching between single-group sessions', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
 			const first = new TestActiveSession([createChat('a')]);
 			const second = new OtherTestActiveSession([createChat('b')]);
@@ -3716,54 +3746,60 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(paneContent(view, second), options);
 
 			assert.deepStrictEqual({
+				// The first entry is the transient composer shown until the first reconcile assigns the chat.
 				created: chatViewFactory.views.map(v => v.kind),
 				disposed: chatViewFactory.views.map(v => v.isDisposed),
-				bound: chatViewFactory.views[1].boundChats,
-				attached: chatViewFactory.views[1].element.isConnected,
+				chatViews: chatViewFactory.views.slice(1).map(v => ({ bound: v.boundChats, attached: v.element.isConnected, visible: v.visible })),
 			}, {
-				// The first entry is the transient composer shown until the first reconcile assigns the chat.
-				created: ['newChatInSession', 'chat'],
-				disposed: [true, false],
-				bound: [
-					{ chat: 'test-chat://a', sessionId: 'session' },
-					{ chat: 'test-chat://b', sessionId: 'other-session' },
+				created: ['newChatInSession', 'chat', 'chat'],
+				disposed: [true, false, false],
+				chatViews: [
+					{ bound: [{ chat: 'test-chat://a', sessionId: 'session' }], attached: false, visible: false },
+					{ bound: [{ chat: 'test-chat://b', sessionId: 'other-session' }], attached: true, visible: true },
 				],
-				attached: true,
 			});
 		});
 
-		test('keeps a reused chat view attached to the document while it binds the next chat', () => {
+		test('shows the warm chat view of a session again across rapid A to B to A switches', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
-			view.setSession(paneContent(view, new TestActiveSession([createChat('a')])), options);
-			const chatView = chatViewFactory.views[1];
-			view.setSession(paneContent(view, new OtherTestActiveSession([createChat('b')])), options);
-
-			assert.deepStrictEqual({
-				reused: chatViewFactory.views.length === 2 && !chatView.isDisposed,
-				bound: chatView.boundChats.map(b => b.chat),
-				connectedOnBind: chatView.connectedOnBind,
-			}, {
-				reused: true,
-				bound: ['test-chat://a', 'test-chat://b'],
-				connectedOnBind: [true, true],
-			});
-		});
-
-		test('does not leak per-session group state across a reused view', () => {
-			const { view, chatViewFactory } = createHarness(disposables);
-			const first = new TestActiveSession([createChat('a'), createChat('a2')]);
+			const first = new TestActiveSession([createChat('a')]);
 			const second = new OtherTestActiveSession([createChat('b')]);
 			view.setSession(paneContent(view, first), options);
-			const chatView = chatViewFactory.views[1];
-			chatView.onInput = () => { };
-
 			view.setSession(paneContent(view, second), options);
+			view.setSession(paneContent(view, first), options);
+
+			assert.deepStrictEqual(chatViewFactory.views.slice(1).map(v => ({ disposed: v.isDisposed, bound: v.boundChats.map(b => b.chat), attached: v.element.isConnected, visible: v.visible })), [
+				{ disposed: false, bound: ['test-chat://a', 'test-chat://a'], attached: true, visible: true },
+				{ disposed: false, bound: ['test-chat://b'], attached: false, visible: false },
+			]);
+		});
+
+		test('once no more chat views stay warm, the one shown least recently shows the next chat, bound while attached and hidden, without the previous session\'s state', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			for (const id of ['a', 'b', 'c', 'd', 'e']) {
+				view.setSession(paneContent(view, sessionWithChat(id)), options);
+			}
+			const leastRecentlyShown = chatViewFactory.views[1];
+			leastRecentlyShown.onInput = () => { };
+
+			view.setSession(paneContent(view, sessionWithChat('f')), options);
 
 			assert.deepStrictEqual({
-				onInput: chatView.onInput,
+				created: chatViewFactory.views.length,
+				recycled: {
+					bound: leastRecentlyShown.boundChats.map(b => b.chat),
+					connectedOnBind: leastRecentlyShown.connectedOnBind,
+					visibleOnBind: leastRecentlyShown.visibleOnBind,
+					onInput: leastRecentlyShown.onInput,
+					attached: leastRecentlyShown.element.isConnected,
+					visible: leastRecentlyShown.visible,
+				},
+				warm: chatViewFactory.views.slice(2).map(v => ({ bound: v.boundChats.map(b => b.chat), attached: v.element.isConnected, disposed: v.isDisposed })),
 				groupCount: view.groupCount.get(),
 			}, {
-				onInput: undefined,
+				created: 6,
+				recycled: { bound: ['test-chat://a', 'test-chat://f'], connectedOnBind: [true, true], visibleOnBind: [true, false], onInput: undefined, attached: true, visible: true },
+				warm: ['b', 'c', 'd', 'e'].map(id => ({ bound: [`test-chat://${id}`], attached: false, disposed: false })),
 				groupCount: 1,
 			});
 		});
@@ -3815,7 +3851,7 @@ suite('Sessions - ChatGroupsView', () => {
 			});
 		});
 
-		test('recreates the chat view when the next session shows a composer', () => {
+		test('keeps the chat view warm when the next session shows a composer', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
 			view.setSession(paneContent(view, new TestActiveSession([createChat('a')])), options);
 			view.setSession(paneContent(view, new OtherTestActiveSession([createChat('b', SessionStatus.Untitled)])), options);
@@ -3823,9 +3859,11 @@ suite('Sessions - ChatGroupsView', () => {
 			assert.deepStrictEqual({
 				created: chatViewFactory.views.map(v => v.kind),
 				disposed: chatViewFactory.views.map(v => v.isDisposed),
+				attached: chatViewFactory.views.map(v => v.element.isConnected),
 			}, {
 				created: ['newChatInSession', 'chat', 'newChatInSession'],
-				disposed: [true, true, false],
+				disposed: [true, false, false],
+				attached: [false, false, true],
 			});
 		});
 
@@ -3849,13 +3887,13 @@ suite('Sessions - ChatGroupsView', () => {
 			});
 		});
 
-		test('disposes the reused view when the session is cleared', () => {
+		test('disposes its warm chat views when the session is cleared', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
 			view.setSession(paneContent(view, new TestActiveSession([createChat('a')])), options);
 			view.setSession(paneContent(view, new OtherTestActiveSession([createChat('b')])), options);
 			view.setSession(undefined, options);
 
-			assert.deepStrictEqual(chatViewFactory.views.map(v => v.isDisposed), [true, true]);
+			assert.deepStrictEqual(chatViewFactory.views.map(v => v.isDisposed), [true, true, true]);
 		});
 
 		test('disposes the unused reusable view when the next session restores a multi-group layout', () => {
@@ -3924,64 +3962,45 @@ suite('Sessions - ChatGroupsView', () => {
 
 			assert.deepStrictEqual({
 				created: chatViewFactory.views.length,
-				bound: chatViewFactory.views[1].boundChats.slice(1).map(b => b.chat),
+				bound: chatViewFactory.views.at(-1)?.boundChats.map(b => b.chat),
 				groupCount: view.groupCount.get(),
 			}, {
-				created: 2,
+				created: 3,
 				bound: ['test-chat://b2'],
 				groupCount: 1,
 			});
 		});
 
-		test('reuses the view across session providers and resets per-chat state', () => {
+		test('shows the chat of each session across session providers without a stale input callback', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
 			const sessions = ['local', 'remote-agent-host', 'cloud'].map((providerId, i) => {
 				const session = new TestActiveSession([createChat(`chat${i}`)], undefined, true, providerId);
 				Object.assign(session, { sessionId: `${providerId}-session` });
 				return session;
 			});
-			const reused = () => chatViewFactory.views[1];
 			const inputsAfterEachSwitch: (boolean)[] = [];
 
 			for (const session of sessions) {
 				view.setSession(paneContent(view, session), options);
-				inputsAfterEachSwitch.push(reused().onInput !== undefined);
-				reused().onInput = () => { };
+				const shown = chatViewFactory.views.at(-1)!;
+				inputsAfterEachSwitch.push(shown.onInput !== undefined);
+				shown.onInput = () => { };
 			}
 
 			assert.deepStrictEqual({
 				created: chatViewFactory.views.map(v => v.kind),
 				disposed: chatViewFactory.views.map(v => v.isDisposed),
-				bound: reused().boundChats,
+				bound: chatViewFactory.views.slice(1).map(v => v.boundChats),
 				staleInputCallbackOnBind: inputsAfterEachSwitch,
 			}, {
-				created: ['newChatInSession', 'chat'],
-				disposed: [true, false],
+				created: ['newChatInSession', 'chat', 'chat', 'chat'],
+				disposed: [true, false, false, false],
 				bound: [
-					{ chat: 'test-chat://chat0', sessionId: 'local-session' },
-					{ chat: 'test-chat://chat1', sessionId: 'remote-agent-host-session' },
-					{ chat: 'test-chat://chat2', sessionId: 'cloud-session' },
+					[{ chat: 'test-chat://chat0', sessionId: 'local-session' }],
+					[{ chat: 'test-chat://chat1', sessionId: 'remote-agent-host-session' }],
+					[{ chat: 'test-chat://chat2', sessionId: 'cloud-session' }],
 				],
 				staleInputCallbackOnBind: [false, false, false],
-			});
-		});
-
-		test('keeps a single view across rapid A to B to A switches', () => {
-			const { view, chatViewFactory } = createHarness(disposables);
-			const first = new TestActiveSession([createChat('a')]);
-			const second = new OtherTestActiveSession([createChat('b')]);
-			view.setSession(paneContent(view, first), options);
-			view.setSession(paneContent(view, second), options);
-			view.setSession(paneContent(view, first), options);
-
-			assert.deepStrictEqual({
-				created: chatViewFactory.views.length,
-				disposed: chatViewFactory.views.map(v => v.isDisposed),
-				bound: chatViewFactory.views[1].boundChats.map(b => b.chat),
-			}, {
-				created: 2,
-				disposed: [true, false],
-				bound: ['test-chat://a', 'test-chat://b', 'test-chat://a'],
 			});
 		});
 	});

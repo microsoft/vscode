@@ -136,6 +136,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return false;
 	}
 
+	/** The chat this view is bound to, for views that host a chat's transcript. */
+	get chatResource(): URI | undefined {
+		return undefined;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
