@@ -103,6 +103,8 @@ export class MenuActivityBar extends Disposable {
 
 	private readonly toolbar: MenuWorkbenchToolBar;
 	private readonly itemsChanged = observableSignal(this);
+	/** Signals that the bar's entries changed, and so may its height. */
+	readonly onDidChangeEntries: IObservable<void> = this.itemsChanged;
 
 	constructor(
 		container: HTMLElement,
