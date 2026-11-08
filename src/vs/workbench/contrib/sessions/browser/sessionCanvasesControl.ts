@@ -9,8 +9,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { CanvasesPillControl } from '../../canvases/browser/canvasesPillControl.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
-import { IChat } from '../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /** Supplies the canvases pill of the active chat in the Agents window chat input. */
 export class SessionCanvasesControl extends Disposable {
@@ -18,7 +18,7 @@ export class SessionCanvasesControl extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
-		session: IObservable<IActiveSession | undefined>,
+		session: IObservable<ISession | undefined>,
 		chat: IObservable<IChat | undefined>,
 		enabled: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,

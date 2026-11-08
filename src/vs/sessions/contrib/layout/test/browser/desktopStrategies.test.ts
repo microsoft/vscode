@@ -20,8 +20,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { WindowCanvasInput, IWindowCanvas } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -35,6 +34,7 @@ import { DesktopOwnerCompositionStore } from '../../browser/desktop/desktopOwner
 import { FilesDetailsState, getFilesDetailsState } from '../../browser/desktop/desktopSharedHelpers.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface ITestContextState {
 	isRestoringSessionLayout: boolean;
@@ -117,7 +117,7 @@ suite('Desktop layout strategies', () => {
 		return createStrategyTestContext(store, harness, contextOptions).ctx;
 	}
 
-	function activate(session: IActiveSession | undefined): void {
+	function activate(session: ITestSessionWithChat | undefined): void {
 		harness.activeSessionObs.set(session, undefined);
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
 	}

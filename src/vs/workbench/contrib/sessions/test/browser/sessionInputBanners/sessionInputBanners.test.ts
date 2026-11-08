@@ -3,10 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
+import { SessionInlineActions } from '../../../browser/views/sessionInlineActions.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import assert from 'assert';
 import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { timeout, DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
@@ -30,12 +38,11 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
-import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
-import { stubSessionHosts } from '../sessionHostTestUtils.js';
+import { ISessionHost, SessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat, stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../browser/agentFeedbackModel.js';
@@ -55,6 +62,88 @@ suite('SessionInputBanners', () => {
 		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, hides merged PR comments, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
 	}
 
+	test('inline actions prefer combined requests, target a peer in the background, and preserve pending state across recycling', async () => {
+		const built = buildTestSession({ id: 'inline', title: 'Main', chats: [{ id: 'peer', title: 'Peer' }] });
+		const mainChat = { ...built.mainChat.chat, workspace: constObservable(workspaceWithPullRequests('/main', [pullRequest(42), pullRequest(41)])) };
+		const peer = { ...built.chats.get('peer')!.chat, workspace: constObservable(workspaceWithPullRequests('/peer', [pullRequest(43)])) };
+		const session = { ...built.session, mainChat: constObservable(mainChat), chats: observableValue('chats', [mainChat, peer]) };
+		const feedback = observableValue<readonly IAgentFeedback[]>('feedback', [prFeedback('combined', session.resource, 41)]);
+		const ci = ciModel([failedCheck(1)]);
+		const calls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configuration)));
+		instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() { }());
+		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => { throw new Error('Must not open or use a widget'); } });
+		instantiationService.stub(IGitHubService, {
+			createPullRequestModelReference: (_owner: string, _repo: string, number: number) => new ImmortalReference(pullRequestModel(number, 'PR', false)),
+			createPullRequestCIModelReference: () => new ImmortalReference(ci),
+		});
+		instantiationService.stub(IAgentFeedbackService, {
+			onDidChangeFeedback: Event.None,
+			getFeedbackObservable: () => feedback,
+		});
+		let reject = false;
+		const accepted = new DeferredPromise<void>();
+		instantiationService.stub(ISessionsManagementService, {
+			getSession: () => session,
+			sendRequestInBackground: async (_session, chat) => {
+				calls.push(chat.resource.toString());
+				if (reject) {
+					throw new Error('Rejected');
+				}
+				await accepted.p;
+			},
+		});
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, { error: error => errors.push(String(error)) });
+		instantiationService.stub(IChatEntitlementService, { onDidChangeSentiment: Event.None, sentiment: {} });
+		const visible = observableValue('visible', true);
+		const host = mainWindow.document.createElement('div');
+		const mainBefore = host.appendChild(mainWindow.document.createElement('div'));
+		const peerBefore = host.appendChild(mainWindow.document.createElement('div'));
+		const main = store.add(instantiationService.createInstance(SessionInlineActions, session, undefined, mainBefore, visible, () => { }, () => { }));
+		const row = store.add(instantiationService.createInstance(SessionInlineActions, session, peer, peerBefore, visible, () => { }, () => { }));
+		const buttons = () => [...host.querySelectorAll<HTMLElement>('.session-inline-actions:not([hidden]) .monaco-button')];
+		assert.deepStrictEqual({ labels: buttons().map(button => button.textContent), dropdowns: host.querySelectorAll('.monaco-button-dropdown').length }, {
+			labels: ['Fix Checks & Address Comments', 'Fix Checks'], dropdowns: 0,
+		});
+		buttons()[1].click();
+		buttons()[1].click();
+		await timeout(0);
+		row.dispose();
+		store.add(instantiationService.createInstance(SessionInlineActions, session, peer, peerBefore, visible, () => { }, () => { }));
+		buttons()[1].click();
+		assert.deepStrictEqual({ calls, label: buttons()[1].textContent?.trim(), disabled: buttons()[1].getAttribute('aria-disabled') }, {
+			calls: [peer.resource.toString()], label: 'Sending...', disabled: 'true',
+		});
+		await accepted.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ peerHidden: host.querySelectorAll<HTMLElement>('.session-inline-actions')[1].hidden, errors }, {
+			peerHidden: true, errors: [],
+		});
+		ci.fixRequested.set(false, undefined);
+		reject = true;
+		buttons()[1].click();
+		await timeout(0);
+		assert.deepStrictEqual({ disabled: buttons()[1].getAttribute('aria-disabled'), errors }, { disabled: 'false', errors: ['Error: Rejected'] });
+		session.chats.set([mainChat], undefined);
+		buttons()[1].click();
+		await timeout(0);
+		assert.deepStrictEqual({ calls: calls.length, lastError: errors.at(-1) }, {
+			calls: 2, lastError: 'Error: This action is no longer available for this chat.',
+		});
+		visible.set(false, undefined);
+		assert.strictEqual(host.querySelectorAll('.session-inline-actions').length, 0);
+		main.dispose();
+	});
+
 	test('shows the pull requests of the session of its window, not of the globally active session', () => {
 		// One failing check per pull request: each session's pull request has its own number of failing checks.
 		const sessionOf = (id: string, prNumber: number) => {
@@ -62,7 +151,7 @@ suite('SessionInputBanners', () => {
 				resource: URI.parse(`local-agent-host-chat:/${id}/main`),
 				workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests(`/${id}`, [pullRequest(prNumber)])),
 			});
-			return new class extends mock<IActiveSession>() {
+			return new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = id;
 				override readonly resource = URI.parse(`local-agent-host:/${id}`);
 				override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -84,14 +173,17 @@ suite('SessionInputBanners', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		// The chat window of session A has focus: it is the globally active session.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
-			readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', windowA);
+			readonly mainWindowActiveSession = observableValue<ITestSessionWithChat | undefined>('mainWindowActiveSession', main);
 		}());
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false }); }
 		}();
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}
@@ -124,7 +216,7 @@ suite('SessionInputBanners', () => {
 
 		// Each chat window scopes its views to its own session; the main window to the session it shows.
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const hostOf = (kind: SessionHostKind, session: IActiveSession) => new ActiveSessionHost({ kind, parent: undefined, session: constObservable<IActiveSession | undefined>(session), contextKeyService });
+		const hostOf = (kind: SessionHostKind, session: ITestSessionWithChat) => new SessionHost({ kind, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(session), chat: constObservable(session?.activeChat?.get()), contextKeyService });
 		const bannersIn = (host: ISessionHost) => {
 			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionHost, host])).createInstance(SessionInputBanners));
 			// Every chat window's session view is active, as is the main window's.
@@ -135,7 +227,7 @@ suite('SessionInputBanners', () => {
 			windowA: bannersIn(hostOf(SessionHostKind.ChatWindow, windowA)),
 			windowB: bannersIn(hostOf(SessionHostKind.ChatWindow, windowB)),
 			// A pane of the main window shows the banners of the main window's session.
-			main: bannersIn(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<IActiveSession | undefined>(windowA), contextKeyService })),
+			main: bannersIn(new SessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<ITestSessionWithChat | undefined>(windowA), chat: constObservable(windowA?.activeChat?.get()), contextKeyService })),
 		}, {
 			windowA: '1 check failed',
 			windowB: '2 out of 2 checks failed',
@@ -157,7 +249,7 @@ suite('SessionInputBanners', () => {
 			workspace: observableValue<ISessionWorkspace | undefined>('secondaryWorkspace', workspaceWithPullRequests('/workspace-secondary', [secondaryPullRequest])),
 		});
 		const activeChat = observableValue<IChat>('activeChat', mainChat);
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = 'session-1';
 			override readonly resource = sessionResource;
 			override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -168,14 +260,17 @@ suite('SessionInputBanners', () => {
 			override readonly isCreated = constObservable(true);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return agentMergeState; }
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}

@@ -90,7 +90,7 @@ suite('pluginListWidget', () => {
 		});
 	});
 
-	test('renders User before Workspace even when User has no plugins', () => {
+	test('renders Workspace before User even when User has no plugins', () => {
 		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
 			const plugin = new class extends mock<IAgentPlugin>() {
 				override readonly uri = URI.file(`/plugins/${name}`);
@@ -150,9 +150,9 @@ suite('pluginListWidget', () => {
 				pluginUri: undefined,
 			}]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
-			hostPlugin: ['User', 'Workspace', 'Session'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
+			hostPlugin: ['Workspace', 'User'],
 		});
 	});
 
@@ -169,9 +169,11 @@ suite('pluginListWidget', () => {
 		assert.deepStrictEqual([
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
 		], [
 			'host-plugin. Agent host',
 			'host-plugin. Agent host. Status: Loaded',
+			'host-plugin. Organization: contoso. Agent host',
 		]);
 	});
 
@@ -217,7 +219,7 @@ suite('pluginListWidget', () => {
 
 		(Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void).call(widget);
 
-		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'First', 'Second']);
+		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['Workspace · First', 'Workspace · Second', 'User']);
 	});
 
 	test('reveals, selects, and focuses an installed plugin by URI', async () => {

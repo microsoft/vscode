@@ -5,7 +5,7 @@
 
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { IGitHubChangedFile } from './types.js';
 
 export interface IPullRequestContentUriParams {

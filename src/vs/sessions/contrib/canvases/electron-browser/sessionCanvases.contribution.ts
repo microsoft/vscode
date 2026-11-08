@@ -16,7 +16,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatContextPickService } from '../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { registerCanvasContextPicker } from '../../../../workbench/contrib/canvases/browser/canvasContextPicker.js';
-import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
@@ -26,6 +26,7 @@ import { SessionCanvasContextService, SessionCanvasRegistryService } from './ses
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
 import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
 import './pinnedCanvasActions.js';
+import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
 registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);

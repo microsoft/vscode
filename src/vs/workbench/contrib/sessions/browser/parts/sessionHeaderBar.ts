@@ -16,10 +16,12 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { getChatCapabilities, getUntitledSessionTitle, IChat, SessionStatus } from '../../common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
+import { getChatCapabilities, getUntitledSessionTitle, IChat, ISession, isSessionCreated, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuActionOptions } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -35,7 +37,7 @@ import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/se
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 
-export function getSessionChatAncestors(session: IActiveSession, chat: IChat | undefined, reader: IReader): readonly string[] {
+export function getSessionChatAncestors(session: ISession, chat: IChat | undefined, reader: IReader): readonly string[] {
 	const ancestors: string[] = [];
 	const mainChat = session.mainChat.read(reader);
 	const fallback = getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
@@ -58,7 +60,9 @@ export function getSessionChatAncestors(session: IActiveSession, chat: IChat | u
 }
 
 export interface ISessionHeaderBarContext {
-	readonly session: IActiveSession;
+	readonly session: ISession;
+	/** Whether the header is of a pane that shows one chat of its session apart from its slot, such as a detached pane. */
+	readonly isDetached?: boolean;
 	readonly chat: IObservable<IChat | undefined>;
 	readonly actionsTargetChat?: boolean;
 	readonly showParentContext?: boolean;
@@ -89,7 +93,8 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
-	private _session: IActiveSession | undefined;
+	private _session: ISession | undefined;
+	private _isDetached = false;
 	private _activeChatObservable: IObservable<IChat | undefined> | undefined;
 	private _actionsTargetChat = false;
 	private _showParentContext = false;
@@ -99,6 +104,8 @@ export class SessionHeaderBar extends Disposable {
 	/** Whether its title drags the editor that shows the chat; see {@link setDragsEditor}. */
 	private _dragsEditor = false;
 	private readonly _menuActionArgs: unknown[] = [];
+	/** The options of the actions of its toolbar's menu, {@link Menus.SessionBarToolbar}: their commands run with its session and chat. */
+	readonly menuActionOptions: IMenuActionOptions = { args: this._menuActionArgs };
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
 
@@ -147,6 +154,7 @@ export class SessionHeaderBar extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -197,7 +205,7 @@ export class SessionHeaderBar extends Disposable {
 		titleActions.appendChild(toolbarContainer);
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { args: this._menuActionArgs },
+			menuOptions: this.menuActionOptions,
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
@@ -242,7 +250,7 @@ export class SessionHeaderBar extends Disposable {
 			e.stopPropagation();
 			this._contextMenuService.showContextMenu({
 				menuId: Menus.SessionHeaderContext,
-				menuActionOptions: { args: this._menuActionArgs },
+				menuActionOptions: this.menuActionOptions,
 				getAnchor: () => anchor,
 				contextKeyService: this._contextKeyService,
 			});
@@ -296,7 +304,7 @@ export class SessionHeaderBar extends Disposable {
 					e.preventDefault();
 					return;
 				}
-				fillSessionChatDragData(e, session.sessionId, chat.resource, !!session.scopedChatResource);
+				fillSessionChatDragData(e, session.sessionId, chat.resource, this._isDetached);
 			} else {
 				fillSessionDragData(e, session);
 			}
@@ -332,7 +340,9 @@ export class SessionHeaderBar extends Disposable {
 		const showParentContext = context?.showParentContext ?? false;
 		const activateChatGroup = context?.activateChatGroup;
 		const closeSession = context?.closeSession;
+		const isDetached = context?.isDetached ?? false;
 		if (this._session === session
+			&& this._isDetached === isDetached
 			&& this._activeChatObservable === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
 			&& this._showParentContext === showParentContext
@@ -343,13 +353,14 @@ export class SessionHeaderBar extends Disposable {
 		// Cancel any in-flight rename when switching sessions.
 		this._cancelTitleEditing();
 		this._session = session;
+		this._isDetached = isDetached;
 		this._activeChatObservable = activeChat;
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;
 		this._closeSession = closeSession;
 		this._activeChat = undefined;
-		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? [session] : []));
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? sessionMenuArgs(session, undefined, this._sessionHost) : []));
 		this._toolbar.context = session;
 		this._statusIcon.reset();
 
@@ -371,7 +382,7 @@ export class SessionHeaderBar extends Disposable {
 		}));
 
 		store.add(autorun(reader => {
-			this._sessionIsCreated = session.isCreated.read(reader);
+			this._sessionIsCreated = isSessionCreated(session, reader);
 			this._updateVisibility();
 		}));
 	}
@@ -389,7 +400,7 @@ export class SessionHeaderBar extends Disposable {
 	}
 
 	private _updateHeader(
-		session: IActiveSession,
+		session: ISession,
 		activeChatObservable: IObservable<IChat | undefined>,
 		reader: IReader,
 	): void {
@@ -406,7 +417,7 @@ export class SessionHeaderBar extends Disposable {
 			this._titleEl.classList.remove('editable');
 			return;
 		}
-		this._menuActionArgs.splice(0, this._menuActionArgs.length, session, ...(this._actionsTargetChat ? [activeChat] : []));
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...sessionMenuArgs(session, this._actionsTargetChat ? activeChat : undefined, this._sessionHost));
 		if (this._activeChat?.resource.toString() !== activeChat.resource.toString()) {
 			this._cancelTitleEditing();
 			this._activeChat = activeChat;
@@ -418,9 +429,9 @@ export class SessionHeaderBar extends Disposable {
 		this._updateTitle(session, activeChat, title, reader);
 	}
 
-	private _updateTitle(session: IActiveSession, chat: IChat | undefined, title: string, reader: IReader): void {
+	private _updateTitle(session: ISession, chat: IChat | undefined, title: string, reader: IReader): void {
 		const ancestors = getSessionChatAncestors(session, chat, reader);
-		const description = session.scopedChatResource || this._showParentContext ? ancestors.join(' / ') : '';
+		const description = this._isDetached || this._showParentContext ? ancestors.join(' / ') : '';
 		this._titleLabel.setLabel(title, description);
 		this._titleEl.classList.toggle('has-description', description.length > 0);
 		this._titlePath = [...ancestors, title].join(' / ');
@@ -581,17 +592,19 @@ export class SessionViewFloatingToolbar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _toolbarContainer: HTMLElement;
-	private readonly _toolbar: MenuWorkbenchToolBar;
-	private _session: IActiveSession | undefined;
+	private _session: ISession | undefined;
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get element(): HTMLElement {
 		return this._container;
 	}
 
+	private readonly _menuActionArgs: unknown[] = [];
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -603,9 +616,9 @@ export class SessionViewFloatingToolbar extends Disposable {
 		toolbar.style.display = 'none';
 		this._container.appendChild(toolbar);
 
-		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
+		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
+			menuOptions: { args: this._menuActionArgs },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
@@ -616,7 +629,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			canDrag = !toolbar.contains(e.target as Node | null) && !isSessionDragFromPaneEdge(this._container, e);
 		}));
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
-			if (!canDrag || !e.dataTransfer || this._session?.isCreated.get()) {
+			if (!canDrag || !e.dataTransfer || isSessionCreated(this._session)) {
 				e.preventDefault();
 				return;
 			}
@@ -630,12 +643,12 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}));
 	}
 
-	setSession(session: IActiveSession | undefined): void {
+	setSession(session: ISession | undefined): void {
 		if (this._session === session) {
 			return;
 		}
 		this._session = session;
-		this._toolbar.context = session;
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? sessionMenuArgs(session, undefined, this._sessionHost) : []));
 		this._toolbarContainer.style.display = session ? '' : 'none';
 
 		const store = new DisposableStore();
@@ -647,7 +660,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}
 
 		store.add(autorun(reader => {
-			this._setVisible(!session.isCreated.read(reader));
+			this._setVisible(!isSessionCreated(session, reader));
 		}));
 	}
 

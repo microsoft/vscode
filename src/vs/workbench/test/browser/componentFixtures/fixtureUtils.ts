@@ -111,10 +111,10 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../.
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
-import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
+import { SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -781,6 +781,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getFeedbackObservable: () => constObservable([]),
 		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },
@@ -820,10 +821,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
 		// The main window's host, which shows no session.
-		gridHost: new ActiveSessionHost({
+		gridHost: new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: constObservable(undefined),
+			session: constObservable(undefined), chat: constObservable(undefined),
 			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		}),

@@ -46,8 +46,8 @@ import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../browser/c
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent } from '../../../../chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/media/style.css';
@@ -57,7 +57,7 @@ import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactI
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
 import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
-import { stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
 suite('Artifact Integration Presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -147,7 +147,7 @@ suite('Artifact Integration Presentation', () => {
 		const focusedActivities: string[] = [];
 		const chatWidgets = new ResourceMap<IChatWidget>();
 		const onDidAddWidget = store.add(new Emitter<IChatWidget>());
-		const activeSession = observableValue<IActiveSession | undefined>('activity chat', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activity chat', undefined);
 		let openChatResult: Promise<void> | undefined;
 		instantiation.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSessionForChatResource(resource: URI) {
@@ -161,7 +161,7 @@ suite('Artifact Integration Presentation', () => {
 			readonly activeSession = activeSession;
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				openedChats.push(resource.toString());
-				activeSession.set(new class extends mock<IActiveSession>() {
+				activeSession.set(new class extends mock<ITestSessionWithChat>() {
 					override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = resource; }());
 				}(), undefined);
 				await openChatResult;
