@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
+import { IIdentifiedSingleEditOperation, ITextModel } from '../../../../../editor/common/model.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -51,6 +51,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
+	private decorationModelVersionId: number | undefined;
 
 	private readonly _editorListener = this._register(new MutableDisposable());
 
@@ -65,13 +66,19 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
-		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
+		this._register(widget.input.attachmentModel.onDidChange(() => {
+			// Parsing can update attachments before the editor listener has tracked the edit.
+			if (this.widget.inputEditor.getModel()?.getVersionId() === this.decorationModelVersionId) {
+				this.updateDecorations();
+			}
+		}));
 	}
 
 	private _subscribeToEditor(): void {
 		this._editorListener.value = this.widget.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
+			const cleanupEdits: IIdentifiedSingleEditOperation[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
@@ -119,11 +126,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 					}
 
 					if (!replacement && touchesReference) {
-						this.widget.inputEditor.executeEdits(this.id, [{
+						cleanupEdits.push({
 							range: newRange,
 							text: '',
-						}]);
-						this.widget.refreshParsedInput();
+						});
 					}
 
 					removed.push(ref);
@@ -142,6 +148,12 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			// cleanup disposable variables
 			dispose(removed.filter(isDisposable));
+
+			if (cleanupEdits.length > 0) {
+				// Cleanup edits reenter this listener, so publish surviving reference decorations first.
+				this.updateDecorations();
+				this.widget.inputEditor.executeEdits(this.id, cleanupEdits);
+			}
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
@@ -227,7 +239,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	addReference(ref: IDynamicVariable): void {
+	addReference(ref: IDynamicVariable, replaceCoveredReferences = false): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
 		}
@@ -235,6 +247,18 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (existingAttachment) {
 			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
+		}
+
+		if (replaceCoveredReferences) {
+			const removed: IDynamicVariable[] = [];
+			this._variables = this._variables.filter(existing => {
+				if (Range.containsRange(ref.range, existing.range)) {
+					removed.push(existing);
+					return false;
+				}
+				return true;
+			});
+			dispose(removed.filter(isDisposable));
 		}
 
 		this._variables.push(ref);
@@ -245,6 +269,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private updateDecorations(): void {
 		const model = this.widget.inputEditor.getModel();
+		this.decorationModelVersionId = model?.getVersionId();
 		if (!model) {
 			this.decorationData = [];
 			return;

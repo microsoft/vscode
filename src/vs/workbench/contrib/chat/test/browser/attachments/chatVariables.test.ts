@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
@@ -231,7 +232,7 @@ suite('inline attachment references', () => {
 suite('ChatDynamicVariableModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createDynamicVariableModel(text: string): { editor: ReturnType<typeof createTestCodeEditor>; model: ChatDynamicVariableModel } {
+	function createDynamicVariableModel(text: string, updateAttachmentsBeforeReferences = false): { editor: ReturnType<typeof createTestCodeEditor>; model: ChatDynamicVariableModel } {
 		const textModel = store.add(createTextModel(text));
 		const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
 		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
@@ -242,6 +243,11 @@ suite('ChatDynamicVariableModel', () => {
 		}));
 		const onDidChangeActiveInputEditor = store.add(new Emitter<void>());
 		const onDidChangeAttachments = store.add(new Emitter<{ deleted: readonly string[]; added: readonly IChatRequestVariableEntry[]; updated: readonly IChatRequestVariableEntry[] }>());
+		if (updateAttachmentsBeforeReferences) {
+			store.add(editor.onDidChangeModelContent(() => {
+				onDidChangeAttachments.fire({ deleted: [], added: [], updated: [createMockAttachment()] });
+			}));
+		}
 		const widget = {
 			input: {
 				attachmentModel: {
@@ -258,6 +264,135 @@ suite('ChatDynamicVariableModel', () => {
 		} as unknown as ILabelService));
 		return { editor, model };
 	}
+
+	test('replaces covered references only when requested and publishes once after disposing them', () => {
+		const { model } = createDynamicVariableModel('/mcp enable /mcp');
+		const disposed: string[] = [];
+		model.addReference(Object.assign(toDisposable(() => disposed.push('parent')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 5),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('other')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 13, 1, 17),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('partial')), createMockVariable({
+			id: 'partial',
+			range: new Range(1, 10, 1, 17),
+		})));
+		const changes: { disposed: string[]; ranges: IDynamicVariable['range'][] }[] = [];
+		store.add(model.onDidChangeReferences(() => changes.push({
+			disposed: [...disposed],
+			ranges: model.variables.map(reference => reference.range),
+		})));
+
+		model.addReference(Object.assign(toDisposable(() => disposed.push('previous')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 12),
+		})));
+		model.addReference(createMockVariable({ id: 'command', range: new Range(1, 1, 1, 12) }), true);
+
+		assert.deepStrictEqual(changes, [
+			{
+				disposed: [],
+				ranges: [new Range(1, 1, 1, 5), new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+			{
+				disposed: ['parent', 'previous'],
+				ranges: [new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+		]);
+	});
+
+	test('keeps an inline skill highlight when parsing updates attachments before reference tracking', () => {
+		const { editor, model } = createDynamicVariableModel('explain /skill now', true);
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 15),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 1),
+			text: 'Please ',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+			highlights: editor.getModel()!.getAllDecorations()
+				.filter(decoration => decoration.options.description === 'test')
+				.map(decoration => ({ range: decoration.range, text: editor.getModel()!.getValueInRange(decoration.range) })),
+		}, {
+			text: 'Please explain /skill now',
+			variables: [new Range(1, 16, 1, 22)],
+			highlights: [{ range: new Range(1, 16, 1, 22), text: '/skill' }],
+		});
+	});
+
+	test('tracks multiple inline skills across newline edits when attachments update first', () => {
+		const { editor, model } = createDynamicVariableModel('use /skill and /other now', true);
+		model.addReference(createMockVariable({
+			id: 'skill',
+			range: new Range(1, 5, 1, 11),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+		model.addReference(createMockVariable({
+			id: 'other',
+			range: new Range(1, 16, 1, 22),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 1),
+			text: 'First\n',
+		}]);
+		const afterInsertion = model.variables.map(variable => variable.range);
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 2, 5),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			afterInsertion,
+			text: editor.getValue(),
+			variables: model.variables.map(variable => ({ id: variable.id, range: variable.range })),
+		}, {
+			afterInsertion: [new Range(2, 5, 2, 11), new Range(2, 16, 2, 22)],
+			text: '/skill and /other now',
+			variables: [
+				{ id: 'skill', range: new Range(1, 1, 1, 7) },
+				{ id: 'other', range: new Range(1, 12, 1, 18) },
+			],
+		});
+	});
+
+	test('atomically removes an edited inline skill without losing another when attachments update first', () => {
+		const { editor, model } = createDynamicVariableModel('use /skill and /other now', true);
+		model.addReference(createMockVariable({
+			id: 'skill',
+			range: new Range(1, 5, 1, 11),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+		model.addReference(createMockVariable({
+			id: 'other',
+			range: new Range(1, 16, 1, 22),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 5, 1, 6),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => ({ id: variable.id, range: variable.range })),
+		}, {
+			text: 'use  and /other now',
+			variables: [{ id: 'other', range: new Range(1, 10, 1, 16) }],
+		});
+	});
 
 	test('keeps a reference when editing text before it', () => {
 		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
@@ -400,6 +535,7 @@ suite('ChatDynamicVariableModel', () => {
 			inputEditor: {
 				onDidChangeModelContent: onDidChangeModelContent.event,
 				getModel: () => ({
+					getVersionId: () => 1,
 					getValueInRange: () => '#attachment',
 					getDecorationRange: () => new Range(1, 1, 1, 20),
 					getOffsetAt: (position: { column: number }) => position.column - 1,

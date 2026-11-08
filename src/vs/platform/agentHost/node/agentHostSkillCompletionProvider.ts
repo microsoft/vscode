@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { readMcpServerDisplayName } from '../common/meta/mcpCustomizationMeta.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostCustomizationUri.js';
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
 import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
 import { ISessionDataService } from '../common/sessionDataService.js';

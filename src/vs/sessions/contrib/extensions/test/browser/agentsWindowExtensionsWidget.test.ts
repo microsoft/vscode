@@ -37,9 +37,9 @@ import { IExtensionService } from '../../../../../workbench/services/extensions/
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
+import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
 import { AGENTS_WINDOW_MARKETPLACE_QUERY_SOURCE } from '../../browser/agentsWindowExtensionsMarketplace.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
+import { getSuggestedContributionLabels, IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface ITestExtensionOptions {
 	readonly displayName: string;

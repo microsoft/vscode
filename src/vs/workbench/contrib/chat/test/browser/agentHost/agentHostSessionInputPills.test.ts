@@ -18,8 +18,8 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import { createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -55,7 +55,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
-import { ICanvas, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
+import { ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -81,6 +81,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
 import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind } from '../../../common/agentHostSessionCustomizations.js';
+import { ICanvas } from '../../../../../common/canvasReference.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -3075,7 +3076,7 @@ suite('AgentHostSessionInputPills', () => {
 		const { harness, setOperations } = createSessionWorkingSetPills();
 		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'shown');
 		await harness.setWorkingSetEnabled(true);
-		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
+		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, harness.connection, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
 			readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString('baseline') }),
 		}), store.add(new WorkingCopyService())));
 		harness.showModel(upcastPartial<IChatModel>({}));
@@ -3188,7 +3189,8 @@ suite('AgentHostSessionInputPills', () => {
 
 	test('opens, keeps and undoes Working Set files through the ambient host of a remote window', async () => {
 		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files aren't on this machine
-		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris: createAgentHostResourceUriMapper('ambient-remote') });
+		const resourceUris = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));
+		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris });
 		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
 		await harness.setWorkingSetEnabled(true);
 		const keep = harness.workingSetKeep();
@@ -3203,7 +3205,8 @@ suite('AgentHostSessionInputPills', () => {
 			invoked: readInvoked(),
 			errors,
 		}, {
-			resources: Array.from({ length: 3 }, () => 'vscode-agent-host://ambient-remote/repo/file.ts'),
+			// The file opens as the remote workspace's file; recorded contents are read through the host.
+			resources: ['vscode-agent-host://local/repo/file.ts', 'vscode-remote://wsl+debian/repo/file.ts', 'vscode-agent-host://local/repo/file.ts'],
 			results: [true, true],
 			invoked: [
 				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',

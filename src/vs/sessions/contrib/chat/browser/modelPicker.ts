@@ -26,20 +26,20 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { Menus } from '../../../browser/menus.js';
-import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { resolveGridCommandView } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
-import { createChatPhoneInputSessionContext } from '../../../services/presentation/browser/chatPhoneInputContext.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionModelSelection } from './sessionModelSelection.js';
-import { INewChatModelPickerService } from './newChatModelPicker.js';
-import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { createChatPhoneInputSessionContext } from '../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
+import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
+import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,

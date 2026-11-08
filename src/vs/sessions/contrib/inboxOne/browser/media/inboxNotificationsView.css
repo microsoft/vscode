@@ -108,6 +108,52 @@
 	display: block;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench:not(.monaco-reduce-motion, .hc-black, .hc-light) .inbox-notifications-new-session.highlight .chat-input-container {
+		animation: inbox-composer-glow 1600ms ease-out;
+	}
+}
+
+@keyframes inbox-composer-glow {
+	0%, 100% {
+		box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+	}
+	20%, 55% {
+		box-shadow:
+			0 0 var(--vscode-spacing-size80) var(--vscode-spacing-size20) color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent),
+			0 0 var(--vscode-spacing-size240) var(--vscode-spacing-size60) color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	}
+}
+
+.inbox-notifications-row-action-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-item.action-succeeded .inbox-notifications-row-inline-actions,
+.inbox-notifications-item.action-succeeded .inbox-notifications-row-actions {
+	display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench:not(.monaco-reduce-motion) .inbox-notifications-item.action-succeeded .inbox-notifications-row-action-status > .codicon {
+		animation: inbox-action-taken 300ms ease-out;
+	}
+}
+
+@keyframes inbox-action-taken {
+	from {
+		opacity: 0;
+		transform: scale(0.7);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
 .inbox-notifications-new-session .new-chat-widget-container,
 .inbox-notifications-new-session .new-chat-widget-container.revealed {
 	justify-content: flex-start;
