@@ -100,7 +100,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		return mergedRanges;
 	}, [] as vscode.Range[]);
 
-	// Backup orginal selections and update selections
+	// Backup original selections and update selections
 	// Also helps with https://github.com/microsoft/vscode/issues/113930 by avoiding `editor.linkedEditing`
 	// execution if selection is inside an open or close tag
 	const oldSelections = editor.selections;
