@@ -219,10 +219,12 @@ suite('WordHighlighterContribution', () => {
 			const model = store.add(services.get(IModelService).createModel('word word word', null, resource));
 			const editor = store.add(instantiateTestCodeEditor(services, model, options));
 			const contribution = store.add(editor.registerAndInstantiateContribution(WordHighlighterContribution.ID, WordHighlighterContribution));
+			const highlighter = contribution.wordHighlighter!;
 			try {
 				await run(editor, contribution, services);
 			} finally {
 				editor.setModel(null);
+				Reflect.set(highlighter.constructor, 'query', null);
 			}
 		});
 	}
