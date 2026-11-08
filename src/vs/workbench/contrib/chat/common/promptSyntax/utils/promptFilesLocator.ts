@@ -33,7 +33,7 @@ import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/a
 /**
  * Maximum recursion depth when traversing subdirectories for instruction files.
  */
-const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+export const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
 
 export interface IWorkspaceInstructionFile {
 	readonly fileName: string;

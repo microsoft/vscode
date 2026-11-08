@@ -212,8 +212,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override onDidFilesChange = Event.None;
 		override onDidRunOperation = Event.None;
 		override hasProvider() { return false; }
-		// Attached files and folders are watched for changes.
+		// Attached files and folders are watched for changes, and so is the agent setup of profiles.
 		override createWatcher() { return { onDidChange: Event.None, dispose: () => { } }; }
+		override watch() { return Disposable.None; }
 	}());
 	reg.defineInstance(IEditorResolverService, new class extends mock<IEditorResolverService>() { override getEditors() { return []; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {

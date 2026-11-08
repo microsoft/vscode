@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -17,7 +17,9 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ILocalExtension, InstallExtensionResult, InstallOperation } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -29,9 +31,13 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AGENTS_WINDOW_PROFILE_ID, IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UseDefaultProfileFlags } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../chat/common/aiCustomizationWorkspaceService.js';
+import { getPromptFileType } from '../../../../chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptsType } from '../../../../chat/common/promptSyntax/promptTypes.js';
+import { IPromptsService, PromptsStorage } from '../../../../chat/common/promptSyntax/service/promptsService.js';
 import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mcpCopilotGlobalConfigurationService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchExtensionManagementService } from '../../../../../services/extensionManagement/common/extensionManagement.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { FOLDER_PROFILE_NOTICE_DISMISSED_STORAGE_KEY, NewChatProfileNotice } from '../../../browser/chat/newChatProfileNotice.js';
@@ -73,6 +79,11 @@ suite('NewChatProfileNotice', () => {
 			override readonly manifest = { name: 'tools', publisher: 'acme', version: '1.0.0', engines: { vscode: '*' }, displayName: 'Acme Tools', contributes: { languageModelTools: [{ name: 'acme', displayName: 'Acme', modelDescription: 'Acme' }] } };
 		}();
 
+		const installed = new Map<string, ILocalExtension[]>([[workProfile.extensionsResource.toString(), [toolsExtension]]]);
+		const didInstallExtensions = store.add(new Emitter<readonly InstallExtensionResult[]>());
+		const userCustomizations: URI[] = [];
+		const didChangeCustomAgents = store.add(new Emitter<void>());
+
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -84,11 +95,21 @@ suite('NewChatProfileNotice', () => {
 		let focusCount = 0;
 		instantiation.stub(IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [defaultProfile, agentsProfile, workProfile, sharedProfile], onDidChangeProfiles: Event.None }));
 		instantiation.stub(IUserDataProfileService, upcastPartial<IUserDataProfileService>({ currentProfile: agentsProfile }));
-		instantiation.stub(IExtensionManagementService, upcastPartial<IExtensionManagementService>({
-			getInstalled: async (_type, profileLocation) => extUri.isEqual(profileLocation, workProfile.extensionsResource) ? [toolsExtension] : [],
-			onDidInstallExtensions: Event.None,
-			onDidUninstallExtension: Event.None,
+		instantiation.stub(IWorkbenchExtensionManagementService, upcastPartial<IWorkbenchExtensionManagementService>({
+			getInstalled: async (_type, profileLocation) => installed.get(profileLocation!.toString()) ?? [],
+			onProfileAwareDidInstallExtensions: didInstallExtensions.event,
+			onProfileAwareDidUninstallExtension: Event.None,
+			onProfileAwareDidUpdateExtensionMetadata: Event.None,
 		}));
+		instantiation.stub(IPromptsService, upcastPartial<IPromptsService>({
+			listPromptFilesForStorage: async (type: PromptsType, storage: PromptsStorage) => storage === PromptsStorage.user
+				? userCustomizations.filter(uri => getPromptFileType(uri) === type).map(uri => ({ uri, storage: PromptsStorage.user, type }))
+				: [],
+			onDidChangeCustomAgents: didChangeCustomAgents.event,
+			onDidChangeInstructions: Event.None,
+			onDidChangeSlashCommands: Event.None,
+		}));
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IMcpResourceScannerService, store.add(new McpResourceScannerService(fileService, upcastPartial<IUriIdentityService>({ extUri, asCanonicalUri: uri => uri }))));
 		instantiation.stub(IMcpCopilotGlobalConfigurationService, upcastPartial<IMcpCopilotGlobalConfigurationService>({ getConfigurationResource: async () => undefined }));
 		instantiation.stub(IFileService, fileService);
@@ -124,7 +145,26 @@ suite('NewChatProfileNotice', () => {
 			notice.element.querySelector<HTMLElement>('.monaco-button')!.click();
 			await timeout(0);
 		};
-		return { create, read, showDetails, session, sentiment, storage, actions, details, get focusCount() { return focusCount; } };
+		// Adds what the folder's profile has to the Agents window, as Show Details leads to.
+		const addToAgentsWindow = {
+			extension: async (extension: ILocalExtension) => {
+				installed.set(defaultProfile.extensionsResource.toString(), [extension]);
+				didInstallExtensions.fire([{ identifier: extension.identifier, operation: InstallOperation.Install, local: extension, profileLocation: defaultProfile.extensionsResource }]);
+				await timeout(0);
+			},
+			customization: async (resource: URI) => {
+				userCustomizations.push(resource);
+				didChangeCustomAgents.fire();
+				await timeout(0);
+			},
+		};
+		const writeFile = async (resource: URI, content: string) => {
+			const didChange = Event.toPromise(Event.filter(fileService.onDidFilesChange, e => e.contains(resource)));
+			await fileService.writeFile(resource, VSBuffer.fromString(content));
+			await didChange;
+			await timeout(0);
+		};
+		return { create, read, showDetails, session, sentiment, storage, actions, details, toolsExtension, addToAgentsWindow, writeFile, get focusCount() { return focusCount; } };
 	}
 
 	test('names what the folder\'s profile has that the Agents window does not, and leads to where each can be added or seen', async () => {
@@ -146,6 +186,30 @@ suite('NewChatProfileNotice', () => {
 				'open /User/profiles/work/prompts/reviewer.agent.md',
 			],
 		});
+	});
+
+	test('updates as the user adds what the folder\'s profile has to the Agents window, and when the profile gets more', async () => {
+		const env = await setup();
+		const notice = await env.create();
+		const summaries: (string | undefined)[] = [];
+		const record = () => summaries.push(env.read(notice)?.message?.match(/which has (?<summary>.+) that the Agents window/)?.groups?.summary);
+		record();
+		await env.addToAgentsWindow.extension(env.toolsExtension);
+		record();
+		await env.writeFile(defaultProfile.mcpResource, JSON.stringify({ servers: { jira: { command: 'jira' } } }));
+		record();
+		// A personal folder that every profile uses, such as ~/.copilot/agents.
+		await env.addToAgentsWindow.customization(URI.file('/home/.copilot/agents/reviewer.agent.md'));
+		record();
+		await env.writeFile(extUri.joinPath(workProfile.promptsHome, 'team/style.instructions.md'), '');
+		record();
+		assert.deepStrictEqual(summaries, [
+			'1 extension, 1 MCP server and 1 agent',
+			'1 MCP server and 1 agent',
+			'1 agent',
+			undefined,
+			'1 instructions file',
+		]);
 	});
 
 	test('stays hidden for folders without another profile, profiles that share the Default profile\'s setup, folders of other machines, and hidden AI features', async () => {

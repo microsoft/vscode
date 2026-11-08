@@ -11,22 +11,20 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -111,7 +109,6 @@ export class NewChatProfileNotice extends Disposable {
 		private readonly _focusInput: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
@@ -138,18 +135,35 @@ export class NewChatProfileNotice extends Disposable {
 		const dismissedProfiles = observableFromEvent(this,
 			this._storageService.onDidChangeValue(StorageScope.PROFILE, FOLDER_PROFILE_NOTICE_DISMISSED_STORAGE_KEY, this._store),
 			() => this._getDismissedProfiles());
-		// Installing an extension in the Agents window, or in the folder's profile, changes what the Agents window lacks.
-		const extensionsChanged = observableSignalFromEvent(this, Event.any<unknown>(extensionManagementService.onDidInstallExtensions, extensionManagementService.onDidUninstallExtension));
-
-		const resolved = observableValue<Omit<IFolderProfileNoticeContent, 'sessionId'> | undefined>(this, undefined);
-		this._register(autorun(reader => {
-			extensionsChanged.read(reader);
+		const compared = derived<{ readonly folder: ISessionFolder; readonly profile: IUserDataProfile } | undefined>(this, reader => {
 			const currentFolder = folder.read(reader);
 			const profile = currentFolder ? getFolderProfile(profiles.read(reader), currentFolder.root, extUri) : undefined;
 			if (!currentFolder || !profile || chatEntitlementService.sentimentObs.read(reader).hidden || dismissedProfiles.read(reader).has(profile.id)) {
+				return undefined;
+			}
+			return { folder: currentFolder, profile };
+		});
+		const comparedProfile = derived(this, reader => compared.read(reader)?.profile);
+
+		// What the Agents window lacks changes when extensions are installed, or MCP servers or customization files change, in
+		// either profile, such as when the user adds what Show Details lists.
+		const setupChanged = observableSignal(this);
+		this._register(autorun(reader => {
+			const profile = comparedProfile.read(reader);
+			if (profile) {
+				reader.store.add(resolver.watch(profile, () => setupChanged.trigger(undefined)));
+			}
+		}));
+
+		const resolved = observableValue<Omit<IFolderProfileNoticeContent, 'sessionId'> | undefined>(this, undefined);
+		this._register(autorun(reader => {
+			setupChanged.read(reader);
+			const value = compared.read(reader);
+			if (!value) {
 				resolved.set(undefined, undefined);
 				return;
 			}
+			const { folder: currentFolder, profile } = value;
 			// Keeps showing the notice while it is refreshed for the same folder and profile.
 			const previous = resolved.read(undefined);
 			if (previous && (previous.setup.profile.id !== profile.id || !extUri.isEqual(previous.folder.root, currentFolder.root))) {

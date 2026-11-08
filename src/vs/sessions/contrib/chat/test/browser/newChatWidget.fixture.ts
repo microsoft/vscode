@@ -26,12 +26,13 @@ import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/co
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ExtensionIdentifier, ExtensionType } from '../../../../../platform/extensions/common/extensions.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AGENTS_WINDOW_PROFILE_ID, IUserDataProfile, IUserDataProfilesService, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IMcpCopilotGlobalConfigurationService } from '../../../../../workbench/contrib/mcp/common/mcpCopilotGlobalConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IWorkbenchExtensionManagementService } from '../../../../../workbench/services/extensionManagement/common/extensionManagement.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1828,9 +1829,12 @@ function registerFixtureProfileServices(reg: ServiceRegistration, folder: URI, f
 	reg.defineInstance(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
 		override readonly currentProfile = agentsProfile;
 	}());
-	reg.defineInstance(IExtensionManagementService, new class extends mock<IExtensionManagementService>() {
+	reg.defineInstance(IWorkbenchExtensionManagementService, new class extends mock<IWorkbenchExtensionManagementService>() {
 		override readonly onDidInstallExtensions = Event.None;
 		override readonly onDidUninstallExtension = Event.None;
+		override readonly onProfileAwareDidInstallExtensions = Event.None;
+		override readonly onProfileAwareDidUninstallExtension = Event.None;
+		override readonly onProfileAwareDidUpdateExtensionMetadata = Event.None;
 		override async getInstalled(_type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
 			return profileLocation?.toString() === workProfile.extensionsResource.toString() ? [workTools] : [];
 		}
