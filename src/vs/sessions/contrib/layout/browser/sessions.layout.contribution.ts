@@ -63,7 +63,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[SESSION_ACTIVITY_BAR_SETTING]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			experiment: { mode: 'auto' },
 			description: localize('sessions.showSessionActivityBar', "Controls whether the Session Activity Bar is shown at the right edge of the active chat in the Agents window. It opens the Changes, Files, Browser, and Canvas tabs."),
 		},
