@@ -36,6 +36,8 @@ import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '..
 import type { ISyncedCustomizationOrigin } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ReconnectableAgentHostAutomationStore } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.js';
+import { IAgentPluginService } from '../../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import type { IAgentPlugin } from '../../../../../../workbench/contrib/chat/common/plugins/agentPluginModel.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
@@ -370,7 +372,7 @@ suite('AgentHostAutomationStore', () => {
 	const activeClientService = new class extends mock<IAgentHostActiveClientService>() { }();
 
 
-	function reconnectable(enabled = true, activeClient: IAgentHostActiveClientService = activeClientService, boundaryMapper?: IAgentHostAutomationBoundaryMapper) {
+	function reconnectable(enabled = true, activeClient: IAgentHostActiveClientService = activeClientService, boundaryMapper?: IAgentHostAutomationBoundaryMapper, agentPluginService?: IAgentPluginService) {
 		const storage = disposables.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: enabled });
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -378,6 +380,9 @@ suite('AgentHostAutomationStore', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IAgentHostActiveClientService, activeClient);
+		if (agentPluginService) {
+			instantiationService.stub(IAgentPluginService, agentPluginService);
+		}
 		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, 'host', boundaryMapper));
 		return { store, storage, configuration };
 	}
@@ -542,6 +547,48 @@ suite('AgentHostAutomationStore', () => {
 			assert.ok(action.type === ActionType.AutomationCreateRequested);
 			return action.definition.session.customizations;
 		}), [[first, second], [second]]);
+	});
+
+	test('customization choices mark organization-required plugins as required and retain them even when unselected', async () => {
+		const activeClient = new TestActiveClientService();
+		const optional = plugin('virtual://client/plugins/optional');
+		const orgRequiredMeta = { ...plugin('virtual://client/plugins/required-meta'), _meta: { policyRequired: true } };
+		const orgRequiredPolicy = plugin('virtual://client/plugins/required-policy');
+		activeClient.customizations.set([optional, orgRequiredMeta, orgRequiredPolicy], undefined);
+
+		const fakeAgentPluginService = new class extends mock<IAgentPluginService>() {
+			override plugins = constObservable<readonly IAgentPlugin[]>([
+				{
+					label: 'Required Policy Plugin',
+					uri: URI.parse(orgRequiredPolicy.uri),
+					policyEnablement: constObservable(true),
+				} as unknown as IAgentPlugin,
+			]);
+		}();
+
+		const { store } = reconnectable(true, activeClient, undefined, fakeAgentPluginService);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+
+		const choices = await store.getCustomizationChoices(createOptions().target, undefined, CancellationToken.None);
+		assert.deepStrictEqual(choices, [
+			{ id: optional.id, label: 'Test Plugin', description: undefined, selected: true, outdated: false },
+			{ id: orgRequiredMeta.id, label: 'Test Plugin', description: undefined, selected: true, outdated: false, required: true },
+			{ id: orgRequiredPolicy.id, label: 'Test Plugin', description: undefined, selected: true, outdated: false, required: true },
+		]);
+
+		// When creating with customizationIds that only includes the optional plugin, both required plugins are still retained!
+		await store.createAutomation({ ...createOptions(), customizationIds: [optional.id] });
+		const action = connection.dispatched[0].action;
+		assert.ok(action.type === ActionType.AutomationCreateRequested);
+		assert.deepStrictEqual(action.definition.session.customizations, [optional, orgRequiredMeta, orgRequiredPolicy]);
+
+		// When updating with an empty customizationIds array, both required plugins are still retained!
+		const automation = await store.createAutomation(createOptions());
+		await store.updateAutomation(automation.id, { customizationIds: [] });
+		const updateAction = connection.dispatched[2].action;
+		assert.ok(updateAction.type === ActionType.AutomationUpdateRequested);
+		assert.deepStrictEqual(updateAction.changes.session?.customizations, [orgRequiredMeta, orgRequiredPolicy]);
 	});
 
 	test('updating customization ids refreshes current refs and keeps saved-only refs verbatim', async () => {

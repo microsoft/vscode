@@ -2879,6 +2879,48 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual((await dialog.result)?.value.customizationIds, ['second', 'first', 'third']);
 	});
 
+	test('organization-required customizations render checked and disabled and cannot be unchecked', async () => {
+		const choices: IAutomationCustomizationChoice[] = [
+			{ id: 'optional-plugin', label: 'Optional Plugin', selected: false, outdated: false },
+			{ id: 'org-plugin', label: 'Required Plugin', selected: true, outdated: false, required: true },
+		];
+		const dialog = openDialog({}, async () => choices);
+		await timeout(0);
+		const disclosure = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		disclosure.click();
+
+		const rows = dialog.container.querySelectorAll<HTMLElement>('.automation-customization-row');
+		assert.strictEqual(rows.length, 2);
+
+		const requiredRow = rows[1];
+		assert.ok(requiredRow.classList.contains('disabled'));
+
+		const checkboxes = dialog.container.querySelectorAll<HTMLElement>('.automation-customization-row .monaco-checkbox');
+		const requiredCheckbox = checkboxes[1];
+		assert.strictEqual(requiredCheckbox.getAttribute('aria-checked'), 'true');
+		assert.strictEqual(requiredCheckbox.getAttribute('aria-disabled'), 'true');
+
+		const requiredNote = requiredRow.querySelector('.automation-customization-required');
+		assert.strictEqual(requiredNote?.textContent, 'Required by your organization');
+
+		// Clicking the checkbox or row text does not uncheck
+		requiredCheckbox.click();
+		assert.strictEqual(requiredCheckbox.getAttribute('aria-checked'), 'true');
+
+		const requiredText = requiredRow.querySelector<HTMLElement>('.automation-customization-text')!;
+		requiredText.click();
+		assert.strictEqual(requiredCheckbox.getAttribute('aria-checked'), 'true');
+
+		// Optional choice can be toggled
+		checkboxes[0].click();
+		assert.strictEqual(checkboxes[0].getAttribute('aria-checked'), 'true');
+
+		dialog.setPrompt('Run required');
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual(result?.value.customizationIds, ['optional-plugin', 'org-plugin']);
+	});
+
 	test('hides Advanced when customizations are unsupported', async () => {
 		for (const loader of [undefined, async () => undefined]) {
 			const dialog = openDialog({}, loader);

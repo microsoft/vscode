@@ -8,6 +8,15 @@ import type { ClientPluginCustomization } from '../../state/sessionState.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
 const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
+const policyRequiredKey = 'policyRequired';
+
+export function toClientPluginPolicyRequiredMeta(): Record<string, unknown> {
+	return { [policyRequiredKey]: true };
+}
+
+export function isClientPluginPolicyRequired(customization: ClientPluginCustomization): boolean {
+	return customization._meta?.[policyRequiredKey] === true;
+}
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
 
