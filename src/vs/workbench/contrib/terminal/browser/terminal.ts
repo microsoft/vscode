@@ -1519,7 +1519,7 @@ export interface IXtermTerminal extends IDisposable {
 	 * @param fromMarkerId Start marker ID
 	 * @param toMarkerId End marker ID
 	 * @param scrollIntoView Whether the terminal should scroll to the start of
-	 * the range, defaults tof alse
+	 * the range, defaults to false
 	 */
 	selectMarkedRange(fromMarkerId: string, toMarkerId: string, scrollIntoView?: boolean): void;
 

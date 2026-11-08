@@ -77,7 +77,7 @@ type CanceledResultTelemetry = {
  * and use the TypeScript type system to reduce the chances of accidentally forgetting to send the result event.
  *
  * At the end of that pipeline, we will either have a final ghost text result and we can send a `ghostText.produced`
- * message, or something will have prevented us producing a result and we can send an alternative mesages.
+ * message, or something will have prevented us producing a result and we can send an alternative messages.
  */
 export type GhostTextResultWithTelemetry<T> =
 	/**

@@ -83,7 +83,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		super();
 
 		// Editor configurations are getting updated very aggressively
-		// (atleast 20 times) while the extensions are getting registered.
+		// (at least 20 times) while the extensions are getting registered.
 		// As such push out the dynamic configuration until after extensions
 		// are registered.
 		(async () => {
