@@ -552,6 +552,7 @@ suite('FindSectionHeaders', () => {
 		const findRegionHeaders = (lines: string[], start: string, end: string, blockCommentStartToken?: string, blockCommentEndToken?: string) => findSectionHeaders(new TestSectionHeaderFinderTarget(lines), {
 			findRegionSectionHeaders: true,
 			findMarkSectionHeaders: false,
+			markSectionHeaderRegex: '',
 			foldingRules: { markers: { start: new RegExp(start), end: new RegExp(end) } },
 			blockCommentStartToken,
 			blockCommentEndToken,
