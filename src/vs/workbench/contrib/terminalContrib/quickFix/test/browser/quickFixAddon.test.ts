@@ -213,7 +213,7 @@ suite('QuickFixAddon', () => {
 				});
 			});
 			suite('returns actions when', () => {
-				test('matching exit status, command, ouput', async () => {
+				test('matching exit status, command, output', async () => {
 					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitFastForwardPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), actions);
 				});
 			});
