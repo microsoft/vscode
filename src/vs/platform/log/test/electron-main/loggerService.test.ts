@@ -183,6 +183,59 @@ suite('LoggerMainService ownership', () => {
 		});
 	}
 
+	for (const createGlobalLogger of [true, false]) {
+		test(`notifies existing non-owning windows when a logger becomes global (create: ${createGlobalLogger})`, async () => {
+			const { main, server } = setup();
+			const channels = [store.add(new QueuedChannel(server)), store.add(new QueuedChannel(server))];
+			const clients = channels.map((channel, index) => store.add(new LoggerChannelClient(index + 1, LogLevel.Info, URI.file('/logs'), [], channel)));
+			const logger = clients[0].createLogger(resource, { id: 'terminal' });
+			await channels[0].flushRequests();
+			channels.forEach(channel => channel.flushNotifications());
+			const missingBefore = clients[1].getRegisteredLogger(resource) === undefined;
+			const sink = main.getLogger(resource) as TestLogger;
+			const ownerAdditions: DidChangeLoggersEvent[] = [];
+			const mirrorAdditions: DidChangeLoggersEvent[] = [];
+			store.add(main.getOnDidChangeLoggersEvent(1)(event => ownerAdditions.push(event)));
+			store.add(clients[1].onDidChangeLoggers(event => mirrorAdditions.push(event)));
+
+			if (createGlobalLogger) {
+				main.createLogger(resource, { id: 'terminal' });
+			} else {
+				main.registerLogger(info);
+			}
+			main.registerLogger(info);
+			channels.forEach(channel => channel.flushNotifications());
+			main.setLogLevel(resource, LogLevel.Trace);
+			main.setVisibility(resource, false);
+			channels.forEach(channel => channel.flushNotifications());
+			logger.trace('after global registration');
+			await channels[0].flushRequests();
+			main.deregisterLoggers(1);
+
+			assert.deepStrictEqual({
+				missingBefore,
+				mirror: clients[1].getRegisteredLogger(resource),
+				mirrorAdditions: mirrorAdditions.length,
+				ownerAdditions,
+				currentLogger: clients[0].getLogger(resource) === logger,
+				currentSink: main.getLogger(resource) === sink,
+				messages: sink.messages,
+				disposals: sink.disposals,
+				globals: main.getGlobalLoggers().length
+			}, {
+				missingBefore: true,
+				mirror: { ...info, logLevel: LogLevel.Trace, hidden: true },
+				mirrorAdditions: 1,
+				ownerAdditions: [],
+				currentLogger: true,
+				currentSink: true,
+				messages: ['after global registration'],
+				disposals: 0,
+				globals: 1
+			});
+		});
+	}
+
 	for (const replacementId of ['test', 'te:st']) {
 		test(`keeps a replacement through serialized queued notifications (${replacementId})`, async () => {
 			const { main, server } = setup();

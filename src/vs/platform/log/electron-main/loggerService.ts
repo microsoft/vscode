@@ -5,7 +5,7 @@
 
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from '../common/log.js';
 import { LoggerService } from '../node/loggerService.js';
@@ -37,6 +37,7 @@ export interface ILoggerMainService extends ILoggerService {
 export class LoggerMainService extends LoggerService implements ILoggerMainService {
 
 	private readonly loggerOwners = new ResourceMap<Set<number | undefined>>();
+	private readonly _onDidAddGlobalOwner = this._register(new Emitter<{ logger: ILoggerResource; previousOwners: ReadonlySet<number | undefined> }>());
 
 	constructor(logLevel: LogLevel, logsHome: URI, loggerResources?: Iterable<ILoggerResource>) {
 		super(logLevel, logsHome, loggerResources);
@@ -55,8 +56,13 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 			owners = new Set<number | undefined>();
 			this.loggerOwners.set(resource.resource, owners);
 		}
+		const previousOwners = windowId === undefined && owners.size > 0 && !owners.has(undefined) ? new Set(owners) : undefined;
 		owners.add(windowId);
 		super.registerLogger(resource);
+		const logger = this.getRegisteredLogger(resource.resource);
+		if (previousOwners && logger) {
+			this._onDidAddGlobalOwner.fire({ logger, previousOwners });
+		}
 	}
 
 	override deregisterLogger(idOrResource: URI | string, windowId?: number): void {
@@ -88,7 +94,7 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 	}
 
 	getOnDidChangeLoggersEvent(windowId: number): Event<DidChangeLoggersEvent> {
-		return Event.filter(
+		const onDidChangeLoggers = Event.filter(
 			Event.map(this.onDidChangeLoggers, e => {
 				const r = {
 					added: [...e.added].filter(loggerResource => this.isInterestedLoggerResource(loggerResource.resource, windowId)),
@@ -96,6 +102,10 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 				};
 				return r;
 			}), e => e.added.length > 0 || e.removed.length > 0);
+		const onDidAddGlobalLogger = Event.map(
+			Event.filter(this._onDidAddGlobalOwner.event, e => !e.previousOwners.has(windowId)),
+			e => ({ added: [e.logger], removed: [] }));
+		return Event.any(onDidChangeLoggers, onDidAddGlobalLogger);
 	}
 
 	deregisterLoggers(windowId: number): void {
