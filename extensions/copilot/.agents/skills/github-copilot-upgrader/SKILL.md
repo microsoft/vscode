@@ -40,7 +40,7 @@ After this you MUST run `pnpm run postinstall`
 * Use mode=background for comparing the files and when done, just let me know its done
 * This is what you need to do in the background task:
     - Analyze the differences between the old and new index.d.ts files to identify any API changes, new features, or breaking changes.
-    - Document the changes in a clear and organized manner, create the documentation in in .build/upgrade-notes.md
+    - Document the changes in a clear and organized manner, create the documentation in .build/upgrade-notes.md
 
 
 ### 4. Compile, fix and test
@@ -71,4 +71,4 @@ If the upgrade causes a test to fail, you must analyze the failure and determine
 - Give a summary of the changes in the tests
 - Give a summary of the differences in the type definitions between the old and new versions of the @github/copilot package.
   - Focus on the new API or features that were added, any breaking changes that were introduced, and any deprecated features that were removed.
-- Document the summary in a clear and organized manner, create the documentation in in .build/upgrade-notes.md
+- Document the summary in a clear and organized manner, create the documentation in .build/upgrade-notes.md

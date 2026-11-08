@@ -99,7 +99,7 @@ abstract class BaseBlockParser implements BlockParser {
 		return this.getNodeMatchAtPosition(text, offset, nodeToComplete => {
 			// FIXME: childForFieldName always returns null
 			//   const block = nodeToComplete.childForFieldName(fieldToComplete);
-			// Instead, find child nodes of the langauge's nodeMatch type for
+			// Instead, find child nodes of the language's nodeMatch type for
 			// nodeToComplete.
 			// Look in reverse order, in case of nodes with multiple blocks defined,
 			// such as try/catch/finally.
@@ -266,7 +266,7 @@ class TreeSitterBasedBlockParser extends BaseBlockParser {
 		private readonly startKeywords: string[],
 		private readonly blockNodeType: string,
 		/**
-		 * The langauge-specific node type of an empty statement, that is,
+		 * The language-specific node type of an empty statement, that is,
 		 * a statement with no text except possibly the statement terminator.
 		 * For example, `;` is an empty statement in a braced language, but
 		 * `pass` is not in Python.

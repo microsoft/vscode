@@ -97,7 +97,7 @@ describe('DebuggableCommandIdentifier', () => {
 		expect(result).to.be.true;
 		expect(getToolsForLanguages.calledWith(['mylang'])).to.be.true;
 
-		// should not call again because no new langauge was seen:
+		// should not call again because no new language was seen:
 		const result2 = await debuggableCommandIdentifier.isDebuggable(undefined, 'othertool hello', CancellationToken.None);
 		expect(result2).to.be.false;
 		expect(getToolsForLanguages.callCount).to.equal(1);
