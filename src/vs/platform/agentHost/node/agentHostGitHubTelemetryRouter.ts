@@ -18,6 +18,7 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 		"responseModel": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Model identifier the provider reported in this model call's response; absent when the response does not identify one. Restricted telemetry only." },
 		"interactionType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded origin of this model call, captured when the call was dispatched: agent, subagent, compaction, sampling, background or user." },
 		"parentToolCallId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model tool call that spawned the subagent making this model call; absent for root calls and for subagents no model tool call spawned." },
+		"initiatorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a user or an agent initiated this model call: user or agent." },
 		"runtimeVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot runtime that made this model call." },
 		"copilotSdkVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot SDK package bundled with the Agent Host that forwarded this model call." }
 	}
@@ -28,7 +29,8 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 		"owner": "amunger",
 		"comment": "SDK conversation, branch and per-call attribution on existing restricted engine snapshots.",
 		"${include}": [ "${AgentHostRestrictedSdkSession}", "${AgentHostRestrictedEngineCall}" ],
-		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction this model call serves, the same value as interaction_id on the runtime's other forwarded events for that interaction; a subagent's calls carry the interaction that spawned the subagent." }
 	}
 */
 
@@ -37,7 +39,8 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 		"owner": "amunger",
 		"comment": "SDK conversation, branch and per-call attribution on existing restricted engine length events.",
 		"${include}": [ "${AgentHostRestrictedSdkSession}", "${AgentHostRestrictedEngineCall}" ],
-		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction this model call serves, the same value as interaction_id on the runtime's other forwarded events for that interaction; a subagent's calls carry the interaction that spawned the subagent." }
 	}
 */
 

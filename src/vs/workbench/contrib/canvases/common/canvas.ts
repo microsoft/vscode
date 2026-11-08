@@ -65,6 +65,8 @@ export interface ICanvasContext {
 	 * the owner's host cannot close canvases.
 	 */
 	readonly closeCanvas?: (canvas: ICanvas) => Promise<void>;
+	/** Whether the owner's canvases open without taking focus or the active tab, as their chat is not the focused one. */
+	readonly background?: boolean;
 }
 
 export interface ICanvasOpenRequest {
@@ -150,9 +152,10 @@ export interface ICanvasContextService {
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined;
 	/**
 	 * Whether `group`, outside the main window, presents canvases of `owner`, such as a window that shows the owning
-	 * chat. Without it, only groups of the main window present canvases, beside their owning chat.
+	 * chat. Without it, only groups of the main window present canvases, beside their owning chat. With `reader`, a
+	 * change of the answer runs the reader again, so that canvases close in groups that no longer present them.
 	 */
-	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup): boolean;
+	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup, reader?: IReader): boolean;
 	/**
 	 * Whether canvases of `owner` show outside the per-owner editor working sets, such as in a window that shows the
 	 * owning chat, so that they show while another owner's working set applies. Presentation reads this with `reader`
@@ -163,8 +166,8 @@ export interface ICanvasContextService {
 }
 
 /** Whether `group` can present canvases of `owner`: a group of the main window, or one its context service allows. */
-export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined): boolean {
-	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group) === true;
+export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined, reader?: IReader): boolean {
+	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group, reader) === true;
 
 }
 

@@ -16,6 +16,7 @@ export const workspaceMembers = [
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-pr-pinger',
+	'scripts',
 	'src/vs/sessions/test/e2e',
 	'test/automation',
 	'test/componentFixtures/playwright',
@@ -23,6 +24,7 @@ export const workspaceMembers = [
 	'test/monaco',
 	'test/scenario',
 	'test/smoke',
+	'test/unit',
 ];
 
 /**

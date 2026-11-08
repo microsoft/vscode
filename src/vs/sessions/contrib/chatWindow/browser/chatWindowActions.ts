@@ -31,8 +31,9 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionInChatEditorContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { SessionInChatEditorContext, SessionsWelcomeVisibleContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionActivityBarLayoutActionsContext, SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
+import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -79,12 +80,11 @@ registerAction2(class CloseChatWindowAction extends Action2 {
 
 //#region New Session
 
-export const NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID = 'sessions.chatWindow.newSession';
-
 // A new session in a chat window opens in that window, as a tab of its active chat, starting from that chat's session.
 // Its key is that of New Session in the main window, while the window's chat or its title bar has focus; not in its other
-// editors, where it creates a new file, nor in the search picker of an empty file editor, which does the same. The window's
-// title bar has no New Session button: the command, its key and the Sessions picker start one.
+// editors, where it creates a new file, nor in the search picker of an empty file editor, which does the same. Its button
+// shows at the left of the window's title bar, where the main window's New Session shows: a chat window has no sessions
+// list, so it always shows, in every layout mode.
 registerAction2(class NewSessionInChatWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -94,6 +94,12 @@ registerAction2(class NewSessionInChatWindowAction extends Action2 {
 			icon: Codicon.plus,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext),
+			menu: {
+				id: AgentsWindowMenus.TitleBarLeftLayout,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext, SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext),
+			},
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 				weight: KeybindingWeight.SessionsContrib + 1,
@@ -273,14 +279,15 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 		if (shown) {
 			const { session, chat } = shown;
 			const sessionChangesService = accessor.get(ISessionChangesService);
-			// An existing Changes tab of the session is activated in place, such as one that moved in with the chat or was
-			// restored, which may show the changes of the session rather than of the chat.
-			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource && isEqual(sessionChangesService.getSessionResource(editor.resource), session.resource));
+			// The Changes tab of the chat the window shows is activated in place, such as one that moved in with the chat or
+			// was restored; not one of another chat, nor one of the session, whose changes need not be of this chat.
+			const resource = sessionChangesService.getChangesEditorResource(session.resource, chat?.resource);
+			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => isEqual(editor.resource, resource));
 			if (existing) {
 				await group.openEditor(existing);
 				return;
 			}
-			// Otherwise the window's own Changes editor, of the chat it shows, at the end.
+			// Otherwise a Changes editor of the chat it shows, at the end.
 			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: chat?.resource }, group);
 		}
 	},

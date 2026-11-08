@@ -3,6 +3,7 @@ packages:
   - .vscode/extensions/vscode-selfhost-import-aid
   - .vscode/extensions/vscode-selfhost-test-provider
   - .vscode/extensions/vscode-pr-pinger
+  - scripts
   - src/vs/sessions/test/e2e
   - test/automation
   - test/componentFixtures/playwright
@@ -10,6 +11,7 @@ packages:
   - test/monaco
   - test/scenario
   - test/smoke
+  - test/unit
 pnpmfile: .pnpmfile.mjs
 nodeLinker: hoisted
 strictPeerDependencies: false

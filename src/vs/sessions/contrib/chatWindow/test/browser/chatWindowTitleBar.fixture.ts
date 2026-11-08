@@ -14,6 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { NewSessionActionViewItem, type NewSessionButtonStyle } from '../../../sessions/browser/sessionsActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -123,8 +125,9 @@ interface IMenuEntry {
 	readonly submenu?: MenuId;
 }
 
-/** What the title bar menus of a chat window show: the command center and the actions of its session and window. */
+/** What the title bar menus of a chat window show: its New Session, the command center and the actions of its session and window. */
 const CHAT_WINDOW_MENUS = new Map<MenuId, readonly IMenuEntry[]>([
+	[AgentsWindowMenus.TitleBarLeftLayout, [{ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session', icon: Codicon.plus }]],
 	[AgentsWindowMenus.CommandCenter, [{ id: AgentsWindowMenus.TitleBarSessionTitle.id, title: 'Agent Sessions', icon: Codicon.copilot, submenu: AgentsWindowMenus.TitleBarSessionTitle }]],
 	[AgentsWindowMenus.TitleBarCenterRight, [{ id: 'run', title: 'Run', icon: Codicon.play }, { id: 'sessions.openInVSCode', title: 'Open in Editor', icon: Codicon.vscodeInsiders }]],
 	[AgentsWindowMenus.TitleBarSessionMenu, [{ id: 'createPullRequest', title: 'Create Pull Request', icon: Codicon.gitPullRequestCreate }]],
@@ -275,6 +278,10 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 				override readonly onDidChange = Event.None;
 				override lookUp(menu: MenuId, commandOrSubmenu: MenuId | string): IActionViewItemFactory | undefined {
 					const id = typeof commandOrSubmenu === 'string' ? commandOrSubmenu : commandOrSubmenu.id;
+					// The window's New Session, as the New button of the main window's title bar
+					if (menu.id === AgentsWindowMenus.TitleBarLeftLayout.id && id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
+						return (action, _actionOptions, scopedInstantiationService) => scopedInstantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default'));
+					}
 					if (menu.id !== AgentsWindowMenus.CommandCenter.id || id !== AgentsWindowMenus.TitleBarSessionTitle.id) {
 						return undefined;
 					}

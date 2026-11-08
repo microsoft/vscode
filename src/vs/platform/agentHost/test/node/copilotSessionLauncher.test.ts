@@ -373,7 +373,7 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 					};
 				};
 				const session = new class extends mock<CopilotSession>() {
-					override readonly sessionId = 'catalog-readiness';
+					override get sessionId() { return 'catalog-readiness'; }
 					override get rpc() {
 						return new class extends mock<CopilotSession['rpc']>() {
 							override readonly agent = agent;

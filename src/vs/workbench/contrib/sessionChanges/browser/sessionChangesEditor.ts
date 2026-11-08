@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -48,7 +48,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../servi
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
-import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
+import { getChangesEditorChanges, observeChangesEditorChat } from './changesMultiDiffSourceResolver.js';
 import { IChangesEditorScope, IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesEditorScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
@@ -60,7 +60,8 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../../services/editor/common/diffEditorOptionsService.js';
@@ -90,6 +91,7 @@ interface IOutgoingChangesContent extends IDisposable {
 
 /** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
 const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
+const CHANGES_LOADING_PROGRESS_DELAY_MS = 200;
 export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
@@ -238,7 +240,22 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return input ? getChangesEditorChanges(this, this.changesViewService, this.sessionHostService, this.sessionsManagementService, input.session, input.chat) : undefined;
 	});
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
-		return this._inputChangesObs.read(reader)?.read(reader) ?? lastValue ?? [];
+		return this._inputChangesObs.read(reader)?.changes.read(reader) ?? lastValue ?? [];
+	});
+	private readonly _inputChangesLoadingObs = derived(this, reader => !!this._inputChangesSource.read(reader)?.chat && (this._inputChangesObs.read(reader)?.loading.read(reader) ?? false));
+
+	private readonly _hasInput = observableValue(this, false);
+	private readonly _paneVisible = observableValue(this, false);
+	/**
+	 * The chat this editor shows the changes of while it has its input, whose changes it keeps observed though no window
+	 * shows its session: also while the pane is hidden, so its diffs and their view state stay as they are.
+	 */
+	private readonly _observedChatSource = derivedOpts<{ readonly session: URI; readonly chat: URI } | undefined>({
+		owner: this,
+		equalsFn: (a, b) => a === b || (!!a && !!b && isEqual(a.session, b.session) && isEqual(a.chat, b.chat)),
+	}, reader => {
+		const source = this._inputChangesSource.read(reader);
+		return source?.chat && this._hasInput.read(reader) ? { session: source.session, chat: source.chat } : undefined;
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
@@ -299,6 +316,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		);
 
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
+
+		this._register(autorun(reader => {
+			const source = this._observedChatSource.read(reader);
+			if (source) {
+				reader.store.add(observeChangesEditorChat(this.sessionsManagementService, source.session, source.chat));
+			}
+		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -350,11 +374,22 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.emptyState = this._register(scopedInstantiationService.createInstance(ChangesEmptyState, emptyState));
 		this._register(autorun(reader => {
 			const model = this.widget?.viewModel.read(reader);
-			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0;
+			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0 && !this._inputChangesLoadingObs.read(reader);
 			emptyState.hidden = !empty;
 			this.bodyContainer?.classList.toggle('has-empty-state', empty);
 			if (empty) {
 				this.emptyState?.layout();
+			}
+		}));
+		const loadingProgressBar = this._register(new ProgressBar(append(this.bodyContainer, $('.session-changes-editor-progress')), defaultProgressBarStyles));
+		loadingProgressBar.stop().hide();
+		this._register(autorun(reader => {
+			const loading = this._inputChangesLoadingObs.read(reader);
+			this.bodyContainer?.classList.toggle('changes-loading', loading);
+			if (loading && this._paneVisible.read(reader)) {
+				loadingProgressBar.infinite().show(CHANGES_LOADING_PROGRESS_DELAY_MS);
+			} else {
+				loadingProgressBar.stop().hide();
 			}
 		}));
 		this._register(autorun(reader => {
@@ -448,7 +483,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
-		this._inputChangesSource.set(sessionResource ? { session: sessionResource, chat: this.sessionChangesService.getChatResource(input.multiDiffSource) } : undefined, undefined);
+		transaction(tx => {
+			this._inputChangesSource.set(sessionResource ? { session: sessionResource, chat: this.sessionChangesService.getChatResource(input.multiDiffSource) } : undefined, tx);
+			this._hasInput.set(true, tx);
+		});
 		this._pendingResolve.clear();
 		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
 		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
@@ -517,12 +555,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/**
 	 * Whether the active session is `sessionResource` and its changes are still loading,
-	 * during which the changes service reports no changes for it.
+	 * during which the changes service reports no changes for it, or the changes of the chat
+	 * the input names are still loading.
 	 */
 	private _isSessionChangesLoading(sessionResource: URI | undefined, reader: IReader | undefined): boolean {
 		return !!sessionResource
-			&& isEqual(this.changesViewService.activeSessionResourceObs.read(reader), sessionResource)
-			&& this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			&& ((isEqual(this.changesViewService.activeSessionResourceObs.read(reader), sessionResource)
+				&& this.changesViewService.activeSessionChangesetLoadingObs.read(reader))
+				|| this._inputChangesLoadingObs.read(reader));
 	}
 
 	/**
@@ -558,6 +598,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this._logger.log('changes editor hidden, saving view state');
 			this.saveCurrentEditorViewState();
 		}
+		this._paneVisible.set(visible, undefined);
 		super.setEditorVisible(visible);
 	}
 
@@ -656,6 +697,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._pendingFocus.clear();
 		this._pendingReveal.clear();
 		this._pendingResolve.clear();
+		this._hasInput.set(false, undefined);
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
