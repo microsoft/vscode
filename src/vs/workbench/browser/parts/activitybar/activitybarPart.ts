@@ -9,13 +9,13 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingPanelMargin, getFloatingPanelOuterMargin, isFloatingTopEdgeExposed, isCompactMenuInTitlebar } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingPanelMargin, getFloatingPanelOuterMargin, isFloatingTopEdgeExposed, isCompactMenuInTitlebar } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
-import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
+import { activeContrastBorder, contrastBorder, editorBackground, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
@@ -115,8 +115,15 @@ export class ActivitybarPart extends Part {
 		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
 	}
 
+	private get useConnectedTabs(): boolean {
+		return this.layoutService.isFloatingPanelsEnabled() && this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected;
+	}
+
 	/** The action (item) height that drives visible item sizing. */
 	private get actionHeight(): number {
+		if (this.useConnectedTabs) {
+			return this.baseWidth + this.floatingLane;
+		}
 		if (this._isCompact) {
 			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
 		}
@@ -124,6 +131,10 @@ export class ActivitybarPart extends Part {
 			return ActivitybarPart.FLOATING_ACTION_HEIGHT;
 		}
 		return ActivitybarPart.ACTION_HEIGHT;
+	}
+
+	private get floatingLane(): number {
+		return this.layoutService.isModernUICompact() ? ActivitybarPart.FLOATING_COMPACT_LANE : ActivitybarPart.FLOATING_LANE;
 	}
 
 	/**
@@ -156,8 +167,7 @@ export class ActivitybarPart extends Part {
 
 		// The cluster perimeter on the window side, plus the rail's own lane beside the icon
 		// column, where the primary side bar meets it flush.
-		const lane = this.layoutService.isModernUICompact() ? ActivitybarPart.FLOATING_COMPACT_LANE : ActivitybarPart.FLOATING_LANE;
-		return getFloatingPanelOuterMargin(this.layoutService) + lane
+		return getFloatingPanelOuterMargin(this.layoutService) + this.floatingLane
 			+ (this.needsFloatingLeadingGap ? getFloatingPanelMargin(this.layoutService) : 0);
 	}
 
@@ -203,7 +213,7 @@ export class ActivitybarPart extends Part {
 
 			// Floating panels changes the reserved left/bottom gutter (and therefore
 			// the fixed part width): signal the grid that the size constraint changed.
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
 				this.updateCompactStyle();
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined);
@@ -332,7 +342,13 @@ export class ActivitybarPart extends Part {
 			const isInactive = !this.hostService.hasFocus || !isWindowActive;
 			backgroundColor = isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
 		}
-		const background = this.getColor(backgroundColor) || '';
+		const editorSurface = this.theme.getColor(editorBackground);
+		const connectedStrip = this.useConnectedTabs
+			? this.theme.getColor(EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND) ?? this.theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND) ?? editorSurface
+			: undefined;
+		const background = connectedStrip
+			? (editorSurface ? connectedStrip.makeOpaque(editorSurface) : connectedStrip).toString()
+			: this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
 
 		// In Modern UI the rail is a floating card whose border is owned by the stylesheet via
@@ -460,7 +476,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 					options.fillExtraContextMenuActions(actions, e);
 					this.fillContextMenuActions(actions, e);
 				}
-			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService, configurationService);
 
 		if (globalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));

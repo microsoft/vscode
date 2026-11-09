@@ -13,7 +13,7 @@ import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
@@ -24,7 +24,8 @@ import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecom
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { GlobalCompositeBar } from '../../../../browser/parts/globalCompositeBar.js';
@@ -129,11 +130,12 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService, tabStyle = ModernUIEditorTabStyle.Pill): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 			[LayoutSettings.MODERN_UI_DENSITY]: modernUICompact ? ModernUIDensity.Compact : ModernUIDensity.Default,
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: tabStyle,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService(new TestColorTheme(colors));
@@ -560,6 +562,36 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
+	test('connected activity backgrounds match the opaque tab strip and retain Pill colors', async () => {
+		const actual = [];
+		for (const colors of [
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ffffff80', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#123456' },
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#345678' },
+			{ [editorBackground]: '#102030' },
+		]) {
+			const { part, configService, hostService } = createActivitybarPart(false, true, Position.LEFT, {
+				[MODERN_ACTIVITY_BAR_BACKGROUND]: '#abcdef',
+				[MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND]: '#654321',
+				...colors,
+			}, false, undefined, ModernUIEditorTabStyle.Connected);
+			hostService.setActiveWindow(mainWindow.vscodeWindowId);
+			const element = document.createElement('div');
+			fixture.appendChild(element);
+			part.create(element);
+			const active = element.style.backgroundColor;
+			hostService.setActiveWindow(mainWindow.vscodeWindowId + 1);
+			const inactive = element.style.backgroundColor;
+			await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+			fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+			actual.push({ active, inactive, pill: element.style.backgroundColor });
+		}
+		assert.deepStrictEqual(actual, [
+			{ active: 'rgb(128, 128, 128)', inactive: 'rgb(128, 128, 128)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(52, 86, 120)', inactive: 'rgb(52, 86, 120)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(16, 32, 48)', inactive: 'rgb(16, 32, 48)', pill: 'rgb(101, 67, 33)' },
+		]);
+	});
+
 	// --- toJSON ------------------------------------------------------------
 
 	test('toJSON returns correct part type', () => {
@@ -640,7 +672,7 @@ suite('ActivitybarPart', () => {
 	// The composite bar decides how many activity icons fit before collapsing the rest into
 	// the overflow ("Additional Views") menu, so the size it is handed has to match the
 	// vertical space an item actually occupies in the current mode.
-	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
+	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false, tabStyle = ModernUIEditorTabStyle.Pill): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
 		let captured: IPaneCompositeBarOptions | undefined;
 		let capturedGlobalActivities: { actionHeight: number; actionGap: number } | undefined;
 		const stubCompositeBar = { create: () => { }, layout: () => { }, dispose: () => { } };
@@ -650,7 +682,7 @@ suite('ActivitybarPart', () => {
 				capturedGlobalActivities = globalActivities;
 				return stubCompositeBar;
 			}
-		} as unknown as IInstantiationService);
+		} as unknown as IInstantiationService, tabStyle);
 
 		const el = document.createElement('div');
 		fixture.appendChild(el);
@@ -686,6 +718,49 @@ suite('ActivitybarPart', () => {
 				modernCompactDensity: { compositeSize: 40, overflowActionSize: 40, globalActivities: { actionHeight: 36, actionGap: 4 } },
 			}
 		);
+	});
+
+	test('connected activity rows are square and overflow uses the same dimensions', () => {
+		const actual = [];
+		for (const compactDensity of [false, true]) {
+			for (const compactIcons of [false, true]) {
+				const { options, globalActivities } = capturedCompositeBarOptions(compactIcons, true, compactDensity, ModernUIEditorTabStyle.Connected);
+				actual.push({
+					actionHeight: globalActivities.actionHeight,
+					actionGap: globalActivities.actionGap,
+					compositeSize: options.compositeSize,
+					overflowActionSize: options.overflowActionSize,
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, [
+			{ actionHeight: 44, actionGap: 8, compositeSize: 52, overflowActionSize: 52 },
+			{ actionHeight: 36, actionGap: 0, compositeSize: 36, overflowActionSize: 36 },
+			{ actionHeight: 40, actionGap: 4, compositeSize: 44, overflowActionSize: 44 },
+			{ actionHeight: 32, actionGap: 0, compositeSize: 32, overflowActionSize: 32 },
+		]);
+	});
+
+	test('changing the tab style updates connected activity row height without changing width', async () => {
+		const { part, configService } = createActivitybarPart(false, true, Position.LEFT, {}, false, undefined, ModernUIEditorTabStyle.Connected);
+		const element = document.createElement('div');
+		fixture.appendChild(element);
+		part.create(element);
+		const capture = () => ({
+			width: element.style.getPropertyValue('--activity-bar-width'),
+			height: element.style.getPropertyValue('--activity-bar-action-height'),
+		});
+		const connected = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		const pill = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		assert.deepStrictEqual({ connected, pill, restored: capture() }, {
+			connected: { width: '36px', height: '44px' },
+			pill: { width: '36px', height: '36px' },
+			restored: { width: '36px', height: '44px' },
+		});
 	});
 
 	// The gap is rendered *between* items, so N items occupy `N * height + (N - 1) * gap`.

@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
@@ -31,6 +31,7 @@ import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -109,6 +110,7 @@ export class PaneCompositeBar extends Disposable {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -129,6 +131,16 @@ export class PaneCompositeBar extends Disposable {
 		this.compositeBar = this.createCompositeBar(cachedItems);
 		this.onDidRegisterViewContainers(this.getViewContainers());
 		this.registerListeners();
+
+		if (this.options.recomputeSizes) {
+			// Measure after the Modern UI contribution has applied the new tab geometry.
+			const recomputeSizes = this._register(new RunOnceScheduler(() => this.compositeBar.recomputeSizes(), 0));
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
+					recomputeSizes.schedule();
+				}
+			}));
+		}
 	}
 
 	private createCompositeBar(cachedItems: ICompositeBarItem[]) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { $, append } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Event } from '../../../../base/common/event.js';
@@ -11,9 +12,13 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { timeout } from '../../../../base/common/async.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { PanelPart } from '../../../browser/parts/panel/panelPart.js';
-import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { CompositeBar } from '../../../browser/parts/compositeBar.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../workbenchTestServices.js';
 
 class TestPaneCompositeLayoutService extends TestLayoutService {
@@ -75,6 +80,49 @@ class TestPanelPart extends PanelPart {
 suite('Pane composite part layout', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('remeasures pane tabs after appearance changes and cancels pending measurements on disposal', async () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => root.remove()));
+		const container = append(root, $('.part.panel'));
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchLayoutService, new TestPaneCompositeLayoutService(root));
+		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const part = store.add(instantiationService.createInstance(TestPanelPart));
+		part.create(container);
+		part.layout(300, 200, 0, 0);
+		await timeout(0);
+
+		const measuredStates: boolean[] = [];
+		sinon.stub(CompositeBar.prototype, 'recomputeSizes').callsFake(() => {
+			measuredStates.push(root.classList.contains('modern-ui-connected-editor-tabs'));
+		});
+		const changeConfiguration = (key: string) => configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(setting: string): boolean {
+				return setting === key;
+			}
+		});
+
+		changeConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		assert.deepStrictEqual(measuredStates, []);
+		root.classList.add('modern-ui-connected-editor-tabs');
+		await timeout(0);
+		changeConfiguration('workbench.panel.showLabels');
+		await timeout(0);
+		changeConfiguration(LayoutSettings.MODERN_UI);
+		changeConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		await timeout(0);
+		changeConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		part.dispose();
+		await timeout(0);
+		assert.deepStrictEqual(measuredStates, [true, false]);
+	});
 
 	test('preserves panel layout across classic and DPR 2.5 floating modes', () => {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
