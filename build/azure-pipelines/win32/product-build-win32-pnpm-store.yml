@@ -70,6 +70,14 @@ jobs:
         retryCountOnTaskFailure: 5
         displayName: Install dependencies
 
-      - script: node build/azure-pipelines/common/pnpmStoreCache.ts prune
+      # Removes the packages that the installed projects don't use from the store before the cache saves it,
+      # and the store's links to those projects (in `projects`), which the cache would follow when it
+      # archives the store: the next install adds its own.
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { pnpm store prune }
+          $StorePath = (pnpm store path)
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
         condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'))
         displayName: Prune pnpm store

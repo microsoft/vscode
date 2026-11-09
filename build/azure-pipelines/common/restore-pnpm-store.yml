@@ -1,5 +1,5 @@
 parameters:
-  # Arguments of `pnpmStoreCache.ts key`, for the platform of the job.
+  # Arguments of `computePnpmStoreCacheKey.ts`, for the platform of the job.
   - name: keyArgs
     type: string
   # Operating system of the job (linux, macOS or windows).
@@ -14,11 +14,11 @@ parameters:
 #
 # The key is the platform and the lockfiles of every install root. When no store has it, for
 # example after a lockfile change, the latest store of the platform is restored, so pnpm downloads
-# only the packages that it doesn't have. Run `node build/azure-pipelines/common/pnpmStoreCache.ts
-# prune` at the end of the job when PNPM_STORE_RESTORED isn't true, so that the saved store drops
-# the packages that the lockfiles no longer use.
+# only the packages that it doesn't have. Run `pnpm store prune` at the end of
+# the job when PNPM_STORE_RESTORED isn't true, so that the saved store drops the packages that the
+# lockfiles no longer use.
 steps:
-  - script: node build/azure-pipelines/common/pnpmStoreCache.ts key ${{ parameters.keyArgs }}
+  - script: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts ${{ parameters.keyArgs }}
     displayName: Prepare pnpm store cache key
 
   - task: Cache@2

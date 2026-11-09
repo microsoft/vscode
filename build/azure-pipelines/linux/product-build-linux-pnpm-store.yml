@@ -120,6 +120,11 @@ jobs:
           FOUNDRY_LOCAL_SKIP_INSTALL: "1"
         displayName: Install dependencies
 
-      - script: node build/azure-pipelines/common/pnpmStoreCache.ts prune
+      # Removes the packages that the installed projects don't use from the store before the cache saves it,
+      # and the store's links to those projects (in `projects`): the next install adds its own.
+      - script: |
+          set -e
+          pnpm store prune
+          rm -rf "$(pnpm store path)/projects"
         condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'))
         displayName: Prune pnpm store
