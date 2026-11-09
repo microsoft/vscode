@@ -22,6 +22,7 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSessions } from '../../../workbench/services/sessions/browser/visibleSessions.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -362,6 +363,42 @@ suite('Sessions - Sessions Part', () => {
 		part.layout(1402, 902, 0, 0);
 		assert.deepStrictEqual(observations, [['698px', '698px'], ['698px', '698px']]);
 	});
+
+	for (const created of [false, true]) {
+		test(`top bars only show a grab cursor with multiple visible chat panels (created: ${created})`, async () => {
+			const { part, content, configurationService } = createSessionsPartTestHarness(store);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			const session = createTestActiveSession('session', created, { chatCount: 2 });
+			const other = createTestActiveSession('other');
+			renderTestPanes(content, [session], session);
+			part.layout(1202, 802, 0, 0);
+			const view = content.getSessionView(session.sessionId)!;
+			const readTopBars = () => Array.from(view.element.querySelectorAll<HTMLElement>('.session-header-bar, .chat-composite-bar-toolbar-floating'))
+				.filter(element => mainWindow.getComputedStyle(element).display !== 'none')
+				.map(element => ({ cursor: mainWindow.getComputedStyle(element).cursor, draggable: element.draggable }));
+			const single = readTopBars();
+
+			const [pane] = renderTestPanes(content, [session, other], session);
+			const multiple = readTopBars();
+			content.toggleMaximizePane(pane);
+			const maximized = readTopBars();
+			content.toggleMaximizePane(pane);
+			const restored = readTopBars();
+			renderTestPanes(content, [session], session);
+			const singleAgain = readTopBars();
+
+			const normal = [{ cursor: 'default', draggable: true }];
+			const grab = [{ cursor: 'grab', draggable: true }];
+			assert.deepStrictEqual({ single, multiple, maximized, restored, singleAgain }, {
+				single: normal, multiple: grab, maximized: normal, restored: grab, singleAgain: normal,
+			});
+
+			if (created) {
+				await view.openChatToSide(session.chats.get()[1].resource);
+				assert.deepStrictEqual(readTopBars(), [...grab, ...grab]);
+			}
+		});
+	}
 
 	test('aggregates chats actually shown across splits, maximization, and part visibility', async () => {
 		const { part, content } = createSessionsPartTestHarness(store);

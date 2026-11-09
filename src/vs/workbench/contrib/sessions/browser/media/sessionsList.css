@@ -156,13 +156,16 @@
 		border-radius: var(--vscode-cornerRadius-small);
 
 		> .monaco-tl-row {
-			border-radius: inherit;
+			border-radius: var(--vscode-cornerRadius-small);
 		}
 	}
 
 	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
+		/* Content-box clipping subtracts the bottom padding from the vertical corner radii. */
+		border-bottom-left-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
+		border-bottom-right-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
 		outline: 0 !important;
 	}
 
