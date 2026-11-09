@@ -18,16 +18,16 @@ import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DockedEditorInput } from '../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { applySingleGroupEditorStateInPlace } from './editorGroupStateInPlace.js';
-import { EmptyEditorGroupAddTab } from '../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor

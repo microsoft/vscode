@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 export interface IPullRequestQuickPickItem extends IQuickPickItem {

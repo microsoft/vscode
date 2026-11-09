@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { Menus } from '../menus.js';
 import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../common/contextkeys.js';
-import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../common/session.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { URI } from '../../../../../base/common/uri.js';

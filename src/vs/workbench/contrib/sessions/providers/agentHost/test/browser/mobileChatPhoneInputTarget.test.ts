@@ -8,23 +8,22 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
-import { IChat } from '../../../../common/session.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../browser/chatPhoneInputContext.js';
+import { ITestSessionWithChat } from '../../../../test/browser/sessionHostTestUtils.js';
 
 const uriIdentityService = { extUri: extUriBiasedIgnorePathCase };
 
-function session(providerId: string, sessionId: string, chatResource: string): IActiveSession {
+function session(providerId: string, sessionId: string, chatResource: string): ITestSessionWithChat {
 	return {
 		providerId,
 		sessionId,
 		sessionType: 'test',
-		activeChat: observableValue<IChat>('activeChat', { resource: URI.parse(chatResource) } as IChat),
-		modelId: observableValue<string | undefined>('modelId', undefined),
-	} as unknown as IActiveSession;
+		activeChat: observableValue<IChat>('activeChat', { resource: URI.parse(chatResource), modelId: observableValue<string | undefined>('modelId', undefined) } as unknown as IChat),
+	} as unknown as ITestSessionWithChat;
 }
 
-function contextOf(value: IActiveSession) {
+function contextOf(value: ITestSessionWithChat) {
 	return createChatPhoneInputSessionContext(value, value.activeChat.get());
 }
 

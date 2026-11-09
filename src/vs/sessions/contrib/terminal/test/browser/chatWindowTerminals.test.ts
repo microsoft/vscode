@@ -21,10 +21,11 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 /** The id of the chat window of the tests, not the main window's. */
 const CHAT_WINDOW_ID = mainWindow.vscodeWindowId + 1;
@@ -138,7 +139,7 @@ suite('Chat window terminals', () => {
 		const calls: string[] = [];
 		const shownInChatWindow: string[] = [];
 		const tracked: string[] = [];
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session-1' });
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-1' });
 
 		// The window: its main part, and the part that holds its terminals once created.
 		const mainGroup = new TestGroup(5);
@@ -224,7 +225,7 @@ suite('Chat window terminals', () => {
 		}());
 		const otherGroups = Array.from({ length: options.groupsBefore ?? 0 }, (_, index) => upcastPartial<IEditorGroup>({ id: 100 + index }));
 		// The session whose chat the window shows, which changes as another chat of the window becomes active.
-		const hostSession = observableValue<IActiveSession | undefined>('hostSession', session);
+		const hostSession = observableValue<ITestSessionWithChat | undefined>('hostSession', session);
 		const host = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, session: hostSession, chat: constObservable(undefined) });
 		// The hosts of other chat windows, by window id: the window's host otherwise.
 		const hostsByWindow = new Map<number, ISessionHost>();
@@ -292,7 +293,7 @@ suite('Chat window terminals', () => {
 		const instance = terminal(5);
 		const acquired = new DeferredPromise<ITerminalInstance | undefined>();
 		const environment = createEnvironment({ pendingTerminal: acquired.p });
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 
 		const showing = environment.terminals.show(environment.window, false);
 		// Another chat of the window, of another session, becomes active while the terminals of the first are on their way.
@@ -314,7 +315,7 @@ suite('Chat window terminals', () => {
 
 	test('a terminal that shows for a session in an editor that opens later, while the window switches to a chat of another session, does not stay in the window: it waits in the panel, still the session\'s', async () => {
 		const instance = terminal(5);
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		let switchSession = () => { };
 		// The editor opens 10ms after the terminal moved; the window switches before that.
 		const environment = createEnvironment({ terminal: instance, opensLater: true, onMoveToEditor: () => setTimeout(() => switchSession(), 5) });
@@ -337,7 +338,7 @@ suite('Chat window terminals', () => {
 		const created = terminal(30);
 		const moved = terminal(31);
 		const pending = new DeferredPromise<readonly ITerminalInstance[]>();
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		const environment = createEnvironment({ instances: [created, moved], terminalsOf: () => pending.p });
 		environment.owners.set(31, 'session-3');
 
@@ -378,7 +379,7 @@ suite('Chat window terminals', () => {
 		const otherGroup = new TestGroup(12, otherChatWindowId);
 		disposables.add({ dispose: () => otherGroup.dispose() });
 		environment.otherWindowGroups.push(otherGroup);
-		environment.hostsByWindow.set(otherChatWindowId, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, session: constObservable(upcastPartial<IActiveSession>({ sessionId: 'session-b' })), chat: constObservable(undefined) }));
+		environment.hostsByWindow.set(otherChatWindowId, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, session: constObservable(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-b' })), chat: constObservable(undefined) }));
 		environment.windows.set([environment.window, new class extends mock<IChatWindow>() {
 			override readonly windowId = otherChatWindowId;
 			override readonly mainPart = createPart(new TestGroup(13, otherChatWindowId));
@@ -423,7 +424,7 @@ suite('Chat window terminals', () => {
 	test('terminals a window creates for two sessions at once, as it switches between their chats, are each the terminal of its own session', async () => {
 		const first = terminal(20);
 		const second = terminal(21);
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		const pending = new Map<string, DeferredPromise<readonly ITerminalInstance[]>>();
 		const environment: ReturnType<typeof createEnvironment> = createEnvironment({
 			instances: [first, second],
@@ -454,7 +455,7 @@ suite('Chat window terminals', () => {
 	test('showing, the terminals follow the session of the chat the window shows, such as a chat of another session that becomes the active one: those of the session they showed for go back to the panel, still running, and show again in their order and with their active one as its chat does', async () => {
 		const first = [terminal(5), terminal(6)];
 		const second = terminal(7);
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		const environment = createEnvironment({ instances: [...first, second], terminalsOf: async forSession => forSession.sessionId === 'session-1' ? first : [second] });
 		const shown = () => environment.terminalsGroup.editors.map(candidate => candidate.resource?.path);
 		await environment.terminals.show(environment.window, false);
@@ -478,7 +479,7 @@ suite('Chat window terminals', () => {
 	test('hidden, the terminals do not follow the session of the chat the window shows: nothing is got for it until they show, and then they show its terminals', async () => {
 		const first = terminal(5);
 		const second = terminal(7);
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		const environment = createEnvironment({ instances: [first, second], terminalsOf: async forSession => forSession.sessionId === 'session-1' ? [first] : [second] });
 		await environment.terminals.show(environment.window, false);
 		environment.terminals.hide(environment.window);
@@ -499,7 +500,7 @@ suite('Chat window terminals', () => {
 
 	test('switching on before the terminals of a session open, such as from A to B to C while B\'s terminal is still on its way, shows only the terminals of the last session: the others go to the panel once they open', async () => {
 		const [a, b, c] = [terminal(5), terminal(6), terminal(7)];
-		const sessions = ['session-2', 'session-3'].map(sessionId => upcastPartial<IActiveSession>({ sessionId }));
+		const sessions = ['session-2', 'session-3'].map(sessionId => upcastPartial<ITestSessionWithChat>({ sessionId }));
 		const environment = createEnvironment({
 			instances: [a, b, c], opensLater: true, openDelay: instance => instance === b ? 50 : 10,
 			terminalsOf: async forSession => [{ 'session-1': a, 'session-2': b, 'session-3': c }[forSession.sessionId]!],
@@ -525,7 +526,7 @@ suite('Chat window terminals', () => {
 		});
 		await environment.terminals.show(environment.window, false);
 
-		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+		environment.hostSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' }), undefined);
 		await timeout(0);
 		environment.hostSession.set(environment.session, undefined);
 		await timeout(100);
@@ -547,11 +548,11 @@ suite('Chat window terminals', () => {
 		// The first of A's terminals shows while the second is still on its way, as the window switches to B.
 		void environment.terminals.show(environment.window, false);
 		await timeout(20);
-		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+		environment.hostSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' }), undefined);
 		// A's second terminal opens, which replaced its show, and then the window switches on to C, before B's terminal opens.
 		await timeout(60);
 		const visibleBeforeC = environment.window.terminalsVisible.get();
-		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-3' }), undefined);
+		environment.hostSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-3' }), undefined);
 		await timeout(80);
 
 		assert.deepStrictEqual({ visibleBeforeC, shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), targets: [a1, a2, b, c].map(instance => instance.target) }, {
@@ -563,7 +564,7 @@ suite('Chat window terminals', () => {
 
 	test('switching back before the terminals of the other session open keeps the order and the active one that session last showed its terminals with, rather than taking those of the session the window switched from', async () => {
 		const [a, b1, b2] = [terminal(5), terminal(6), terminal(7)];
-		const sessionB = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const sessionB = upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' });
 		let slow = false;
 		const environment = createEnvironment({
 			instances: [a, b1, b2], opensLater: true, openDelay: () => slow ? 60 : 5,
@@ -604,11 +605,11 @@ suite('Chat window terminals', () => {
 				terminalsOf: forSession => forSession.sessionId === 'session-1' ? Promise.resolve([a]) : forSession.sessionId === 'session-2' ? pendingB.p : Promise.resolve([c]),
 			});
 			await environment.terminals.show(environment.window, false);
-			environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+			environment.hostSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-2' }), undefined);
 			await timeout(0);
 			environment.terminalsGroup.open(editor('workbench.editors.terminal', created.resource));
 			if (switchOn) {
-				environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-3' }), undefined);
+				environment.hostSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'session-3' }), undefined);
 				await timeout(0);
 			}
 			await pendingB.complete([b]);

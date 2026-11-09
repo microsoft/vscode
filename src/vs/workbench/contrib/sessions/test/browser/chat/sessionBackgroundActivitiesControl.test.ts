@@ -11,10 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { SessionChatPillVisibility } from '../../../../chat/common/sessionChatPills.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../common/session.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionBackgroundActivitiesControl } from '../../../browser/chat/sessionBackgroundActivitiesControl.js';
 import { isNonNegativeIntegerInput, weightedRandomDebugIncrement } from '../../../browser/chat/sessionChatInputToolbarDebug.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 interface ISubagentSpec {
 	readonly title: string;
@@ -56,7 +56,7 @@ function createControl(
 		?? (spec.subagents ?? []).map(title => ({ title, status: spec.subagentStatus ?? SessionStatus.InProgress }));
 	const subagents = subagentSpecs.map((entry, index) =>
 		createChat(URI.parse(`chat:subagent-${index}`), entry.title, entry.status, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource }));
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ITestSessionWithChat>() {
 		override readonly resource = URI.parse('session:main');
 		override readonly chats = constObservable([mainChat, ...subagents]);
 	}();
@@ -291,7 +291,7 @@ suite('SessionBackgroundActivitiesControl', () => {
 		const otherChat = createChat(URI.parse('chat:other'), 'Other', SessionStatus.InProgress);
 		const ownSubagent = createChat(URI.parse('chat:subagent-own'), 'Own', SessionStatus.Completed, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource });
 		const unrelatedSubagent = createChat(URI.parse('chat:subagent-other'), 'Unrelated', SessionStatus.InProgress, { kind: ChatOriginKind.Tool, parentChat: otherChat.resource });
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = URI.parse('session:main');
 			override readonly chats = constObservable([mainChat, otherChat, ownSubagent, unrelatedSubagent]);
 		}();

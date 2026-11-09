@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { INewSessionComposer, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../services/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 suite('NewSessionComposerService', () => {

@@ -15,7 +15,7 @@ import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/inp
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { ISessionChatSource } from '../../../../browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
 import { createChatPhoneInputSessionContext } from '../../../../browser/chatPhoneInputContext.js';
 

@@ -15,10 +15,18 @@ export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
 /** Whether the Session Activity Bar hosts the side panel and panel toggles in place of the title bar. */
 export const SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING = 'sessions.sessionActivityBar.showLayoutActions';
 
+/**
+ * Whether the Session Activity Bar of the active chat shows in a column of its own at the right edge of the main
+ * Agents window, rather than beside the chat.
+ */
+export const SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING = 'sessions.sessionActivityBar.fixedColumn';
+
 /** The setting {@link SESSION_ACTIVITY_BAR_SETTING} was named before the Session Toolbar became the Session Activity Bar. */
 export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
+
+export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
@@ -34,6 +42,7 @@ export const enum AutomationSessionsListMode {
 
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
+export const SESSIONS_LIST_INLINE_ACTIONS_SETTING = 'sessions.list.inlineActions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
