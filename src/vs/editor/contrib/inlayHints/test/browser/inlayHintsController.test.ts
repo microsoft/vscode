@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Barrier, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Barrier, DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
 import { InlayHintList, InlayHintsProvider } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -17,7 +19,7 @@ import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IInlayHintsCache, InlayHintsController } from '../../browser/inlayHintsController.js';
-import { InlayHintItem } from '../../browser/inlayHints.js';
+import { InlayHintItem, InlayHintsFragments } from '../../browser/inlayHints.js';
 
 suite('InlayHintsController', () => {
 
@@ -88,5 +90,30 @@ suite('InlayHintsController', () => {
 			.map(decoration => decoration.options.before?.content ?? decoration.options.after?.content)
 			.filter(content => content?.includes('number'));
 		assert.deepStrictEqual(renderedHints, [], 'the stale hint should not be rendered');
+	});
+
+	test('releases the lists of finished providers when the request is cancelled', async () => {
+		const registry = new LanguageFeatureRegistry<InlayHintsProvider>();
+		const model = disposables.add(createTextModel('value'));
+		const tokenSource = disposables.add(new CancellationTokenSource());
+
+		let released = 0;
+		const finishedList: InlayHintList = {
+			hints: [{ label: ': number', position: { lineNumber: 1, column: 6 } }],
+			dispose() { released++; }
+		};
+		const pendingList = new DeferredPromise<InlayHintList>();
+		disposables.add(registry.register('*', { provideInlayHints: async () => finishedList }));
+		disposables.add(registry.register('*', { provideInlayHints: () => pendingList.p }));
+
+		const result = InlayHintsFragments.create(registry, model, [model.getFullModelRange()], tokenSource.token);
+
+		// One provider has finished, the document changes while the other is pending
+		await timeout(0);
+		tokenSource.cancel();
+		pendingList.complete({ hints: [], dispose() { } });
+
+		await assert.rejects(result, isCancellationError);
+		assert.strictEqual(released, 1);
 	});
 });

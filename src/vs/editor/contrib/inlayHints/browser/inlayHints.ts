@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
@@ -87,6 +87,7 @@ export class InlayHintsFragments {
 		await Promise.all(promises.flat());
 
 		if (token.isCancellationRequested || model.isDisposed()) {
+			dispose(data.map(([list]) => list));
 			throw new CancellationError();
 		}
 
