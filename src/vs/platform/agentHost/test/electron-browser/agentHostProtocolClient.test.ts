@@ -844,12 +844,17 @@ suite('AgentHostProtocolClient', () => {
 			onerror: ((event: unknown) => void) | null = null;
 			readonly sent: { type: string; group?: string; ackId?: number; data?: { kind: string; accepts?: string[]; data?: JsonRpcRequest } }[] = [];
 
-			constructor(readonly rejectAdvertisement: boolean) {
+			constructor(readonly rejectAdvertisement: boolean, readonly results: Readonly<Record<string, object>> = {}, readonly followUps: Readonly<Record<string, readonly object[]>> = {}) {
 				queueMicrotask(() => this.receive({ type: 'system', event: 'connected' }));
 			}
 
 			receive(frame: object): void {
 				this.onmessage?.({ data: JSON.stringify(frame) });
+			}
+
+			/** Publishes a host notification on the client's broadcast group, as a host lane does. */
+			private _deliver(message: object): void {
+				this.receive({ type: 'message', from: 'group', group: `${prefix}.broadcast`, dataType: 'json', data: { kind: 'message', generation: 7, data: message } });
 			}
 
 			send(data: string): void {
@@ -860,20 +865,25 @@ suite('AgentHostProtocolClient', () => {
 				}
 				const request = frame.data?.data;
 				if (request?.id !== undefined) {
-					const result = request.method === 'initialize'
+					const result = this.results[request.method] ?? (request.method === 'initialize'
 						? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
-						: request.method === 'reconnect' ? { type: ReconnectResultType.Replay, actions: [], missing: [] } : {};
-					queueMicrotask(() => this.receive({
-						type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
-						data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: request.id, result } },
-					}));
+						: request.method === 'reconnect' ? { type: ReconnectResultType.Replay, actions: [], missing: [] } : {});
+					queueMicrotask(() => {
+						this.receive({
+							type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
+							data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: request.id, result } },
+						});
+						for (const message of this.followUps[request.method] ?? []) {
+							this._deliver(message);
+						}
+					});
 				}
 			}
 
 			close(): void { }
 		}
 
-		function createRelayClient(rejectAdvertisement = false) {
+		function createRelayClient(rejectAdvertisement = false, results?: Readonly<Record<string, object>>, clientConnectionKind?: AgentHostClientConnectionKind.MissionControl, followUps?: Readonly<Record<string, readonly object[]>>) {
 			const sockets: RelaySocket[] = [];
 			const logService = new NullLogService();
 			const factory = () => new WebPubSubRelayTransport({
@@ -881,8 +891,9 @@ suite('AgentHostProtocolClient', () => {
 				url: 'wss://relay.example',
 				toHostGroup: `${prefix}.to-host`,
 				joinGroups: [`${prefix}.broadcast`, `${prefix}.to-client`],
+				clientConnectionKind,
 				webSocketFactory: () => {
-					const socket = new RelaySocket(rejectAdvertisement);
+					const socket = new RelaySocket(rejectAdvertisement, results, followUps);
 					sockets.push(socket);
 					return socket;
 				},
@@ -925,6 +936,37 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data), [
 				{ kind: 'capabilities', accepts: ['batch'] },
 			]);
+		});
+
+		test('credits relayed windowed data with the bytes a Mission Control host counted', async () => {
+			const channel = 'other-agent://tenant/conversations/relay-window';
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits };
+			const state = createSessionState({
+				resource: channel, provider: 'other-agent', title: 'Relayed \u201cquotes\u201d, <tags> & \u2028 \u00e9', status: SessionStatus.Idle,
+				createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+			});
+			const snapshot = { jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 1 } } };
+			const { client, sockets } = createRelayClient(false, {
+				initialize: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.relayChannelWindows': true } },
+				subscribe: { flowControl },
+			}, AgentHostClientConnectionKind.MissionControl, { subscribe: [snapshot] });
+			await client.connect();
+			const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'test'));
+			await Event.toPromise(subscription.object.onDidChange);
+			client['_windowedChannels'].get(channel)?.flushCredit();
+			await flushMicrotasks();
+			const notifications = sockets[0].sent.map(frame => frame.data?.data as { method?: string; params?: unknown } | undefined);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				title: subscription.object.verifiedValue?.title,
+				offer: notifications.find(message => message?.method === 'subscribe')?.params,
+				credits: notifications.filter(message => message?.method === 'channel/credit').map(message => message?.params),
+			}, {
+				state: AgentHostClientState.Connected,
+				title: state.title,
+				offer: { channel, flowControl: { receive: agentHostStateReceiveLimits } },
+				credits: [{ channel, consumedBytes: JSON.stringify(snapshot).length * 2 }],
+			});
 		});
 	});
 
@@ -1151,18 +1193,24 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
-		for (const [connectionKind, offer] of [
-			[AgentHostClientConnectionKind.WebPubSub, undefined],
-			[AgentHostClientConnectionKind.MissionControl, { receive: agentHostStateReceiveLimits }],
+		for (const [connectionKind, hostMeta, offered] of [
+			[AgentHostClientConnectionKind.WebPubSub, { 'vscode.relayChannelWindows': true }, false],
+			[AgentHostClientConnectionKind.MissionControl, undefined, false],
+			[AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true }, true],
 		] as const) {
-			test(`${offer ? 'offers' : 'does not offer'} state windows on ${connectionKind} and accepts ordinary delivery`, async () => {
+			test(`${offered ? 'offers' : 'does not offer'} state windows on ${connectionKind} ${hostMeta ? 'with' : 'without'} host relay windows`, async () => {
 				const { client, transport } = createClient(disposables.add(new TestProtocolTransport(connectionKind)));
-				await connectClient(client, transport);
+				await connectClient(client, transport, hostMeta);
+				const declared = ((transport.sentMessages[0] as JsonRpcRequest).params as { _meta?: Record<string, unknown> })._meta?.['vscode.relayChannelWindows'];
 				const pending = client.subscribe(URI.parse(channel));
 				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
 				const snapshot = { resource: channel, state, fromSeq: 5 };
 				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
-				assert.deepStrictEqual({ params: request.params, snapshot: await pending }, { params: { channel, ...(offer ? { flowControl: offer } : {}) }, snapshot });
+				assert.deepStrictEqual({ declared, params: request.params, snapshot: await pending }, {
+					declared: connectionKind === AgentHostClientConnectionKind.MissionControl ? true : undefined,
+					params: { channel, ...(offered ? { flowControl: { receive: agentHostStateReceiveLimits } } : {}) },
+					snapshot,
+				});
 			});
 		}
 
@@ -5510,7 +5558,7 @@ suite('AgentHostProtocolClient', () => {
 
 	suite('soft reconnect (transport factory)', () => {
 
-		async function createExpiringRelayClient(connectionKind: AgentHostClientConnectionKind) {
+		async function createExpiringRelayClient(connectionKind: AgentHostClientConnectionKind, initializeMeta?: Record<string, unknown>) {
 			const transport = disposables.add(new TestProtocolTransport(connectionKind));
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
@@ -5524,7 +5572,7 @@ suite('AgentHostProtocolClient', () => {
 			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
 			transport.fireMessage({
 				jsonrpc: '2.0', id: initialize.id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [root.snapshot] },
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [root.snapshot], _meta: initializeMeta },
 			});
 			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 0);
 			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
@@ -5579,10 +5627,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
 				for (const [index, snapshot] of snapshots.entries()) {
 					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
-					assert.deepStrictEqual(subscribe.params, {
-						channel: snapshot.resource,
-						...(connectionKind === AgentHostClientConnectionKind.MissionControl ? { flowControl: { receive: agentHostStateReceiveLimits } } : {}),
-					});
+					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
 					if (index === 0) {
 						transport.fireMessage({
 							jsonrpc: '2.0', method: 'auth/required',
@@ -5610,10 +5655,7 @@ suite('AgentHostProtocolClient', () => {
 				}, {
 					sessionTitle: 'After expiry', chatTitle: 'After expiry', state: AgentHostClientState.Connected,
 					watch: watch.params,
-					watchSubscription: {
-						channel: 'ahp-resource-watch:/restored',
-						...(connectionKind === AgentHostClientConnectionKind.MissionControl ? { flowControl: { receive: agentHostStateReceiveLimits } } : {}),
-					},
+					watchSubscription: { channel: 'ahp-resource-watch:/restored' },
 					initializations: 1,
 				});
 			});
@@ -5654,10 +5696,62 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: restored.id, result: { snapshot: { resource, state, fromSeq: 2 } } });
 				await renewed;
 				assert.deepStrictEqual({ request: restored.params, state: subscription.object.value }, {
-					request: { channel: resource, flowControl: { receive: agentHostStateReceiveLimits } }, state,
+					request: { channel: resource }, state,
 				});
 			});
 		}
+
+		test('starts new relay windows after identity renewal instead of continuing expired counters', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true });
+			const resource = 'other-agent://tenant/conversations/windowed-session';
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits };
+			const snapshot = (title: string, fromSeq: number) => ({
+				jsonrpc: '2.0' as const, method: 'channel/snapshot', params: {
+					channel: resource, snapshot: {
+						resource, fromSeq, state: createSessionState({
+							resource, provider: 'other-agent', title, status: SessionStatus.Idle,
+							createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+						}),
+					},
+				},
+			});
+			const credit = async () => {
+				await flushMicrotasks();
+				client['_windowedChannels'].get(resource)?.flushCredit();
+				await flushMicrotasks();
+			};
+			const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+			const before = snapshot('Before expiry', 2);
+			transport.fireWireMessage(before);
+			await credit();
+
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+			const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: restored.id, result: { flowControl } });
+			const after = snapshot('After renewal', 3);
+			transport.fireWireMessage(after);
+			await renewed;
+			await credit();
+			assert.deepStrictEqual({
+				offers: [subscribe.params, restored.params],
+				title: subscription.object.verifiedValue?.title,
+				credits: transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/credit').map(message => message.params),
+			}, {
+				offers: [1, 2].map(() => ({ channel: resource, flowControl: { receive: agentHostStateReceiveLimits } })),
+				title: 'After renewal',
+				credits: [before, after].map(message => ({ channel: resource, consumedBytes: JSON.stringify(message).length * 2 })),
+			});
+		});
 
 		test('failed identity renewal and revocation do not announce recovery; a later successful renewal does', async () => {
 			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);

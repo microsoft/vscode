@@ -22,7 +22,7 @@ import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport } from '../common/state/sessionTransport.js';
+import { measureProtocolMessageBySerialization, type IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
 import { type InboundResult, type SendToGroupCommand, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
 import { parseGroupName, type ParseGroupNameOptions } from '../common/webPubSub/groups.js';
@@ -492,6 +492,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 		this._hostMessages++;
 		this._logProtocolMessage(payload, 's2c');
+		// Relay framing does not keep the message's text.
+		measureProtocolMessageBySerialization(payload);
 		this._onMessage.fire(payload);
 	}
 

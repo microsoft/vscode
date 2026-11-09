@@ -17,6 +17,7 @@ import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonR
 import type { AuthenticateParams } from '../agent.js';
 
 const receivedMessageSizes = new WeakMap<object, number>();
+const reserializedMessages = new WeakSet<object>();
 
 /** Preserve the original JSON size; reserialization can change escaping and whitespace. */
 export function parseProtocolMessage(text: string): ProtocolMessage {
@@ -27,8 +28,24 @@ export function parseProtocolMessage(text: string): ProtocolMessage {
 	return message;
 }
 
+/**
+ * Records that a relay delivered `message` without its original text, so its size is the size of its
+ * `JSON.stringify` serialization. That equals the size a `JSON.stringify` sender counted, because serializing
+ * a parsed `JSON.stringify` result reproduces it. Windowed delivery relies on this only between peers that
+ * declared `vscode.relayChannelWindows`. The size is computed when first read.
+ */
+export function measureProtocolMessageBySerialization(message: object): void {
+	if (!receivedMessageSizes.has(message)) {
+		reserializedMessages.add(message);
+	}
+}
+
 export function getProtocolMessageSize(message: object): number {
-	const bytes = receivedMessageSizes.get(message);
+	let bytes = receivedMessageSizes.get(message);
+	if (bytes === undefined && reserializedMessages.has(message)) {
+		bytes = JSON.stringify(message).length * 2;
+		receivedMessageSizes.set(message, bytes);
+	}
 	if (bytes === undefined) {
 		throw new Error('Transport did not preserve the received protocol message size');
 	}

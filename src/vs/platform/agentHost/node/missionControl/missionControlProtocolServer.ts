@@ -13,7 +13,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { JsonRpcErrorCodes, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
-import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { measureProtocolMessageBySerialization, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ChunkingPayloadTooLargeError, DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL, type SendToGroupCommand } from '../../common/webPubSub/framing.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
@@ -24,6 +24,7 @@ import { MissionControlSessionMirror, type MissionControlMirrorEvent } from './m
 import { AuthRequiredReason } from '../../common/state/protocol/common/notifications.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { AgentHostRelayChannelWindowsCapabilityMetaKey } from '../../common/meta/agentHostRelayChannelWindowsMeta.js';
 
 export interface IMissionControlSocket {
 	send(data: string): void;
@@ -175,7 +176,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	get onDidRelayAuthenticationExpire() { return this._authentication?.onDidExpire; }
 	readonly relayCaptureAuthorization?: () => () => void;
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
-		return { ...this._authentication?.handshakeMeta, 'copilot.keepAliveTimeoutMs': relayKeepAliveTimeoutMs, ...(this.passive ? { 'copilot.passive': true } : {}) };
+		return {
+			...this._authentication?.handshakeMeta, 'copilot.keepAliveTimeoutMs': relayKeepAliveTimeoutMs,
+			[AgentHostRelayChannelWindowsCapabilityMetaKey]: true,
+			...(this.passive ? { 'copilot.passive': true } : {}),
+		};
 	}
 	relayAuthenticate(params: AuthenticateParams): Promise<AuthenticateParams> {
 		if (!this._authentication) {
@@ -224,6 +229,8 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			return;
 		}
 		this.lastReceived = Date.now();
+		// Relay framing does not keep the message's text.
+		measureProtocolMessageBySerialization(message);
 		const request = message as { id?: unknown; method?: unknown; params?: { clientId?: unknown } };
 		if ((request.method === 'initialize' || request.method === 'reconnect') && request.params?.clientId !== this.clientId) {
 			this._ahpLogger?.log(message, 'c2s');
@@ -815,9 +822,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			if (!(error instanceof ChunkingPayloadTooLargeError)) {
 				throw error;
 			}
-			const message = typeof payload === 'object' && payload !== null ? payload as { readonly id?: unknown; readonly method?: unknown; readonly result?: unknown } : {};
+			const message = typeof payload === 'object' && payload !== null ? payload as { readonly id?: unknown; readonly method?: unknown; readonly result?: unknown; readonly error?: unknown } : {};
 			const id = message.id;
-			const responseId = (typeof id === 'number' || typeof id === 'string') && message.method === undefined && hasKey(message, { result: true }) ? id : undefined;
+			const isResponse = message.method === undefined && (hasKey(message, { result: true }) || hasKey(message, { error: true }));
+			const responseId = (typeof id === 'number' || typeof id === 'string') && isResponse ? id : undefined;
 			this._reportPublishFailure('messageTooLarge', `serializedBytes=${error.byteLength}; limitBytes=${error.limit}; ${responseId !== undefined ? 'message=response' : `method=${typeof message.method === 'string' ? message.method : 'unknown'}`}`);
 			if (responseId === undefined) {
 				throw error;

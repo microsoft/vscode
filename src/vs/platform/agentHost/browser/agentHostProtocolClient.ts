@@ -39,6 +39,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostRelayChannelWindowsCapabilityMetaKey, servesAgentHostRelayChannelWindows } from '../common/meta/agentHostRelayChannelWindowsMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -1548,6 +1549,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl ? { [AgentHostRelayChannelWindowsCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -3241,6 +3243,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
 					&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
 					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
+					this._discardStateWindows();
 					this._markSubscriptionsAwaitingRestore([]);
 				}
 				this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
@@ -3934,11 +3937,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	/**
-	 * Whether to offer windowed delivery for state channels. Mission Control relays need it: a relay
-	 * message cannot exceed the relay's reassembly limit, which a large chat snapshot can.
+	 * Whether to offer windowed delivery for state channels. A relay does not keep a message's text, so
+	 * windows need a host that confirmed measuring relayed messages the same way. Mission Control relays
+	 * need windows most: a relay message cannot exceed the relay's reassembly limit.
 	 */
 	private _offersStateWindows(): boolean {
-		return this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub;
+		return !this._isWebPubSubRelay()
+			|| (this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl && servesAgentHostRelayChannelWindows(this._initializeResult.get()));
+	}
+
+	/** The host drops its windows when the relay identity expires; restored subscriptions start new ones. */
+	private _discardStateWindows(): void {
+		for (const channel of [...this._windowedStateChannels.keys()]) {
+			this._windowedChannels.deleteAndDispose(channel);
+			this._windowedStateChannels.delete(channel);
+		}
 	}
 
 	private _cancelLivenessTimers(): void {

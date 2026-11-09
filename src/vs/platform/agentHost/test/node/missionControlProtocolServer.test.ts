@@ -23,7 +23,7 @@ import { MissionControlEnvironment } from '../../node/missionControl/missionCont
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
-import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -35,7 +35,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
-import { DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_REASSEMBLY_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
+import { chunk, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_REASSEMBLY_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
 import { JsonRpcErrorCodes, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
@@ -1956,7 +1956,7 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
-		test('fails an oversized response without closing its lane, and closes only the lane for an oversized notification', async () => {
+		test('fails an oversized response or error response without closing its lane, and closes only the lane for an oversized notification', async () => {
 			const f = await fixture();
 			const lane = f.open();
 			const other = f.open('client-b');
@@ -1966,6 +1966,8 @@ suite('Mission Control WPS', () => {
 			const oversizedResponse = response(1, oversized);
 			lane.send(oversizedResponse);
 			lane.send(response(2));
+			const oversizedError = { jsonrpc: '2.0' as const, id: 4, error: { code: JsonRpcErrorCodes.InternalError, message: 'Failed', data: oversized } };
+			lane.send(oversizedError);
 			const openAfterResponse = !laneClosed;
 			const oversizedNotification = { jsonrpc: '2.0' as const, method: 'action', params: { content: oversized } };
 			assert.throws(() => lane.send(oversizedNotification), /exceeds 33554432-byte ceiling/);
@@ -1983,14 +1985,36 @@ suite('Mission Control WPS', () => {
 				openAfterResponse: true, laneClosed: true, closed: false, errors: [],
 				failures: [
 					{ failure: 'messageTooLarge', serializedBytes: String(JSON.stringify(oversizedResponse).length), limitBytes: String(DEFAULT_MAX_REASSEMBLY_BYTES), message: 'response' },
+					{ failure: 'messageTooLarge', serializedBytes: String(JSON.stringify(oversizedError).length), limitBytes: String(DEFAULT_MAX_REASSEMBLY_BYTES), message: 'response' },
 					{ failure: 'messageTooLarge', serializedBytes: String(JSON.stringify(oversizedNotification).length), limitBytes: String(DEFAULT_MAX_REASSEMBLY_BYTES), method: 'action' },
 				],
 				clientA: [
 					{ jsonrpc: '2.0', id: 1, error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${JSON.stringify(oversizedResponse).length} bytes exceeds the ${DEFAULT_MAX_REASSEMBLY_BYTES}-byte Mission Control relay message limit` } },
 					response(2),
+					{ jsonrpc: '2.0', id: 4, error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${JSON.stringify(oversizedError).length} bytes exceeds the ${DEFAULT_MAX_REASSEMBLY_BYTES}-byte Mission Control relay message limit` } },
 					'closed',
 				],
 				clientB: [response(3)],
+			});
+		});
+
+		test('measures relayed client messages by serialization and advertises relay windows', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const group = `${prefix}.client.client-a.to-host`;
+			const credit = (consumedBytes: number) => ({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: 'ahp-session:/relayed \u201cquoted\u201d <session>', consumedBytes } });
+			const large = { jsonrpc: '2.0', method: 'unsubscribe', params: { channel: `ahp-session:/${'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES)}` } };
+			f.deliver(group, { kind: 'message', data: credit(1) }, 'owner');
+			f.deliver(group, { kind: 'batch', items: [credit(2), credit(3)] }, 'owner');
+			for (const envelope of chunk(large)) {
+				f.deliver(group, envelope, 'owner');
+			}
+			assert.deepStrictEqual({
+				sizes: f.received.map(message => getProtocolMessageSize(message)),
+				meta: lane.relayHandshakeMeta?.['vscode.relayChannelWindows'],
+			}, {
+				sizes: [credit(1), credit(2), credit(3), large].map(message => JSON.stringify(message).length * 2),
+				meta: true,
 			});
 		});
 
