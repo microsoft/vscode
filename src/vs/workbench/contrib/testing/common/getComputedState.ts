@@ -96,6 +96,26 @@ const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, 
 	return computed;
 };
 
+/** Updates the parent's cached duration aggregate, rebuilding it when necessary. */
+const getNewDurationCached = <T>(
+	accessor: IComputedStateAndDurationAccessor<T>,
+	parent: T,
+	oldDuration: number | undefined,
+	previousChildDuration: number | undefined,
+	childDuration: number | undefined,
+): number | undefined => {
+	const cache = accessor.getCache(parent);
+	const childCount = cache.childrenWithDuration;
+	if (childCount !== undefined && accessor.getOwnDuration(parent) === undefined
+		&& Number.isFinite(oldDuration ?? 0) && Number.isFinite(previousChildDuration ?? 0) && Number.isFinite(childDuration ?? 0)) {
+		const newChildCount = childCount + Number(childDuration !== undefined) - Number(previousChildDuration !== undefined);
+		cache.childrenWithDuration = newChildCount;
+		return newChildCount ? (oldDuration ?? 0) - (previousChildDuration ?? 0) + (childDuration ?? 0) : undefined;
+	}
+
+	return getComputedDuration(accessor, parent, true);
+};
+
 const LARGE_NODE_THRESHOLD = 64;
 
 /**
@@ -168,16 +188,9 @@ export const refreshComputedState = <T>(
 		let childDuration: number | undefined;
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
 			const oldDuration = accessor.getCurrentComputedDuration(parent);
-			const childCount = accessor.getCache(parent).childrenWithDuration;
-			let newDuration: number | undefined;
-			if (parent !== node && childCount !== undefined && accessor.getOwnDuration(parent) === undefined
-				&& Number.isFinite(oldDuration ?? 0) && Number.isFinite(previousChildDuration ?? 0) && Number.isFinite(childDuration ?? 0)) {
-				const newChildCount = childCount + Number(childDuration !== undefined) - Number(previousChildDuration !== undefined);
-				accessor.getCache(parent).childrenWithDuration = newChildCount;
-				newDuration = newChildCount ? (oldDuration ?? 0) - (previousChildDuration ?? 0) + (childDuration ?? 0) : undefined;
-			} else {
-				newDuration = getComputedDuration(accessor, parent, true);
-			}
+			const newDuration = parent === node
+				? getComputedDuration(accessor, parent, true)
+				: getNewDurationCached(accessor, parent, oldDuration, previousChildDuration, childDuration);
 			if (oldDuration === newDuration) {
 				break;
 			}
