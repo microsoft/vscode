@@ -11,7 +11,10 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -36,6 +39,9 @@ import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/clo
 import { ReadOnlyChatSession } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agentSessions/agentHost/agentHostPolicyUnavailableSession.js';
+import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
@@ -181,6 +187,51 @@ suite.skip('ChatSessionsService', () => {
 			const input = '   Check [](file:///test.js)   ';
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
+		});
+	});
+});
+
+suite('ChatSessionsService - input completion triggers', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('refreshes task-scheme completion registration without replacing content and ignores stale trigger loads', async () => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const changed = store.add(new Emitter<void>());
+		const languageFeatures = new LanguageFeaturesService();
+		const model = store.add(createTextModel('@', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/task' })));
+		let characters: readonly string[] = [];
+		let pending: Promise<readonly string[]> | undefined;
+		const registration = store.add(service.registerChatSessionContentProvider('cloud-sandbox-task', {
+			provideChatSessionContent: async () => { throw new Error('Completion registration must not open a conversation.'); },
+			provideChatInputCompletionTriggerCharacters: () => pending ?? Promise.resolve(characters),
+			onDidChangeChatInputCompletionTriggerCharacters: changed.event,
+		}));
+		store.add(new AgentHostInputCompletions(languageFeatures, new MockChatWidgetService(), service, new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined })));
+		const triggers = () => languageFeatures.completionProvider.ordered(model).map(provider => provider.triggerCharacters);
+		await timeout(0);
+		const initial = triggers();
+		characters = ['@'];
+		changed.fire();
+		await timeout(0);
+		const acquired = triggers();
+		const obsolete = new DeferredPromise<readonly string[]>();
+		pending = obsolete.p;
+		changed.fire();
+		pending = undefined;
+		characters = ['#', '/'];
+		changed.fire();
+		await timeout(0);
+		await obsolete.complete(['$']);
+		await timeout(0);
+		const replaced = triggers();
+		registration.dispose();
+		changed.fire();
+		await timeout(0);
+		assert.deepStrictEqual({ initial, acquired, replaced, removed: triggers() }, {
+			initial: [], acquired: [['@']], replaced: [['#', '/']], removed: [],
 		});
 	});
 });
@@ -876,6 +927,29 @@ suite('ChatSessionsService - side chats', () => {
 		await assert.rejects(service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None), {
 			message: 'This conversation does not support side chats.',
 		});
+	});
+
+	test('preserves the source-context choice when creating side chats through the loaded session', async () => {
+		const calls: Parameters<NonNullable<IChatSession['createSideChat']>>[] = [];
+		const target = { resource: resource.with({ fragment: 'new-side' }), label: 'Side Chat', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+		const createSideChat: NonNullable<IChatSession['createSideChat']> = async (...args) => {
+			calls.push(args);
+			return target;
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], createSideChat, onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		await service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None, origin.selection);
+		await service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None, undefined, false);
+
+		assert.deepStrictEqual(calls, [
+			[origin.sourceTurnId, CancellationToken.None, origin.selection, undefined],
+			[origin.sourceTurnId, CancellationToken.None, undefined, false],
+		]);
 	});
 
 	test('observes late loading, title hydration, disposal, reloading and provider removal', async () => {

@@ -9,7 +9,7 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import { collectImporterPackages, getLockfileFolder, getSnapshotKey, importerDependencyKinds, listLockfiles, parsePackageKey, parsePnpmLockfile, readLockfileImporter, resolveDependencyVersion } from '../pnpmLock.ts';
 
-const lockfile = parsePnpmLockfile(fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'npm', 'pnpm', 'test', 'fixtures', 'workspace', 'pnpm-lock.fixture.yaml'), 'utf8'));
+const lockfile = parsePnpmLockfile(fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'pnpm', 'pnpm-lock.fixture.yaml'), 'utf8'));
 
 suite('pnpmLock', () => {
 
@@ -82,7 +82,7 @@ suite('pnpmLock', () => {
 
 	test('importers read without a YAML parser match the parsed lockfiles', () => {
 		const lockfiles = [
-			fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'npm', 'pnpm', 'test', 'fixtures', 'workspace', 'pnpm-lock.fixture.yaml'), 'utf8'),
+			fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'pnpm', 'pnpm-lock.fixture.yaml'), 'utf8'),
 			...listLockfiles().map(file => fs.readFileSync(path.join(import.meta.dirname, '..', '..', '..', file), 'utf8')),
 		];
 		for (const content of lockfiles) {

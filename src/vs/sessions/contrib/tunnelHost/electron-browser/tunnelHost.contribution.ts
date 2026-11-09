@@ -19,10 +19,11 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../w
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsToggleResult } from '../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
-import { Menus } from '../../../browser/menus.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../chat/common/constants.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const TOGGLE_SHARING_FROM_AGENTS_ID = TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID;
 
@@ -38,7 +39,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 	) {
 		super();
 
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+		this._register(MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 			command: {
 				id: TOGGLE_SHARING_FROM_AGENTS_ID,
 				title: localize('toggleSharing', "Allow Remote Connections"),
@@ -61,8 +62,8 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 				});
 			}
 
-			async run(accessor: ServicesAccessor): Promise<void> {
-				await executeToggleRemoteConnections(
+			run(accessor: ServicesAccessor): Promise<RemoteConnectionsToggleResult> {
+				return executeToggleRemoteConnections(
 					accessor,
 					{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false },
 				);
@@ -82,7 +83,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 					: undefined,
 			});
 		};
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));
 	}
 }
 

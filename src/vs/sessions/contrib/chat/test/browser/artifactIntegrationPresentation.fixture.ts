@@ -32,17 +32,17 @@ import { chartsBlue, chartsForeground, chartsGreen, chartsOrange, chartsPurple, 
 import { ChatPillsRow, ChatPillsWidget, IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import '../../../../../workbench/browser/media/style.css';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrationPresentation.js';
-import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactDetailsContextView } from '../../browser/artifactDetailsContextView.js';
+import { ArtifactIntegrationPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationGroup.js';
+import { ArtifactDetailsContextView } from '../../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';
@@ -481,7 +481,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	caption.style.fontSize = 'var(--vscode-fontSize-body2)';
 	const previewOperation = (label: string) => { caption.textContent = `Preview only: ${label}`; };
 	const activityChat = URI.parse('artifact-demo:/chat');
-	const activeSession = new class extends mock<IActiveSession>() {
+	const activeSession = new class extends mock<ITestSessionWithChat>() {
 		override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = activityChat; }());
 	}();
 	const activityWidget = new class extends mock<IChatWidget>() {

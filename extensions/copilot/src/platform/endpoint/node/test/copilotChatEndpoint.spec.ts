@@ -671,7 +671,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		postOptions: { temperature: 0, top_p: 1 }
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-k4'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(1);
@@ -682,6 +682,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		{ family: 'kimi-k2.6', prefix: 'functions.' },
 		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
 		{ family: 'kimi-k3', prefix: '' },
+		{ family: 'kimi-k4', prefix: '' },
 	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));

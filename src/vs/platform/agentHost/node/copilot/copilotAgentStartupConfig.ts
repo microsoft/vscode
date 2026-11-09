@@ -32,6 +32,8 @@ export class CopilotAgentStartupConfig {
 		readonly policyHelper: string | undefined = undefined,
 		/** `chat.agentHost.browserUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly browserUse = false,
+		/** `chat.copilot.modelRouter.enabled`: routers ask a decision model, which needs the runtime's DECISIONS_API flag. */
+		readonly decisionsApi = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

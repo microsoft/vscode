@@ -30,21 +30,20 @@ export type CloudSandboxSessionFeedRefresh =
 	| { readonly reason: 'change'; readonly taskIds: readonly string[] }
 	| { readonly reason: 'renewal' | 'reconnect' };
 
-/** Account-scoped task invalidations, independent of the AHP relay. Seamless renewal catches up incrementally; connection gaps require full reconciliation. */
+/** Account-scoped task invalidations, independent of the AHP relay. Renewals and connection gaps request inventory catch-up. */
 export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _reconnect = this._register(new RunOnceScheduler(() => void this._connect(true), reconnectPolicy.initialDelayMs));
 	private readonly _refresh = this._register(new RunOnceScheduler(() => {
 		const reason = this._refreshReason;
-		const taskIds = [...this._taskIds];
-		this._taskIds.clear();
+		const taskIds = this.takePendingTaskIds();
 		this._refreshReason = undefined;
 		if (reason) {
 			this._onInvalidate({ reason });
 		}
 		// Incremental catch-up must not discard explicit hints for removed or inaccessible tasks.
-		if (taskIds.length && reason !== 'reconnect') {
+		if (taskIds.length) {
 			this._onInvalidate({ reason: 'change', taskIds });
 		}
 	}, 500));
@@ -53,6 +52,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private _refreshReason: 'renewal' | 'reconnect' | undefined;
 	private _start: Promise<void> | undefined;
 	private _connecting: Promise<void> | undefined;
+	private _deferred = false;
 	/** Dropped sockets and failed attempts since the last healthy connection; drives both backoff policies. */
 	private _consecutiveFailures = 0;
 	private _connectionWatch: Pick<StopWatch, 'elapsed'> | undefined;
@@ -60,11 +60,13 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private _gapWatch: Pick<StopWatch, 'elapsed'> | undefined;
 
 	get connected(): boolean { return !!this._active.value; }
+	get deferred(): boolean { return this._deferred; }
 
 	constructor(
 		private readonly _onInvalidate: (refresh: CloudSandboxSessionFeedRefresh) => void,
 		private readonly _webSocketFactory: (url: string, protocol: string) => SessionFeedSocket = (url, protocol) => new WebSocket(url, protocol),
 		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
+		private readonly _canConnect: () => boolean = () => true,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
@@ -74,7 +76,18 @@ export class CloudSandboxSessionFeed extends Disposable {
 
 	/** Wait for the first connection attempt before the initial authoritative list read. */
 	start(): Promise<void> {
+		if (this._deferred) {
+			this._start = undefined;
+		}
 		return this._start ??= this._connect(false);
+	}
+
+	/** Drains buffered task hints before stopping the subscription. */
+	takePendingTaskIds(): readonly string[] {
+		this._refresh.cancel();
+		const taskIds = [...this._taskIds];
+		this._taskIds.clear();
+		return taskIds;
 	}
 
 	private _invalidate(reason: CloudSandboxSessionFeedRefresh['reason'], taskId?: string): void {
@@ -90,6 +103,11 @@ export class CloudSandboxSessionFeed extends Disposable {
 	}
 
 	private _connect(refresh: boolean): Promise<void> {
+		if (!this._canConnect()) {
+			this._deferred = true;
+			return Promise.resolve();
+		}
+		this._deferred = false;
 		return this._connecting ??= this._doConnect(refresh).finally(() => this._connecting = undefined);
 	}
 
@@ -111,6 +129,10 @@ export class CloudSandboxSessionFeed extends Disposable {
 				this._active.clear();
 				this._reconnect.cancel();
 				this._report('unavailable', 'unavailable', undefined, undefined, diagnostics);
+				return;
+			}
+			if (!this._canConnect()) {
+				this._deferred = true;
 				return;
 			}
 			negotiated = true;
@@ -181,6 +203,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 						this._report('disconnected', reason, delay, undefined, diagnostics);
 					} else {
 						this._logService.debug(`${LOG_PREFIX} Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.`);
+						this._deferred = false;
 						this._reconnect.cancel();
 						this._report('invalidMessage', reason, undefined, undefined, diagnostics);
 					}
@@ -210,7 +233,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 				: Date.parse(connection.reconnect_after) - Date.now();
 			this._reconnect.schedule(Math.max(1_000, reconnectDelay));
 			this._logService.debug(`${LOG_PREFIX} Connected to task status feed.`);
-			this._report(continuous ? 'renewed' : 'connected', continuous ? 'renewal' : refresh ? 'recovery' : 'initial',
+			this._report(continuous ? 'renewed' : 'connected', continuous ? 'renewal' : refresh || gapDurationMs !== undefined ? 'recovery' : 'initial',
 				undefined, undefined, { ...diagnostics, gapDurationMs });
 			if (refresh) {
 				this._invalidate(continuous ? 'renewal' : 'reconnect');

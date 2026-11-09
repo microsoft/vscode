@@ -116,11 +116,17 @@ test/sanity/** @dmitrivMS
 # Agents Workbench
 # Ensure the Agents workbench team is aware of changes to the sessions model and services
 src/vs/sessions/services/sessions/** @sandy081 @lszomoru
+src/vs/workbench/contrib/sessions/common/** @sandy081 @lszomoru
+src/vs/workbench/contrib/sessions/browser/*Service.ts @sandy081 @lszomoru
+src/vs/workbench/services/sessions/** @sandy081 @lszomoru
+src/vs/workbench/browser/parts/sessions/** @sandy081 @lszomoru
+src/vs/workbench/services/editor/*/diffEditorOptionsService.ts @sandy081 @lszomoru
 
 # Agents Window architecture specifications and their routing policy.
 /src/vs/sessions/*.md @sandy081
 /src/vs/sessions/contrib/layout/browser/*.md @sandy081
 /src/vs/sessions/contrib/providers/*/*.md @sandy081
+/src/vs/workbench/contrib/sessions/providers/*/*.md @sandy081
 /.github/instructions/sessions.instructions.md @sandy081
 /.github/skills/sessions/SKILL.md @sandy081
 /.github/skills/chat-customizations-editor/SKILL.md @sandy081

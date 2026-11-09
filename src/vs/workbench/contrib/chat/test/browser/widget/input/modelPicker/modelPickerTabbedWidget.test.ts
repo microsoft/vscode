@@ -2324,7 +2324,9 @@ suite('TabbedModelPicker', () => {
 			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
 			icon: !!welcome.querySelector(`.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(Codicon.workspaceUntrusted)}`),
 			text: Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent),
-			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'), action => action.dataset.id),
+			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'))
+				.filter(action => action.style.display !== 'none')
+				.map(action => action.dataset.id),
 			trustRequests,
 		}, {
 			tabs: ['Copilot'],
@@ -2790,7 +2792,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			rows: [
 				{ name: 'First', summary: 'Low · 32K', details: 'First Details, Low · 32K', infoIcon: false },
-				{ name: 'Fixed', summary: 'Max 200K', details: 'Fixed Details, Max 200K', infoIcon: false },
+				{ name: 'Fixed', summary: '200K', details: 'Fixed Details, 200K', infoIcon: false },
 				{ name: 'Second', summary: 'Low · 32K', details: 'Second Details, Low · 32K', infoIcon: false },
 				{ name: 'Unknown', summary: 'Details', details: 'Unknown Details', infoIcon: false },
 			],

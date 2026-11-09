@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -78,6 +78,23 @@ function storedChat(entry: IStoredChatWindow): string {
 	return (entry.chat ?? entry.session)!;
 }
 
+/**
+ * The chats that remain of a stored window without `removed`, the first of which it opens for: none for a window with
+ * none left, and undefined when it had none of them.
+ */
+function withoutChats(entry: IStoredChatWindow, removed: ReadonlySet<string>): IStoredChatWindow[] | undefined {
+	const all = [storedChat(entry), ...(entry.chats ?? [])];
+	const kept = all.filter(chat => !removed.has(chat));
+	if (kept.length === all.length) {
+		return undefined;
+	}
+	if (!kept.length) {
+		return [];
+	}
+	const [chat, ...others] = kept;
+	return [{ ...entry, chat, session: undefined, chats: others.length ? others : undefined, activeChat: entry.activeChat && kept.includes(entry.activeChat) ? entry.activeChat : undefined }];
+}
+
 /** What {@link ChatWindowsRestoration} needs of the chat window service. */
 export interface IChatWindowsRestorationHost {
 	readonly provider: IObservable<IChatWindowProvider | undefined>;
@@ -110,6 +127,13 @@ export class ChatWindowsRestoration extends Disposable {
 	private _restoring = false;
 	private _keepStored = false;
 	private _restored = false;
+	/**
+	 * The chats of stored chat windows that did not open as they restored, which stay stored to restore next time: a
+	 * window that failed to open, or the chats of one that did not come up in any window.
+	 */
+	private _failed: IStoredChatWindow[] = [];
+	/** The chat each chat of {@link _failed} resolved as when that is another one, so that it is known once that one shows. */
+	private readonly _canonical = new Map<string, string>();
 	private readonly _providerListener = this._register(new MutableDisposable());
 
 	constructor(
@@ -121,6 +145,19 @@ export class ChatWindowsRestoration extends Disposable {
 		super();
 		this._register(this._storageService.onWillSaveState(() => this._save()));
 		this._keepStored = this._read().length > 0;
+		// Each chat of a window that failed to open is retired for good once it, or the chat it opens as, shows in a window,
+		// so that closing that window does not bring it back; its other chats stay stored.
+		this._register(autorun(reader => {
+			const shown = this._shownChats(reader);
+			const provider = this._host.provider.read(reader);
+			const retired = new Set(this._failed.flatMap(entry => [storedChat(entry), ...(entry.chats ?? [])]).filter(chat => this._isShown(chat, shown, provider)));
+			if (retired.size) {
+				this._failed = this._failed.flatMap(entry => withoutChats(entry, retired) ?? [entry]);
+				for (const chat of retired) {
+					this._canonical.delete(chat);
+				}
+			}
+		}));
 		this._register(autorun(reader => {
 			const provider = this._host.provider.read(reader);
 			this._providerListener.value = provider?.onDidRemoveChats(chats => this._forget(chats));
@@ -134,14 +171,17 @@ export class ChatWindowsRestoration extends Disposable {
 			const stored = this._read();
 			if (!stored.length) {
 				this._keepStored = false;
+				provider.didFinishRestore?.([]);
 				return;
 			}
 			this._restoring = true;
-			this._restore(provider, stored)
+			const claimed: URI[] = [];
+			this._restore(provider, stored, claimed)
 				.catch(error => this._logService.error('[ChatWindow] Failed to restore chat windows', error))
 				.finally(() => {
 					this._restoring = false;
 					this._keepStored = false;
+					provider.didFinishRestore?.(claimed);
 				});
 		}));
 	}
@@ -169,21 +209,13 @@ export class ChatWindowsRestoration extends Disposable {
 			return;
 		}
 		const removed = new Set(chats.map(chat => chat.toString()));
+		this._failed = this._failed.flatMap(entry => withoutChats(entry, removed) ?? [entry]);
 		const stored = this._read();
-		// The chats that remain of each window, the first of which it opens for; a window with none left goes
 		let changed = false;
 		const remaining = stored.flatMap(entry => {
-			const all = [storedChat(entry), ...(entry.chats ?? [])];
-			const kept = all.filter(chat => !removed.has(chat));
-			if (kept.length === all.length) {
-				return [entry];
-			}
-			changed = true;
-			if (!kept.length) {
-				return [];
-			}
-			const [chat, ...others] = kept;
-			return [{ ...entry, chat, session: undefined, chats: others.length ? others : undefined, activeChat: entry.activeChat && kept.includes(entry.activeChat) ? entry.activeChat : undefined }];
+			const kept = withoutChats(entry, removed);
+			changed ||= !!kept;
+			return kept ?? [entry];
 		});
 		if (changed) {
 			this._write(remaining);
@@ -199,8 +231,10 @@ export class ChatWindowsRestoration extends Disposable {
 			return;
 		}
 		this._keepStored = false;
-		this._write(windows.map(window => {
-			const [chat, ...chats] = (this._host.chatsInOrder?.(window) ?? window.chats.get()).map(candidate => candidate.toString());
+		// A window that failed to open stays stored, until its chat opens in a window
+		const failed = this._failed;
+		this._write([...windows.map(window => {
+			const [chat, ...chats] = (this._host.chatsInOrder?.(window) ?? window.openedChats.get()).map(candidate => candidate.toString());
 			const layoutChat = this._host.layoutChatOf?.(window)?.toString();
 			return {
 				chat,
@@ -213,7 +247,7 @@ export class ChatWindowsRestoration extends Disposable {
 				created: this._createdParts(window),
 				window: this._host.windowState?.(window),
 			};
-		}));
+		}), ...failed]);
 	}
 
 	private _createdParts(window: IChatWindow): ISerializedChatWindowEditor[][] | undefined {
@@ -223,7 +257,48 @@ export class ChatWindowsRestoration extends Disposable {
 		return created.length ? created : undefined;
 	}
 
-	private async _restore(provider: IChatWindowProvider, stored: readonly IStoredChatWindow[]): Promise<void> {
+	private _shownChats(reader: IReader | undefined): Set<string> {
+		return new Set(this._host.windows.read(reader).flatMap(window => window.openedChats.read(reader).map(chat => chat.toString())));
+	}
+
+	/** Whether `chat`, a stored chat, shows in a window among `shown`: itself, or the chat it opens as. */
+	private _isShown(chat: string, shown: ReadonlySet<string>, provider: IChatWindowProvider | undefined): boolean {
+		if (shown.has(chat)) {
+			return true;
+		}
+		const canonical = this._canonical.get(chat) ?? provider?.canonicalChatOf?.(URI.parse(chat))?.toString();
+		return !!canonical && shown.has(canonical);
+	}
+
+	/**
+	 * Keeps the chats of `entry` that did not come up in any window as it restored, also once some did, in their order:
+	 * all of them, as stored, when its window failed to open, and otherwise those its window did not take, such as a
+	 * chat beside one that shows in another window already. A chat that shows as another one in any window came up.
+	 */
+	private _retainUnopened(provider: IChatWindowProvider, entry: IStoredChatWindow, restorable: readonly URI[]): void {
+		const shown = this._shownChats(undefined);
+		const unopened: string[] = [];
+		for (const chat of restorable.map(candidate => candidate.toString())) {
+			const canonical = provider.canonicalChatOf?.(URI.parse(chat))?.toString();
+			if (canonical && canonical !== chat) {
+				this._canonical.set(chat, canonical);
+			}
+			if (!this._isShown(chat, shown, provider)) {
+				unopened.push(chat);
+			} else {
+				this._canonical.delete(chat);
+			}
+		}
+		if (unopened.length === restorable.length) {
+			this._failed.push(entry);
+		} else if (unopened.length) {
+			const [chat, ...chats] = unopened;
+			this._failed.push({ chat, chats: chats.length ? chats : undefined });
+		}
+	}
+
+	/** Restores `stored`, adding the chats it restores or tries to, in a window that fails to open too, to `claimed`. */
+	private async _restore(provider: IChatWindowProvider, stored: readonly IStoredChatWindow[], claimed: URI[]): Promise<void> {
 		for (const entry of stored) {
 			// The chats that can open again: a window opens for the first of them, and with none it does not open
 			const restorable: URI[] = [];
@@ -239,6 +314,7 @@ export class ChatWindowsRestoration extends Disposable {
 			if (!chat) {
 				continue;
 			}
+			claimed.push(...restorable);
 			try {
 				const onError = (error: unknown) => this._logService.error('[ChatWindow] Failed to restore an editor of a chat window', error);
 				const editors = deserializeChatWindowEditors(this._instantiationService, entry.editors ?? [], onError);
@@ -247,7 +323,7 @@ export class ChatWindowsRestoration extends Disposable {
 				const chatPart = isChatWindowChatPart(entry.chatPart) && chats.length === (entry.chats?.length ?? 0) && chat.toString() === storedChat(entry) ? entry.chatPart : undefined;
 				const layoutChat = restorable.find(candidate => candidate.toString() === entry.layoutChat);
 				const windowState = isChatWindowBounds(entry.window) ? entry.window : undefined;
-				const window = await this._host.open(chat, { preserveFocus: true, chats: chats.length ? chats : undefined, showTerminals: entry.terminal, editors, chatPart, layoutChat, createdParts: createdParts.length ? createdParts : undefined, bounds: windowState?.bounds, mode: windowState?.mode });
+				const window = await this._host.open(chat, { preserveFocus: true, chats: chats.length ? chats : undefined, restoreChatsOnReveal: true, showTerminals: entry.terminal, editors, chatPart, layoutChat, createdParts: createdParts.length ? createdParts : undefined, bounds: windowState?.bounds, mode: windowState?.mode });
 				// Its active chat, any of those it restored, the first too
 				if (window && entry.activeChat && restorable.some(candidate => candidate.toString() === entry.activeChat)) {
 					this._host.activateChat?.(window, URI.parse(entry.activeChat));
@@ -255,6 +331,7 @@ export class ChatWindowsRestoration extends Disposable {
 			} catch (error) {
 				this._logService.error(`[ChatWindow] Failed to restore the chat window of ${chat.toString()}`, error);
 			}
+			this._retainUnopened(provider, entry, restorable);
 		}
 	}
 }

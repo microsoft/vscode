@@ -67,6 +67,7 @@ import { artifactToolsConfigurationProperties } from './artifactToolsConfigurati
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
+import { ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -271,6 +272,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMarkdownPlanRichLinksEnabledConfigKey },
+		},
+		[ModelRouterEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.modelRouter.enabled', "When enabled, Copilot in Agent Host sessions offers each model router in `~/.agents/model-routers/` as a model. A router picks a model for each turn from the routes you write. The built-in `model-router` skill can write and check routers."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'advanced', 'experimental'],
+			included: false,
+			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
 			type: 'boolean',

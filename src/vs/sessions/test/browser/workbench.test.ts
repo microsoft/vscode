@@ -8,7 +8,7 @@ import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/d
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -16,28 +16,32 @@ import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
-import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { addAuxiliaryWindowContainers, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
-import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { SessionActivityBarColumn } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
+import { MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { DockedEditorInput } from '../../browser/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import { TestDataTelemetryService } from '../../../platform/telemetry/test/common/testTelemetryService.js';
 
 interface IViewSize { width: number; height: number }
@@ -506,7 +510,7 @@ suite('Sessions - Workbench', () => {
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
 			sessionsPartService: {
-				focusSession: () => { focusedSessions++; },
+				focusNewSessionSlot: () => { focusedSessions++; },
 				setContentVisible: (visible: boolean) => {
 					if (sessionsContentVisible !== visible) {
 						sessionsContentVisible = visible;
@@ -656,6 +660,8 @@ suite('Sessions - Workbench', () => {
 		const editor = createPart('editor');
 		const auxiliaryBar = createPart('auxiliarybar');
 		const panel = createPart('panel');
+		const activityBar = createPart('session-activity-bar-column').appendChild(document.createElement('div'));
+		activityBar.className = 'session-activity-bar docked';
 		const connectedTabs = 'modern-ui-tabs modern-ui-connected-editor-tabs';
 		const corners = (part: HTMLElement, classes: string, pseudoElement?: string) => {
 			root.className = `monaco-workbench agent-sessions-workbench mac macos-tahoe ${classes}`;
@@ -693,6 +699,12 @@ suite('Sessions - Workbench', () => {
 			centeredPanelWithoutSidebar: corners(panel, 'panel-alignment-center dock-detail-panel nosidebar'),
 			centeredEditor: corners(editor, 'panel-alignment-center dock-detail-panel'),
 			centeredPanelWithoutSidePane: corners(panel, 'panel-alignment-center dock-detail-panel noeditorpane'),
+			activityBar: corners(activityBar, 'nopanel noeditorpane session-activity-bar-column-visible'),
+			activityBarBesidePanel: corners(activityBar, 'session-activity-bar-column-visible'),
+			sessionsBesideActivityBar: corners(sessions, 'nopanel noeditorpane session-activity-bar-column-visible'),
+			sessionViewBesideActivityBar: corners(sessionView, `${connectedTabs} nopanel noeditorpane session-activity-bar-column-visible`),
+			editorBesideActivityBar: corners(editor, 'nopanel noauxiliarybar session-activity-bar-column-visible'),
+			panelBesideActivityBar: corners(panel, 'session-activity-bar-column-visible'),
 		}, {
 			sessions: ['8px', '8px', '12px', '8px'],
 			sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
@@ -721,6 +733,12 @@ suite('Sessions - Workbench', () => {
 			centeredPanelWithoutSidebar: ['8px', '8px', '8px', '12px'],
 			centeredEditor: ['8px', '8px', '12px', '8px'],
 			centeredPanelWithoutSidePane: ['8px', '8px', '12px', '8px'],
+			activityBar: ['0px', '0px', '12px', '0px'],
+			activityBarBesidePanel: ['0px', '0px', '12px', '0px'],
+			sessionsBesideActivityBar: ['8px', '8px', '8px', '8px'],
+			sessionViewBesideActivityBar: ['7px', '7px', '7px', '7px'],
+			editorBesideActivityBar: ['8px', '8px', '8px', '8px'],
+			panelBesideActivityBar: ['8px', '8px', '8px', '8px'],
 		});
 	});
 
@@ -1325,20 +1343,54 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
 	});
 
-	test('shows the Session Activity Bar column on the next frame while a strip is in it, and not while a view is maximized', async () => {
+	test('the Session Activity Bar column is turned on by its fixed column setting, and logs its experiment trigger once a strip would show in it whether the setting is on or off', () => {
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const host = { configurationService, telemetryService, _isSessionActivityBarColumnActive: () => constObservable(true) };
+		const column = (Reflect.get(Workbench.prototype, '_createSessionActivityBarColumn') as (this: typeof host) => SessionActivityBarColumn).call(host);
+		store.add(column);
+		const enabled = column.enabled;
+		const watch = store.add(new DisposableStore());
+		watch.add(autorun(reader => enabled.read(reader)));
+
+		const off = enabled.get();
+		const triggersBeforeOffer = [...telemetryService.triggers];
+		column.offer();
+		const triggersWhileOff = [...telemetryService.triggers];
+		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING }));
+		const on = enabled.get();
+		column.offer();
+
+		assert.deepStrictEqual({ off, triggersBeforeOffer, triggersWhileOff, on, triggers: telemetryService.triggers }, {
+			off: false,
+			triggersBeforeOffer: [],
+			triggersWhileOff: [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`],
+			on: true,
+			triggers: [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`],
+		});
+	});
+
+	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as an activity bar and the gap between cards, and not while a view is maximized', async () => {
 		const column = new SessionActivityBarColumn(constObservable(true));
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
 		const changes: boolean[] = [];
+		const widths: number[] = [];
+		column.setLayout(8, false, MenuActivityBarSize.Normal);
 		let visible = false;
 		let maximized = false;
+		const mainContainer = document.createElement('div');
 		const host = {
 			sessionActivityBarColumn: column,
-			mainContainer: mainWindow.document.body,
+			mainContainer,
 			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
 			workbenchGrid: {
 				hasMaximizedView: () => maximized,
 				isViewVisible: () => visible,
 				setViewVisible: (_view: object, value: boolean) => { visible = value; changes.push(value); },
+				getViewSize: () => ({ width: 34, height: 600 }),
+				resizeView: (_view: object, size: IViewSize) => widths.push(size.width),
 				onDidChangeViewMaximized: onDidChangeViewMaximized.event,
 			},
 		};
@@ -1353,6 +1405,7 @@ suite('Sessions - Workbench', () => {
 		const beforeFrame = [...changes];
 		await nextFrame();
 		const shown = [...changes];
+		const classWhileShown = mainContainer.classList.contains('session-activity-bar-column-visible');
 		maximized = true;
 		column.setOccupied(second, false);
 		await nextFrame();
@@ -1360,7 +1413,12 @@ suite('Sessions - Workbench', () => {
 		maximized = false;
 		onDidChangeViewMaximized.fire(false);
 
-		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes }, {
+		column.dispose();
+
+		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes, widths, classWhileShown, classWhenHidden: mainContainer.classList.contains('session-activity-bar-column-visible') }, {
+			widths: [8 + 44],
+			classWhileShown: true,
+			classWhenHidden: false,
 			beforeFrame: [],
 			shown: [true],
 			whileMaximized: [true],

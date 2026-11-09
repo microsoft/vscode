@@ -15,10 +15,10 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
-import { disconnectSSHEntry } from './remoteHostOptions.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ManagedReconnectAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
+import { disconnectSSHEntry } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000;
 

@@ -284,18 +284,37 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
-		test('validates the credentials container and leaves map entries to the runtime', () => {
+		test('validates environment credential entries and leaves destination patterns to the runtime', () => {
 			assert.deepStrictEqual([
 				{},
 				{ envVars: {} },
-				{ envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: ['yahoo.com'] },
+					}
+				},
+				{ envVars: { MY_API_TOKEN: { injectHosts: [] } } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: ['*'] } } },
 				null,
 				[],
 				{ envVars: null },
 				{ envVars: [] },
 				{ envVars: 'MY_API_TOKEN' },
+				{ envVars: { MY_API_TOKEN: null } },
+				{ envVars: { MY_API_TOKEN: [] } },
+				{ envVars: { MY_API_TOKEN: 'api.example.com' } },
+				{ envVars: { MY_API_TOKEN: {} } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: 'api.example.com' } } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: [123] } } },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: [null] },
+					}
+				},
 			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
-				[true, true, true, false, false, false, false, false]);
+				[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false]);
 		});
 
 	});

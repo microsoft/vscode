@@ -13,6 +13,7 @@ import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvi
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
+import { ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -1083,6 +1084,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
+	}),
+	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
+		description: localize('agentHost.config.modelRouterEnabled.description', "Whether model routers from ~/.agents/model-routers are offered as Copilot models."),
+		default: false,
 	}),
 	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
