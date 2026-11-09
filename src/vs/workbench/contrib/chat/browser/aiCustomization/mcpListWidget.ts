@@ -1932,8 +1932,8 @@ function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer,
 	return {
 		type: 'connector-item',
 		id: `copilot-connector:${connector.id}`,
-		label: connector.serverName,
-		description: localize('mcpServerFromConnector', "Connector: {0}", connector.connector.displayName),
+		label: connector.connector.displayName,
+		description: localize('mcpServerFromConnector', "Connector"),
 		activeSessionServer,
 		connector,
 	};
@@ -2417,7 +2417,7 @@ export class McpListWidget extends Disposable {
 							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
 						return entry.type === 'connector-item'
-							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
+							? localize('connectorMcpServerAriaLabel', "{0}. Connector.", entry.label)
 							: entry.type === 'marketplace-item'
 								? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
 								: this.getMcpEntryAriaLabel(entry);
