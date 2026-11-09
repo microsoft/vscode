@@ -52,9 +52,9 @@ function describeActions(actions: readonly IChatInputNotificationAction[]): stri
 	});
 }
 
-function body(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, currentModel: ILanguageModelChatMetadataAndIdentifier | undefined) {
+function body(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, currentModel: ILanguageModelChatMetadataAndIdentifier | undefined, autoModelFusion?: boolean) {
 	const flavor = getLocalModelReadyOfferFlavor(status, family, false);
-	const resolved = flavor ? resolveLocalModelReadyOfferBody({ status, family, flavor, currentModel }) : undefined;
+	const resolved = flavor ? resolveLocalModelReadyOfferBody({ status, family, flavor, currentModel, autoModelFusion }) : undefined;
 	return resolved && { flavor, description: resolved.description, actions: describeActions(resolved.actions) };
 }
 
@@ -111,6 +111,27 @@ suite('LocalModelReadyNotification', () => {
 					description: 'Select it directly to run on your device.',
 					actions: ['Not Now -> _workbench.action.chat.localModel.readyOfferNotNow', `Switch to Example Flash 1.0 [primary] -> ${VENDOR}:MAI-Code-1.1-Flash (unique)`],
 				},
+			});
+		});
+
+		test('names Auto as Copilot Fusion when the host presents it that way', () => {
+			const status = createStatus([installedFamily], { active: readyActive });
+			assert.deepStrictEqual({
+				auto: body(status, installedFamily, autoModel, true),
+				server: body(status, installedFamily, serverModel, true)?.description,
+				tooSlow: body(createStatus([installedFamily], { active: { ...readyActive, autoEligible: false } }), installedFamily, autoModel, true)?.description,
+			}, {
+				auto: {
+					flavor: 'ready',
+					description: 'Copilot Fusion can now run some requests on this device, with cloud fallback. New Copilot Fusion chats will use it.',
+					actions: [
+						`Switch to Example Flash 1.0 -> ${VENDOR}:MAI-Code-1.1-Flash (unique)`,
+						'Not Now -> _workbench.action.chat.localModel.readyOfferNotNow',
+						'New Copilot Fusion Chat [primary] -> workbench.action.chat.localModel.newAutoChat',
+					],
+				},
+				server: 'Run this chat on your device, or let Copilot Fusion choose between local and cloud.',
+				tooSlow: 'It\'s too slow on this device for Copilot Fusion, but you can select it directly.',
 			});
 		});
 

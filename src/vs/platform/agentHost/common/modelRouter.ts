@@ -61,7 +61,7 @@ const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export type ModelRouterEffortLevel = typeof reasoningEffortLevels[number];
 /** `auto` lets the router pick reasoning effort, `off` leaves it alone, and a level always uses that level. */
 export type ModelRouterEffort = 'auto' | 'off' | ModelRouterEffortLevel;
-/** `auto` re-routes every turn but keeps the current model in long chats; `first-turn` routes once and keeps that model. */
+/** `first-turn` (the default) routes once and keeps that model; `auto` re-routes every turn but keeps the current model in long chats. */
 export type ModelRouterSwitching = 'auto' | 'first-turn';
 
 export interface IModelRouterRoute {
@@ -250,13 +250,13 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 	const effort = parseEffort(values.get('effort')?.value, ['auto', 'off'], 'auto', '`effort`', report) as ModelRouterEffort;
 
 	const switchingProperty = values.get('switching');
-	let switching: ModelRouterSwitching = 'auto';
+	let switching: ModelRouterSwitching = 'first-turn';
 	if (switchingProperty) {
 		const value = scalar(switchingProperty.value);
 		if (value === 'auto' || value === 'first-turn') {
 			switching = value;
 		} else if (value === 'mid-turn') {
-			report.warning('`switching: mid-turn` is reserved for a later version; this router switches between turns.', switchingProperty.value);
+			report.warning('`switching: mid-turn` is reserved for a later version; this router routes on the first turn only.', switchingProperty.value);
 		} else {
 			report.error('`switching` is `auto` or `first-turn`.', switchingProperty.value);
 		}

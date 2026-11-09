@@ -74,7 +74,7 @@ import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -14772,6 +14772,7 @@ suite('CopilotAgent', () => {
 					return {
 						models: agent.models.get().map(model => `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}`),
 						tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
+						tierDescription: tier?.description,
 						autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
 					};
 				} finally {
@@ -14788,16 +14789,19 @@ suite('CopilotAgent', () => {
 				unavailableFusion: {
 					models: ['auto:Copilot Fusion:fusion', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					tierDescription: 'Biases which models Copilot Fusion routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
 				},
 				unavailableFusionWithoutModels: {
 					models: ['auto:Copilot Fusion:fusion'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					tierDescription: 'Biases which models Copilot Fusion routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
 				},
 				noFusionTier: {
 					models: ['auto:Auto', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for',
+					tierDescription: 'Biases which models Auto routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true'],
 				},
 			});
@@ -15103,6 +15107,26 @@ suite('CopilotAgent', () => {
 				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
 				{ builtinPluginDirectories: undefined, resolved: 0 },
 			]);
+		});
+
+		test('offers the SDK-bundled Browser Use plugin only to the local agent host when the setting is on', async () => {
+			const results = [];
+			for (const [enabled, isLocalAgentHost] of [[false, true], [true, true], [true, false]]) {
+				const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
+				const { agent } = createTestAgentContext(disposables, {
+					copilotClient: new TestCopilotClient([]),
+					localModelSetupService,
+					rootConfig: { [AgentHostBrowserUseEnabledConfigKey]: enabled },
+				});
+				try {
+					await agent.listChatsToMigrate();
+					results.push(getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories?.map(directory => basename(directory)));
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [undefined, ['browser-use'], undefined]);
 		});
 
 		test('restarts only the local agent host client when the Computer Use setting is turned on', async () => {

@@ -1,5 +1,5 @@
 name: Detect missing caches
-description: Determines which jobs of pr-node-modules.yml need to run because a cache they keep warm is missing.
+description: Determines which jobs of pr-pnpm-store.yml need to run because a cache they keep warm is missing.
 
 inputs:
   token:
@@ -13,7 +13,7 @@ outputs:
   linux:
     description: "'true' when the Linux job needs to run."
     value: ${{ steps.detect.outputs.linux }}
-  # Commented out with the macOS job of pr-node-modules.yml (see there).
+  # Commented out with the macOS job of pr-pnpm-store.yml (see there).
   # macOS:
   #   description: "'true' when the macOS job needs to run."
   #   value: ${{ steps.detect.outputs.macOS }}

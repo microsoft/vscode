@@ -252,7 +252,7 @@ suite('ChatResponseAccessibleView', () => {
 		]);
 	});
 
-	test('reads an Auto routing row as its selection reason when the router supplies one', () => {
+	test('reads an Auto routing row as its selection reason when the router supplies one, naming Copilot Fusion when Auto is presented that way', () => {
 		const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
 		const item = upcastPartial<IChatResponseViewModel>({
 			isComplete: true,
@@ -260,6 +260,7 @@ suite('ChatResponseAccessibleView', () => {
 				value: [
 					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
 					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' }, fusion: true },
 				],
 			}),
 		});
@@ -267,6 +268,7 @@ suite('ChatResponseAccessibleView', () => {
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
 			{ partIndex: 0, text: reason },
 			{ partIndex: 1, text: 'Auto routed task to GPT-5.5' },
+			{ partIndex: 2, text: 'Copilot Fusion routed task to GPT-5.5' },
 		]);
 	});
 

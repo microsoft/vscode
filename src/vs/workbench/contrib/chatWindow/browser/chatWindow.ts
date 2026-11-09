@@ -152,6 +152,12 @@ export interface IChatWindowChrome {
 	createStrip?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 }
 
+/**
+ * The options of a chat window's chat part over those of its main part: its tabs, of chats with long titles, are all as
+ * wide, at most as an editor tab with fixed sizing is by default, whatever sizing editor tabs have.
+ */
+export const CHAT_PART_OPTIONS = { tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 } satisfies Partial<IEditorPartOptions>;
+
 /** The look facet: how a provider's chat windows look. */
 export interface IChatWindowLook {
 	/** The gap between the parts of the window, in pixels. */

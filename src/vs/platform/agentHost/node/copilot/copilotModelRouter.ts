@@ -43,15 +43,12 @@ export interface IModelRouterPickRequest {
 	readonly chat: string;
 }
 
-export type ModelRouterScopeChange = 'same' | 'expanded' | 'different';
-
 export interface IModelRouterPick {
 	readonly model: string | undefined;
 	readonly confidence: number;
 	readonly probabilities: Readonly<Record<string, number>>;
 	/** Expected effort rank, from 0 (low) to 4 (max). */
 	readonly effortScore?: number;
-	readonly scope?: { readonly kind: ModelRouterScopeChange; readonly probability: number };
 }
 
 export const enum ModelRouterPickerFailure {
@@ -80,11 +77,9 @@ const CONTINUATION = /^\s*(ok(ay)?|yes|yep|sure|continue|proceed|next|go ahead|d
 /** How many earlier turns a follow-up decision sees. */
 const RECENT_TURNS = 4;
 
-/** The thresholds a follow-up must clear to move a running chat. A switch discards the prompt cache, so staying is the default. */
+/** The thresholds a follow-up must clear to move a running chat to the route its message fits. */
 export const modelRouterSwitchPolicy = {
-	/** How sure the picker must be that the work really moved on. */
-	minScopeProbability: 0.7,
-	/** How sure it must be about the new model. */
+	/** How sure the picker must be about the new model. */
 	minPickProbability: 0.6,
 	/** How far the new model must lead the current one, so a near tie does not move the chat. */
 	minLead: 0.25,
@@ -135,10 +130,10 @@ export interface IModelRouterSwitchInput {
 	readonly switches: number;
 }
 
-/** Decides whether a follow-up moves the chat. */
+/** Decides whether a follow-up moves the chat: it does when its message clearly fits another route. */
 export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, switches }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
 	const policy = modelRouterSwitchPolicy;
-	if (!pick.model || pick.model === currentModel || !pick.scope || pick.scope.kind === 'same' || pick.scope.probability < policy.minScopeProbability) {
+	if (!pick.model || pick.model === currentModel) {
 		return 'stay';
 	}
 	const pickProbability = pick.probabilities[pick.model] ?? pick.confidence;
@@ -257,7 +252,7 @@ export class CopilotModelRouter {
 		return decision(router, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
-	/** Keeps the chat on its model unless the work has clearly moved on and a switch is worth losing the cache. */
+	/** Moves the chat when its message clearly fits another route, and otherwise keeps its model. */
 	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
 		const stay = decision(router, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
@@ -291,15 +286,15 @@ export class CopilotModelRouter {
 			return stay;
 		}
 		const outcome = decideModelRouterSwitch({ currentModel: current.model.id, pick, ...switchHistory(previousTurns) });
-		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} scope=${pick.scope?.kind}/${pick.scope?.probability}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} probabilities=${JSON.stringify(pick.probabilities)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
 		const target = routes.find(route => route.model.id === pick.model);
-		if (outcome === 'stay' || !target || !pick.scope) {
+		if (outcome === 'stay' || !target) {
 			return decision(router, current, { kept: true }, [], effort);
 		}
-		return decision(router, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router.name, pick.scope.kind, target.model.name)], this._effortFor(context, target, pick.effortScore));
+		return decision(router, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router.name, target.model.name)], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
@@ -319,10 +314,8 @@ function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
 }
 
-function describeSwitch(router: string, scope: ModelRouterScopeChange, model: string): string {
-	return scope === 'different'
-		? localize('modelRouter.switchedDifferent', "This looks like a different task, so the model router {0} moved this chat to {1}.", router, model)
-		: localize('modelRouter.switchedExpanded', "This work has grown, so the model router {0} moved this chat to {1}.", router, model);
+function describeSwitch(router: string, model: string): string {
+	return localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", router, model);
 }
 
 function describeFailure(router: string, error: unknown, model: string): string {

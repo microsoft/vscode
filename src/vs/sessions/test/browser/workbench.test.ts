@@ -8,7 +8,7 @@ import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/d
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -16,7 +16,9 @@ import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
@@ -1339,6 +1341,35 @@ suite('Sessions - Workbench', () => {
 		const phone = active.get();
 
 		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
+	});
+
+	test('the Session Activity Bar column is turned on by its fixed column setting, and logs its experiment trigger once a strip would show in it whether the setting is on or off', () => {
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const host = { configurationService, telemetryService, _isSessionActivityBarColumnActive: () => constObservable(true) };
+		const column = (Reflect.get(Workbench.prototype, '_createSessionActivityBarColumn') as (this: typeof host) => SessionActivityBarColumn).call(host);
+		store.add(column);
+		const enabled = column.enabled;
+		const watch = store.add(new DisposableStore());
+		watch.add(autorun(reader => enabled.read(reader)));
+
+		const off = enabled.get();
+		const triggersBeforeOffer = [...telemetryService.triggers];
+		column.offer();
+		const triggersWhileOff = [...telemetryService.triggers];
+		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING }));
+		const on = enabled.get();
+		column.offer();
+
+		assert.deepStrictEqual({ off, triggersBeforeOffer, triggersWhileOff, on, triggers: telemetryService.triggers }, {
+			off: false,
+			triggersBeforeOffer: [],
+			triggersWhileOff: [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`],
+			on: true,
+			triggers: [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`],
+		});
 	});
 
 	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as an activity bar and the gap between cards, and not while a view is maximized', async () => {

@@ -181,7 +181,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					if (modalActive && request?.pending) {
+					if ((modalActive || context.background === true) && request?.pending) {
 						continue;
 					}
 					if (!existingInput && this.pendingCloses.has(key)) {
@@ -199,7 +199,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					const restoreFallback = presentation?.admitted === true && !presentation.opened;
-					void this.openInput(key, input, restoreFallback, restoreFallback || modalActive && !freshRequest)
+					void this.openInput(key, input, restoreFallback, restoreFallback || (modalActive || context.background === true) && !freshRequest, context.background === true)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -437,7 +437,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return true;
 	}
 
-	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback): Promise<void> {
+	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback, background = false): Promise<void> {
 		const pending = this.opening.get(input);
 		if (pending) {
 			if (!preserveFocus && pending.preserveFocus) {
@@ -445,7 +445,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => {
+		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus, background).finally(() => {
 			this.opening.delete(input);
 			this.presentationsChanged.trigger(undefined);
 		});
@@ -453,7 +453,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return opening;
 	}
 
-	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean): Promise<void> {
+	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean, background: boolean): Promise<void> {
 		const canvas = input.canvas.get();
 		if (!canvas) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
@@ -469,7 +469,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 				? {
 					pinned: true,
 					preserveFocus: true,
-					inactive: !presentation.restoreActive,
+					// A background context never takes the active tab, whichever tab the canvas was before its editor closed.
+					inactive: background || !presentation.restoreActive,
 					activation: EditorActivation.PRESERVE,
 				}
 				: preserveFocus

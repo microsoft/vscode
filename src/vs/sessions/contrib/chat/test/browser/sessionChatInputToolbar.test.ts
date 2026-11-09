@@ -602,6 +602,22 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('does not report the cached changes of a quick chat on its main chat, which has no workspace', () => {
+		const cache = upcastPartial<ISessionChangesStatsCache>({ get: () => ({ files: 1, insertions: 4, deletions: 0 }) });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), workspace: constObservable(undefined) });
+		const session = (isQuickChat: boolean) => upcastPartial<ITestSessionWithChat>({
+			sessionId: 'provider:session',
+			mainChat: constObservable(chat),
+			isQuickChat: constObservable(isQuickChat),
+		});
+		const stats = (isQuickChat: boolean) => derived(reader => computeSessionInputPillStats(session(isQuickChat), chat, reader, cache)).get();
+
+		assert.deepStrictEqual({ quickChat: stats(true), workspaceSession: stats(false) }, {
+			quickChat: { files: 0, insertions: 0, deletions: 0 },
+			workspaceSession: { files: 1, insertions: 4, deletions: 0 },
+		});
+	});
+
 	test('uses Session Changes for folders and Branch Changes for worktrees', () => {
 		const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({
@@ -2720,7 +2736,7 @@ suite('SessionChatInputToolbar', () => {
 		const group = toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill')!;
 		const promoted = {
 			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
-			// Artifacts sharing an integration share one pill; the reference keeps its own.
+			// Artifacts sharing an integration share one pill; the reference stays in the References pill, which shows its only entry inline.
 			group: group.querySelector('.chat-pill-label')?.textContent,
 			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
@@ -2892,6 +2908,83 @@ suite('SessionChatInputToolbar', () => {
 			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
 			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
 		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
+	});
+
+	test('keeps a reference listed and pinnable in the References pill when the open-only filter hides the closed pull request it aliases', async () => {
+		const { instantiationService, visibility } = createServices(true);
+		const host = mainWindow.document.body.appendChild(document.createElement('div'));
+		host.classList.add('monaco-workbench');
+		store.add(toDisposable(() => host.remove()));
+		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<ITestSessionWithChat>({
+			sessionId: 'quick-chat', providerId: 'provider', resource: URI.parse('session:quick-chat'),
+			artifacts: constObservable<readonly ISessionArtifact[]>([
+				{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
+				{ id: 'alias', kind: SessionArtifactKind.Website, label: 'Alias', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/pull/42/files') },
+				{ id: 'plain', kind: SessionArtifactKind.Website, label: 'Plain', isArtifact: false, link: URI.parse('https://example.test/plain') },
+			]),
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const integrated = (id: string, label: string, resource: string): ArtifactSnapshot => ({
+			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session:quick-chat',
+			artifact: { id, label, resource, isArtifact: id === 'recorded' },
+			mainIntegrationId: 'github.pullRequest', runs: [],
+			contributions: [{
+				integrationId: 'github.pullRequest', label: 'GitHub Pull Request', resourceKey: 'microsoft/vscode#42', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: {
+					availability: { kind: 'available' }, main: { icon: { id: 'git-pull-request-closed' }, label: '#42', detailsId: 'main' }, groupId: 'github.pullRequest',
+					sections: [], stateActions: [], generalActions: [], automationAvailability: [],
+				},
+			}],
+		});
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: constObservable(id === 'plain'
+					? { ...integrated(id, 'Plain', 'https://example.test/plain'), contributions: [], mainIntegrationId: undefined }
+					: integrated(id, id === 'recorded' ? 'Recorded title' : 'Alias', id === 'recorded' ? link.toString() : `${link.toString()}/files`)),
+			})),
+		}));
+		let rows: { label: string | undefined; actions: readonly IAction[] }[] = [];
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items) => {
+				rows = items.flatMap(item => item.item ? [{ label: item.label, actions: item.toolbarActions ?? [] }] : []);
+			},
+			updateItems: () => { },
+			hide: () => { },
+		});
+		visibility.pullRequests.setShowAll(false);
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		host.appendChild(toolbar.element);
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const pills = () => [...toolbar.element.querySelectorAll<HTMLElement>('.chat-pill-item')].map(pill => pill.querySelector('.chat-pill-button')?.getAttribute('aria-label'));
+		const filtered = pills();
+		toolbar.element.querySelector<HTMLElement>('[aria-label="Show 2 references"]')!.click();
+		const dropdown = rows.map(row => row.label);
+		await rows.find(row => row.label === '#42')!.actions.find(action => action.label.startsWith('Pin '))!.run();
+		await timeout(0);
+		const pinned = pills();
+		const unpin = toolbar.element.querySelector<HTMLElement>('.chat-pill-item.has-promoted-action .chat-pill-promoted-action');
+		const unpinLabel = unpin?.getAttribute('aria-label');
+		unpin?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ filtered, dropdown, pinned, unpinLabel, unpinned: pills() }, {
+			// The closed pull request is filtered out of the row, but the reference to it stays with the other references.
+			filtered: ['Show 2 references'],
+			dropdown: ['#42', 'Plain'],
+			pinned: ['Show artifact details: #42', 'Open Plain'],
+			unpinLabel: 'Unpin #42',
+			unpinned: ['Show 2 references'],
+		});
 	});
 
 	test('lists integrated artifacts without a group ID in the Artifacts pill with their integration\'s icon, opening details on select, the resource from Open, and pinning with Unpin', async () => {

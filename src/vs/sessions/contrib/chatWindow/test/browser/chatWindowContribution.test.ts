@@ -32,7 +32,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionInChatEditorContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionInChatEditorContext, SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -47,9 +47,9 @@ import { appendNewSessionTitleBarMenuItem } from '../../../chat/browser/newSessi
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
-import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../browser/chatWindowActions.js';
+import '../../browser/chatWindowActions.js';
 import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
-import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { EmptyFileEditorSearchPickerFocusedContext } from '../../../editor/browser/emptyFileEditorSearch.js';
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
@@ -127,7 +127,7 @@ suite('Chat window contribution', () => {
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'startup' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {
@@ -184,7 +184,7 @@ suite('Chat window contribution', () => {
 		});
 	});
 
-	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor a New Session button, nor what applies to the whole app', () => {
+	test('the title bar of a chat window shows the command center, with the session of its active chat, the actions of its session and a New Session button that starts one in that window, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
 		disposables.add(registerSessionsTitleBarMenus());
 		disposables.add(appendNewSessionTitleBarMenuItem());
 		const menus = {
@@ -205,14 +205,38 @@ suite('Chat window contribution', () => {
 			.map(titleOf)
 			.filter((title): title is string => !!title && entries.includes(title)))].sort()]));
 		const newSessionShows = { [SessionsTitleBarNewSessionEnabledContext.key]: true };
+		const chatWindow = { ...chatWindowKeys, ...newSessionShows, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+		/** The commands of the New Session entries of the left of the title bar. */
+		const newSessionCommands = (values: Record<string, ContextKeyValue>) => [...new Set(MenuRegistry.getMenuItems(menus.left)
+			.filter((item): item is IMenuItem => isIMenuItem(item) && titleOf(item) === 'New Session' && evaluate(item.when, values))
+			.map(item => item.command.id))];
 
 		assert.deepStrictEqual({
 			mainWindow: shown({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
-			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
+			chatWindow: shown(chatWindow),
+			commands: {
+				mainWindow: newSessionCommands({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
+				chatWindow: newSessionCommands(chatWindow),
+				// In every layout mode, also with the layout actions in the window's strip
+				chatWindowLayouts: [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly].map(mode => newSessionCommands({ ...chatWindow, [LayoutModeContext.key]: mode, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true })),
+				chatWindowOutOfExperiment: newSessionCommands({ ...chatWindow, [SessionsTitleBarNewSessionEnabledContext.key]: false }),
+				chatWindowWelcome: newSessionCommands({ ...chatWindow, [SessionsWelcomeVisibleContext.key]: true }),
+				chatWindowAIDisabled: newSessionCommands({ ...chatWindow, [ChatContextKeys.enabled.key]: false }),
+				chatWindowsTurnedOff: newSessionCommands({ ...chatWindow, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+			},
 		}, {
 			mainWindow: { left: ['New Session', 'Toggle Side Bar'], centerLeft: ['Go Back', 'Go Forward'], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: ['Agents Account and Status'] },
-			// No New Session button: its command, key and the Sessions picker start one in the window
-			chatWindow: { left: [], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+			chatWindow: { left: ['New Session'], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+			commands: {
+				mainWindow: [NEW_SESSION_ACTION_ID],
+				// The window's own New Session, which starts the session in that window, as its key does
+				chatWindow: [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID],
+				chatWindowLayouts: [[NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID], [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID], [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]],
+				chatWindowOutOfExperiment: [],
+				chatWindowWelcome: [],
+				chatWindowAIDisabled: [],
+				chatWindowsTurnedOff: [],
+			},
 		});
 	});
 

@@ -36,6 +36,7 @@ import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/com
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, getTotalWidth, getContentWidth } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { PART_GRID_TOP_STRIP_CLASS } from './partGridClass.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -259,7 +260,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
+		this.tabsAndActionsContainer = $(`.tabs-and-actions-container.${PART_GRID_TOP_STRIP_CLASS}`);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });

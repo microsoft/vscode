@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -55,7 +55,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 		const chatResource = this._sessionChangesService.getChatResource(uri);
-		const changesObs = getChangesEditorChanges(this, this.changesViewService, this._sessionHostService, this._sessionsManagementService, sessionResource, chatResource);
+		const changesObs = getChangesEditorChanges(this, this.changesViewService, this._sessionHostService, this._sessionsManagementService, sessionResource, chatResource).changes;
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
 			owner: this,
@@ -78,6 +78,13 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	}
 }
 
+/** The changes a Changes editor shows, and whether those of the chat it names are still loading. */
+export interface IChangesEditorChanges {
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Always `false` for an editor that names no chat, which waits for the changes of the active session instead. */
+	readonly loading: IObservable<boolean>;
+}
+
 /**
  * The changes a Changes editor of `sessionResource` shows. With `chatResource`, from that chat only: whichever chat or
  * session is active, and whichever window has focus, such as for two editors of two chats of a session. Without, the
@@ -88,17 +95,20 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
  * The chat a session of the grid shows comes from its pane host, so it relies on every session of the grid having a
  * mounted pane host; the editor of a grid session without one shows no changes until it has one.
  */
-export function getChangesEditorChanges(owner: object, changesViewService: IChangesViewService, sessionHostService: ISessionHostService, sessionsManagementService: ISessionsManagementService, sessionResource: URI, chatResource: URI | undefined): IObservable<readonly ISessionFileChange[]> {
+export function getChangesEditorChanges(owner: object, changesViewService: IChangesViewService, sessionHostService: ISessionHostService, sessionsManagementService: ISessionsManagementService, sessionResource: URI, chatResource: URI | undefined): IChangesEditorChanges {
 	if (chatResource) {
 		const sessionObs = observableFromEvent(owner, sessionsManagementService.onDidChangeSessions, () => sessionsManagementService.getSession(sessionResource));
 		const chatObs = derived(owner, reader => sessionObs.read(reader)?.chats.read(reader).find(chat => isEqual(chat.resource, chatResource)));
 		const changes = changesViewService.getSessionChanges(sessionObs, chatObs);
-		return derivedObservableWithCache<readonly ISessionFileChange[]>(owner, (reader, lastValue) => {
-			if (!chatObs.read(reader)) {
-				return lastValue ?? [];
-			}
-			return changes.changesObs.read(reader);
-		});
+		return {
+			changes: derivedObservableWithCache<readonly ISessionFileChange[]>(owner, (reader, lastValue) => {
+				if (!chatObs.read(reader)) {
+					return lastValue ?? [];
+				}
+				return changes.changesObs.read(reader);
+			}),
+			loading: derived(owner, reader => !!chatObs.read(reader) && changes.changesetLoadingObs.read(reader)),
+		};
 	}
 
 	// The per-session chain is created once; the derived below only selects between it and the shared active one. A
@@ -112,7 +122,7 @@ export function getChangesEditorChanges(owner: object, changesViewService: IChan
 	const chatObs = derived(owner, reader => hostObs.read(reader)?.chat.read(reader));
 	const mainWindowHost = getMainWindowHost(sessionHostService);
 	let sessionChanges: IChangesSessionObservables | undefined;
-	return derivedObservableWithCache<readonly ISessionFileChange[]>(owner, (reader, lastValue) => {
+	const changes = derivedObservableWithCache<readonly ISessionFileChange[]>(owner, (reader, lastValue) => {
 		const host = hostObs.read(reader);
 		const isActive = !host || (getWindowHost(host).kind === SessionHostKind.MainWindow && isEqual(mainWindowHost.session.read(reader)?.resource, sessionResource));
 		const changes = isActive ? getActiveSessionChanges(changesViewService) : (sessionChanges ??= changesViewService.getSessionChanges(sessionObs, chatObs));
@@ -122,5 +132,21 @@ export function getChangesEditorChanges(owner: object, changesViewService: IChan
 		}
 
 		return changes.changesObs.read(reader);
+	});
+	return { changes, loading: constObservable(false) };
+}
+
+/**
+ * Keeps the changes of `chatResource` of `sessionResource` observed, so that a Changes editor of the chat shows them while
+ * no window shows its session, until disposed.
+ */
+export function observeChangesEditorChat(sessionsManagementService: ISessionsManagementService, sessionResource: URI, chatResource: URI): IDisposable {
+	const sessionObs = observableFromEvent(sessionsManagementService.onDidChangeSessions, () => sessionsManagementService.getSession(sessionResource));
+	const chatObs = derived(reader => sessionObs.read(reader)?.chats.read(reader).find(chat => isEqual(chat.resource, chatResource)));
+	return autorun(reader => {
+		const observation = chatObs.read(reader)?.observeChanges?.();
+		if (observation) {
+			reader.store.add(observation);
+		}
 	});
 }

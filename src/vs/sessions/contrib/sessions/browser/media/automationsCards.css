@@ -484,6 +484,18 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
+.automations-cards-partial-state-content {
+	min-width: 0;
+}
+
+.automations-cards-partial-state-message {
+	display: inline;
+}
+
+.automations-cards-partial-state-content > .automations-manage-remotes-link {
+	margin-left: var(--vscode-spacing-size80);
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;

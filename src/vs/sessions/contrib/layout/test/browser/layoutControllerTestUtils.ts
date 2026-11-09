@@ -75,17 +75,9 @@ export class TestStubEditorInput extends EditorInput {
 	override toUntyped(): IUntypedEditorInput | undefined { return this._options?.nonRestorable ? undefined : { resource: this._resource }; }
 }
 
-export function makeSession(resource: URI, opts?: {
-	status?: SessionStatus;
-	isCreated?: boolean;
-	changes?: readonly ISessionFileChange[];
-	workspace?: ISessionWorkspace;
-	chatWorkspace?: ISessionWorkspace;
-	isQuickChat?: boolean;
-}): ITestSessionWithChat {
-	// A session is created once it is no longer untitled: `isCreated` alone picks the status that says so.
-	const status = observableValue('status', opts?.status ?? (opts?.isCreated === false ? SessionStatus.Untitled : SessionStatus.Completed));
-	const workspace = opts?.workspace ?? {
+/** The workspace of a test session: a folder `/repo` of no repository. */
+export function makeTestWorkspace(): ISessionWorkspace {
+	return {
 		uri: URI.file('/repo'),
 		label: 'test',
 		icon: Codicon.repo,
@@ -99,10 +91,23 @@ export function makeSession(resource: URI, opts?: {
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	};
+}
+
+export function makeSession(resource: URI, opts?: {
+	status?: SessionStatus;
+	isCreated?: boolean;
+	changes?: readonly ISessionFileChange[];
+	workspace?: ISessionWorkspace;
+	chatWorkspace?: ISessionWorkspace;
+	isQuickChat?: boolean;
+}): ITestSessionWithChat {
+	// A session is created once it is no longer untitled: `isCreated` alone picks the status that says so.
+	const status = observableValue('status', opts?.status ?? (opts?.isCreated === false ? SessionStatus.Untitled : SessionStatus.Completed));
+	const workspace = observableValue<ISessionWorkspace | undefined>('workspace', opts?.workspace ?? (opts?.isQuickChat ? undefined : makeTestWorkspace()));
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
-		workspace: constObservable(opts?.chatWorkspace ?? workspace),
+		workspace: opts?.chatWorkspace ? constObservable(opts.chatWorkspace) : workspace,
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
@@ -129,7 +134,7 @@ export function makeSession(resource: URI, opts?: {
 		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', workspace),
+		workspace,
 		title: chat.title,
 		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
@@ -155,12 +160,12 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
-export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus> }): IChat {
+export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus>; readonly workspace?: ISessionWorkspace }): IChat {
 	const mainChat = session.mainChat.get();
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
-		workspace: mainChat.workspace,
+		workspace: opts?.workspace ? constObservable(opts.workspace) : mainChat.workspace,
 		title: observableValue('title', opts?.title ?? 'Peer'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: opts?.status ?? observableValue('status', SessionStatus.Completed),
@@ -182,6 +187,13 @@ export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?:
 
 export function setActiveChat(session: ITestSessionWithChat, chat: IChat): void {
 	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
+}
+
+/** A quick chat, without a workspace, with a child chat that works in a folder of its own, such as a nested session started in a folder. */
+export function makeQuickChatWithWorkspaceChild(): { readonly session: ITestSessionWithChat; readonly parent: IChat; readonly child: IChat } {
+	const session = makeSession(URI.parse('session:quick'), { isQuickChat: true });
+	const child = addPeerChat(session, URI.parse('session:quick-child'), { title: 'Child', workspace: makeTestWorkspace() });
+	return { session, parent: session.mainChat.get(), child };
 }
 
 export interface ICreateOptions {

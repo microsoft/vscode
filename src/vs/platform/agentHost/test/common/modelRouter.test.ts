@@ -56,7 +56,7 @@ suite('modelRouter', () => {
 				name: 'daily-driver',
 				description: 'Haiku by default, Opus for planning.',
 				effort: 'auto',
-				switching: 'auto',
+				switching: 'first-turn',
 				guidance: 'Prefer the cheapest model that can do the job.',
 				routes: [
 					{ models: ['claude-haiku-5.5'], when: 'Lookups, explanations, small edits.', examples: ['where is the code for hydrafusion?'] },
@@ -95,7 +95,7 @@ suite('modelRouter', () => {
 			assert.deepStrictEqual(messages(result.diagnostics), [
 				'`subagents` is reserved for a later version and is ignored.',
 				'Unknown key `color` is ignored.',
-				'`switching: mid-turn` is reserved for a later version; this router switches between turns.',
+				'`switching: mid-turn` is reserved for a later version; this router routes on the first turn only.',
 				'Unknown key `cost` in route 1 is ignored.',
 			]);
 		});
