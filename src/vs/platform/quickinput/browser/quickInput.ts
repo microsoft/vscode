@@ -535,6 +535,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _items: O extends { useSeparators: true } ? Array<T | IQuickPickSeparator> : Array<T> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
+	private canSelectManyUpdated = false;
 	private _canAcceptInBackground = false;
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
@@ -666,8 +667,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	}
 
 	set canSelectMany(canSelectMany: boolean) {
-		this._canSelectMany = canSelectMany;
-		this.update();
+		if (this._canSelectMany !== canSelectMany) {
+			this._canSelectMany = canSelectMany;
+			this.canSelectManyUpdated = true;
+			if (this.visible) {
+				this.activeItemsUpdated = true;
+				this.selectedItemsUpdated = true;
+			}
+			this.update();
+		}
 	}
 
 	get canAcceptInBackground() {
@@ -745,6 +753,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set activeItems(activeItems: T[]) {
 		this._activeItems = activeItems;
+		this.activeItemsToConfirm = activeItems;
 		this.activeItemsUpdated = true;
 		this.update();
 	}
@@ -757,6 +766,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set selectedItems(selectedItems: T[]) {
 		this._selectedItems = selectedItems;
+		this.selectedItemsToConfirm = selectedItems;
 		this.selectedItemsUpdated = true;
 		this.update();
 	}
@@ -927,6 +937,9 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(({ items: selectedItems, event }) => {
+				if (this.selectedItemsUpdated) {
+					return; // Expect another event.
+				}
 				if (this.canSelectMany && !selectedItems.some(i => i.pickable === false)) {
 					if (selectedItems.length) {
 						this.ui.list.setSelectedElements([]);
@@ -943,7 +956,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				}
 			}));
 			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
-				if (!this.canSelectMany || !this.visible) {
+				if (!this.canSelectMany || !this.visible || this.selectedItemsUpdated) {
 					return;
 				}
 				if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
@@ -1085,13 +1098,18 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.list.matchOnLabelMode = this.matchOnLabelMode;
 		this.ui.list.sortByLabel = this.sortByLabel;
-		if (this.itemsUpdated) {
+		if (this.itemsUpdated || this.canSelectManyUpdated) {
+			const itemsUpdated = this.itemsUpdated;
 			this.itemsUpdated = false;
+			this.canSelectManyUpdated = false;
 			this._focusEventBufferer.bufferEvents(() => {
 				this.ui.list.setElements(this.items);
 				// We want focus to exist in the list if there are items so that space can be used to toggle
 				this.ui.list.shouldLoop = !this.canSelectMany;
 				this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
+				if (!itemsUpdated) {
+					return;
+				}
 				switch (this._itemActivation) {
 					case ItemActivation.NONE:
 						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
@@ -1119,7 +1137,6 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		}
 		if (this.activeItemsUpdated) {
 			this.activeItemsUpdated = false;
-			this.activeItemsToConfirm = this._activeItems;
 			this.ui.list.setFocusedElements(this.activeItems);
 			if (this.activeItemsToConfirm === this._activeItems) {
 				this.activeItemsToConfirm = null;
@@ -1127,7 +1144,6 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		}
 		if (this.selectedItemsUpdated) {
 			this.selectedItemsUpdated = false;
-			this.selectedItemsToConfirm = this._selectedItems;
 			if (this.canSelectMany) {
 				this.ui.list.setCheckedElements(this.selectedItems);
 			} else {
