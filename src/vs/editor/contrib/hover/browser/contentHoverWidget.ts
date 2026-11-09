@@ -279,7 +279,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._renderedHover?.dispose();
 		this._renderedHover = renderedHover;
 		this._hoverVisibleKey.set(!!renderedHover);
-		this._hover.containerDomNode.classList.toggle('hidden', !renderedHover);
+		this._hover.setVisible(!!renderedHover);
 	}
 
 	private _updateFont(): void {

@@ -44,7 +44,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		this._messages = [];
 
 		this._hover = this._register(new HoverWidget(true));
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+		this._hover.setVisible(this._isVisible);
 
 		this._hoverOperation = this._register(new HoverOperation(this._editor, new GlyphHoverComputer(this._editor)));
 		this._register(this._hoverOperation.onResult((result) => this._withResult(result)));
@@ -127,7 +127,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 			return;
 		}
 		this._isVisible = false;
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+		this._hover.setVisible(this._isVisible);
 	}
 
 	private _withResult(result: HoverResult<GlyphHoverComputerOptions, IHoverMessage>): void {
@@ -166,7 +166,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 	private _showAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
 		if (!this._isVisible) {
 			this._isVisible = true;
-			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+			this._hover.setVisible(this._isVisible);
 		}
 
 		const editorLayout = this._editor.getLayoutInfo();
