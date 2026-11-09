@@ -8923,6 +8923,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			queue: options.queue,
 			agentHostMessageOrigin: readAgentMessageDelegationMeta({ _meta: options.metadata }) ? { kind: MessageKind.Agent } : undefined,
 			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
@@ -8941,7 +8942,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: !options.queue, modelConfiguration: selectedModelConfiguration });
 		} finally {
 			modelRef.dispose();
 		}

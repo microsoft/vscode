@@ -17,7 +17,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { shouldIncludeRawPRReviewComments, submitFeedbackWithNotification } from './agentFeedbackService.js';
 import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
@@ -25,6 +25,10 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
@@ -44,19 +48,23 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<boolean | void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<boolean | void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const codeReviewService = accessor.get(ICodeReviewService);
 
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const activePane = editorService.activeEditorPane
+		const commandContext = args.length ? resolveCommandsContext(args, editorService, editorGroupsService, accessor.get(IListService)) : undefined;
+		const groupContext = commandContext?.groupedEditors[0];
+		const activePane = groupContext ? groupContext.group.activeEditorPane : (editorService.activeEditorPane
 			?? editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.activeEditorPane)?.activeEditorPane
-			?? editorService.visibleEditorPanes[0];
-		const candidates = getActiveResourceCandidates(activePane?.input);
+			?? editorService.visibleEditorPanes[0]);
+		const input = groupContext ? groupContext.editors[0] ?? groupContext.group.activeEditor : activePane?.input;
+		const hostSession = groupContext && accessor.get(ISessionHostService).getHostOfGroup(groupContext.group)?.session.get();
+		const candidates = getActiveResourceCandidates(input);
 		const sessionCandidates = getFeedbackSessionCandidates(candidates, candidate =>
-			agentFeedbackService.getFeedbackSessionResource(candidate)
+			agentFeedbackService.getFeedbackSessionResource(candidate, hostSession)
 			?? agentFeedbackService.getMostRecentSessionForResource(candidate));
 		for (const { resource, sessionResource } of sessionCandidates) {
 			const comments = getSessionEditorComments(
@@ -104,7 +112,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		if (planReviewFeedbackService.isActivePlanReview(resource)) {
 			return planReviewFeedbackService.submitAllFeedback(resource);
 		}
-		return agentFeedbackService.submitFeedback(sessionResource);
+		return submitFeedbackWithNotification(agentFeedbackService, accessor.get(INotificationService), sessionResource);
 	}
 }
 
@@ -196,7 +204,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 			return;
 		}
 
-		await agentFeedbackService.submitFeedback(sessionResource);
+		await submitFeedbackWithNotification(agentFeedbackService, accessor.get(INotificationService), sessionResource);
 	}
 }
 

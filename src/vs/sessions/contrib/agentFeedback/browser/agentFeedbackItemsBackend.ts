@@ -6,8 +6,9 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -253,7 +254,7 @@ function entryText(text: StringOrMarkdown): string {
 	return typeof text === 'string' ? text : text.markdown;
 }
 
-function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection): Annotation {
+function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection, chatResource: URI | undefined): Annotation {
 	const entries: AnnotationEntry[] = [{
 		id: `${feedback.id}:0`,
 		text: feedback.text,
@@ -277,7 +278,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 	return {
 		id: feedback.id,
-		origin: { session: feedback.sessionResource.toString() },
+		origin: { session: feedback.sessionResource.toString(), ...(chatResource ? { chat: chatResource.toString() } : {}) },
 		resource: connection.resourceUris.toAgentHost(feedback.resourceUri).toString(),
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,
@@ -286,7 +287,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 }
 
-function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
+function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection, chatResource: URI | undefined): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
@@ -306,6 +307,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
 		range: fromTextRange(annotation.range),
 		sessionResource,
+		...(chatResource ? { chatResource } : {}),
 		suggestion: meta?.suggestion,
 		codeSelection: meta?.codeSelection,
 		diffHunks: meta?.diffHunks,
@@ -459,6 +461,18 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 	upsert(feedback: IAgentFeedback): void {
 		const channel = this._ensureChannel(feedback.sessionResource);
+		let chatResource: URI | undefined;
+		if (feedback.chatResource && channel) {
+			chatResource = channel.provider.getBackendChatResource(feedback.chatResource);
+			if (!chatResource) {
+				const snapshot = channel.subscription.value;
+				const originChat = snapshot && !(snapshot instanceof Error) ? snapshot.annotations.find(annotation => annotation.id === feedback.id)?.origin.chat : undefined;
+				if (!originChat) {
+					throw new Error(localize('agentFeedback.targetUnavailable', "The target session or chat is no longer available."));
+				}
+				chatResource = URI.parse(originChat);
+			}
+		}
 		this._cacheUpsert(feedback);
 		this._emitIfChanged(feedback.sessionResource);
 		if (!channel) {
@@ -466,7 +480,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsSet,
-			annotation: feedbackToAnnotation(feedback, channel.connection),
+			annotation: feedbackToAnnotation(feedback, channel.connection, chatResource),
 		});
 	}
 
@@ -535,8 +549,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return [];
 		}
 		const items: IAgentFeedback[] = [];
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const provider = session && this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		for (const annotation of value.annotations) {
-			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection);
+			const originChat = annotation.origin.chat ? URI.parse(annotation.origin.chat) : undefined;
+			// Keep an unavailable chat's opaque identity so submission fails rather than retargeting the parent.
+			const chatResource = originChat && (session?.chats.get().find(chat => isEqual(provider?.getBackendChatResource(chat.resource), originChat))?.resource ?? originChat);
+			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection, chatResource);
 			if (feedback) {
 				items.push(feedback);
 			}
@@ -598,6 +617,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 				item.range.endLineNumber,
 				item.range.endColumn,
 				getComparisonKey(item.sessionResource),
+				item.chatResource ? getComparisonKey(item.chatResource) : null,
 				item.suggestion ?? null,
 				item.codeSelection ?? null,
 				item.diffHunks ?? null,

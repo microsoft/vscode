@@ -70,7 +70,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -11290,6 +11290,47 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// Force a session-state subscription so pushed states reach the adapter.
 			provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
 			return session!;
+		}
+
+		for (const status of [ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded, ProtocolSessionStatus.Idle]) {
+			test(`feedback queue is forwarded to the child without clearing its draft or waiting for execution: ${status}`, async () => {
+				const queuedExecution = new DeferredPromise<ChatSendResult>();
+				const inputStates: Partial<IChatModelInputState>[] = [];
+				const sends: { resource: URI; message: string; queue: IChatSendRequestOptions['queue'] }[] = [];
+				const provider = createProvider(disposables, agentHost, undefined, {
+					acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+						override readonly inputModel = new class extends mock<IInputModel>() {
+							override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+							override setState(state: Partial<IChatModelInputState>): void { inputStates.push(state); }
+						}();
+					}()),
+					sendRequest: async (resource, message, options) => {
+						sends.push({ resource, message, queue: options?.queue });
+						return { kind: 'queued', deferred: queuedExecution.p };
+					},
+				});
+				const session = setupMultiChatSession(provider, 'queued-feedback');
+				const backend = AgentSession.uri('copilotcli', 'queued-feedback').toString();
+				agentHost.setSessionState('queued-feedback', 'copilotcli', makeState([
+					makeChatSummary(buildDefaultChatUri(backend), 'Main'),
+					makeChatSummary(buildChatUri(backend, 'child'), 'Child', status),
+				]));
+				const child = session.chats.get().find(chat => chat.resource.fragment === 'child')!;
+				await provider.sendRequest(session.sessionId, child.resource, {
+					query: '/act-on-feedback',
+					queue: ChatRequestQueueKind.Queued,
+				});
+				assert.deepStrictEqual({
+					sends: sends.map(send => ({ resource: send.resource.toString(), message: send.message, queue: send.queue })),
+					draftChanges: inputStates.filter(state => state.inputText !== undefined || state.attachments !== undefined || state.selections !== undefined),
+					executed: queuedExecution.isSettled,
+				}, {
+					sends: [{ resource: child.resource.toString(), message: '/act-on-feedback', queue: ChatRequestQueueKind.Queued }],
+					draftChanges: [],
+					executed: false,
+				});
+				await queuedExecution.complete({ kind: 'rejected', reason: 'Test cleanup' });
+			});
 		}
 
 		test('agent effort and explicit model configuration stay scoped to each running chat', async () => {
