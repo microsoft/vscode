@@ -7,10 +7,18 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { TestResultState } from './testTypes.js';
 import { makeEmptyCounts, maxPriority, statePriority, statesInOrder } from './testingStates.js';
 
+/** Cached child aggregates, owned by the node whose children they describe. */
+export class ComputedStateCache {
+	/** State counts for nodes above LARGE_NODE_THRESHOLD. */
+	public childrenStates?: { [K in TestResultState]: number };
+	public childrenWithDuration?: number;
+}
+
 /**
  * Accessor for nodes in get and refresh computed state.
  */
 export interface IComputedStateAccessor<T> {
+	getCache(item: T): ComputedStateCache;
 	getOwnState(item: T): TestResultState | undefined;
 	getCurrentComputedState(item: T): TestResultState;
 	setComputedState(item: T, state: TestResultState): void;
@@ -32,7 +40,7 @@ const isDurationAccessor = <T>(accessor: IComputedStateAccessor<T>): accessor is
  * if it was previously set.
  */
 
-const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
+const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
 	let computed = accessor.getCurrentComputedState(node);
 	if (computed === undefined || force) {
 		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
@@ -51,9 +59,9 @@ const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>,
 		}
 
 		if (childrenCount > LARGE_NODE_THRESHOLD) {
-			largeNodeChildrenStates.set(node, stateMap);
+			accessor.getCache(node).childrenStates = stateMap;
 		} else {
-			largeNodeChildrenStates.delete(node);
+			accessor.getCache(node).childrenStates = undefined;
 		}
 
 		accessor.setComputedState(node, computed);
@@ -62,15 +70,13 @@ const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>,
 	return computed;
 };
 
-const durationChildrenCounts = new WeakMap<object, number>();
-
-const getComputedDuration = <T extends object>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
+const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
 	let computed = accessor.getCurrentComputedDuration(node);
 	if (computed === undefined || force) {
 		const own = accessor.getOwnDuration(node);
 		if (own !== undefined) {
 			computed = own;
-			durationChildrenCounts.delete(node);
+			accessor.getCache(node).childrenWithDuration = undefined;
 		} else {
 			computed = undefined;
 			let childrenWithDuration = 0;
@@ -81,7 +87,7 @@ const getComputedDuration = <T extends object>(accessor: IComputedStateAndDurati
 					computed = (computed || 0) + d;
 				}
 			}
-			durationChildrenCounts.set(node, childrenWithDuration);
+			accessor.getCache(node).childrenWithDuration = childrenWithDuration;
 		}
 
 		accessor.setComputedDuration(node, computed);
@@ -93,16 +99,10 @@ const getComputedDuration = <T extends object>(accessor: IComputedStateAndDurati
 const LARGE_NODE_THRESHOLD = 64;
 
 /**
- * Map of how many nodes have in each state. This is used to optimize state
- * computation in large nodes with children above the `LARGE_NODE_THRESHOLD`.
- */
-const largeNodeChildrenStates = new WeakMap<object, { [K in TestResultState]: number }>();
-
-/**
  * Refreshes the computed state for the node and its parents. Any changes
  * elements cause `addUpdated` to be called.
  */
-export const refreshComputedState = <T extends object>(
+export const refreshComputedState = <T>(
 	accessor: IComputedStateAccessor<T>,
 	node: T,
 	explicitNewComputedState?: TestResultState,
@@ -122,7 +122,7 @@ export const refreshComputedState = <T extends object>(
 		let moveToState = newState;
 
 		for (const parent of accessor.getParents(node)) {
-			const lnm = largeNodeChildrenStates.get(parent);
+			const lnm = accessor.getCache(parent).childrenStates;
 			if (lnm) {
 				lnm[moveFromState]--;
 				lnm[moveToState]++;
@@ -168,12 +168,12 @@ export const refreshComputedState = <T extends object>(
 		let childDuration: number | undefined;
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
 			const oldDuration = accessor.getCurrentComputedDuration(parent);
-			const childCount = durationChildrenCounts.get(parent);
+			const childCount = accessor.getCache(parent).childrenWithDuration;
 			let newDuration: number | undefined;
 			if (parent !== node && childCount !== undefined && accessor.getOwnDuration(parent) === undefined
 				&& Number.isFinite(oldDuration ?? 0) && Number.isFinite(previousChildDuration ?? 0) && Number.isFinite(childDuration ?? 0)) {
 				const newChildCount = childCount + Number(childDuration !== undefined) - Number(previousChildDuration !== undefined);
-				durationChildrenCounts.set(parent, newChildCount);
+				accessor.getCache(parent).childrenWithDuration = newChildCount;
 				newDuration = newChildCount ? (oldDuration ?? 0) - (previousChildDuration ?? 0) + (childDuration ?? 0) : undefined;
 			} else {
 				newDuration = getComputedDuration(accessor, parent, true);

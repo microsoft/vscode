@@ -17,10 +17,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import * as editorRange from '../../../../editor/common/core/range.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { MainContext, MainThreadCommandsShape, MainThreadTestingShape, TestRunUpdate } from '../../common/extHost.protocol.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import { BatchedTestRunRpc } from '../../common/extHostTestingBatchedRpc.js';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from '../../common/extHostTesting.js';
 import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTestItem.js';
 import * as convert from '../../common/extHostTypeConverters.js';
@@ -922,21 +924,55 @@ suite('ExtHost Testing', () => {
 			override $updateTestStateInRun = sinon.stub().callsFake(() => calls.push('state'));
 			override $appendOutputToRun = sinon.stub().callsFake(() => calls.push('output'));
 			override $appendTestMessagesInRun = sinon.stub().callsFake(() => calls.push('messages'));
-			override $applyTestRunUpdates(controllerId: string, runId: string, updates: TestRunUpdate[]) {
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
 				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
 			}
 		};
 		const rpc = new TestRPCProtocol();
 		rpc.set(MainContext.MainThreadTesting, receiver);
-		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', [
+		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', new SerializableObjectWithBuffers<TestRunUpdate[]>([
 			{ type: 'tests', tests: [] },
 			{ type: 'state', taskId: 'task', testId: 'test', state: TestResultState.Running },
 			{ type: 'output', taskId: 'task', testId: 'test', output: 'hello \u2713' },
+			{ type: 'output', taskId: 'task', testId: 'test', output: VSBuffer.wrap(new Uint8Array([0x00, 0xe2, 0x9c])) },
+			{ type: 'output', taskId: 'task', testId: 'test', output: VSBuffer.wrap(new Uint8Array([0x93, 0xff])) },
 			{ type: 'messages', taskId: 'task', testId: 'test', messages: [] },
 			{ type: 'state', taskId: 'task', testId: 'test', state: TestResultState.Passed, duration: 2 },
+		]));
+		assert.deepStrictEqual(calls, ['tests', 'state', 'output', 'output', 'output', 'messages', 'state']);
+		assert.deepStrictEqual(receiver.$appendOutputToRun.args, [
+			['run', 'task', VSBuffer.fromString('hello \u2713'), undefined, 'test'],
+			['run', 'task', VSBuffer.wrap(new Uint8Array([0x00, 0xe2, 0x9c])), undefined, 'test'],
+			['run', 'task', VSBuffer.wrap(new Uint8Array([0x93, 0xff])), undefined, 'test'],
 		]);
-		assert.deepStrictEqual(calls, ['tests', 'state', 'output', 'messages', 'state']);
-		assert.deepStrictEqual(receiver.$appendOutputToRun.firstCall.args, ['run', 'task', VSBuffer.fromString('hello \u2713'), undefined, 'test']);
+	});
+
+	test('batched RPC owns byte output and flushes once on disposal', async () => {
+		const batches: string[][] = [];
+		const receiver = new class extends mock<MainThreadTesting>() {
+			override $appendOutputToRun = sinon.stub();
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
+				batches.push(updates.value.map(update => update.type));
+				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
+			}
+		};
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadTesting, receiver);
+		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting), 'ctrl', 'run'));
+		const bytes = new Uint8Array([0x00, 0xff, 0xe2]);
+		batchedRpc.add({ type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
+		bytes.fill(0);
+		batchedRpc.add({ type: 'output', taskId: 'task', output: 'after' });
+		batchedRpc.dispose();
+		batchedRpc.add({ type: 'output', taskId: 'task', output: 'ignored' });
+		await rpc.sync();
+		assert.deepStrictEqual({ batches, output: receiver.$appendOutputToRun.args }, {
+			batches: [['output', 'output']],
+			output: [
+				['run', 'task', VSBuffer.wrap(new Uint8Array([0xff, 0xe2])), undefined, undefined],
+				['run', 'task', VSBuffer.fromString('after'), undefined, undefined],
+			],
+		});
 	});
 
 	test('continues applying a batch after an update handler throws', async () => {
@@ -951,18 +987,18 @@ suite('ExtHost Testing', () => {
 				calls.push(taskId);
 			}
 			override $appendOutputToRun() { calls.push('output'); }
-			override $applyTestRunUpdates(controllerId: string, runId: string, updates: TestRunUpdate[]) {
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
 				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
 			}
 		};
 		const rpc = new TestRPCProtocol();
 		rpc.set(MainContext.MainThreadTesting, receiver);
-		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', [
+		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', new SerializableObjectWithBuffers<TestRunUpdate[]>([
 			{ type: 'state', taskId: 'first', testId: 'test', state: TestResultState.Running },
 			{ type: 'state', taskId: 'unknown', testId: 'test', state: TestResultState.Running },
 			{ type: 'output', taskId: 'first', output: 'still delivered' },
 			{ type: 'state', taskId: 'last', testId: 'test', state: TestResultState.Passed },
-		]);
+		]));
 		assert.deepStrictEqual({ calls, errors: reportError.args }, { calls: ['first', 'output', 'last'], errors: [[error]] });
 	});
 
@@ -988,8 +1024,8 @@ suite('ExtHost Testing', () => {
 
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
-			proxy.$applyTestRunUpdates.callsFake((controllerId: string, runId: string, updates: TestRunUpdate[]) => {
-				for (const update of updates) {
+			proxy.$applyTestRunUpdates.callsFake((controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) => {
+				for (const update of updates.value) {
 					switch (update.type) {
 						case 'tests':
 							proxy.$addTestsToRun(controllerId, runId, update.tests);
@@ -1001,7 +1037,7 @@ suite('ExtHost Testing', () => {
 							proxy.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
 							break;
 						case 'output':
-							proxy.$appendOutputToRun(runId, update.taskId, VSBuffer.fromString(update.output), update.location, update.testId);
+							proxy.$appendOutputToRun(runId, update.taskId, typeof update.output === 'string' ? VSBuffer.fromString(update.output) : update.output, update.location, update.testId);
 							break;
 					}
 				}
@@ -1039,7 +1075,7 @@ suite('ExtHost Testing', () => {
 			task.failed(test, new TestMessage('failure'), 2);
 			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
 			clock.tick(0);
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)), [['tests', 'state', 'output', 'messages', 'state']]);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests', 'state', 'output', 'messages', 'state']]);
 			task.passed(test, 3);
 			task.end();
 			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 2);
@@ -1053,7 +1089,7 @@ suite('ExtHost Testing', () => {
 			first.appendOutput('hello');
 			const second = c.createTestRun(ext, 'ctrlId', single, req, 'second', false);
 			assert.ok(proxy.$startedTestRunTask.getCall(1).calledAfter(proxy.$applyTestRunUpdates.getCall(0)));
-			assert.strictEqual(proxy.$applyTestRunUpdates.firstCall.args[2][0].taskId, proxy.$startedTestRunTask.firstCall.args[1].id);
+			assert.strictEqual(proxy.$applyTestRunUpdates.firstCall.args[2].value[0].taskId, proxy.$startedTestRunTask.firstCall.args[1].id);
 			first.end();
 			second.end();
 		});
@@ -1074,16 +1110,32 @@ suite('ExtHost Testing', () => {
 				task.started(test);
 			}
 			task.end();
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.length), [1024, 1024, 1]);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length), [1024, 1024, 1]);
 		});
 
-		test('flushes large output without waiting for a timer', () => {
+		for (const kind of ['string', 'bytes'] as const) {
+			test(`flushes large ${kind} output without waiting for a timer`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				task.appendOutput(kind === 'string' ? 'x'.repeat(64 * 1024) : new Uint8Array(64 * 1024));
+				assert.deepStrictEqual(proxy.$appendOutputToRun.args.map(args => args[2].byteLength), [64 * 1024]);
+				task.end();
+				clock.tick(0);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+			});
+		}
+
+		test('batches byte output and bounds its cumulative payload', () => {
 			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
-			task.appendOutput('x'.repeat(64 * 1024));
-			assert.deepStrictEqual(proxy.$appendOutputToRun.args.map(args => args[2].byteLength), [64 * 1024]);
-			task.end();
-			clock.tick(0);
+			const output = new Uint8Array(40 * 1024).fill(0x61);
+			task.appendOutput(output);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+			task.appendOutput(output);
 			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+			task.end();
+			assert.deepStrictEqual({
+				batchLengths: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length),
+				outputSizes: proxy.$appendOutputToRun.args.map(args => args[2].byteLength),
+			}, { batchLengths: [1, 1], outputSizes: [40 * 1024, 40 * 1024] });
 		});
 
 		test('preserves split UTF-8 byte output and its order with batched updates', () => {
@@ -1092,23 +1144,25 @@ suite('ExtHost Testing', () => {
 			const firstChunk = new Uint8Array([0xe2, 0x9c]);
 			task.started(test);
 			task.appendOutput('before ');
-			Reflect.apply(task.appendOutput, task, [firstChunk, undefined, test]);
+			task.appendOutput(firstChunk, undefined, test);
 			firstChunk.fill(0);
-			Reflect.apply(task.appendOutput, task, [new Uint8Array([0x93]), undefined, test]);
+			task.appendOutput(new Uint8Array([0x93]), undefined, test);
 			task.appendOutput(' after');
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
 			task.end();
 
 			assert.deepStrictEqual({
 				output: VSBuffer.concat(proxy.$appendOutputToRun.args.map(args => args[2])).toString(),
 				registeredBeforeOutput: proxy.$addTestsToRun.calledBefore(proxy.$appendOutputToRun),
 				byteTestIds: proxy.$appendOutputToRun.args.slice(1, 3).map(args => args[4]),
-			}, { output: 'before \u2713 after', registeredBeforeOutput: true, byteTestIds: ['ctrlId\0id-a', 'ctrlId\0id-a'] });
+				batches: proxy.$applyTestRunUpdates.callCount,
+			}, { output: 'before \u2713 after', registeredBeforeOutput: true, byteTestIds: ['ctrlId\0id-a', 'ctrlId\0id-a'], batches: 1 });
 		});
 
 		test('ignores byte output after the tracker is disposed', () => {
 			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
 			c.disposeTestRun(Iterable.first(c.trackers)!.id);
-			Reflect.apply(task.appendOutput, task, [new Uint8Array([0x61])]);
+			task.appendOutput(new Uint8Array([0x61]));
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 		});
 
@@ -1122,7 +1176,7 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
 			task.end();
 
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)), [
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [
 				['tests', 'messages', 'state'], ['messages', 'state'],
 			]);
 		});
@@ -1131,11 +1185,11 @@ suite('ExtHost Testing', () => {
 			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
 			const test = single.root.children.get('id-a')!;
 			task.failed(test, new TestMessage('x'.repeat(64 * 1024)));
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)), [['tests'], ['messages']]);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests'], ['messages']]);
 			task.appendOutput('small');
 			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 2);
 			task.end();
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.lastCall.args[2].map((update: TestRunUpdate) => update.type), ['state', 'output']);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.lastCall.args[2].value.map((update: TestRunUpdate) => update.type), ['state', 'output']);
 		});
 
 		test('counts registration payloads toward the batch limit', () => {
@@ -1143,7 +1197,7 @@ suite('ExtHost Testing', () => {
 			const test = single.root.children.get('id-a')!;
 			test.label = 'x'.repeat(64 * 1024);
 			task.started(test);
-			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)), [['tests']]);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests']]);
 			task.end();
 		});
 
@@ -1458,7 +1512,7 @@ suite('ExtHost Testing', () => {
 					run.failed(item, new TestMessage('failure'));
 					await commands.executeCommand('unrelated.command');
 					await commands.executeCommand(command, 'ctrl\0test');
-					assert.deepStrictEqual({ calls, updates: proxy.$applyTestRunUpdates.args.flatMap(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)) }, {
+					assert.deepStrictEqual({ calls, updates: proxy.$applyTestRunUpdates.args.flatMap(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)) }, {
 						calls: ['unrelated.command', 'updates', command], updates: ['tests', 'messages', 'state'],
 					});
 					clock.tick(0);
@@ -1502,7 +1556,7 @@ suite('ExtHost Testing', () => {
 					const response = await result;
 					assert.deepStrictEqual({
 						response,
-						updates: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.map((update: TestRunUpdate) => update.type)),
+						updates: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)),
 						ended: proxy.$finishedTestRunTask.called,
 					}, { response: [rejects ? { error: 'Error: handler failure' } : {}], updates: [['tests', 'messages', 'state', 'output']], ended: false });
 					clock.tick(0);

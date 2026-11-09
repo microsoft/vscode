@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
+import { ComputedStateCache, IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
 import { TestResultState } from '../../common/testTypes.js';
 
 interface TestNode {
+	computedStateCache?: ComputedStateCache;
 	parent?: TestNode;
 	children: TestNode[];
 	ownState: TestResultState;
@@ -21,6 +22,7 @@ suite('Testing computed state and duration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	let childVisits: number;
 	const accessor: IComputedStateAndDurationAccessor<TestNode> = {
+		getCache: node => node.computedStateCache ??= new ComputedStateCache(),
 		getOwnState: node => node.ownState,
 		getCurrentComputedState: node => node.state,
 		setComputedState: (node, state) => node.state = state,

@@ -10,7 +10,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from './index.js';
 import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from './testingViewState.js';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
+import { ComputedStateCache, IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
 import { TestId } from '../../common/testId.js';
 import { TestResultItemChangeReason } from '../../common/testResult.js';
 import { ITestResultService } from '../../common/testResultService.js';
@@ -18,6 +18,7 @@ import { ITestService } from '../../common/testService.js';
 import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from '../../common/testTypes.js';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemElement> = {
+	getCache: i => i.computedStateCache,
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
 	getCurrentComputedState: i => i.state,
 	setComputedState: (i, s) => i.state = s,
@@ -41,6 +42,7 @@ const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemEleme
  * Test tree element element that groups be hierarchy.
  */
 class TreeTestItemElement extends TestItemTreeElement {
+	public readonly computedStateCache = new ComputedStateCache();
 	/**
 	 * Own, non-computed state.
 	 * @internal

@@ -24,10 +24,11 @@ import { TestId, TestPosition } from '../../contrib/testing/common/testId.js';
 import { InvalidTestItemError } from '../../contrib/testing/common/testItemCollection.js';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiff, TestsDiffOp, isStartControllerTests } from '../../contrib/testing/common/testTypes.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape, TestRunUpdate } from './extHost.protocol.js';
+import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from './extHost.protocol.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import { BatchedTestRunRpc } from './extHostTestingBatchedRpc.js';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from './extHostTestItem.js';
 import * as Convert from './extHostTypeConverters.js';
 import { FileCoverage, TestRunProfileBase, TestRunRequest } from './extHostTypes.js';
@@ -45,8 +46,6 @@ type DefaultProfileChangeEvent = Map</* controllerId */ string, Map< /* profileI
 
 let followupCounter = 0;
 
-const testResultInternalIDs = new WeakMap<vscode.TestRunResult, string>();
-
 export const IExtHostTesting = createDecorator<IExtHostTesting>('IExtHostTesting');
 export interface IExtHostTesting extends ExtHostTesting {
 	readonly _serviceBrand: undefined;
@@ -55,6 +54,8 @@ export interface IExtHostTesting extends ExtHostTesting {
 export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	declare readonly _serviceBrand: undefined;
 
+	/** Bounded to the same 32 snapshots exposed through results. */
+	private readonly testResultInternalIDs = new Map<vscode.TestRunResult, string>();
 	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
 	protected readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
 	private readonly proxy: MainThreadTestingShape;
@@ -408,13 +409,20 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 							this.proxy.$getCoverageDetails(r.id, taskWithCoverage, uri, token).then(r => r.map(Convert.TestCoverage.to));
 					}
 
-					testResultInternalIDs.set(o, r.id);
+					this.testResultInternalIDs.set(o, r.id);
 					return o;
 				})
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
 		);
+
+		const retained = new Set(this.results);
+		for (const result of this.testResultInternalIDs.keys()) {
+			if (!retained.has(result)) {
+				this.testResultInternalIDs.delete(result);
+			}
+		}
 
 		this.resultsChangedEmitter.fire();
 	}
@@ -468,7 +476,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 
 	/** @inheritdoc */
 	public async $provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]> {
-		const results = this.results.find(r => testResultInternalIDs.get(r) === req.resultId);
+		const results = this.results.find(r => this.testResultInternalIDs.get(r) === req.resultId);
 		const test = results && findTestInResultSnapshot(TestId.fromString(req.extId), results?.results);
 		if (!test) {
 			return [];
@@ -606,10 +614,13 @@ const enum TestRunTrackerState {
 	Ended,
 }
 
+/** Includes byte output accepted by the runtime for compatibility with test adapters. */
+interface TestRun extends vscode.TestRun {
+	appendOutput(output: string | Uint8Array, location?: vscode.Location, test?: vscode.TestItem): void;
+}
+
 class TestRunTracker extends Disposable {
-	private readonly pendingUpdates: TestRunUpdate[] = [];
-	private pendingUpdateSize = 0;
-	private readonly updateScheduler = this._register(new RunOnceScheduler(() => this.flushUpdates(), 0));
+	private readonly batchedRpc: BatchedTestRunRpc;
 	private state = TestRunTrackerState.Running;
 	private running = 0;
 	private readonly tasks = new Map</* task ID */string, { cts: CancellationTokenSource; run: vscode.TestRun }>();
@@ -647,6 +658,7 @@ class TestRunTracker extends Disposable {
 		parentToken?: CancellationToken,
 	) {
 		super();
+		this.batchedRpc = this._register(new BatchedTestRunRpc(proxy, dto.controllerId, dto.id));
 		this.cts = this._register(new CancellationTokenSource(parentToken));
 
 		const forciblyEnd = this._register(new RunOnceScheduler(() => this.forciblyEndTasks(), RUN_CANCEL_DEADLINE));
@@ -714,7 +726,7 @@ class TestRunTracker extends Disposable {
 	}
 
 	/** Creates the public test run interface to give to extensions. */
-	public createRun(name: string | undefined): vscode.TestRun {
+	public createRun(name: string | undefined): TestRun {
 		const runId = this.dto.id;
 		const ctrlId = this.dto.controllerId;
 		const taskId = generateUuid();
@@ -742,7 +754,7 @@ class TestRunTracker extends Disposable {
 				}
 			}
 
-			this.queueUpdate({ type: 'messages', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), messages: converted });
+			this.batchedRpc.add({ type: 'messages', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), messages: converted });
 		};
 
 		let ended = false;
@@ -752,7 +764,7 @@ class TestRunTracker extends Disposable {
 		// one-off map used to associate test items with incrementing IDs in `addCoverage`.
 		// There's no need to include their entire ID, we just want to make sure they're
 		// stable and unique. Normal map is okay since TestRun lifetimes are limited.
-		const run: vscode.TestRun = {
+		const run: TestRun = {
 			isPersisted: this.dto.isPersisted,
 			token: cts.token,
 			name,
@@ -781,24 +793,24 @@ class TestRunTracker extends Disposable {
 			},
 			//#region state mutation
 			enqueued: guardTestMutation(test => {
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Queued });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Queued });
 			}),
 			skipped: guardTestMutation(test => {
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Skipped });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Skipped });
 			}),
 			started: guardTestMutation(test => {
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Running });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Running });
 			}),
 			errored: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Errored, duration });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Errored, duration });
 			}),
 			failed: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Failed, duration });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Failed, duration });
 			}),
 			passed: guardTestMutation((test, duration) => {
-				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
+				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
 			}),
 			//#endregion
 			appendOutput: (output: string | Uint8Array, location?: vscode.Location, test?: vscode.TestItem) => {
@@ -809,15 +821,8 @@ class TestRunTracker extends Disposable {
 					this.ensureTestIsKnown(test);
 				}
 
-				if (typeof output !== 'string') {
-					// Keep byte chunks intact, including UTF-8 characters spanning chunks.
-					this.flushUpdates();
-					this.proxy.$appendOutputToRun(runId, taskId, VSBuffer.wrap(output).clone(), location && Convert.location.from(location), test && TestId.fromExtHostTestItem(test, ctrlId).toString());
-					return;
-				}
-
-				this.queueUpdate({
-					type: 'output', taskId, output,
+				this.batchedRpc.add({
+					type: 'output', taskId, output: typeof output === 'string' ? output : VSBuffer.wrap(output),
 					location: location && Convert.location.from(location),
 					testId: test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
 				});
@@ -889,34 +894,11 @@ class TestRunTracker extends Disposable {
 			test = test.parent || root;
 		}
 
-		this.queueUpdate({ type: 'tests', tests: chain });
-	}
-
-	private queueUpdate(update: TestRunUpdate): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		// State updates are the hot path; avoid serializing them just to estimate their size.
-		const updateSize = update.type === 'state' ? update.taskId.length + update.testId.length : JSON.stringify(update).length;
-		if (this.pendingUpdateSize + updateSize > 64 * 1024) {
-			this.flushUpdates();
-		}
-		this.pendingUpdates.push(update);
-		this.pendingUpdateSize += updateSize;
-		if (this.pendingUpdates.length >= 1024 || this.pendingUpdateSize >= 64 * 1024) {
-			this.flushUpdates();
-		} else if (!this.updateScheduler.isScheduled()) {
-			this.updateScheduler.schedule();
-		}
+		this.batchedRpc.add({ type: 'tests', tests: chain });
 	}
 
 	public flushUpdates(): void {
-		this.updateScheduler.cancel();
-		if (this.pendingUpdates.length) {
-			const updates = this.pendingUpdates.splice(0);
-			this.pendingUpdateSize = 0;
-			this.proxy.$applyTestRunUpdates(this.dto.controllerId, this.dto.id, updates);
-		}
+		this.batchedRpc.flush();
 	}
 
 	public override dispose(): void {
@@ -1006,7 +988,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun(extension: IExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
+	public createTestRun(extension: IExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);

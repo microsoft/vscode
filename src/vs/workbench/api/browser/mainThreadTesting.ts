@@ -20,6 +20,7 @@ import { LiveTestResult } from '../../contrib/testing/common/testResult.js';
 import { ITestResultService } from '../../contrib/testing/common/testResultService.js';
 import { IMainThreadTestController, ITestService } from '../../contrib/testing/common/testService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape, TestRunUpdate } from '../common/extHost.protocol.js';
 
@@ -130,8 +131,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$applyTestRunUpdates(controllerId: string, runId: string, updates: TestRunUpdate[]): void {
-		for (const update of updates) {
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>): void {
+		for (const update of updates.value) {
 			try {
 				switch (update.type) {
 					case 'tests':
@@ -144,7 +145,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 						this.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
 						break;
 					case 'output':
-						this.$appendOutputToRun(runId, update.taskId, VSBuffer.fromString(update.output), update.location, update.testId);
+						this.$appendOutputToRun(runId, update.taskId, typeof update.output === 'string' ? VSBuffer.fromString(update.output) : update.output, update.location, update.testId);
 						break;
 				}
 			} catch (error) {
