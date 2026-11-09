@@ -2327,6 +2327,32 @@ suite('GitHub authenticated IPC clients', () => {
 			assert.deepStrictEqual(await client.tasks.connectFeed(signal()), feed);
 		});
 
+		test('bounded task lists retain full tasks and conservative metadata through IPC', async () => {
+			const requests: { host: string; path: string; cursor: string | null; repository: string | null }[] = [];
+			const { client } = await acquire(async input => {
+				const url = new URL(String(input));
+				requests.push({ host: url.host, path: url.pathname, cursor: url.searchParams.get('cursor'), repository: url.searchParams.get('with_repo') });
+				return Response.json({
+					tasks: [{ ...task, id: `task-${requests.length}`, compute: { provider: 'sandboxes' }, current_environment: { id: 'env', kind: 'managed-sandbox' }, prompt: 'retained' }],
+				}, {
+					headers: {
+						date: requests.length === 1 ? 'Thu, 01 Jan 2026 00:00:00 GMT' : 'Thu, 01 Jan 2026 00:01:00 GMT',
+						'retry-after': requests.length === 1 ? '120' : '30',
+						...(requests.length === 1 ? { link: '<https://api.github.com/agents/tasks?cursor=next&with_repo=false>; rel="next"' } : {}),
+					},
+				});
+			});
+			const result = await client.tasks.list(signal(), { maxPages: 2, query: { with_repo: false } });
+			assert.deepStrictEqual({
+				tasks: result.data.tasks,
+				serverDate: result.serverDate, retryAfterSeconds: result.retryAfterSeconds, requests,
+			}, {
+				tasks: [1, 2].map(number => ({ ...task, id: `task-${number}`, compute: { provider: 'sandboxes' }, current_environment: { id: 'env', kind: 'managed-sandbox' }, prompt: 'retained' })),
+				serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT', retryAfterSeconds: 120,
+				requests: [null, 'next'].map(cursor => ({ host: 'api.githubcopilot.com', path: '/agents/tasks', cursor, repository: 'false' })),
+			});
+		});
+
 		test('executes automation, task, and environment operations through the approved Mission Control IPC profile', async () => {
 			const paths: string[] = [];
 			const headers: { integration: string | null; apiVersion: string | null; credentials: RequestCredentials | undefined }[] = [];

@@ -429,6 +429,8 @@ export type TaskListOptions = ApiPaginationOptions<TaskListQuery>;
 
 /** Additional query filters for the authenticated user's task list. */
 export type ListTasksOptions = ApiPaginationOptions<TaskListQuery & {
+	/** Opaque continuation advertised by the service; cannot be combined with page. */
+	readonly cursor?: string;
 	/** Include tasks updated at or after this ISO 8601 timestamp. */
 	readonly since?: string;
 	/** Filter by artifact type. */

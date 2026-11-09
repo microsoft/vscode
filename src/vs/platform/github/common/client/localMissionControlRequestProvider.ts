@@ -6,7 +6,7 @@
 import { asArray } from '../../../../base/common/arrays.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
-import { resolveReadApiUrl } from '../githubEndpoints.js';
+import { deriveGitHubEndpoints, GITHUB_DOT_COM_COPILOT_API_BASE_URI, resolveReadApiUrl } from '../githubEndpoints.js';
 import { nextLink } from '../githubResponse.js';
 import { IGitHubTransport } from '../githubTransport.js';
 import { GitHubRequestError } from '../githubTypes.js';
@@ -20,6 +20,29 @@ import { getNextPagePath } from './pagination.js';
 
 export function missionControlAccount(endpoint: ApiEndpoint, account: AccountHandle): AccountHandle {
 	return { host: new URL(endpoint.apiBaseUri).host, accountId: JSON.stringify([account.host.toLowerCase(), account.accountId]) };
+}
+
+function getMissionControlNextPagePath(apiBaseUri: string, responseUrl: string, link: string | undefined): string | null | undefined {
+	const path = getNextPagePath(apiBaseUri, responseUrl, link);
+	if (path !== null || apiBaseUri.replace(/\/$/, '') !== `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`) {
+		return path;
+	}
+	const current = new URL(responseUrl);
+	const next = nextLink(link);
+	if (current.origin !== GITHUB_DOT_COM_COPILOT_API_BASE_URI || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
+		return null;
+	}
+	let target: URL;
+	try {
+		target = new URL(next, current);
+	} catch {
+		return null;
+	}
+	if (target.origin !== deriveGitHubEndpoints(undefined).apiBaseUri || target.pathname !== current.pathname
+		|| target.username || target.password || target.hash) {
+		return null;
+	}
+	return `/tasks${target.search}`;
 }
 
 /** Enforces service-specific credential, retry, and response privacy policy at the execution boundary. */
@@ -84,7 +107,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					data: response.data, status,
 					metadata: {
 						nextLink: nextLink(response.link),
-						nextPath: getNextPagePath(this.endpoint.apiBaseUri, response.finalUrl, response.link),
+						nextPath: getMissionControlNextPagePath(this.endpoint.apiBaseUri, response.finalUrl, response.link),
 						serverDate: response.serverDate,
 						retryAfterSeconds: response.retryAfterSeconds,
 					},
@@ -106,6 +129,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 						continue;
 					}
 				}
+
 				if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.responseMetadata) {
 					const diagnostics = parseMissionControlError(error.responseBody, error.responseMetadata.requestId);
 					let details;

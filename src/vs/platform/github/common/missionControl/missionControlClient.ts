@@ -90,9 +90,22 @@ export class MissionControlClient {
 			signal.throwIfAborted();
 			return data;
 		}
+		let serverDate: string | undefined;
+		let retryAfterSeconds: number | undefined;
 		const response = await collectPages(
 			request.path,
-			path => this.request({ ...request, path: path ?? request.path, options }, signal, response => ({ ...response, data: parser(response) })),
+			path => this.request({ ...request, path: path ?? request.path, options }, signal, response => {
+				const date = response.metadata?.serverDate;
+				if (date !== undefined && Number.isFinite(Date.parse(date)) && (serverDate === undefined || Date.parse(date) < Date.parse(serverDate))) {
+					serverDate = date;
+				}
+				const retryAfter = response.metadata?.retryAfterSeconds;
+				if (retryAfter !== undefined) {
+					retryAfterSeconds = Math.max(retryAfterSeconds ?? 0, retryAfter);
+				}
+				const metadata = { ...response.metadata, serverDate, retryAfterSeconds };
+				return { ...response, metadata, data: parser({ ...response, metadata }) };
+			}),
 			page => nextPagePath(page.metadata),
 			pages => ({ ...pages[pages.length - 1], data: merge(pages.map(page => page.data)) }),
 			signal,
@@ -209,5 +222,10 @@ function normalizeEndpoint(endpoint: ApiEndpoint): ApiEndpoint {
 
 /** Combines page data with pagination and server-time metadata. */
 export function paginated<T>(response: ApiResponse<unknown>, data: T): PaginatedResponse<T> {
-	return { data, nextLink: response.metadata?.nextLink, serverDate: response.metadata?.serverDate };
+	return {
+		data,
+		nextLink: response.metadata?.nextLink,
+		serverDate: response.metadata?.serverDate,
+		...(response.metadata?.retryAfterSeconds !== undefined ? { retryAfterSeconds: response.metadata.retryAfterSeconds } : {}),
+	};
 }

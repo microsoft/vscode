@@ -309,7 +309,7 @@ suite('Mission Control client', () => {
 		});
 	}
 
-	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
+	test('collects automation, task, run, and event pages with conservative metadata and unsummed totals', async () => {
 		const { prompt, ...summary } = automation;
 		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
 		const { client, requests } = setup(({ url }) => {
@@ -322,7 +322,13 @@ suite('Mission Control client', () => {
 				: url.pathname.endsWith('/events')
 					? { events: [{ ...event, id: `event-${number}` }], total: 2 }
 					: { tasks: [{ ...task, id: `task-${number}` }], total_active_count: 2 };
-			return Response.json(data, { headers: { date: serverDate, ...(second ? {} : { link: `<${next.href}>; rel="next"` }) } });
+			return Response.json(data, {
+				headers: {
+					date: second ? 'Thu, 01 Jan 2026 00:01:00 GMT' : serverDate,
+					'retry-after': second ? '30' : '120',
+					...(second ? {} : { link: `<${next.href}>; rel="next"` }),
+				},
+			});
 		});
 		const results = [
 			await client.automations.list(repository, signal(), { maxPages: 2 }),
@@ -336,7 +342,7 @@ suite('Mission Control client', () => {
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ events: [1, 2].map(number => ({ ...event, id: `event-${number}` })), total: 2 },
-			].map(data => ({ data, nextLink: undefined, serverDate })),
+			].map(data => ({ data, nextLink: undefined, serverDate, retryAfterSeconds: 120 })),
 			requests: [
 				`${collection}/v2`, `${collection}/v2?page=2`,
 				'/agents/tasks', '/agents/tasks?page=2',
@@ -347,11 +353,11 @@ suite('Mission Control client', () => {
 	});
 
 	test('partial Mission Control pages keep a continuation but later errors still reject', async () => {
-		let failSecondPage = false;
+		let failure: 'http' | 'schema' | undefined;
 		const { client } = setup(({ url }) => {
 			const page = Number(url.searchParams.get('page') ?? 1);
-			if (page === 2 && failSecondPage) {
-				return Response.json({ message: 'Denied' }, { status: 403 });
+			if (page === 2 && failure) {
+				return failure === 'http' ? Response.json({ message: 'Denied' }, { status: 403 }) : Response.json({ tasks: [{}] });
 			}
 			return Response.json({ tasks: [{ ...task, id: `task-${page}` }], total_active_count: 3 }, {
 				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
@@ -367,17 +373,81 @@ suite('Mission Control client', () => {
 			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
 			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
 		});
-		failSecondPage = true;
-		await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'authorization' });
+		for (failure of ['http', 'schema'] as const) {
+			await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
+				failure === 'http' ? { kind: 'authorization' } : SchemaError);
+		}
 	});
 
 	test('single-page Mission Control limits reject invalid or repeated continuations', async () => {
-		for (const link of ['not-a-link; rel="next"', `<${apiBaseUri}/agents/tasks>; rel="next"`]) {
+		for (const link of [
+			'not-a-link; rel="next"',
+			`<${apiBaseUri}/agents/tasks>; rel="next"`,
+			'<https://unapproved.example.test/agents/tasks?page=2>; rel="next"',
+			'<https://user:secret@api.github.com/agents/tasks?page=2>; rel="next"',
+			'<https://api.github.com/agents/environments?page=2>; rel="next"',
+			'<https://api.github.com/agents/tasks?page=2#fragment>; rel="next"',
+		]) {
 			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
 			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 			assert.strictEqual(requests.length, 1);
 		}
 	});
+
+	test('task lists bound proxy and cursor walks through empty pages', async () => {
+		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
+		const hints = [120, 30, 60];
+		const scope = 'per_page=100&with_repo=false&is_archived=true&since=2026-01-01T00%3A00%3A00Z&include_counts=false';
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const index = page++;
+			return Response.json({ tasks: index === 0 ? [] : [{ ...task, id: `task-${index}` }] }, {
+				headers: {
+					date: dates[index], 'retry-after': String(hints[index]),
+					link: index === 0 ? `<https://api.github.com/agents/tasks?page=2&${scope}>; rel="next"`
+						: `<?cursor=cursor-${index + 2}&${scope}>; rel="next"`,
+				},
+			});
+		});
+		const result = await client.tasks.list(signal(), {
+			query: { page: 1, per_page: 100, with_repo: false, is_archived: true, since: date, include_counts: false },
+			maxPages: 3, pageLimitBehavior: 'returnPartial',
+		});
+		assert.deepStrictEqual({
+			tasks: result.data.tasks,
+			next: result.nextLink, serverDate: result.serverDate, retryAfterSeconds: result.retryAfterSeconds,
+			requests: requests.map(({ url }) => ({
+				origin: url.origin, path: url.pathname, repository: url.searchParams.get('with_repo'),
+				archived: url.searchParams.get('is_archived'), since: url.searchParams.get('since'),
+				size: url.searchParams.get('per_page'), counts: url.searchParams.get('include_counts'),
+				page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'),
+			})),
+		}, {
+			tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })),
+			next: `?cursor=cursor-4&${scope}`, serverDate, retryAfterSeconds: 120,
+			requests: [
+				{ page: '1', cursor: null }, { page: '2', cursor: null }, { page: null, cursor: 'cursor-3' },
+			].map(pagination => ({
+				origin: apiBaseUri, path: '/agents/tasks', repository: 'false', archived: 'true', since: date,
+				size: '100', counts: 'false', ...pagination,
+			})),
+		});
+	});
+
+	test('successful list polling hints are exposed without blocking unrelated work', () => runWithFakedTimers({ startTime: Date.parse(date) }, async () => {
+		const { service, client, requests } = setup(({ url }) => url.pathname === '/agents/tasks'
+			? Response.json({ tasks: [] }, { headers: { 'retry-after': '120' } })
+			: Response.json({ id: 'env', name: 'Environment', kind: 'managed-sandbox', status: 'online' }));
+		try {
+			const page = await client.tasks.list(signal());
+			await client.environments.get('env', signal());
+			assert.deepStrictEqual({ retryAfterSeconds: page.retryAfterSeconds, attempts: requests.map(request => request.at - Date.parse(date)) }, {
+				retryAfterSeconds: 120, attempts: [0, 0],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
 		const tools: readonly AutomationToolGroup[] = [{
