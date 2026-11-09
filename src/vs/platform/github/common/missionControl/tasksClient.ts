@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNumber } from '../../../../base/common/types.js';
-import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
+import { ApiPaginationOptions, ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
 import { PageOptions } from '../client/types.js';
@@ -88,16 +88,19 @@ export class TasksClient implements ITasksClient {
 		)(response.data).tasks);
 	}
 
-	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
+	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'POST',
 			path: '/tasks',
-			body: request,
+			body: {
+				...request,
+				repositories: request.repositories?.map(repository => ({ owner: repository.owner, name: repository.repo })),
+			},
 			policy: request.environment_id === 'github-sandbox' ? { rateLimitResource: 'agents:sandbox' } : undefined,
-			expectedStatus: 201,
+			expectedStatus: [200, 201],
 			options,
-		}, signal, response => parseTaskDetail(response.data));
+		}, signal, response => ({ ...response, data: parseTaskDetail(response.data) }));
 	}
 
 	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
@@ -125,15 +128,10 @@ export class TasksClient implements ITasksClient {
 		}, signal, () => { });
 	}
 
-	archive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
-		return this._setArchived(taskId, true, signal, options);
-	}
-
-	unarchive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
-		return this._setArchived(taskId, false, signal, options);
-	}
-
-	private _setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
+	setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
+		if (typeof archived !== 'boolean') {
+			throw new GitHubRequestError('Task archive state must be a boolean', 'validation');
+		}
 		return this._client.request({
 			domain: 'tasks',
 			method: 'POST',
@@ -225,8 +223,10 @@ const parseTaskClient = parse.object<TaskClient>({
 	creator: parse.boolean,
 });
 
+const parseIdentifier = parse.refine(parse.nonEmptyString, value => value.trim().length > 0, 'Expected a non-blank identifier');
+
 const parseTaskFields = parse.object<Task>({
-	id: parse.nonEmptyString,
+	id: parseIdentifier,
 	url: parse.optional(parse.string),
 	html_url: parse.optional(parse.string),
 	name: parse.optional(parse.string),
@@ -277,6 +277,8 @@ const parseTaskFields = parse.object<Task>({
 		scope: parse.optional(parse.string),
 	}))),
 	sharing_status: parse.optional(parse.oneOf('unshared', 'shared', 'unlisted')),
+	reserved: parse.optional(parse.boolean),
+	reservation_expires_at: parse.optional(parse.dateTime),
 	azure_devops_repository_context: parse.optional(parse.object({
 		url: parse.string,
 		name: parse.optional(parse.string),
@@ -350,9 +352,10 @@ export const parseListTasksResponse = parse.object<ListTasksResponse>({
 	total_archived_count: parse.optional(parse.nonNegativeInteger),
 });
 
-const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
+const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions' | 'claimed'>>({
+	claimed: parse.optional(parse.boolean),
 	sessions: parse.optional(parse.arrayOf(parse.object({
-		id: parse.nonEmptyString,
+		id: parseIdentifier,
 		name: parse.optional(parse.string),
 		clients: parse.optional(parse.arrayOf(parseTaskClient)),
 		user: parse.optional(parseUser),

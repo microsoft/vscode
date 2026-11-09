@@ -94,4 +94,6 @@ export interface ApiError extends Error, MissionControlErrorMetadata {
 	readonly requestId?: string;
 	/** The delay in seconds indicated by Retry-After, when available. */
 	readonly retryAfterSeconds?: number;
+	/** A task explicitly reported by a failed create operation, when available. */
+	readonly createdTaskId?: string;
 }

@@ -11,11 +11,12 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -29,6 +30,8 @@ import { IGitHubCredentials } from '../../../../../../platform/github/common/git
 import { GitHubRestTextRequest, GitHubTransport, IGitHubTransport } from '../../../../../../platform/github/common/githubTransport.js';
 import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { GitHubRequestError, GitHubRequestTimeoutError } from '../../../../../../platform/github/common/githubTypes.js';
+import { ClientTokenResponse } from '../../../../../../platform/github/common/missionControl/environments.js';
+import { MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -44,7 +47,6 @@ import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker
 import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
@@ -54,6 +56,26 @@ function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, s
 		res: { headers: { date: new Date().toUTCString(), ...headers }, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
 	};
+}
+
+function taskResponse(body: unknown): unknown {
+	if (!isObject(body)) {
+		return body;
+	}
+	const metadata = { state: 'queued', created_at: '2026-01-01T00:00:00Z' };
+	const response: Record<string, unknown> = {
+		...metadata,
+		remote_steerable: true,
+		...body,
+	};
+	if (Array.isArray(response.sessions)) {
+		response.sessions = response.sessions.map((session: unknown) => isObject(session) ? { ...metadata, ...session } : session);
+	}
+	return response;
+}
+
+function jsonTaskResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
+	return jsonResponse(statusCode >= 200 && statusCode < 300 ? taskResponse(body) : body, statusCode, headers);
 }
 
 /** A task without optional repository-name enrichment. */
@@ -297,15 +319,14 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		try {
 			const token = init.signal ? CancellationToken.fromAbortSignal(init.signal, lifetime) : CancellationToken.None;
 			const headers = new Headers(init.headers);
+			const headerNames: Record<string, string> = {
+				accept: 'Accept', authorization: 'Authorization', 'content-type': 'Content-Type',
+				'copilot-integration-id': 'Copilot-Integration-Id', 'x-github-api-version': 'X-GitHub-Api-Version', 'if-none-match': 'If-None-Match',
+			};
 			const url = new URL(String(input));
 			const context = await requests.request({
 				type: init.method, url: url.href,
-				headers: {
-					...Object.fromEntries(headers),
-					Authorization: headers.get('authorization') ?? undefined,
-					'Content-Type': headers.get('content-type') ?? undefined,
-					'Copilot-Integration-Id': headers.get('copilot-integration-id') ?? undefined,
-				},
+				headers: Object.fromEntries([...headers].map(([name, value]) => [headerNames[name] ?? name, value])),
 				callSite: url.pathname === '/agents/tasks' ? 'mc.taskClient.list'
 					: url.pathname === '/agents/tasks/batch' ? 'mc.taskClient.getBatch'
 						: url.pathname.startsWith('/agents/tasks/') ? 'mc.taskClient.get' : 'test.typed',
@@ -317,7 +338,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					responseHeaders.append(name, value);
 				}
 			}
-			return new Response(await asText(context), { status: context.res.statusCode, headers: responseHeaders });
+			const body = await asText(context);
+			return new Response([204, 205, 304].includes(context.res.statusCode ?? 0) ? null : body, { status: context.res.statusCode, headers: responseHeaders });
 		} finally {
 			lifetime.dispose();
 		}
@@ -619,7 +641,7 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: async url => {
 				if (url.pathname === '/agents/tasks/removed') {
-					return jsonResponse({});
+					return jsonResponse({}, 204);
 				}
 				if (!entered.isSettled) {
 					await entered.complete();
@@ -834,7 +856,7 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		{ status: 403, body: { error_code: 'rate_limit_exceeded' } },
 		{ status: 503, body: {} },
 	]) {
-		test(`does not apply authorization pacing to HTTP ${response.status} ${JSON.stringify(response.body)}`, async () => {
+		test(`does not apply authorization pacing to HTTP ${response.status} ${JSON.stringify(response.body)}`, () => runWithFakedTimers({}, async () => {
 			const h = createService(store, {
 				tasks: [], repositories: new Map(),
 				onRequest: url => url.pathname === '/agents/tasks' ? jsonResponse(response.body, response.status) : undefined,
@@ -842,7 +864,7 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
 			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
 			assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listOperationCount]), [['failed', 1], ['failed', 1]]);
-		});
+		}));
 	}
 
 	test('detail endpoint failures do not block summary discovery or its checkpoint', async () => {
@@ -950,7 +972,7 @@ suite('CloudSandboxApiService identity credentials', () => {
 					await timeout(500);
 					return jsonResponse({ token: 'identity', expires_in: 60, expires_at: new Date(started + 90_000).toISOString() });
 				}
-				return jsonResponse({ id: 'env-1', status: 'online' });
+				return jsonResponse({ id: 'env-1', name: 'Environment', kind: 'managed-sandbox', status: 'online' });
 			},
 		});
 		const identity = await service.getIdentityToken(accountKey, CancellationToken.None);
@@ -963,7 +985,7 @@ suite('CloudSandboxApiService identity credentials', () => {
 				{ url: endpoint, method: 'POST', authorization: 'Bearer tok', contentType: 'application/json', data: '{}' },
 				{ url: 'https://api.githubcopilot.com/agents/environments/env-1', method: 'GET', authorization: 'Bearer tok', contentType: undefined, data: undefined },
 			],
-			requestOutcomes: [['mintIdentityToken', 'succeeded'], ['getEnvironment', 'succeeded']],
+			requestOutcomes: [['mintIdentityToken', 'succeeded']],
 		});
 	}));
 
@@ -1002,7 +1024,7 @@ suite('CloudSandboxApiService identity credentials', () => {
 				}
 				return ++environmentRequests === 1
 					? jsonResponse({ error_code: 'unauthenticated' }, 401)
-					: jsonResponse({ id: 'env-1', status: 'online' });
+					: jsonResponse({ id: 'env-1', name: 'Environment', kind: 'managed-sandbox', status: 'online' });
 			},
 		});
 		const first = await service.getIdentityToken(accountKey, CancellationToken.None);
@@ -1284,7 +1306,7 @@ suite('CloudSandboxApiService token sealing', () => {
 						url: endpoint, method: 'POST', authorization: 'Bearer tok', contentType: 'application/json',
 						body: { token: request.token, ...(resource === undefined ? {} : { resource }) },
 					}],
-					requestOutcomes: [['sealToken', 'succeeded']],
+					requestOutcomes: [],
 				});
 			});
 		}
@@ -1304,7 +1326,7 @@ suite('CloudSandboxApiService token sealing', () => {
 					seals++;
 					return jsonResponse(response);
 				}
-				return jsonResponse({ id: 'env-1', status: 'online' });
+				return jsonResponse({ id: 'env-1', name: 'Environment', kind: 'managed-sandbox', status: 'online' });
 			},
 		});
 		const identity = await service.getIdentityToken(JSON.stringify(['github', 'a']), CancellationToken.None);
@@ -1345,7 +1367,7 @@ suite('CloudSandboxApiService token sealing', () => {
 			});
 			const error = await readSealingError(service);
 			assert.deepStrictEqual({ message: error.message, requests: requestedUrls.length }, {
-				message: 'The sandbox token-sealing response is invalid.', requests: 1,
+				message: 'The API may have accepted the operation; reconcile before trying again', requests: 1,
 			});
 		});
 	}
@@ -1369,8 +1391,8 @@ suite('CloudSandboxApiService token sealing', () => {
 				exposesToken: [...logService.traces, ...logService.errors].some(message => String(message).includes(request.token)),
 			}, {
 				status, retryAfter: 45,
-				message: `Sandbox token sealing failed: HTTP ${status} (request ABCD:1234:5678:90AB:CDEF).`,
-				authentications: 1, requests: 1, requestOutcomes: [['sealToken', status < 500 ? 'clientError' : 'serverError']], exposesToken: false,
+				message: `Mission Control token sealing failed: HTTP ${status} (requestId=ABCD:1234:5678:90AB:CDEF)`,
+				authentications: 1, requests: 1, requestOutcomes: [], exposesToken: false,
 			});
 		});
 	}
@@ -1681,7 +1703,7 @@ suite('CloudSandboxApiService session feed', () => {
 						void requested.complete();
 						return response.p;
 					}
-					return jsonResponse({});
+					return jsonTaskResponse({ id: 'task' });
 				},
 			});
 			const pending = h.service.connectSessionFeed(CancellationToken.None);
@@ -2056,12 +2078,12 @@ suite('CloudSandboxApiService connection credentials', () => {
 		const otherConnectionId = generateUuid();
 		const { service, lifecycleEvents } = createService(store, {
 			tasks: [], repositories: new Map(),
-			onRequest: () => jsonResponse({ access_token: 'private', wps_endpoint: 'https://private.invalid', client_id: otherConnectionId, groups: {} }),
+			onRequest: () => jsonResponse(clientToken(otherConnectionId)),
 		});
-		await assert.rejects(service.reconnect({ environmentId: generateUuid() }, connectionId, CancellationToken.None), /different client/);
+		await assert.rejects(service.reconnect({ environmentId: generateUuid() }, connectionId, CancellationToken.None), MutationUncertainError);
 		assert.deepStrictEqual(lifecycleEvents.map(event => [event.phase, event.outcome, event.connectionId, event.failurePoint]), [
 			['credentials.refresh', 'started', connectionId, undefined],
-			['credentials.refresh', 'failed', connectionId, 'credentials.clientMismatch'],
+			['credentials.refresh', 'failed', connectionId, 'credentials.invalidResponse'],
 		]);
 	});
 
@@ -2070,11 +2092,11 @@ suite('CloudSandboxApiService connection credentials', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: () => jsonResponse({ access_token: 'private response' }),
 		});
-		await assert.rejects(service.connect({ environmentId: generateUuid() }, CancellationToken.None), /incomplete token/);
+		await assert.rejects(service.connect({ environmentId: generateUuid() }, CancellationToken.None), MutationUncertainError);
 		assert.deepStrictEqual({
 			failurePoint: lifecycleEvents.at(-1)?.failurePoint,
 			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
-		}, { failurePoint: 'credentials.incompleteResponse', privateContent: false });
+		}, { failurePoint: 'credentials.invalidResponse', privateContent: false });
 	});
 
 	for (const failure of ['signed out', 'already cancelled', 'cancelled in flight', 'HTTP error', 'network error'] as const) {
@@ -2106,7 +2128,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	}
 
-	function clientToken(clientId: string): ICloudSandboxClientToken {
+	function clientToken(clientId: string): ClientTokenResponse {
 		const groupPrefix = `user.u1.env.env-1.client.${clientId}`;
 		return {
 			access_token: 'relay-token',
@@ -2115,10 +2137,12 @@ suite('CloudSandboxApiService connection credentials', () => {
 			hub: 'hub',
 			subprotocol: 'json.reliable.webpubsub.azure.v1',
 			client_id: clientId,
+			environment_status: 'online',
 			groups: {
 				broadcast: `${groupPrefix}.broadcast`,
 				to_client: `${groupPrefix}.to-client`,
 				to_host: `${groupPrefix}.to-host`,
+				clients: 'user.u1.env.env-1.clients',
 			},
 		};
 	}
@@ -2146,7 +2170,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 								throw new CancellationError();
 							}
 							return response === 'token' ? jsonResponse(clientToken(connectionId))
-								: response === 'waking' ? jsonResponse({}, 202, { 'retry-after': '45' })
+								: response === 'waking' ? jsonResponse({ environment_status: 'waking' }, 202, { 'retry-after': '45' })
 									: response === 'httpError' ? jsonResponse({ message: 'private chat content' }, 403)
 										: jsonResponse({ access_token: 'private-token' });
 						},
@@ -2174,13 +2198,14 @@ suite('CloudSandboxApiService connection credentials', () => {
 		}
 	}
 
-	test('allows thirty seconds for connection requests while keeping environment reads at ten seconds', async () => {
+	test('uses shared default deadlines for connection requests and environment reads', async () => {
 		const requests: { path: string; timeout: number | undefined }[] = [];
-		const { service } = createService(store, {
+		const { service, typedRequests } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: (url, _token, options) => {
 				requests.push({ path: url.pathname, timeout: options.timeout });
-				return jsonResponse(url.pathname === '/agents/environments/env-1' ? { status: 'online' } : clientToken('client-1'));
+				return jsonResponse(url.pathname === '/agents/environments/env-1'
+					? { id: 'env-1', name: 'Environment', kind: 'managed-sandbox', status: 'online' } : clientToken('client-1'));
 			},
 		});
 
@@ -2188,11 +2213,15 @@ suite('CloudSandboxApiService connection credentials', () => {
 		await service.reconnect(request, 'client-1', CancellationToken.None);
 		await service.getEnvironment(request.environmentId, CancellationToken.None);
 
-		assert.deepStrictEqual(requests, [
-			{ path: '/agents/environments/env-1/connect', timeout: 30_000 },
-			{ path: '/agents/environments/env-1/reconnect', timeout: 30_000 },
-			{ path: '/agents/environments/env-1', timeout: 10_000 },
-		]);
+		assert.deepStrictEqual({
+			requests,
+			explicitDeadlines: typedRequests.map(request => request.deadline),
+		}, {
+			requests: ['connect', 'reconnect', ''].map(action => ({
+				path: `/agents/environments/env-1${action ? `/${action}` : ''}`, timeout: undefined,
+			})),
+			explicitDeadlines: [undefined, undefined, undefined],
+		});
 	});
 
 	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
@@ -2335,7 +2364,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 	for (const body of [{}, { data: [null] }, { data: [{ id: 'bad', name: 'Bad', capabilities: { supports: { reasoning_effort: [1] } } }] }]) {
 		test(`rejects invalid cloud model metadata: ${JSON.stringify(body)}`, async () => {
 			const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse(body) });
-			await assert.rejects(service.listModels(CancellationToken.None), /invalid model/);
+			await assert.rejects(service.listModels(CancellationToken.None), SchemaError);
 		});
 	}
 
@@ -2446,7 +2475,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
 			const { service } = createService(store, {
 				tasks: [], repositories: new Map(),
-				onRequest: () => jsonResponse({}, 202, { 'retry-after': '5' }),
+				onRequest: () => jsonResponse({ environment_status: 'waking' }, 202, { 'retry-after': '5' }),
 			});
 
 			const result = action === 'connect'
@@ -2463,10 +2492,10 @@ suite('CloudSandboxApiService connection credentials', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: () => { throw failure; },
 		});
-		await assert.rejects(service.getEnvironment(request.environmentId, CancellationToken.None), error => error === failure);
+		await assert.rejects(service.getEnvironment(request.environmentId, CancellationToken.None), GitHubRequestError);
 	});
 
-	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\ninjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
+	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\tinjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
 		test(`omits unavailable or invalid request IDs: ${JSON.stringify(header)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const logService = new TestLogService();
 			const { service } = createService(store, {
@@ -2495,14 +2524,14 @@ suite('CloudSandboxApiService connection credentials', () => {
 
 		await assert.rejects(
 			service.reconnect(request, 'client-1', CancellationToken.None),
-			/Cloud sandbox reconnect returned credentials for a different client/,
+			MutationUncertainError,
 		);
 	});
 
 	test('parses a pending response with an HTTP-date Retry-After', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(),
-			onRequest: () => jsonResponse({}, 202, { 'retry-after': new Date(Date.now() + 45_000).toUTCString() }),
+			onRequest: () => jsonResponse({ environment_status: 'waking' }, 202, { 'retry-after': new Date(Date.now() + 45_000).toUTCString() }),
 		});
 		assert.deepStrictEqual(await service.connect(request, CancellationToken.None), {
 			kind: 'waking', waking: { retryAfterSeconds: 45 },
@@ -2542,6 +2571,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 					name: 'CloudSandboxRequestError', statusCode: response.status, retryAfterSeconds: 5,
 					code: response.code, limitedResource: response.resource, requestId: 'ABCD:1234:5678:90AB:CDEF',
 					message: `Mission Control connect failed: HTTP ${response.status} code=${response.code} (requestId=ABCD:1234:5678:90AB:CDEF)`,
+					outcome: undefined,
 					privateContent: false,
 				});
 				return true;
@@ -2575,7 +2605,8 @@ suite('CloudSandboxApiService connection credentials', () => {
 			if (replacement === 'new credential') {
 				await connecting;
 			} else {
-				await assert.rejects(connecting, replacement === 'cancelled' ? isCancellationError : { statusCode: 401, code: 'unauthenticated' });
+				await assert.rejects(connecting, replacement === 'cancelled' ? isCancellationError
+					: replacement === 'unavailable' ? /provider unavailable/ : { statusCode: 401, code: 'unauthenticated' });
 			}
 			assert.deepStrictEqual({ lookups, requests: requestedUrls.length }, {
 				lookups: 2, requests: replacement === 'new credential' || replacement === 'rejected again' ? 2 : 1,
@@ -2867,7 +2898,8 @@ suite('CloudSandboxApiService history cache', () => {
 		test(`${mutation} invalidates the affected task without evicting other tasks`, async () => {
 			const { service } = createService(store, {
 				tasks: [], repositories: new Map(),
-				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('Recorded') : jsonResponse({}),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('Recorded')
+					: mutation === 'delete' ? jsonResponse({}, 204) : jsonTaskResponse({ id: 'task' }),
 			});
 			await service.getSessionHistory('task', CancellationToken.None);
 			await service.getSessionHistory('unaffected', CancellationToken.None);
@@ -2932,7 +2964,7 @@ suite('Mission Control environment discovery', () => {
 			}, {
 				requests: [{ path: '/agents/environments/host%2Fwith%20spaces', method: 'DELETE', body: undefined }],
 				cached: undefined,
-				deleteOutcomes: [['deleteEnvironment', statusCode === 204 ? 'succeeded' : 'clientError']],
+				deleteOutcomes: [],
 			});
 		});
 	}
@@ -2956,7 +2988,11 @@ suite('Mission Control environment discovery', () => {
 		const { service, requestedUrls, changeAuthentication } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
-				id: 'host', kind: 'user-local', name: 'Native host', status: 'online', webpubsub: { access_token: 'must-not-be-cached' },
+				id: 'host', kind: 'user-local', name: 'Native host', status: 'online',
+				webpubsub: {
+					url: 'wss://relay.example.test', hub: 'hub', subprotocol: 'json.reliable.webpubsub.azure.v1',
+					access_token: 'must-not-be-cached', groups: { control: 'control', ingest_ack: 'ack', events: 'events', lifecycle: 'lifecycle' },
+				},
 			}]) : undefined,
 		});
 		const first = await service.listEnvironments(CancellationToken.None);
@@ -2987,7 +3023,7 @@ suite('Mission Control environment discovery', () => {
 		});
 	});
 
-	test('skips unusable metadata without hiding other valid environments or rejecting future statuses', async () => {
+	test('rejects invalid environment metadata without publishing a partial inventory', async () => {
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([
@@ -2996,10 +3032,8 @@ suite('Mission Control environment discovery', () => {
 				{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
 			]) : undefined,
 		});
-		assert.deepStrictEqual(await service.listEnvironments(CancellationToken.None), [
-			{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
-			{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
-		]);
+		await assert.rejects(service.listEnvironments(CancellationToken.None), SchemaError);
+		assert.strictEqual(service.getCachedEnvironments(), undefined);
 	});
 
 	test('explicit inventory refresh observes a host started since the cached offline result', async () => {
@@ -4990,12 +5024,9 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	const calls: ICreateCall[] = [];
 	const errors: string[] = [];
 	const warnings: string[] = [];
-	const instantiationService = store.add(new TestInstantiationService());
-	instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
-		override readonly onDidChangeCurrentProfile = Event.None;
-	}());
-	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
-		override async request(opts: IRequestOptions): Promise<IRequestContext> {
+	const { service } = createService(store, {
+		tasks: [], repositories: new Map(),
+		onRequest: (url, _token, opts) => {
 			calls.push({
 				url: opts.url ?? '',
 				type: opts.type ?? '',
@@ -5010,32 +5041,21 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 				// Reusing the create's failure status would fake a cleanup that never happened.
 				return jsonResponse({}, options?.deleteStatusCode ?? 204);
 			}
-			return jsonResponse(response, statusCode, options?.responseHeaders);
-		}
-	}());
-	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-		override async getSessions() { return [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]; }
-		override readonly onDidChangeSessions = Event.None;
-		override readonly onDidRegisterAuthenticationProvider = Event.None;
-		override readonly onDidUnregisterAuthenticationProvider = Event.None;
-	}());
-	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
-	instantiationService.stub(ILogService, new class extends NullLogService {
-		override error(message: string | Error): void {
-			errors.push(String(message));
-		}
-		override warn(message: string): void {
-			warnings.push(String(message));
-		}
-	}());
-	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
-		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
-		override reportRequest(): void { }
-		override reportDiscovery(): void { }
-		override reportProvisioningOutcome(): void { }
-	}());
-	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() { }());
-	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
+			const taskPath = /^\/agents\/tasks\/(?<id>[^/]+)(?:\/(?:archive|unarchive))?$/.exec(url.pathname);
+			const data = taskPath?.groups && isObject(response) && statusCode >= 200 && statusCode < 300
+				? { id: decodeURIComponent(taskPath.groups.id), ...response } : response;
+			return jsonTaskResponse(data, statusCode, options?.responseHeaders);
+		},
+		logService: new class extends NullLogService {
+			override error(message: string | Error): void {
+				errors.push(String(message));
+			}
+			override warn(message: string): void {
+				warnings.push(String(message));
+			}
+		}(),
+	});
+	return { service, calls, errors, warnings };
 }
 
 suite('CloudSandboxApiService task archiving', () => {
@@ -5048,7 +5068,7 @@ suite('CloudSandboxApiService task archiving', () => {
 			onRequest: (url, _token, options) => {
 				if (options.type === 'POST') {
 					tasks[0] = { ...tasks[0], archived_at: url.pathname.endsWith('/archive') ? new Date().toISOString() : undefined };
-					return jsonResponse({});
+					return jsonResponse(tasks[0]);
 				}
 				return undefined;
 			},
@@ -5074,8 +5094,8 @@ suite('CloudSandboxApiService task archiving', () => {
 			path: new URL(call.url).pathname, method: call.type, body: call.body,
 			timeout: call.timeout, integration: call.headers['Copilot-Integration-Id'],
 		})), [
-			{ path: '/agents/tasks/task%2Fwith%20spaces/archive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
-			{ path: '/agents/tasks/task%2Fwith%20spaces/unarchive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
+			{ path: '/agents/tasks/task%2Fwith%20spaces/archive', method: 'POST', body: undefined, timeout: undefined, integration: COPILOT_INTEGRATION_ID },
+			{ path: '/agents/tasks/task%2Fwith%20spaces/unarchive', method: 'POST', body: undefined, timeout: undefined, integration: COPILOT_INTEGRATION_ID },
 		]);
 	});
 
@@ -5105,7 +5125,7 @@ suite('CloudSandboxApiService task archiving', () => {
 			tasks, repositories: new Map(),
 			onRequest: async (url, _token, options) => {
 				if (options.type === 'POST') {
-					return jsonResponse({});
+					return jsonResponse(tasks[0]);
 				}
 				if (paused && url.pathname.endsWith('/tasks')) {
 					paused = false;
@@ -5134,7 +5154,7 @@ suite('CloudSandboxApiService task renaming', () => {
 			url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
 			type: 'PATCH',
 			body: { name: 'New title' },
-			timeout: 10_000,
+			timeout: undefined,
 			headers: {
 				Accept: 'application/json',
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
@@ -5163,7 +5183,7 @@ suite('CloudSandboxApiService task renaming', () => {
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(), requestError: new Error('rename transport failed'),
 		});
-		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), /rename transport failed/);
+		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), MutationUncertainError);
 	});
 
 	test('refreshes a renamed task even when the incremental list omits it', async () => {
@@ -5175,7 +5195,7 @@ suite('CloudSandboxApiService task renaming', () => {
 				if (options.type === 'PATCH') {
 					renamed = true;
 					original.name = 'New title';
-					return jsonResponse({});
+					return jsonResponse(original);
 				}
 				if (renamed && url.pathname.endsWith('/tasks/task-1')) {
 					return jsonResponse({ ...original, name: 'New title' });
@@ -5198,7 +5218,7 @@ suite('CloudSandboxApiService task renaming', () => {
 			tasks: [original], repositories: new Map(),
 			onRequest: (url, _token, options) => {
 				if (options.type === 'PATCH') {
-					return jsonResponse({});
+					return jsonResponse(original);
 				}
 				if (paused && url.pathname.endsWith('/tasks')) {
 					paused = false;
@@ -5219,7 +5239,7 @@ suite('CloudSandboxApiService task renaming', () => {
 suite('CloudSandboxApiService task deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const statusCode of [200, 204, 404]) {
+	for (const statusCode of [204, 404]) {
 		test(`deletes the encoded task through Mission Control: HTTP ${statusCode}`, async () => {
 			const { service, calls } = createServiceForCreate(store, undefined, 200, { deleteStatusCode: statusCode });
 			await service.deleteTask('task/with spaces', CancellationToken.None);
@@ -5227,7 +5247,7 @@ suite('CloudSandboxApiService task deletion', () => {
 				url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
 				type: 'DELETE',
 				body: undefined,
-				timeout: 10_000,
+				timeout: undefined,
 				headers: {
 					Accept: 'application/json',
 					'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
@@ -5246,7 +5266,7 @@ suite('CloudSandboxApiService task deletion', () => {
 
 	test('surfaces transport errors', async () => {
 		const { service } = createServiceForCreate(store, undefined, 200, { failDelete: true });
-		await assert.rejects(service.deleteTask('task-1', CancellationToken.None), /delete failed/);
+		await assert.rejects(service.deleteTask('task-1', CancellationToken.None), MutationUncertainError);
 	});
 
 	test('requires authentication before deleting', async () => {
@@ -5363,7 +5383,7 @@ suite('CloudSandboxApiService task ownership', () => {
 				},
 				onRequest: (_url, _token, options) => {
 					requests.push(options);
-					return jsonResponse(operation.response, operation.statusCode);
+					return jsonTaskResponse(operation.response, operation.statusCode);
 				},
 			});
 			const accountKey = await service.getAccountKey();
@@ -5409,7 +5429,7 @@ suite('CloudSandboxApiService task reservations', () => {
 			}, {
 				reserved: { taskId: 'reserved-task', sessionId: 'reserved-session', environmentId: 'reserved-env', reservationExpiresAt: Date.parse(expiry) },
 				requests: [{
-					path: '/agents/tasks', type: 'POST', timeout: 60_000,
+					path: '/agents/tasks', type: 'POST', timeout: undefined,
 					body: {
 						environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: '', reserve: true,
 						...(repoNwo ? { repositories: [{ owner: 'owner', name: 'repo' }] } : { compute: { scope: 'a' } }),
@@ -5441,25 +5461,25 @@ suite('CloudSandboxApiService task reservations', () => {
 	for (const invalid of [
 		{ name: 'missing reservation acknowledgement', response: { ...receipt, reserved: undefined } },
 		{ name: 'unreserved task', response: { ...receipt, reserved: false } },
-		{ name: 'invalid reservation acknowledgement', response: { ...receipt, reserved: 'true' } },
+		{ name: 'invalid reservation acknowledgement', schemaInvalid: true, response: { ...receipt, reserved: 'true' } },
 		{ name: 'missing expiry', response: { ...receipt, reservation_expires_at: undefined } },
-		{ name: 'invalid expiry', response: { ...receipt, reservation_expires_at: 'not-a-date' } },
-		{ name: 'numeric expiry', response: { ...receipt, reservation_expires_at: 42 } },
+		{ name: 'invalid expiry', schemaInvalid: true, response: { ...receipt, reservation_expires_at: 'not-a-date' } },
+		{ name: 'numeric expiry', schemaInvalid: true, response: { ...receipt, reservation_expires_at: 42 } },
 		{ name: 'missing session', response: { ...receipt, sessions: [] } },
-		{ name: 'invalid session list', response: { ...receipt, sessions: {} } },
-		{ name: 'null session', response: { ...receipt, sessions: [null] } },
-		{ name: 'missing session identity', response: { ...receipt, sessions: [{ environment_id: 'reserved-env' }] } },
+		{ name: 'invalid session list', schemaInvalid: true, response: { ...receipt, sessions: {} } },
+		{ name: 'null session', schemaInvalid: true, response: { ...receipt, sessions: [null] } },
+		{ name: 'missing session identity', schemaInvalid: true, response: { ...receipt, sessions: [{ environment_id: 'reserved-env' }] } },
 		{ name: 'non-concrete environment', response: { ...receipt, sessions: [{ id: 'reserved-session', environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID }] } },
-		{ name: 'invalid environment type', response: { ...receipt, sessions: [{ id: 'reserved-session', environment_id: ['reserved-env'] }] } },
+		{ name: 'invalid environment type', schemaInvalid: true, response: { ...receipt, sessions: [{ id: 'reserved-session', environment_id: ['reserved-env'] }] } },
 	]) {
-		test(`rejects ${invalid.name} and cleans up only the acknowledged new task`, async () => {
+		test(`rejects ${invalid.name} and cleans up only a schema-validated new task`, async () => {
 			const { service, calls } = createServiceForCreate(store, invalid.response, 201);
 
-			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None),
+				invalid.schemaInvalid ? MutationUncertainError : /usable task reservation/);
 
-			assert.deepStrictEqual(calls.map(call => [call.type, new URL(call.url).pathname]), [
-				['POST', '/agents/tasks'], ['DELETE', '/agents/tasks/reserved-task'],
-			]);
+			assert.deepStrictEqual(calls.map(call => [call.type, new URL(call.url).pathname]), invalid.schemaInvalid
+				? [['POST', '/agents/tasks']] : [['POST', '/agents/tasks'], ['DELETE', '/agents/tasks/reserved-task']]);
 		});
 	}
 
@@ -5467,7 +5487,7 @@ suite('CloudSandboxApiService task reservations', () => {
 		test(`rejects an unusable reservation task identity ${JSON.stringify(id)} without guessing a cleanup target`, async () => {
 			const { service, calls } = createServiceForCreate(store, { ...receipt, id }, 201);
 
-			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), MutationUncertainError);
 
 			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
 		});
@@ -5525,7 +5545,7 @@ suite('CloudSandboxApiService task reservations', () => {
 			authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
 			onRequest: () => {
 				account = 'other';
-				return jsonResponse({ ...receipt, reserved: false }, 201);
+				return jsonTaskResponse({ ...receipt, reserved: false }, 201);
 			},
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
@@ -5565,32 +5585,29 @@ suite('CloudSandboxApiService task reservations', () => {
 		});
 	}
 
-	test('retains an acknowledged reservation received after cancellation so the owner can release it', async () => {
+	test('cancels a reservation without replay or cleanup when its response arrives after cancellation', async () => {
 		const source = store.add(new CancellationTokenSource());
 		const { service, requestedUrls } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: () => {
 				source.cancel();
-				return jsonResponse(receipt, 201);
+				return jsonTaskResponse(receipt, 201);
 			},
 		});
 
-		const reserved = await service.reserveSession({ expectedAccountKey }, source.token);
-
-		assert.deepStrictEqual({ taskId: reserved.taskId, requests: requestedUrls.length, cancelled: source.token.isCancellationRequested }, {
-			taskId: 'reserved-task', requests: 1, cancelled: true,
-		});
+		await assert.rejects(service.reserveSession({ expectedAccountKey }, source.token), isCancellationError);
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).pathname), ['/agents/tasks']);
 	});
 
-	test('counts reservation requests separately from submitted provisioning', async () => {
+	test('leaves reservation request telemetry to the shared transport without reporting submitted provisioning', async () => {
 		const { service, requestOutcomes, provisioningOutcomes } = createService(store, {
-			tasks: [], repositories: new Map(), onRequest: () => jsonResponse(receipt, 201),
+			tasks: [], repositories: new Map(), onRequest: () => jsonTaskResponse(receipt, 201),
 		});
 
 		await service.reserveSession({ expectedAccountKey }, CancellationToken.None);
 
 		assert.deepStrictEqual({ requestOutcomes, provisioningOutcomes }, {
-			requestOutcomes: [['reserveTask', 'succeeded']], provisioningOutcomes: [],
+			requestOutcomes: [], provisioningOutcomes: [],
 		});
 	});
 });
@@ -5657,7 +5674,7 @@ suite('CloudSandboxApiService reservation submission', () => {
 					assert.ok(options.data);
 					const body: Record<string, unknown> = JSON.parse(options.data);
 					bodies.push(body);
-					return jsonResponse({
+					return jsonTaskResponse({
 						id: 'reserved-task', sessions: [{ id: 'reserved-session', environment_id: 'reserved-env' }],
 						...(body.reserve === true ? { reserved: true, reservation_expires_at: '2030-01-01T00:10:00Z' } : { claimed: true }),
 					}, body.reserve === true ? 201 : 200);
@@ -5679,7 +5696,7 @@ suite('CloudSandboxApiService reservation submission', () => {
 					{ ...context, prompt: 'final prompt', reserved_task_id: 'reserved-task' },
 				],
 				created: { taskId: 'reserved-task', sessionId: 'reserved-session', environmentId: 'reserved-env', claimed: true },
-				requestOutcomes: [['reserveTask', 'succeeded'], ['createTask', 'succeeded']],
+				requestOutcomes: [],
 				provisioningOutcomes: ['success'],
 			});
 		});
@@ -5690,23 +5707,23 @@ suite('CloudSandboxApiService reservation submission', () => {
 	};
 	for (const invalid of [
 		{ name: 'missing claim acknowledgement', response: { ...claimedTask, claimed: undefined } },
-		{ name: 'invalid claim acknowledgement', response: { ...claimedTask, claimed: 'true' } },
+		{ name: 'invalid claim acknowledgement', schemaInvalid: true, response: { ...claimedTask, claimed: 'true' } },
 		{ name: 'still reserved task', response: { ...claimedTask, reserved: true } },
-		{ name: 'invalid reservation state', response: { ...claimedTask, reserved: 'false' } },
-		{ name: 'null reservation state', response: { ...claimedTask, reserved: null } },
+		{ name: 'invalid reservation state', schemaInvalid: true, response: { ...claimedTask, reserved: 'false' } },
+		{ name: 'null reservation state', schemaInvalid: true, response: { ...claimedTask, reserved: null } },
 		{ name: 'different claimed task', response: { ...claimedTask, id: 'unexpected-task' } },
-		{ name: 'missing task identity', response: { ...claimedTask, id: undefined } },
-		{ name: 'numeric task identity', response: { ...claimedTask, id: 42 } },
-		{ name: 'blank task identity', response: { ...claimedTask, id: ' ' } },
+		{ name: 'missing task identity', schemaInvalid: true, response: { ...claimedTask, id: undefined } },
+		{ name: 'numeric task identity', schemaInvalid: true, response: { ...claimedTask, id: 42 } },
+		{ name: 'blank task identity', schemaInvalid: true, response: { ...claimedTask, id: ' ' } },
 		{ name: 'missing claimed session', response: { ...claimedTask, sessions: [] } },
 		{ name: 'missing fallback session', response: { ...claimedTask, id: 'fresh-task', claimed: false, sessions: [] } },
-		{ name: 'invalid session list', response: { ...claimedTask, sessions: {} } },
+		{ name: 'invalid session list', schemaInvalid: true, response: { ...claimedTask, sessions: {} } },
 		{ name: 'non-concrete environment', response: { ...claimedTask, sessions: [{ id: 'reserved-session', environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID }] } },
 	]) {
 		test(`rejects a reservation submission with ${invalid.name} without deleting or replaying it`, async () => {
 			const { service, calls } = createServiceForCreate(store, invalid.response, 200);
 
-			await assert.rejects(service.createSession(request, CancellationToken.None), CloudSandboxRequestError);
+			await assert.rejects(service.createSession(request, CancellationToken.None), invalid.schemaInvalid ? MutationUncertainError : CloudSandboxRequestError);
 
 			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
 		});
@@ -5742,37 +5759,43 @@ suite('CloudSandboxApiService reservation submission', () => {
 		});
 	}
 
-	for (const error of [new Error('network interrupted'), new CancellationError()]) {
-		test(`reservation submission preserves ${error.name} after dispatch without retry or cleanup`, async () => {
+	for (const cancelled of [false, true]) {
+		test(`reservation submission reports ${cancelled ? 'cancellation' : 'an uncertain network outcome'} after dispatch without retry or cleanup`, async () => {
+			const source = store.add(new CancellationTokenSource());
 			const { service, requestedUrls } = createService(store, {
-				tasks: [], repositories: new Map(), onRequest: () => { throw error; },
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					if (cancelled) {
+						source.cancel();
+					}
+					throw new Error('network interrupted');
+				},
 			});
 			let dispatched = 0;
 
-			await assert.rejects(service.createSession(request, CancellationToken.None, () => dispatched++), caught => caught === error);
+			await assert.rejects(service.createSession(request, source.token, () => dispatched++), cancelled ? isCancellationError : MutationUncertainError);
 
 			assert.deepStrictEqual({ requests: requestedUrls.length, dispatched }, { requests: 1, dispatched: 1 });
 		});
 	}
 
 	for (const claimed of [false, true]) {
-		test(`late reservation submission acknowledgement retains claimed ${claimed} after cancellation`, async () => {
+		test(`late reservation submission with claimed ${claimed} does not override cancellation or trigger cleanup`, async () => {
 			const source = store.add(new CancellationTokenSource());
 			const taskId = claimed ? 'reserved-task' : 'fresh-task';
 			const { service, requestedUrls, provisioningOutcomes } = createService(store, {
 				tasks: [], repositories: new Map(),
 				onRequest: () => {
 					source.cancel();
-					return jsonResponse({ ...claimedTask, id: taskId, claimed }, 200);
+					return jsonTaskResponse({ ...claimedTask, id: taskId, claimed }, 200);
 				},
 			});
 
-			const created = await service.createSession(request, source.token);
+			await assert.rejects(service.createSession(request, source.token), isCancellationError);
 
 			assert.deepStrictEqual({
-				created, requests: requestedUrls.length, provisioningOutcomes: provisioningOutcomes.map(outcome => outcome[0]),
+				requests: requestedUrls.length, provisioningOutcomes: provisioningOutcomes.map(outcome => outcome[0]),
 			}, {
-				created: { taskId, sessionId: 'reserved-session', environmentId: 'reserved-env', claimed },
 				requests: 1, provisioningOutcomes: ['cancelled'],
 			});
 		});
@@ -5805,7 +5828,7 @@ suite('CloudSandboxApiService session creation', () => {
 		const serverRequestId = 'ABCD:1234:5678:9ABC:DEF01234';
 		const { service, lifecycleEvents } = createService(store, {
 			tasks: [], repositories: new Map(),
-			onRequest: () => jsonResponse({ id: taskId, claimed: false, sessions: [{ id: sessionId, environment_id: environmentId }] }, 201, { 'x-github-request-id': serverRequestId }),
+			onRequest: () => jsonTaskResponse({ id: taskId, claimed: false, sessions: [{ id: sessionId, environment_id: environmentId }] }, 201, { 'x-github-request-id': serverRequestId }),
 		});
 		await service.createSession({
 			reservedTaskId, prompt: 'private prompt', repoNwo: 'private/repository',
@@ -5854,7 +5877,7 @@ suite('CloudSandboxApiService session creation', () => {
 		test(`reports the ${scenario.path} startup path without exporting creation inputs`, async () => {
 			const { service, provisioningOutcomes } = createService(store, {
 				tasks: [], repositories: new Map(),
-				onRequest: () => jsonResponse({
+				onRequest: () => jsonTaskResponse({
 					id: 'private-task', claimed: scenario.claimed,
 					sessions: [{ id: 'private-session', environment_id: 'private-env' }],
 				}, scenario.statusCode ?? 201),
@@ -5894,7 +5917,7 @@ suite('CloudSandboxApiService session creation', () => {
 					}
 					return outcome === 'HTTP failure'
 						? jsonResponse({ message: 'unavailable' }, 503)
-						: jsonResponse({ id: 'task-1', sessions: [{ id: 'session-1', environment_id: 'env-1' }] }, 201);
+						: jsonTaskResponse({ id: 'task-1', sessions: [{ id: 'session-1', environment_id: 'env-1' }] }, 201);
 				},
 			});
 			const creating = service.createSession({ prompt: 'hello', environmentId: 'env-1' }, CancellationToken.None, () => events.push('dispatch'));
@@ -5974,7 +5997,7 @@ suite('CloudSandboxApiService session creation', () => {
 					if (result === 'invalid JSON') {
 						return { res: { headers: {}, statusCode: 200 }, stream: bufferToStream(VSBuffer.fromString('invalid')) };
 					}
-					return jsonResponse({
+					return jsonTaskResponse({
 						id: 'private-task',
 						sessions: result === 'invalid binding' ? [] : [{ id: 'private-session', environment_id: 'private-environment' }],
 					});
@@ -5982,10 +6005,11 @@ suite('CloudSandboxApiService session creation', () => {
 			});
 			await timeout(100);
 			const provisioning = service.createSession({ prompt: 'private prompt' }, source.token);
-			if (result === 'success' || result === 'late success after cancellation') {
+			if (result === 'success') {
 				await provisioning;
 			} else {
-				await assert.rejects(provisioning, caught => result === 'network error' ? caught === error : caught instanceof Error);
+				await assert.rejects(provisioning, result === 'late success after cancellation' || result === 'cancelled'
+					? isCancellationError : result === 'network error' ? MutationUncertainError : Error);
 			}
 			await timeout(100);
 			assert.deepStrictEqual(provisioningOutcomes, [[
@@ -6015,7 +6039,6 @@ suite('CloudSandboxApiService session creation', () => {
 			type: calls[0].type,
 			endsWithTasks: calls[0].url.endsWith('/agents/tasks'),
 			body: calls[0].body,
-			// Creating a task provisions a VM before replying, so it needs its own budget.
 			timeout: calls[0].timeout,
 			// `fetch` labels a string body `text/plain` unless told otherwise.
 			contentType: calls[0].headers['Content-Type'],
@@ -6028,8 +6051,7 @@ suite('CloudSandboxApiService session creation', () => {
 				prompt: 'fix it',
 				repositories: [{ owner: 'osortega', name: 'simple-server' }],
 			},
-			// A literal, not the constant: comparing a value to itself would prove nothing.
-			timeout: 60_000,
+			timeout: undefined,
 			contentType: 'application/json',
 		});
 	});
@@ -6112,7 +6134,7 @@ suite('CloudSandboxApiService session creation', () => {
 			onRequest: () => { throw error; },
 		});
 
-		await assert.rejects(service.createSession({ environmentId: 'env-prepared', prompt: 'hello' }, CancellationToken.None), caught => caught === error);
+		await assert.rejects(service.createSession({ environmentId: 'env-prepared', prompt: 'hello' }, CancellationToken.None), MutationUncertainError);
 		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).pathname), ['/agents/tasks']);
 	});
 
@@ -6132,7 +6154,7 @@ suite('CloudSandboxApiService session creation', () => {
 			},
 			onRequest: (_url, _token, options) => {
 				calls.push({ body: JSON.parse(options.data ?? ''), headers: options.headers ?? {} });
-				return jsonResponse({ id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-1' }] });
+				return jsonTaskResponse({ id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-1' }] });
 			},
 		});
 
@@ -6258,15 +6280,15 @@ suite('CloudSandboxApiService session creation', () => {
 		assert.deepStrictEqual(calls.map(c => c.type), ['POST']);
 	});
 
-	test('logs safe diagnostics instead of private bodies when creation fails', async () => {
-		const { service, errors } = createServiceForCreate(store,
+	test('surfaces safe diagnostics instead of private bodies when creation fails', async () => {
+		const { service, errors, warnings } = createServiceForCreate(store,
 			{ message: 'private credential', access_token: 'private credential', error_code: 'backend_error' }, 500,
 			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'x-sweagentd-retry': 'private header' } });
 
-		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
-
-		assert.deepStrictEqual(errors, [
-			'[CloudSandboxApi] Mission Control task create failed: HTTP 500 code=backend_error (requestId=ABCD:1234:5678:90AB:CDEF)',
-		]);
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None), {
+			message: 'Mission Control task create failed: HTTP 500 code=backend_error (requestId=ABCD:1234:5678:90AB:CDEF)',
+			statusCode: 500, code: 'backend_error',
+		});
+		assert.strictEqual([...errors, ...warnings].some(message => message.includes('private')), false);
 	});
 });

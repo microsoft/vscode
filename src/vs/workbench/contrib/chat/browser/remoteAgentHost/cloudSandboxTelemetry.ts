@@ -403,7 +403,7 @@ interface IConnectionOperation {
 	stage: CloudSandboxConnectionStage;
 	preparationStartedAt: number | undefined;
 	preparationMs: number;
-	credentialRequests: number;
+	credentialOperations: number;
 	wakingResponses: number;
 	transportAttempts: number;
 	firstFailure?: { readonly phase: string; readonly code: number | undefined; readonly error: IConnectionTelemetryError };
@@ -461,7 +461,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		const measuredReservationWait = typeof reservationWaitMs === 'number' && Number.isFinite(reservationWaitMs)
 			? Math.max(0, reservationWaitMs) : undefined;
 		return {
-			operation, stage, startedAt, credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
+			operation, stage, startedAt, credentialOperations: 0, wakingResponses: 0, transportAttempts: 0,
 			provisioningMs,
 			reservationWaitMs: operation === 'connect' && this._initialEnvironmentOperation === 'provision'
 				? measuredReservationWait === undefined ? undefined : Math.min(measuredReservationWait, provisioningMs ?? measuredReservationWait)
@@ -551,7 +551,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			if (event === 'issued') {
 				operation = this._operation;
 				if (operation) {
-					operation.credentialRequests++;
+					operation.credentialOperations++;
 				}
 			} else if (operation && operation === this._operation) {
 				operation.wakingResponses++;
@@ -769,7 +769,8 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			preparationMs, connectionMs: durationMs - preparationMs,
 			surface: this._surface, source: this._source, environmentKind: this._environmentKind,
 			taskCreationPath: this._taskCreationPath,
-			credentialRequests: operation.credentialRequests, wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
+			credentialRequests: undefined, credentialOperations: operation.credentialOperations,
+			wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
 			credentialsMs: operation.durations.credentials, relayMs: operation.durations.relay, protocolMs: operation.durations.protocol,
 			authenticationMs: operation.durations.authentication, restorationMs: operation.durations.restoration,
 			firstFailurePhase: operation.firstFailure?.phase, firstFailureCode: operation.firstFailure?.code,
@@ -808,7 +809,8 @@ type CloudSandboxConnectionOutcomeEvent = {
 	connectionMs: number;
 	surface: CloudSandboxConnectionSurface;
 	source: CloudSandboxConnectionSource;
-	credentialRequests: number;
+	credentialRequests: number | undefined;
+	credentialOperations: number;
 	wakingResponses: number;
 	transportAttempts: number;
 	credentialsMs: number;
@@ -840,7 +842,8 @@ export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmen
 	connectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds outside credential preparation, including relay, protocol, authentication, restoration and connection retry backoff. Together with preparationMs equals durationMs, without nested phase overlap.' };
 	surface: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Editor or Agents window, on desktop or web; unknown when not supplied.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Created or existing environment from the caller; does not imply warm or cold compute.' };
-	credentialRequests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential requests handed to the request service during this operation, including failed and cancelled in-flight requests.' };
+	credentialRequests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Legacy credential request-service submissions; omitted for typed-client operations, whose wire attempts use shared GitHub transport telemetry.' };
+	credentialOperations: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential operations submitted to the typed client, including failures and cancellations; not an HTTP attempt count.' };
 	wakingResponses: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential requests answered with a pending response during this operation.' };
 	transportAttempts: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Relay connection attempts begun during this operation.' };
 	credentialsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative credential acquisition and waiting time, including partial spans; may overlap authentication.' };
