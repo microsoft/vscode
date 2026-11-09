@@ -12,31 +12,37 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatPetJumpGameModel, IChatPetJumpPlatform, IChatPetJumpWall } from '../../../common/chatPetJumpGame.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementForAccessory, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
-import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
+import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const editorWindowEnvironment = new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }();
+	const agentsWindowEnvironment = new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = true; }();
 
 	setup(() => {
 		if (mainWindow.location.protocol === `${Schemas.file}:`) {
@@ -44,16 +50,6 @@ suite('ChatPetWidget', () => {
 		}
 	});
 	teardown(() => sinon.restore());
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-		override publicLog2(eventName?: string, data?: unknown): void {
-			if (eventName) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createHopHarness(initialLeft = 48, minimumLeft = 0, maximumLeft = 96) {
 		const events: string[] = [];
@@ -115,9 +111,12 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation']) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
+		if (supportsJumpGame) {
+			root.classList.add('monaco-workbench');
+		}
 		const firstParent = mainWindow.document.createElement('div');
 		firstParent.style.cssText = 'position:absolute;left:180px;top:180px;width:400px;height:80px';
 		const secondParent = mainWindow.document.createElement('div');
@@ -126,7 +125,10 @@ suite('ChatPetWidget', () => {
 		mainWindow.document.body.append(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const platformChanged = disposables.add(new Emitter<void>());
+		const inputChanged = disposables.add(new Emitter<void>());
+		const additionalPlatforms: HTMLElement[] = [];
 		const reducedMotionChanged = disposables.add(new Emitter<void>());
+		let contextMenu: IContextMenuDelegate | undefined;
 		const accessibilityService = new class extends TestAccessibilityService {
 			override onDidChangeReducedMotion = reducedMotionChanged.event;
 			override isMotionReduced(): boolean { return motionReduced; }
@@ -139,9 +141,14 @@ suite('ChatPetWidget', () => {
 			disconnect(): void { }
 		}
 		const createHost = (parent: HTMLElement, transition: IChatPetWidgetHost['transition']): IChatPetWidgetHost => ({
-			...createPetHost(parent, parent, root),
+			...createPetHost(parent, supportsJumpGame ? secondParent : parent, root),
 			transition,
+			inputChanged: inputChanged.event,
 			getPlatformTop: () => parent.getBoundingClientRect().top,
+			getPlatforms: supportsJumpGame ? () => [...new Set([parent, secondParent, ...additionalPlatforms])].map(element => {
+				const bounds = element.getBoundingClientRect();
+				return { left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: true, supportsJumpGame: element === parent };
+			}) : undefined,
 			onDidChangePlatform: platformChanged.event,
 			setPlatformOccupation,
 		});
@@ -153,15 +160,24 @@ suite('ChatPetWidget', () => {
 				override readonly lastRequestObs = constObservable(undefined);
 			}()),
 		};
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const storageService = disposables.add(new TestStorageService());
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IStorageService, storageService);
 		service.toggle();
+		if (supportsJumpGame) {
+			service.setHorizontalPosition(0.5);
+		}
 		if (color) {
 			service.unlockAchievement(ChatPetAchievementIds.Blobby);
 			service.setColor(color);
 		}
+		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
-			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
+			}(),
 			new class extends mock<ICommandService>() { }(),
 			new NullLogService(),
 			new class extends mock<IHostService>() {
@@ -169,6 +185,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			instantiationService,
 		));
 		const button = firstParent.querySelector<HTMLElement>('.chat-pet-button')!;
 		const overlay = firstParent.querySelector<HTMLElement>('.chat-pet-overlay')!;
@@ -176,8 +193,9 @@ suite('ChatPetWidget', () => {
 		const effectImage = overlay.querySelector<HTMLImageElement>(':scope > img.chat-pet-spritesheet')!;
 		button.classList.remove('entering');
 		return {
-			root, firstParent, secondParent, firstHost, secondHost, widget, service, button, overlay, effect, effectImage, platformChanged,
+			root, firstParent, secondParent, firstHost, secondHost, widget, service, storageService, button, overlay, effect, effectImage, platformChanged, inputChanged, additionalPlatforms,
 			layout: () => layout(),
+			getContextMenu: () => contextMenu,
 			setReducedMotion: (value: boolean) => {
 				motionReduced = value;
 				reducedMotionChanged.fire();
@@ -222,39 +240,556 @@ suite('ChatPetWidget', () => {
 			: []);
 	}
 
+	function dispatchJumpGameKey(button: HTMLElement, keyCode: number, type = 'keydown'): KeyboardEvent {
+		const event = new mainWindow.KeyboardEvent(type, { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { value: keyCode });
+		button.dispatchEvent(event);
+		return event;
+	}
+
+	test('jump game is opt-in for the welcome perch, not ordinary chat surfaces', async () => {
+		const ordinary = createHostTransitionHarness(true);
+		await waitForPetAnimation(() => ordinary.button.dataset.state === 'idle');
+		ordinary.button.click();
+		const welcome = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => welcome.button.dataset.state === 'idle');
+		const label = welcome.button.getAttribute('aria-label');
+		welcome.button.click();
+		assert.deepStrictEqual({
+			ordinary: ordinary.widget.jumpGame,
+			welcome: !!welcome.widget.jumpGame,
+			label,
+			platforms: welcome.root.querySelectorAll('.chat-pet-jump-platform').length > 1,
+		}, {
+			ordinary: undefined,
+			welcome: true,
+			label: 'Play Blobby\'s Jump Game. Activate the pet on this perch to play, or drag it to move it.',
+			platforms: true,
+		});
+	});
+
+	for (const width of [320, 800]) {
+		test(`renders inline jump game keybinding labels at ${width}px`, async () => {
+			const { root, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			root.style.width = `${width}px`;
+			layout();
+			const hint = root.querySelector<HTMLElement>('.chat-pet-jump-hint')!;
+			const keybindings = [...hint.querySelectorAll<HTMLElement>('.monaco-keybinding')];
+			const left = isMacintosh ? '\u2190' : 'LeftArrow';
+			const right = isMacintosh ? '\u2192' : 'RightArrow';
+			assert.deepStrictEqual({
+				text: hint.textContent,
+				keys: keybindings.map(label => label.querySelector('.monaco-keybinding-key')?.textContent),
+				inline: keybindings.every(label => mainWindow.getComputedStyle(label).display === 'inline-flex'),
+				fits: hint.scrollWidth <= hint.clientWidth,
+				accessibleLabel: button.getAttribute('aria-label'),
+			}, {
+				text: `Hold Space to charge, release to jump. ${left} / ${right} to hop or aim. Escape to exit.`,
+				keys: ['Space', left, right, 'Escape'],
+				inline: true,
+				fits: true,
+				accessibleLabel: 'Blobby\'s jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.',
+			});
+		});
+	}
+
+	for (const reducedMotion of [false, true]) {
+		test(`starts the game from the normal input surface through the pet menu (reduced motion: ${reducedMotion})`, async () => {
+			const { root, firstHost, firstParent, secondParent, widget, button, getContextMenu } = createHostTransitionHarness(reducedMotion, 'teleport', undefined, undefined, undefined, true);
+			widget.setHost({
+				...firstHost,
+				getPlatforms: () => firstHost.getPlatforms!().map(platform => ({ ...platform, isDefault: platform.element === secondParent })),
+			});
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			const initialBottom = button.getBoundingClientRect().bottom;
+			button.focus();
+			const keyboardEvent = new mainWindow.KeyboardEvent('keydown', { key: 'F10', code: 'F10', shiftKey: true, bubbles: true, cancelable: true });
+			Object.defineProperty(keyboardEvent, 'keyCode', { value: 121 });
+			button.dispatchEvent(keyboardEvent);
+			const menu = getContextMenu();
+			const action = menu?.getActions().find(action => action.id === 'chat.pet.playJumpGame');
+			assert.ok(action);
+			const actionState = { label: action.label, enabled: action.enabled };
+			menu!.onHide?.(false);
+			await action.run();
+			assert.deepStrictEqual({
+				initialBottom,
+				actionState,
+				playing: !!widget.jumpGame,
+				focused: mainWindow.document.activeElement === button,
+				perchBottom: button.getBoundingClientRect().bottom,
+				platforms: root.querySelectorAll('.chat-pet-jump-platform').length > 1,
+				menuAnchoredToPet: menu!.getAnchor() === button,
+				menuKeyboardSelected: menu!.autoSelectItem,
+				keyHandled: keyboardEvent.defaultPrevented,
+			}, {
+				initialBottom: secondParent.getBoundingClientRect().top,
+				actionState: { label: 'Play Jump Game', enabled: true },
+				playing: true, focused: true, perchBottom: firstParent.getBoundingClientRect().top, platforms: true,
+				menuAnchoredToPet: true, menuKeyboardSelected: true, keyHandled: true,
+			});
+		});
+	}
+
+	test('only offers the game menu action on hosts with a visible welcome perch and rechecks stale actions', async () => {
+		const ordinary = createHostTransitionHarness(true);
+		ordinary.button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const ordinaryHasAction = ordinary.getContextMenu()?.getActions().some(action => action.id === 'chat.pet.playJumpGame');
+		const { firstParent, widget, button, getContextMenu } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const menu = getContextMenu();
+		const action = menu?.getActions().find(action => action.id === 'chat.pet.playJumpGame');
+		assert.ok(action);
+		menu!.onHide?.(false);
+		firstParent.style.visibility = 'hidden';
+		await action.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			ordinaryHasAction,
+			hiddenHasAction: getContextMenu()?.getActions().some(action => action.id === 'chat.pet.playJumpGame'),
+			game: widget.jumpGame,
+		}, { ordinaryHasAction: false, hiddenHasAction: false, game: undefined });
+	});
+
+	for (const scale of [1, 2]) {
+		test(`keeps controls inside the minimum game height and cancels below it (scale: ${scale})`, async () => {
+			const { root, firstParent, widget, service, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			service.setScale(scale);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			const game = widget.jumpGame;
+			assert.ok(game);
+			const minimumHeight = 48 * scale + 80;
+			root.style.height = `${minimumHeight}px`;
+			firstParent.style.top = `${48 * scale + 48}px`;
+			layout();
+			const gauge = root.querySelector<HTMLElement>('.chat-pet-jump-charge')!;
+			const bounds = root.getBoundingClientRect();
+			const atBoundary = {
+				playing: widget.jumpGame === game,
+				petInside: button.getBoundingClientRect().top >= bounds.top && button.getBoundingClientRect().bottom <= bounds.bottom,
+				gaugeInside: gauge.getBoundingClientRect().top >= bounds.top && gauge.getBoundingClientRect().bottom <= bounds.bottom,
+			};
+			root.style.height = `${minimumHeight - 1}px`;
+			layout();
+			assert.deepStrictEqual({
+				atBoundary,
+				playingAfterShrink: !!widget.jumpGame,
+				effectsAfterShrink: root.querySelectorAll('.chat-pet-jump-effects').length,
+			}, {
+				atBoundary: { playing: true, petInside: true, gaugeInside: true },
+				playingAfterShrink: false, effectsAfterShrink: 0,
+			});
+		});
+	}
+
+	for (const height of [60, 80]) {
+		test(`cancels the game after shrinking its playfield to ${height}px`, async () => {
+			const { root, widget, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			root.style.height = `${height}px`;
+			layout();
+			assert.deepStrictEqual({
+				playing: !!widget.jumpGame, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
+			}, { playing: false, effects: 0 });
+		});
+	}
+
+	test('shows hops above the device-local high score and retains only the high score between runs', async () => {
+		let hops = 0;
+		sinon.stub(ChatPetJumpGameModel.prototype, 'hops').get(() => hops);
+		const { root, widget, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		const readScore = () => [...root.querySelectorAll('.chat-pet-jump-hops, .chat-pet-jump-high-score')].map(element => element.textContent);
+		button.click();
+		const initial = readScore();
+		hops = 7;
+		dispatchJumpGameKey(button, 13);
+		const playing = readScore();
+		const hopsBounds = root.querySelector('.chat-pet-jump-hops')!.getBoundingClientRect();
+		const highScoreBounds = root.querySelector('.chat-pet-jump-high-score')!.getBoundingClientRect();
+		const accessible = widget.jumpGame!.getAccessibleContent();
+		dispatchJumpGameKey(button, 27);
+		const hiddenAfterExit = root.querySelector('.chat-pet-jump-score') === null;
+		hops = 0;
+		button.click();
+		assert.deepStrictEqual({
+			initial, playing, restarted: readScore(), hiddenAfterExit,
+			stacked: highScoreBounds.top >= hopsBounds.bottom,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+			localOnly: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).includes('chat.vscodePet.jumpGame.highScore'),
+			accessible: accessible.includes('Hops: 7. High score: 7.'),
+		}, {
+			initial: ['Hops: 0', 'High score: 0'], playing: ['Hops: 7', 'High score: 7'], restarted: ['Hops: 0', 'High score: 7'],
+			hiddenAfterExit: true, stacked: true, stored: 7, localOnly: true, accessible: true,
+		});
+	});
+
+	test('updates an open score counter from storage without letting a lower score overwrite the best', async () => {
+		const { root, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		storageService.store('chat.vscodePet.jumpGame.highScore', 12, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		const initial = root.querySelector('.chat-pet-jump-high-score')!.textContent;
+		storageService.store('chat.vscodePet.jumpGame.highScore', 20, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const updated = root.querySelector('.chat-pet-jump-high-score')!.textContent;
+		storageService.store('chat.vscodePet.jumpGame.highScore', 3, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual({
+			initial, updated, final: root.querySelector('.chat-pet-jump-high-score')!.textContent,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+		}, { initial: 'High score: 12', updated: 'High score: 20', final: 'High score: 20', stored: 20 });
+	});
+
+	test('recovers an invalid stored high score instead of rendering NaN', async () => {
+		const { root, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		storageService.store('chat.vscodePet.jumpGame.highScore', 'invalid', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		assert.deepStrictEqual({
+			label: root.querySelector('.chat-pet-jump-high-score')!.textContent,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+		}, { label: 'High score: 0', stored: 0 });
+	});
+
+	test('renders distinct hazard markings and describes moving ledges, crumbling ledges, and walls accessibly', async () => {
+		const platforms: IChatPetJumpPlatform[] = [
+			{ id: 0, left: 320, width: 144, height: 0, kind: 'static', collapseProgress: 0, fallDistance: 0 },
+			{ id: 5, left: 400, width: 80, height: 60, kind: 'moving', collapseProgress: 0, fallDistance: 0 },
+			{ id: 9, left: 300, width: 70, height: 120, kind: 'crumbling', collapseProgress: 0.5, fallDistance: 0 },
+		];
+		const walls: IChatPetJumpWall[] = [{ id: 12, left: 500, width: 8, bottom: 60, top: 160 }];
+		sinon.stub(ChatPetJumpGameModel.prototype, 'platforms').get(() => platforms);
+		sinon.stub(ChatPetJumpGameModel.prototype, 'walls').get(() => walls);
+		const advance = sinon.spy(ChatPetJumpGameModel.prototype, 'advance');
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		const game = widget.jumpGame!;
+		game.pause();
+		const callsBeforePause = advance.callCount;
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const content = game.getAccessibleContent();
+		const before = {
+			moving: root.querySelectorAll('.chat-pet-jump-platform.moving').length,
+			crumbling: root.querySelector<HTMLElement>('.chat-pet-jump-platform.crumbling-active .chat-pet-jump-platform-integrity')?.style.transform === 'scaleX(0.5)',
+			walls: root.querySelectorAll('.chat-pet-jump-wall').length,
+			paused: advance.callCount === callsBeforePause,
+			accessible: content.includes('Moving horizontally.') && content.includes('Crumbles after landing.') && content.includes('Wall beside platform 12'),
+			help: game.getHelp().includes('Only the high score is saved on this device'),
+		};
+		platforms[2] = { ...platforms[2], collapseProgress: 1, fallDistance: 250 };
+		game.layout();
+		const collapsed = {
+			visible: root.querySelectorAll('.chat-pet-jump-platform.crumbling').length,
+			describedAsLandable: game.getAccessibleContent().includes('Platform 9:'),
+		};
+		game.resume();
+		dispatchJumpGameKey(button, 27);
+		assert.deepStrictEqual({ before, collapsed, cleaned: root.querySelectorAll('.chat-pet-jump-effects, .chat-pet-jump-score, .chat-pet-jump-wall').length }, {
+			before: { moving: 1, crumbling: true, walls: 1, paused: true, accessible: true, help: true },
+			collapsed: { visible: 0, describedAsLandable: false }, cleaned: 0,
+		});
+	});
+
+	test('charged game jumps scroll platforms, keep the pet in view, and leave the host and pet preferences untouched', async () => {
+		const { widget, root, firstParent, button, overlay, service } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		const position = service.horizontalPosition.get();
+		const initialPetBounds = button.getBoundingClientRect();
+		const initialHostBounds = firstParent.getBoundingClientRect();
+		const draft = mainWindow.document.createElement('textarea');
+		draft.value = 'Keep this unsent draft';
+		root.appendChild(draft);
+		button.click();
+		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
+		const platform = effects.querySelector<HTMLElement>('.chat-pet-jump-platform')!;
+		const platformTop = platform.getBoundingClientRect().top;
+		const chargeEvent = dispatchJumpGameKey(button, 32);
+		await waitForPetAnimation(() => !!effects.querySelector('.chat-pet-jump-charge.full'));
+		const filledCells = effects.querySelectorAll('.chat-pet-jump-charge-cell.filled').length;
+		dispatchJumpGameKey(button, 39);
+		const releaseEvent = dispatchJumpGameKey(button, 32, 'keyup');
+		await waitForPetAnimation(() => platform.getBoundingClientRect().top > platformTop + 5);
+		const inFlight = {
+			petTop: button.getBoundingClientRect().top,
+			platformScrolled: platform.getBoundingClientRect().top > platformTop,
+			hostBounds: firstParent.getBoundingClientRect().toJSON(),
+		};
+		dispatchJumpGameKey(button, 27);
+		assert.deepStrictEqual({
+			inputConsumed: chargeEvent.defaultPrevented && releaseEvent.defaultPrevented,
+			filledCells,
+			inFlight,
+			game: widget.jumpGame,
+			restoredParent: overlay.parentElement === firstParent,
+			restoredPetTop: button.getBoundingClientRect().top,
+			effectsRemaining: effects.isConnected,
+			focusRestored: mainWindow.document.activeElement === button,
+			position: service.horizontalPosition.get(),
+			draft: draft.value,
+		}, {
+			inputConsumed: true,
+			filledCells: 8,
+			inFlight: { petTop: initialPetBounds.top, platformScrolled: true, hostBounds: initialHostBounds.toJSON() },
+			game: undefined,
+			restoredParent: true,
+			restoredPetTop: initialPetBounds.top,
+			effectsRemaining: false,
+			focusRestored: true,
+			position,
+			draft: 'Keep this unsent draft',
+		});
+	});
+
+	test('leaving the game returns keyboard ownership to the product without stealing focus', async () => {
+		const { widget, root, button, overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		const input = mainWindow.document.createElement('textarea');
+		root.appendChild(input);
+		button.click();
+		dispatchJumpGameKey(button, 32);
+		const focusedBefore = mainWindow.document.activeElement === button;
+		input.focus();
+		const space = dispatchJumpGameKey(input, 32);
+		await waitForPetAnimation(() => !widget.jumpGame);
+		assert.deepStrictEqual({
+			gameActive: !!widget.jumpGame,
+			focusedBefore,
+			captured: space.defaultPrevented,
+			focus: mainWindow.document.activeElement === input,
+			overlay: overlay.classList.contains('chat-pet-jump-game'),
+		}, { gameActive: false, focusedBefore: true, captured: false, focus: true, overlay: false });
+	});
+
+	test('accessibility help pauses the game and resumes without a stuck charge', () => {
+		const { widget, root, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		const help = mainWindow.document.createElement('textarea');
+		root.appendChild(help);
+		button.click();
+		const game = widget.jumpGame!;
+		dispatchJumpGameKey(button, 32);
+		game.pause();
+		help.focus();
+		const stillPlaying = widget.jumpGame === game;
+		const content = game.getAccessibleContent();
+		game.resume();
+		const restored = mainWindow.document.activeElement === button;
+		dispatchJumpGameKey(button, 32, 'keyup');
+		assert.deepStrictEqual({
+			stillPlaying,
+			restored,
+			grounded: game.getAccessibleContent().includes('On platform 0.'),
+			contentHasPlatforms: content.includes('Platform 1:'),
+			hasHelp: game.getHelp().includes('<keybinding:editor.action.accessibleView>'),
+			charge: root.querySelectorAll('.chat-pet-jump-charge-cell.filled').length,
+		}, { stillPlaying: true, restored: true, grounded: true, contentHasPlatforms: true, hasHelp: true, charge: 0 });
+	});
+
+	test('host changes, disabling the pet, and disposal remove the entire game layer', () => {
+		const results = [];
+		for (const action of ['host', 'disable', 'dispose']) {
+			const { widget, root, button, overlay, service, secondHost } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			button.click();
+			if (action === 'host') {
+				widget.setHost(secondHost);
+			} else if (action === 'disable') {
+				service.toggle();
+			} else {
+				widget.dispose();
+			}
+			results.push({
+				game: widget.jumpGame,
+				layer: overlay.classList.contains('chat-pet-jump-game'),
+				platforms: root.querySelectorAll('.chat-pet-jump-platform').length,
+			});
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 3 }, () => ({ game: undefined, layer: false, platforms: 0 })));
+	});
+
+	for (const surface of ['input', 'raised']) {
+		test(`typing ends the game with a straight fall onto the ${surface} surface`, async () => {
+			const { root, widget, button, overlay, firstParent, secondParent, inputChanged, additionalPlatforms } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+			const shelf = mainWindow.document.createElement('div');
+			shelf.style.cssText = 'position:absolute;left:40px;top:340px;width:720px;height:20px';
+			if (surface === 'raised') {
+				root.appendChild(shelf);
+				additionalPlatforms.push(shelf);
+			}
+			const input = mainWindow.document.createElement('textarea');
+			secondParent.appendChild(input);
+			button.click();
+			dispatchJumpGameKey(button, 39);
+			const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
+			await waitForPetAnimation(() => button.getBoundingClientRect().left > 380);
+			const departure = button.getBoundingClientRect();
+			input.value = 'Keep typing here';
+			inputChanged.fire();
+			input.focus();
+			const handoff = {
+				gameActive: !!widget.jumpGame,
+				falling: button.classList.contains('throwing'),
+				left: button.getBoundingClientRect().left,
+				top: button.getBoundingClientRect().top,
+				fading: effects.classList.contains('exiting'),
+				foregroundLayer: overlay.classList.contains('relocating'),
+			};
+			const target = surface === 'raised' ? shelf : secondParent;
+			await waitForPetAnimation(() => !button.classList.contains('throwing') && Math.abs(button.getBoundingClientRect().bottom - target.getBoundingClientRect().top) < 1);
+			await waitForPetAnimation(() => !effects.isConnected);
+			assert.deepStrictEqual({
+				handoff,
+				landingLeft: button.getBoundingClientRect().left,
+				focusKept: mainWindow.document.activeElement === input,
+				draft: input.value,
+				dead: button.classList.contains('hidden'),
+				effectsRemaining: root.querySelectorAll('.chat-pet-jump-effects').length,
+				hostRestored: overlay.parentElement === firstParent && !overlay.classList.contains('relocating'),
+			}, {
+				handoff: { gameActive: false, falling: true, left: departure.left, top: departure.top, fading: true, foregroundLayer: true },
+				landingLeft: departure.left,
+				focusKept: true,
+				draft: 'Keep typing here',
+				dead: false,
+				effectsRemaining: 0,
+				hostRestored: true,
+			});
+		});
+	}
+
+	test('falling past the generated platforms hands off to normal input collisions', async () => {
+		const { root, widget, button, secondParent } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		for (let i = 0; i < 3; i++) {
+			dispatchJumpGameKey(button, 39);
+			await waitForPetAnimation(() => button.dataset.state === 'falling');
+			await waitForPetAnimation(() => !widget.jumpGame || button.dataset.state === 'idle');
+		}
+		const handoff = { playing: !!widget.jumpGame, falling: button.classList.contains('throwing') };
+		await waitForPetAnimation(() => !button.classList.contains('throwing') && Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1);
+		assert.deepStrictEqual({
+			handoff,
+			leftOfInputRightEdge: button.getBoundingClientRect().right <= secondParent.getBoundingClientRect().right,
+			alive: !button.classList.contains('hidden'),
+			gameEffects: root.querySelectorAll('.chat-pet-jump-effects').length,
+		}, { handoff: { playing: false, falling: true }, leftOfInputRightEdge: true, alive: true, gameEffects: 0 });
+	});
+
+	test('missing all normal surfaces uses the existing despawn and respawn sequence', async () => {
+		const { root, widget, button, firstParent, secondParent, inputChanged, effect } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const departure = button.getBoundingClientRect();
+		secondParent.style.width = '100px';
+		inputChanged.fire();
+		const handoffLeft = button.getBoundingClientRect().left;
+		await waitForPetAnimation(() => button.classList.contains('hidden') && !effect.classList.contains('hidden'));
+		const despawning = { game: !!widget.jumpGame, effects: root.querySelectorAll('.chat-pet-jump-effects').length };
+		secondParent.style.width = '720px';
+		await waitForPetAnimation(() => !button.classList.contains('hidden') && !button.classList.contains('throwing')
+			&& Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1);
+		assert.deepStrictEqual({
+			handoffLeft,
+			despawning,
+			respawnEffectHidden: effect.classList.contains('hidden'),
+			landedBelowWelcome: button.getBoundingClientRect().bottom > firstParent.getBoundingClientRect().top,
+		}, { handoffLeft: departure.left, despawning: { game: false, effects: 0 }, respawnEffectHidden: true, landedBelowWelcome: true });
+	});
+
+	test('game and backdrop fade together without outlining the pet or intercepting the input', async () => {
+		const { root, button, inputChanged } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
+		const backdrop = effects.querySelector<HTMLElement>('.chat-pet-jump-backdrop')!;
+		const fadeIn = effects.getAnimations()[0];
+		assert.ok(fadeIn.effect instanceof mainWindow.KeyframeEffect);
+		const entering = fadeIn.effect.getKeyframes().map(frame => Number(frame.opacity));
+		fadeIn.finish();
+		await fadeIn.finished;
+		const buttonStyle = mainWindow.getComputedStyle(button);
+		const backdropStyle = mainWindow.getComputedStyle(backdrop);
+		const presentation = {
+			entering,
+			petOutline: buttonStyle.outlineStyle,
+			petBorder: buttonStyle.borderWidth,
+			backdropOpacity: backdropStyle.opacity,
+			backdropPointerEvents: backdropStyle.pointerEvents,
+			backdropBounds: backdrop.getBoundingClientRect().toJSON(),
+		};
+		inputChanged.fire();
+		const fadeOut = effects.getAnimations()[0];
+		assert.ok(fadeOut.effect instanceof mainWindow.KeyframeEffect);
+		const exiting = fadeOut.effect.getKeyframes().map(frame => Number(frame.opacity));
+		fadeOut.finish();
+		await waitForPetAnimation(() => !effects.isConnected);
+		assert.deepStrictEqual({
+			presentation, exiting, effectsRemaining: root.querySelectorAll('.chat-pet-jump-effects').length,
+		}, {
+			presentation: {
+				entering: [0, 1], petOutline: 'none', petBorder: '0px', backdropOpacity: '1', backdropPointerEvents: 'none',
+				backdropBounds: root.getBoundingClientRect().toJSON(),
+			},
+			exiting: [1, 0], effectsRemaining: 0,
+		});
+	});
+
+	test('reduced motion skips fades and keeps normal landing behavior', () => {
+		const { root, button, secondParent, inputChanged } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
+		const entryAnimations = effects.getAnimations().length;
+		inputChanged.fire();
+		assert.deepStrictEqual({
+			entryAnimations,
+			effectsConnected: effects.isConnected,
+			landingBottom: button.getBoundingClientRect().bottom,
+		}, { entryAnimations: 0, effectsConnected: false, landingBottom: secondParent.getBoundingClientRect().top });
+	});
+
+	test('restarting or disposing a game clears its pending fade', () => {
+		const { root, widget, button } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const firstEffects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
+		dispatchJumpGameKey(button, 27);
+		const exiting = firstEffects.classList.contains('exiting');
+		button.click();
+		const restarted = { firstRemoved: !firstEffects.isConnected, effectCount: root.querySelectorAll('.chat-pet-jump-effects').length };
+		dispatchJumpGameKey(button, 27);
+		widget.dispose();
+		assert.deepStrictEqual({
+			exiting, restarted, remaining: root.querySelectorAll('.chat-pet-jump-effects').length,
+		}, { exiting: true, restarted: { firstRemoved: true, effectCount: 1 }, remaining: 0 });
+	});
+
 	for (const reducedMotion of [false, true]) {
 		test(`live color changes preserve the current frame and double buffering (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
-			try {
-				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800', TestIntersectionObserver);
-				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
-				const firstLoaded = whenSpriteLoaded(firstImage);
-				await firstImage.decode();
-				await firstLoaded;
-				clock.tick(800);
-				const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
-				const expected = mainWindow.document.createElement('canvas');
-				expected.width = expected.height = 96;
-				const expectedContext = expected.getContext('2d')!;
-				service.setColor('#12abcd');
-				expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
-				assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
-				const previousFrame = activeCanvas.toDataURL();
-				service.setColor('insiders');
-				assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
-				const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
-				const insidersLoaded = whenSpriteLoaded(insiders);
-				await insiders.decode();
-				await insidersLoaded;
-				assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
-				service.setColor('#12abcd');
-				const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
-				expectedContext.clearRect(0, 0, 96, 96);
-				expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
-				assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
-			} finally {
-				clock.restore();
-			}
+			disposables.add(toDisposable(() => clock.restore()));
+			const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800', TestIntersectionObserver);
+			const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+			const firstLoaded = whenSpriteLoaded(firstImage);
+			await firstImage.decode();
+			await firstLoaded;
+			clock.tick(800);
+			const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+			const expected = mainWindow.document.createElement('canvas');
+			expected.width = expected.height = 96;
+			const expectedContext = expected.getContext('2d')!;
+			service.setColor('#12abcd');
+			expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
+			assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
+			const previousFrame = activeCanvas.toDataURL();
+			service.setColor('insiders');
+			assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
+			const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
+			const insidersLoaded = whenSpriteLoaded(insiders);
+			await insiders.decode();
+			await insidersLoaded;
+			assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
+			service.setColor('#12abcd');
+			const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
+			expectedContext.clearRect(0, 0, 96, 96);
+			expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
+			assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
 		});
 	}
 
@@ -302,58 +837,55 @@ suite('ChatPetWidget', () => {
 
 	test('schedules only distinct poses, pauses invisible sprites, and resumes eyes at the body phase', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
-		try {
-			let visibilityObserver: TestIntersectionObserver | undefined;
-			class VisibilityObserver extends TestIntersectionObserver {
-				constructor(callback: IntersectionObserverCallback) {
-					super(callback);
-					visibilityObserver = this;
-				}
+		disposables.add(toDisposable(() => clock.restore()));
+		let visibilityObserver: TestIntersectionObserver | undefined;
+		class VisibilityObserver extends TestIntersectionObserver {
+			constructor(callback: IntersectionObserverCallback) {
+				super(callback);
+				visibilityObserver = this;
 			}
-			const { button, widget, service } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
-			await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
-			await Promise.resolve();
-			const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
-			const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
-			const eyes = button.querySelector('.chat-pet-eyes')!;
-			const snapshots: { draws: number; lowered: boolean; paused: boolean }[] = [];
-			const record = () => snapshots.push({
-				draws: draws.callCount,
-				lowered: eyes.classList.contains('bobbed'),
-				paused: button.classList.contains('animation-paused'),
-			});
-			clock.tick(799);
-			record();
-			clock.tick(1);
-			record();
-			assert.ok(visibilityObserver);
-			visibilityObserver.setVisible(false);
-			clock.tick(1_200);
-			record();
-			visibilityObserver.setVisible(true);
-			record();
-			visibilityObserver.setVisible(false);
-			service.toggle();
-			const disabledWhileHidden = button.classList.contains('hidden') && button.tabIndex === -1;
-			widget.dispose();
-			clock.tick(4_000);
-			assert.deepStrictEqual({ snapshots, disabledWhileHidden, drawsAfterDisposal: draws.callCount }, {
-				snapshots: [
-					{ draws: 0, lowered: false, paused: false },
-					{ draws: 1, lowered: true, paused: false },
-					{ draws: 1, lowered: true, paused: true },
-					{ draws: 2, lowered: false, paused: false },
-				],
-				disabledWhileHidden: true,
-				drawsAfterDisposal: 2,
-			});
-		} finally {
-			clock.restore();
 		}
+		const { button, widget, service } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
+		await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
+		await Promise.resolve();
+		const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+		const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
+		const eyes = button.querySelector('.chat-pet-eyes')!;
+		const snapshots: { draws: number; lowered: boolean; paused: boolean }[] = [];
+		const record = () => snapshots.push({
+			draws: draws.callCount,
+			lowered: eyes.classList.contains('bobbed'),
+			paused: button.classList.contains('animation-paused'),
+		});
+		clock.tick(799);
+		record();
+		clock.tick(1);
+		record();
+		assert.ok(visibilityObserver);
+		visibilityObserver.setVisible(false);
+		clock.tick(1_200);
+		record();
+		visibilityObserver.setVisible(true);
+		record();
+		visibilityObserver.setVisible(false);
+		service.toggle();
+		const disabledWhileHidden = button.classList.contains('hidden') && button.tabIndex === -1;
+		widget.dispose();
+		clock.tick(4_000);
+		assert.deepStrictEqual({ snapshots, disabledWhileHidden, drawsAfterDisposal: draws.callCount }, {
+			snapshots: [
+				{ draws: 0, lowered: false, paused: false },
+				{ draws: 1, lowered: true, paused: false },
+				{ draws: 1, lowered: true, paused: true },
+				{ draws: 2, lowered: false, paused: false },
+			],
+			disabledWhileHidden: true,
+			drawsAfterDisposal: 2,
+		});
 	});
 
 	test('does not rewrite pupils or redraw an accessory when the quantized gaze is unchanged', async () => {
-		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		const { button, service, widget } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.TopHatMonocle).id);
 		service.setAccessory(ChatPetAccessoryIds.TopHatMonocle);
 		await waitForPetAnimation(() => !button.querySelector('.chat-pet-eye-accessory')!.classList.contains('hidden'));
@@ -380,10 +912,11 @@ suite('ChatPetWidget', () => {
 		const unchanged = { mutations, draws: draws.callCount };
 		await move(bounds.right + 100);
 		const changed = { mutations: mutations > 0, redrawn: draws.called, facing: button.dataset.facing };
-		service.setOnTheRun(true);
-		await waitForPetAnimation(() => button.dataset.state === 'onTheRun');
+		const transientState = Reflect.get(widget, '_transientState');
+		transientState.set('cool', undefined);
+		await waitForPetAnimation(() => button.dataset.state === 'cool');
 		await move(bounds.left + bounds.width / 2);
-		service.setOnTheRun(false);
+		transientState.set(undefined, undefined);
 		await waitForPetAnimation(() => button.querySelector('.chat-pet-eyes')!.classList.contains('tracking'));
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		assert.deepStrictEqual({
@@ -394,6 +927,125 @@ suite('ChatPetWidget', () => {
 			unchanged: { mutations: 0, draws: 0 },
 			changed: { mutations: true, redrawn: true, facing: 'right' },
 			afterFixedEyeState: ['translate(0px, 0px)', 'translate(0px, 0px)'],
+		});
+	});
+
+	test('shows the propeller as a separate layer only while the propeller hat is equipped', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const propeller = button.querySelector<HTMLCanvasElement>('.chat-pet-propeller-canvas')!;
+		const context = propeller.getContext('2d')!;
+		const hasRotorPixels = [...context.getImageData(0, 0, propeller.width, propeller.height).data].some((value, index) => index % 4 === 3 && value > 0);
+		const equipped = { dataset: button.dataset.propeller, visible: !propeller.parentElement!.classList.contains('hidden'), hasRotorPixels };
+		service.setAccessory(undefined);
+		await waitForPetAnimation(() => button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		assert.deepStrictEqual(equipped, { dataset: 'true', visible: true, hasRotorPixels: true });
+		assert.strictEqual(button.dataset.propeller, 'false');
+	});
+
+	test('mirrors the propeller when its rig frame mirrors head accessories', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const createRotorPixels = (frameIndex: number) => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = 96;
+			canvas.height = 96;
+			const context = canvas.getContext('2d')!;
+			drawChatPetPropeller(context, accessoryImage, 'worry', frameIndex);
+			return context.getImageData(0, 0, canvas.width, canvas.height).data;
+		};
+		const source = createRotorPixels(0);
+		const mirrored = createRotorPixels(1);
+		const expected = new Uint8ClampedArray(source.length);
+		for (let y = 0; y < 96; y++) {
+			for (let x = 0; x < 96; x++) {
+				const sourceOffset = (y * 96 + x) * 4;
+				const targetOffset = (y * 96 + 95 - x) * 4;
+				expected.set(source.subarray(sourceOffset, sourceOffset + 4), targetOffset);
+			}
+		}
+		assert.deepStrictEqual([...mirrored], [...expected]);
+	});
+
+	test('clears the propeller in canonical coordinates before facing reflection', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const bodyImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = 168;
+		canvas.height = 96;
+		const context = canvas.getContext('2d')!;
+		const clearRect = sinon.spy(context, 'clearRect');
+		const draw = (fixedOrientationDecorations?: readonly IChatPetFixedOrientationDecoration[]) => {
+			drawChatPetComposite(context, bodyImage, accessoryImage, 0, 0, 168, 96, 'left', 'painting', fixedOrientationDecorations, false, true, false, undefined, true);
+			return clearRect.getCalls().slice(-1)[0].args;
+		};
+		const fixedOrientationDecorations = [{ frameBounds: [[0, 0, 1, 1] as const], sourceFrame: 0 }] as const;
+		const maskCalls = [
+			draw(),
+			draw(fixedOrientationDecorations),
+		];
+		const bounds = getChatPetPropellerBounds('painting', 0)!;
+		assert.deepStrictEqual(maskCalls, [
+			[bounds.x, bounds.y, bounds.width, bounds.height],
+			[168 - bounds.x - bounds.width, bounds.y, bounds.width, bounds.height],
+		]);
+	});
+
+	test('restarts the propeller pose for repeated yapping in both facing directions', async () => {
+		const { button } = createHostTransitionHarness(false, 'teleport', 'stable', TestIntersectionObserver, undefined, false, service => {
+			service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+			service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		});
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const pose = button.querySelector<HTMLElement>('.chat-pet-propeller-pose')!;
+		const propeller = button.querySelector<HTMLElement>('.chat-pet-propeller')!;
+		const random = sinon.stub(Math, 'random').returns(0.01);
+		const click = () => button.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping');
+		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
+		const firstAnimation = pose.getAnimations()[0];
+		assert.ok(firstAnimation);
+		// Seek rather than wait: an animation's time does not advance until the browser renders a frame.
+		const firstAnimationTime = 240;
+		firstAnimation.currentTime = firstAnimationTime;
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
+		const restartedAnimationTime = Number(pose.getAnimations()[0]?.currentTime);
+		const spriteCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) .chat-pet-canvas')!;
+		const readFacingTransforms = (facing: 'left' | 'right') => {
+			button.dataset.facing = facing;
+			return [
+				mainWindow.getComputedStyle(spriteCanvas).transform,
+				mainWindow.getComputedStyle(propeller).transform,
+			];
+		};
+		const rightFacingTransforms = readFacingTransforms('right');
+		const leftFacingTransforms = readFacingTransforms('left');
+		random.restore();
+		assert.deepStrictEqual({
+			animationRestarted: restartedAnimationTime < firstAnimationTime,
+			rightFacingTransforms,
+			leftFacingTransformsMatch: leftFacingTransforms[0] === leftFacingTransforms[1],
+			facingChangesTransform: leftFacingTransforms[0] !== rightFacingTransforms[0],
+			poseWrapsFacingLayer: propeller.parentElement === pose,
+		}, {
+			animationRestarted: true,
+			rightFacingTransforms: ['none', 'none'],
+			leftFacingTransformsMatch: true,
+			facingChangesTransform: true,
+			poseWrapsFacingLayer: true,
 		});
 	});
 
@@ -465,7 +1117,7 @@ suite('ChatPetWidget', () => {
 				}
 				return { top: input.getBoundingClientRect().top, element: input };
 			};
-			const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+			const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 			service.setHorizontalPosition({ edge: 'left', inset: 156 });
 			service.toggle();
 			disposables.add(new ChatPetWidget(
@@ -491,6 +1143,7 @@ suite('ChatPetWidget', () => {
 					override readonly onDidChangeFocus = Event.None;
 					override readonly onDidChangeActiveWindow = Event.None;
 				}(),
+				workbenchInstantiationService(undefined, disposables),
 			));
 			const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 			assert.ok(button);
@@ -600,6 +1253,54 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('falls and respawns when its host moves during a drop', async () => {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const clock = sinon.useFakeTimers();
+		const { root, firstParent, button, layout } = createHostTransitionHarness(false);
+		disposables.add(toDisposable(() => {
+			clock.runToFrame();
+			clock.restore();
+		}));
+		firstParent.style.left = '20px';
+		firstParent.style.width = '760px';
+		layout();
+		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+		const initial = button.getBoundingClientRect();
+		const inputBounds = firstParent.getBoundingClientRect();
+		const pointerX = root.getBoundingClientRect().right - initial.width / 2;
+		const pointerY = inputBounds.top + initial.height / 2;
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			clientX: initial.left + initial.width / 2, clientY: initial.top + initial.height / 2,
+			button: 0, buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+			clientX: pointerX, clientY: pointerY,
+			buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		clock.tick(100);
+		firstParent.style.left = '22px';
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', {
+			clientX: pointerX + 2, clientY: pointerY,
+			button: 0, buttons: 0, pointerId: 1, bubbles: true,
+		}));
+		clock.tick(400);
+		const fellBelowInput = button.getBoundingClientRect().top > inputBounds.bottom;
+		clock.tick(4_000);
+
+		const bounds = button.getBoundingClientRect();
+		assert.deepStrictEqual({
+			fellBelowInput,
+			airborne: button.classList.contains('throwing'),
+			left: bounds.left,
+			bottom: bounds.bottom,
+		}, {
+			fellBelowInput: true,
+			airborne: false,
+			left: initial.left + 2,
+			bottom: inputBounds.top,
+		});
+	});
+
 	test('migrates proportional positions to stable nearest-edge anchors', () => {
 		const parent = mainWindow.document.createElement('div');
 		parent.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:240px';
@@ -615,7 +1316,7 @@ suite('ChatPetWidget', () => {
 			unobserve(): void { }
 			disconnect(): void { }
 		}
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.setHorizontalPosition(0.3);
 		service.toggle();
 		disposables.add(new ChatPetWidget(
@@ -631,6 +1332,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 		assert.ok(button);
@@ -684,26 +1386,23 @@ suite('ChatPetWidget', () => {
 	test('runs one timed hop for a single key press', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(299);
-			clock.tick(1);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			clock.tick(1_000);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(299);
+		clock.tick(1);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		clock.tick(1_000);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+		]);
 	});
 
-	test('constructs body, pupils, and eye accessory layers in rendering order', () => {
+	test('constructs body, eyes, propeller, and eye accessory layers in rendering order', () => {
 		const parent = mainWindow.document.createElement('div');
 		const dragBounds = mainWindow.document.createElement('div');
 		const movementBounds = mainWindow.document.createElement('div');
@@ -713,7 +1412,7 @@ suite('ChatPetWidget', () => {
 			dragBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			undefined,
@@ -727,6 +1426,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const visual = parent.getElementsByClassName('chat-pet-visual')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
@@ -734,10 +1434,10 @@ suite('ChatPetWidget', () => {
 		const achievementPupil = visual.getElementsByClassName('chat-pet-pupil')[0] as HTMLElement;
 
 		assert.deepStrictEqual({
-			layers: Array.from(visual.children).map(child => child.className).slice(0, 4),
+			layers: Array.from(visual.children).map(child => child.className).slice(0, 5),
 			achievementPupilHeight: mainWindow.getComputedStyle(achievementPupil).height,
 		}, {
-			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-eye-accessory hidden'],
+			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-propeller-pose', 'chat-pet-eye-accessory hidden'],
 			achievementPupilHeight: '8px',
 		});
 	});
@@ -759,7 +1459,7 @@ suite('ChatPetWidget', () => {
 			dragBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			{ resizeObserverCtor: TestResizeObserver as unknown as typeof ResizeObserver },
@@ -773,6 +1473,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 
 		assert.strictEqual(observedTargets.size, 0);
@@ -790,7 +1491,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{
@@ -810,6 +1511,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 		assert.ok(button);
@@ -840,7 +1542,7 @@ suite('ChatPetWidget', () => {
 		disposables.add(toDisposable(() => parent.remove()));
 		let menu: IContextMenuDelegate | undefined;
 		const commands: string[] = [];
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, parent, parent),
@@ -862,6 +1564,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 		assert.ok(button);
@@ -907,7 +1610,7 @@ suite('ChatPetWidget', () => {
 				contextMenuDelegate = delegate;
 			}
 		}();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		service.setScale(4);
 		disposables.add(new ChatPetWidget(
@@ -923,6 +1626,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
 
@@ -951,10 +1655,9 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('stacks dragging above sticky scroll and the run cycle behind the input', () => {
+	test('stacks dragging above sticky scroll and leaves the persistent content fade to the input', () => {
 		const session = mainWindow.document.createElement('div');
 		session.className = 'interactive-session chat-floating-persistent-content';
-		session.style.setProperty('--vscode-chat-persistent-content-height', '28px');
 		const parent = mainWindow.document.createElement('div');
 		parent.className = 'interactive-input-part';
 		const persistentContent = mainWindow.document.createElement('div');
@@ -969,7 +1672,7 @@ suite('ChatPetWidget', () => {
 			session.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, input, movementBounds),
@@ -986,127 +1689,66 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
-		const getRunLayer = () => ({
-			runLayerClass: overlay.classList.contains('chat-pet-run-layer'),
-			isolation: mainWindow.getComputedStyle(overlay).isolation,
-			fadeVisible: mainWindow.getComputedStyle(overlay, '::before').content !== 'none',
-			persistentFadeVisible: mainWindow.getComputedStyle(persistentContent, '::before').content !== 'none',
-		});
 		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
 		button.classList.add('dragging');
 		const draggingZIndex = mainWindow.getComputedStyle(button).zIndex;
 		button.classList.remove('dragging');
 
-		service.setOnTheRun(true);
-		const onTheRun = {
-			onTheRunClass: button.classList.contains('on-the-run'),
-			returningClass: button.classList.contains('returning-from-run'),
-			zIndex: mainWindow.getComputedStyle(button).zIndex,
-			layer: getRunLayer(),
-		};
-		service.setOnTheRun(false);
-		const returning = {
-			onTheRunClass: button.classList.contains('on-the-run'),
-			returningClass: button.classList.contains('returning-from-run'),
-			zIndex: mainWindow.getComputedStyle(button).zIndex,
-			layer: getRunLayer(),
-		};
-		const transitionEnd = new mainWindow.Event('transitionend');
-		Object.defineProperty(transitionEnd, 'propertyName', { value: 'transform' });
-		button.dispatchEvent(transitionEnd);
-
 		assert.deepStrictEqual({
 			overlayPrecedesPersistentContent: !!(overlay.compareDocumentPosition(persistentContent) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
 			restingZIndex,
 			draggingZIndex,
-			onTheRun,
-			returning,
-			returned: {
-				returningClass: button.classList.contains('returning-from-run'),
-				zIndex: mainWindow.getComputedStyle(button).zIndex,
-				layer: getRunLayer(),
-			},
+			overlayIsolation: mainWindow.getComputedStyle(overlay).isolation,
+			overlayFadeVisible: mainWindow.getComputedStyle(overlay, '::before').content !== 'none',
+			persistentFadeVisible: mainWindow.getComputedStyle(persistentContent, '::before').content !== 'none',
 		}, {
 			overlayPrecedesPersistentContent: true,
 			restingZIndex: '1',
 			draggingZIndex: '14',
-			onTheRun: {
-				onTheRunClass: true,
-				returningClass: false,
-				zIndex: '1',
-				layer: {
-					runLayerClass: true,
-					isolation: 'isolate',
-					fadeVisible: true,
-					persistentFadeVisible: false,
-				},
-			},
-			returning: {
-				onTheRunClass: false,
-				returningClass: true,
-				zIndex: '1',
-				layer: {
-					runLayerClass: true,
-					isolation: 'isolate',
-					fadeVisible: true,
-					persistentFadeVisible: false,
-				},
-			},
-			returned: {
-				returningClass: false,
-				zIndex: '1',
-				layer: {
-					runLayerClass: false,
-					isolation: 'auto',
-					fadeVisible: false,
-					persistentFadeVisible: true,
-				},
-			},
+			overlayIsolation: 'auto',
+			overlayFadeVisible: false,
+			persistentFadeVisible: true,
 		});
 	});
 
-	test('keeps the on-the-run pet still', () => {
-		const clock = sinon.useFakeTimers();
-		const parent = mainWindow.document.createElement('div');
-		const input = mainWindow.document.createElement('div');
-		const movementBounds = mainWindow.document.createElement('div');
-		parent.append(input);
-		mainWindow.document.body.append(parent, movementBounds);
-		const storageService = new TestStorageService();
-		const service = new ChatPetService(storageService, new TestTelemetryService(), new NullLogService());
-		service.toggle();
-		const widget = new ChatPetWidget(
-			createPetHost(parent, input, movementBounds),
-			undefined,
-			service,
-			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<ICommandService>() { }(),
-			new NullLogService(),
-			new class extends mock<IHostService>() {
-				override readonly hasFocus = true;
-				override readonly onDidChangeFocus = Event.None;
-				override readonly onDidChangeActiveWindow = Event.None;
-			}(),
-		);
-		try {
-			service.setOnTheRun(true);
-			clock.tick(10_000);
+	test('keeps the resting pet above pinned progress without blocking the other controls', () => {
+		const { root, firstParent, button } = createHostTransitionHarness(true);
+		root.classList.add('interactive-session');
+		firstParent.classList.add('interactive-input-part');
+		const persistentContent = mainWindow.document.createElement('div');
+		persistentContent.className = 'chat-input-persistent-content chat-persistent-content-visible';
+		const progress = mainWindow.document.createElement('div');
+		progress.className = 'chat-sticky-progress interactive-item-container chat-persistent-progress';
+		progress.textContent = 'Working';
+		persistentContent.append(progress);
+		const input = mainWindow.document.createElement('button');
+		input.style.cssText = 'width:100%;height:100%';
+		input.textContent = 'Chat input';
+		firstParent.append(persistentContent, input);
 
-			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
-		} finally {
-			widget.dispose();
-			service.dispose();
-			storageService.dispose();
-			parent.remove();
-			movementBounds.remove();
-			clock.restore();
-		}
+		const hitTest = () => {
+			const petBounds = button.getBoundingClientRect();
+			const progressBounds = progress.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
+			const overlapTop = Math.max(petBounds.top, progressBounds.top);
+			const overlapBottom = Math.min(petBounds.bottom, progressBounds.bottom);
+			const overlapY = (overlapTop + overlapBottom) / 2;
+			return {
+				progressOverlapsPet: overlapTop < overlapBottom,
+				petOnTop: button.contains(mainWindow.document.elementFromPoint(petBounds.left + petBounds.width / 2, overlapY)),
+				progressClickable: progress.contains(mainWindow.document.elementFromPoint(progressBounds.left + 4, overlapY)),
+				inputClickable: mainWindow.document.elementFromPoint(inputBounds.left + 4, inputBounds.top + inputBounds.height / 2) === input,
+			};
+		};
+		const inFlow = hitTest();
+		root.classList.add('chat-floating-persistent-content');
+		const floating = hitTest();
+		const expected = { progressOverlapsPet: true, petOnTop: true, progressClickable: true, inputClickable: true };
+		assert.deepStrictEqual({ inFlow, floating }, { inFlow: expected, floating: { ...expected } });
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {
@@ -1123,7 +1765,7 @@ suite('ChatPetWidget', () => {
 			secondBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(firstParent, firstBounds, movementBounds),
 			undefined,
@@ -1137,6 +1779,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = firstParent.getElementsByClassName('chat-pet-button')[0];
 
@@ -1512,137 +2155,122 @@ suite('ChatPetWidget', () => {
 	test('repeats hops while key requests remain within the hold grace period', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(300);
-			controller.request(1, false);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			clock.tick(90);
-			clock.tick(300);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(300);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		clock.tick(90);
+		clock.tick(300);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-				'direction:1',
-				'request',
-				'start',
-				'move:24:96',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+			'direction:1',
+			'request',
+			'start',
+			'move:24:96',
+		]);
 	});
 
 	test('uses the latest direction when a hop changes direction before its step', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events, getLeft } = createHopHarness();
-		try {
-			controller.request(-1, false);
-			clock.tick(100);
-			controller.request(1, false);
-			clock.tick(200);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, false);
+		clock.tick(100);
+		controller.request(1, false);
+		clock.tick(200);
 
-			assert.deepStrictEqual({
-				events,
-				left: getLeft(),
-			}, {
-				events: [
-					'direction:-1',
-					'request',
-					'start',
-					'direction:1',
-					'request',
-					'move:24:72',
-				],
-				left: 72,
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			events,
+			left: getLeft(),
+		}, {
+			events: [
+				'direction:-1',
+				'request',
+				'start',
+				'direction:1',
+				'request',
+				'move:24:72',
+			],
+			left: 72,
+		});
 	});
 
 	test('moves immediately without repetition when motion is reduced', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(-1, true);
-			clock.tick(1_000);
-			controller.onAnimationComplete();
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, true);
+		clock.tick(1_000);
+		controller.onAnimationComplete();
 
-			assert.deepStrictEqual(events, [
-				'direction:-1',
-				'request',
-				'move:-24:24',
-				'reduced',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:-1',
+			'request',
+			'move:-24:24',
+			'reduced',
+		]);
 	});
 
 	test('clamps repeated hop steps to the movement bounds', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events, getLeft } = createHopHarness(0, 0, 24);
-		try {
-			controller.request(-1, false);
-			clock.tick(600);
-			controller.onAnimationComplete();
-			controller.request(1, false);
-			clock.tick(600);
-			controller.onAnimationComplete();
-			controller.request(1, false);
-			clock.tick(300);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, false);
+		clock.tick(600);
+		controller.onAnimationComplete();
+		controller.request(1, false);
+		clock.tick(600);
+		controller.onAnimationComplete();
+		controller.request(1, false);
+		clock.tick(300);
 
-			assert.deepStrictEqual({
-				moves: events.filter(event => event.startsWith('move:')),
-				left: getLeft(),
-			}, {
-				moves: [
-					'move:-24:0',
-					'move:24:24',
-					'move:24:24',
-				],
-				left: 24,
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			moves: events.filter(event => event.startsWith('move:')),
+			left: getLeft(),
+		}, {
+			moves: [
+				'move:-24:0',
+				'move:24:24',
+				'move:24:24',
+			],
+			left: 24,
+		});
 	});
 
-	test('cancels pending steps and rests when disabled or sent on the run', () => {
+	test('cancels pending steps and rests when disabled', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(100);
-			controller.cancel();
-			clock.tick(1_000);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(100);
+		controller.cancel();
+		clock.tick(1_000);
 
-			controller.request(1, false);
-			clock.tick(300);
-			controller.request(1, false);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			controller.cancel();
-			clock.tick(1_000);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		controller.cancel();
+		clock.tick(1_000);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-				'direction:1',
-				'request',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+			'direction:1',
+			'request',
+		]);
 	});
 
 	test('maps chat activity to pet states by priority', () => {
@@ -1869,14 +2497,12 @@ suite('ChatPetWidget', () => {
 
 	test('blocks keyboard interaction while unavailable or already interacting', () => {
 		assert.deepStrictEqual([
-			isChatPetKeyboardInteractionEnabled(false, false, false, false, false),
-			isChatPetKeyboardInteractionEnabled(true, true, false, false, false),
-			isChatPetKeyboardInteractionEnabled(true, false, true, false, false),
-			isChatPetKeyboardInteractionEnabled(true, false, false, true, false),
-			isChatPetKeyboardInteractionEnabled(true, false, false, false, true),
-			isChatPetKeyboardInteractionEnabled(true, false, false, false, false),
+			isChatPetKeyboardInteractionEnabled(false, false, false, false),
+			isChatPetKeyboardInteractionEnabled(true, true, false, false),
+			isChatPetKeyboardInteractionEnabled(true, false, true, false),
+			isChatPetKeyboardInteractionEnabled(true, false, false, true),
+			isChatPetKeyboardInteractionEnabled(true, false, false, false),
 		], [
-			false,
 			false,
 			false,
 			false,
@@ -2017,7 +2643,7 @@ suite('ChatPetWidget', () => {
 		mainWindow.document.body.append(parent, dragBounds, movementBounds);
 		const commands: string[] = [];
 		const storageService = disposables.add(new TestStorageService());
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			undefined,
@@ -2036,6 +2662,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		disposables.add(toDisposable(() => {
 			parent.remove();
@@ -2088,7 +2715,7 @@ suite('ChatPetWidget', () => {
 
 	test('logs pet enablement at startup and when toggled', () => {
 		const telemetryService = new TestTelemetryService();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), telemetryService, new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), telemetryService, new NullLogService(), editorWindowEnvironment));
 
 		service.toggle();
 		service.toggle();
@@ -2102,13 +2729,13 @@ suite('ChatPetWidget', () => {
 
 	test('persists pet scale and position across windows, dismissal, and restart', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		firstWindow.toggle();
 		firstWindow.setScale(1.4);
 		firstWindow.setHorizontalPosition({ edge: 'left', inset: 48 });
 		const dismissed = firstWindow.toggle();
-		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			firstWindow: firstWindow.scale.get(),
@@ -2130,10 +2757,10 @@ suite('ChatPetWidget', () => {
 	test('reads legacy proportional pet positions and migrates them when anchored', () => {
 		const storageService = disposables.add(new TestStorageService());
 		storageService.store('chat.vscodePet.horizontalPosition', 0.3, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		const legacyWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const legacyWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const legacyPosition = legacyWindow.horizontalPosition.get();
 		legacyWindow.setHorizontalPosition({ edge: 'right', inset: 32 });
-		const anchoredWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const anchoredWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			legacyPosition,
@@ -2148,12 +2775,12 @@ suite('ChatPetWidget', () => {
 
 	test('resets pet size to the default without changing the position', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		firstWindow.setScale(1.4);
 		firstWindow.setHorizontalPosition(0.3);
 		firstWindow.resetScale();
-		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			firstWindow: firstWindow.scale.get(),
@@ -2172,8 +2799,8 @@ suite('ChatPetWidget', () => {
 
 	test('persists idempotent achievements and synchronizes the selected accessory', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const unlocks: string[] = [];
 		const synchronizedUnlocks: string[] = [];
 		disposables.add(firstService.onDidUnlockAchievement(id => unlocks.push(id)));
@@ -2222,9 +2849,46 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('gives each window kind its own hat, including no hat, until a hat is chosen for both', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const editorWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const agentsWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), agentsWindowEnvironment));
+		const getStoredAccessories = () => ['chat.vscodePet.accessory', 'chat.vscodePet.accessory.editor', 'chat.vscodePet.accessory.agents'].map(key => storageService.get(key, StorageScope.APPLICATION_SHARED));
+		editorWindow.toggle();
+		editorWindow.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
+		editorWindow.unlockAchievement(ChatPetAchievementIds.AgentChangesReviewed);
+		editorWindow.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		agentsWindow.setAccessory(undefined, 'agents');
+		editorWindow.setAccessory(ChatPetAccessoryIds.BambooHat, 'editor');
+		const separate = {
+			editorWindow: editorWindow.selectedAccessory.get(),
+			agentsWindow: agentsWindow.selectedAccessory.get(),
+			agentsSeenFromEditor: editorWindow.getWindowAccessory('agents').get(),
+			stored: getStoredAccessories(),
+		};
+		storageService.store('chat.vscodePet.accessory.editor', 'unknown', StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		const unknownOverride = editorWindow.selectedAccessory.get();
+		agentsWindow.setAccessory(ChatPetAccessoryIds.BambooHat);
+
+		assert.deepStrictEqual({
+			separate,
+			unknownOverride,
+			both: { editorWindow: editorWindow.selectedAccessory.get(), agentsWindow: agentsWindow.selectedAccessory.get(), stored: getStoredAccessories() },
+		}, {
+			separate: {
+				editorWindow: ChatPetAccessoryIds.BambooHat,
+				agentsWindow: undefined,
+				agentsSeenFromEditor: undefined,
+				stored: [ChatPetAccessoryIds.CowboyHat, ChatPetAccessoryIds.BambooHat, 'none'],
+			},
+			unknownOverride: ChatPetAccessoryIds.CowboyHat,
+			both: { editorWindow: ChatPetAccessoryIds.BambooHat, agentsWindow: ChatPetAccessoryIds.BambooHat, stored: [ChatPetAccessoryIds.BambooHat, undefined, undefined] },
+		});
+	});
+
 	test('starts fresh with no achievements and resets persisted developer state', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const freshUnlocked = service.unlockedAchievements.get();
 		service.toggle();
 		service.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
@@ -2236,7 +2900,7 @@ suite('ChatPetWidget', () => {
 		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
 		service.resetAchievements();
 		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
-		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			freshUnlocked,
@@ -2270,7 +2934,7 @@ suite('ChatPetWidget', () => {
 	test('preserves achievements while disabled and rejects locked or malformed accessories', () => {
 		const storageService = disposables.add(new TestStorageService());
 		storageService.store('chat.vscodePet.accessory', 'unknown', StorageScope.APPLICATION_SHARED, StorageTarget.USER);
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.throws(() => service.setAccessory(ChatPetAccessoryIds.PartyHat), /disabled/);
 		service.toggle();
@@ -2296,7 +2960,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.BaseballCap, StorageScope.APPLICATION, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -2324,7 +2988,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.PartyHat, StorageScope.APPLICATION, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -2354,7 +3018,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.requestRevision', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -2374,7 +3038,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.CowboyHat, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -2742,37 +3406,33 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers();
 		const changes: { readonly time: number; readonly blinking: boolean }[] = [];
 		const randomValues = [0, 0.5, 1];
-		const controller = new ChatPetBlinkController(blinking => changes.push({ time: Date.now(), blinking }), () => randomValues.shift() ?? 1);
-		try {
-			controller.setEnabled(true);
-			clock.tick(1_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			clock.tick(2_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			clock.tick(3_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			controller.setEnabled(false);
+		const controller = disposables.add(new ChatPetBlinkController(blinking => changes.push({ time: Date.now(), blinking }), () => randomValues.shift() ?? 1));
+		controller.setEnabled(true);
+		clock.tick(1_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		clock.tick(2_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		clock.tick(3_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		controller.setEnabled(false);
 
-			assert.deepStrictEqual({
-				delays: [getChatPetBlinkDelay(0), getChatPetBlinkDelay(0.5), getChatPetBlinkDelay(1)],
-				changes,
-			}, {
-				delays: [1_400, 2_400, 3_400],
-				changes: [
-					{ time: 1_400, blinking: true },
-					{ time: 1_660, blinking: false },
-					{ time: 4_060, blinking: true },
-					{ time: 4_320, blinking: false },
-					{ time: 7_720, blinking: true },
-					{ time: 7_980, blinking: false },
-				],
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			delays: [getChatPetBlinkDelay(0), getChatPetBlinkDelay(0.5), getChatPetBlinkDelay(1)],
+			changes,
+		}, {
+			delays: [1_400, 2_400, 3_400],
+			changes: [
+				{ time: 1_400, blinking: true },
+				{ time: 1_660, blinking: false },
+				{ time: 4_060, blinking: true },
+				{ time: 4_320, blinking: false },
+				{ time: 7_720, blinking: true },
+				{ time: 7_980, blinking: false },
+			],
+		});
 	});
 
 	test('disables cursor tracking for fixed-eye sprite states', () => {
@@ -2796,8 +3456,6 @@ suite('ChatPetWidget', () => {
 			falling: doesChatPetStateTrackCursor('falling'),
 			wallImpact: doesChatPetStateTrackCursor('wallImpact'),
 			splat: doesChatPetStateTrackCursor('splat'),
-			onTheRun: doesChatPetStateTrackCursor('onTheRun'),
-			searching: doesChatPetStateTrackCursor('searching'),
 		}, {
 			idle: true,
 			sleep: false,
@@ -2818,8 +3476,6 @@ suite('ChatPetWidget', () => {
 			falling: false,
 			wallImpact: false,
 			splat: false,
-			onTheRun: false,
-			searching: false,
 		});
 	});
 
@@ -2907,7 +3563,6 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('rendering', 'stable'),
 			getChatPetSpriteName('achievementUnlocked', 'stable'),
 			getChatPetSpriteName('cool', 'stable'),
-			getChatPetSpriteName('searching', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
 			getChatPetSpriteName('sing', 'stable'),
 			getChatPetSpriteName('sing', 'insider'),
@@ -2932,7 +3587,6 @@ suite('ChatPetWidget', () => {
 			'buddy-rendering-stable',
 			'buddy-rendering-stable',
 			'buddy-cool-stable',
-			'buddy-search-stable',
 			'buddy-yapping-insiders',
 			'buddy-sing-stable',
 			'buddy-sing-insiders',
@@ -2953,9 +3607,9 @@ suite('ChatPetWidget', () => {
 
 	test('maps every runtime state to a body-owned accessory track', () => {
 		assert.deepStrictEqual([
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'onTheRun', 'searching', 'searchingDown',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat',
 		].map(state => getChatPetAccessoryTrack(state as Parameters<typeof getChatPetAccessoryTrack>[0])), [
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'search', 'search', 'search',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat',
 		]);
 	});
 
@@ -3149,7 +3803,6 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('speechless'),
 			getChatPetFrameDurations('worry'),
 			getChatPetFrameDurations('dizzy'),
-			getChatPetFrameDurations('searching'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
 			getChatPetFrameDurations('falling'),
@@ -3173,7 +3826,6 @@ suite('ChatPetWidget', () => {
 			[400, 120, 1_000, 120, 1_080],
 			[600, 600],
 			Array.from({ length: 8 }, () => 120),
-			[500, 500, 500, 500],
 			[],
 			[],
 			[120, 80, 80, 120, 80, 80],
@@ -3428,7 +4080,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{
@@ -3448,6 +4100,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		disposables.add(toDisposable(() => {
 			// Drain the shared animation-frame queue after widget disposal, before restoring the clock.
@@ -3562,7 +4215,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{
@@ -3582,6 +4235,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
+			workbenchInstantiationService(undefined, disposables),
 		));
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 		const counter = parent.querySelector<HTMLElement>('.chat-pet-bounce-counter');
@@ -3736,6 +4390,21 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('keeps gravity finite when a throw starts just outside a wall', () => {
+		const bounds = { minimumLeft: 0, maximumLeft: 80, minimumTop: 0 };
+		assert.deepStrictEqual([
+			advanceChatPetThrow({ left: -0.001, top: 100, x: 0, y: 0 }, 16, bounds),
+			advanceChatPetThrow({ left: 80.001, top: 100, x: 0, y: 0 }, 16, bounds),
+			advanceChatPetThrow({ left: -0.001, top: 100, x: -500, y: 0 }, 0, bounds),
+			advanceChatPetThrow({ left: 80.001, top: 100, x: 500, y: 0 }, 0, bounds),
+		], [
+			{ left: 0, top: 100.2304, x: 0, y: 28.8, wall: undefined },
+			{ left: 80, top: 100.2304, x: 0, y: 28.8, wall: undefined },
+			{ left: 0, top: 100, x: -500, y: 0, wall: undefined },
+			{ left: 80, top: 100, x: 500, y: 0, wall: undefined },
+		]);
+	});
+
 	test('settles throws that exceed their bounds or maximum duration', () => {
 		assert.deepStrictEqual([
 			shouldSettleChatPetThrow(0, 3_999, 100, 200, 400),
@@ -3809,6 +4478,38 @@ suite('ChatPetWidget', () => {
 			belowRow: { left: 136, top: 172, platform: input },
 			upward: undefined,
 			betweenEndpoints: { left: 100, top: 50, platform: narrow },
+		});
+	});
+
+	test('caps propeller-assisted descent at a steady speed', () => {
+		const bounds = { minimumLeft: 0, maximumLeft: 100, minimumTop: 0 };
+		const motion = { left: 0, top: 0, x: 0, y: 0 };
+		const propellerSpeed = getChatPetThrowMaximumFallSpeed(true)!;
+		const firstStep = advanceChatPetThrow(motion, 100, bounds, propellerSpeed);
+		const secondStep = advanceChatPetThrow({ ...motion, top: firstStep.top, y: firstStep.y }, 100, bounds, propellerSpeed);
+		assert.deepStrictEqual({
+			maximumFallSpeed: [getChatPetThrowMaximumFallSpeed(false), propellerSpeed],
+			fall: [
+				Math.round(advanceChatPetThrow(motion, 100, bounds).top * 100) / 100,
+				Math.round(firstStep.top * 100) / 100,
+				Math.round(secondStep.top * 100) / 100,
+				Math.round((secondStep.top - firstStep.top) * 100) / 100,
+			],
+			duration: [getChatPetFallDuration(100), getChatPetFallDuration(100, true), getChatPetFallDuration(400, true)],
+			propellerBounds: [
+				getChatPetPropellerBounds('idle', 0),
+				getChatPetPropellerBounds('sleep', 3),
+				getChatPetPropellerBounds('love', 0),
+			],
+		}, {
+			maximumFallSpeed: [undefined, 160],
+			fall: [9, 8.89, 24.89, 16],
+			duration: [200, 625, 2_500],
+			propellerBounds: [
+				{ x: 0, y: 8, width: 96, height: 8 },
+				{ x: 0, y: 12, width: 96, height: 8 },
+				undefined,
+			],
 		});
 	});
 

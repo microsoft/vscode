@@ -25,7 +25,8 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
-const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { findTestFiles } = require('./testFiles.ts');
 
 const minimist = require('minimist');
 
@@ -49,6 +50,7 @@ protocol.registerSchemesAsPrivileged([
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
+ * testShard: string;
  * dev: boolean;
  * reporter: string;
  * 'reporter-options': string;
@@ -69,7 +71,7 @@ protocol.registerSchemesAsPrivileged([
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'testShard', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -104,6 +106,7 @@ Options:
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
+--testShard <i>/<n>           run every <n>th test of the loaded files, starting with the <i>th, for example to run the tests of one file in several processes
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
@@ -114,7 +117,7 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
---workers <count>             run all test files in <count> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one window
+--workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -128,12 +131,12 @@ if (bareFiles.length > 0) {
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
-// The renderer reads the --runList file (see loadTestModules in renderer.js)
+// The renderer reads the --runList file (see findTestFiles in testFiles.ts)
 if (args.runList) {
 	args.runList = path.resolve(args.runList);
 }
 
-// Only a run of all test files is spread across worker processes, reruns of failed tests run in one window
+// A run of all test files, or of those of --runList, is spread across worker processes, reruns of failed tests run in one window
 let workerCount = 1;
 try {
 	workerCount = getWorkerCount(args.workers);
@@ -141,10 +144,14 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	app.exit(1);
 }
-const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
-if (workerCount > 1 && !runInParallel) {
-	console.log('Running in a single window, because --workers only applies when all test files run without --grep, --dev, --waitServer or coverage');
+const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.testShard && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !workersApply) {
+	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage');
 }
+// The number of workers for --runList depends on the listed files that run, so find them while the app starts
+const listedTestFiles = workersApply && args.runList ? findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`)) : undefined;
+// Awaited when the app is ready, and an error is reported there
+listedTestFiles?.catch(() => { });
 
 let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
@@ -242,15 +249,16 @@ function deserializeError(err) {
  */
 
 /**
- * Runs all test files once in `workerCount` worker processes. Each worker is a separate
+ * Runs the test files once in `count` worker processes. Each worker is a separate
  * instance of this script that runs the test files it claims in its own window, and does not
  * rerun its failures: this process reruns them in one window.
+ * @param {number} count
  * @returns {Promise<IAttemptResult>}
  */
-async function runFirstAttemptInWorkers() {
+async function runFirstAttemptInWorkers(count) {
 	const { failures, unattributedFailures } = await runInWorkers({
 		name: 'Electron unit tests',
-		count: workerCount,
+		count,
 		command: process.execPath,
 		args: [__filename, ...removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files')],
 	});
@@ -370,6 +378,36 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	ipcMain.handle('vscode:test-platform-request', async (_event, options, cancelOnRedirect = false) => {
+		const [{ nodeRequest }, { CancellationTokenSource }, { streamToBuffer }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/request/node/requestService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/cancellation.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/buffer.js`)).href),
+		]);
+		const source = new CancellationTokenSource();
+		/** @type {string[]} */
+		const redirectModes = [];
+		try {
+			if (options.headers) {
+				Object.freeze(options.headers);
+			}
+			const context = await nodeRequest({
+				...options,
+				isChromiumNetwork: true,
+				getRawRequest: () => (requestOptions, callback) => {
+					redirectModes.push(requestOptions.redirect ?? 'follow');
+					const request = electronNet.request(requestOptions, callback);
+					if (cancelOnRedirect) {
+						request.once('redirect', () => queueMicrotask(() => source.cancel()));
+					}
+					return request;
+				},
+			}, source.token);
+			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString(), redirectModes };
+		} finally {
+			source.dispose();
+		}
+	});
 	// A second view lets tests blur the page without stealing desktop focus.
 	/** @type {Map<number, import('electron').WebContentsView>} */
 	const focusTestViews = new Map();
@@ -423,28 +461,76 @@ app.on('ready', async () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, options) => {
 		const [{ ProtocolMainService }, { URI }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
 		]);
-		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		// Preserve the production root registration and guard; replace only protocol registration.
 		class TestProtocolMainService extends ProtocolMainService {
 			handleProtocols() { }
-			async createFileResponse(_request, filePath) {
-				return new Response(filePath);
-			}
 		}
 		/** @type {string[]} */
 		const errors = [];
 		const service = new TestProtocolMainService(
-			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ ...roots, ...options, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: options?.isBuilt ?? true },
 			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
 			{ error: message => errors.push(message) },
 		);
 		try {
-			const response = await service.handleResourceRequest(new Request(requestUrl));
-			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+			const response = await new Promise(resolve => {
+				service.handleResourceRequest({ url: requestUrl, method: 'GET', headers: {}, referrer: '' }, response => {
+					const allowed = 'path' in response;
+					resolve({
+						status: allowed ? 200 : 0,
+						path: allowed ? response.path : undefined,
+						headers: allowed ? response.headers : undefined,
+						error: allowed ? undefined : response.error,
+						errors,
+					});
+				});
+			});
+			let stack;
+			if (options?.sampleStack) {
+				const stackSession = session.fromPartition(`stack-sampling-test-${Date.now()}`);
+				stackSession.protocol.registerStringProtocol('vscode-file', (request, callback) => {
+					service.handleResourceRequest(request, response => {
+						callback('path' in response ? { data: '<!doctype html>', mimeType: 'text/html', headers: response.headers } : response);
+					});
+				});
+				const stackWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, session: stackSession } });
+				const readyChannel = `vscode:test-stack-ready-${stackWindow.id}`;
+				let signalReady;
+				let readyTimeout;
+				const ready = new Promise((resolve, reject) => {
+					signalReady = resolve;
+					readyTimeout = setTimeout(() => reject(new Error('The stack sampling probe did not start')), 5000);
+				});
+				const onReady = event => {
+					if (event.sender === stackWindow.webContents) {
+						signalReady();
+					}
+				};
+				ipcMain.on(readyChannel, onReady);
+				try {
+					await stackWindow.loadURL(requestUrl);
+					const execution = stackWindow.webContents.executeJavaScript(`(function stackSamplingProbe() {
+						require('electron').ipcRenderer.send(${JSON.stringify(readyChannel)});
+						const end = performance.now() + 1000;
+						while (performance.now() < end) { }
+					})()`);
+					[, stack] = await Promise.all([execution, (async () => {
+						await ready;
+						return stackWindow.webContents.mainFrame.collectJavaScriptCallStack();
+					})()]);
+				} finally {
+					clearTimeout(readyTimeout);
+					ipcMain.removeListener(readyChannel, onReady);
+					stackWindow.destroy();
+					stackSession.protocol.unregisterProtocol('vscode-file');
+				}
+			}
+			return { ...response, ...(options?.sampleStack ? { stack } : {}) };
 		} finally {
 			service.dispose();
 		}
@@ -680,6 +766,26 @@ app.on('ready', async () => {
 		return;
 	}
 
+	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
+	let parallelWorkers = workersApply ? workerCount : 1;
+	let firstRunArgs = args;
+	if (listedTestFiles) {
+		try {
+			const { files, listed } = await listedTestFiles;
+			// the renderers do not report them then, see loadTestModules in renderer.js
+			console.log(`Running the ${files.length} test files of the ${listed} files listed in ${args.runList}`);
+			parallelWorkers = getWorkerCountForFiles(workerCount, files.length);
+			if (parallelWorkers === 1) {
+				// the window loads the files found here as if they were passed with --run, instead of finding them again
+				firstRunArgs = { ...args, run: files };
+			}
+		} catch (error) {
+			console.error(error);
+			app.exit(1);
+			return;
+		}
+	}
+
 	// Coverage is collected from the first window only. A worker only runs the first attempt, see runFirstAttemptInWorkers.
 	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 
@@ -689,15 +795,15 @@ app.on('ready', async () => {
 	let targets = new Map();
 	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
 	let plan;
-	let runArgs = args;
+	let runArgs = firstRunArgs;
 	let previousWindow;
 	let exitCode = 0;
 
 	for (let attempt = 1; ; attempt++) {
 		/** @type {IAttemptResult} */
 		let runner;
-		if (attempt === 1 && runInParallel) {
-			runner = await runFirstAttemptInWorkers();
+		if (attempt === 1 && parallelWorkers > 1) {
+			runner = await runFirstAttemptInWorkers(parallelWorkers);
 		} else {
 			const { win, done } = runInWindow(runArgs, attempt);
 			previousWindow?.destroy();
@@ -739,7 +845,7 @@ app.on('ready', async () => {
 			console.log(plan.byTitle
 				? `\nRerunning ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}\n`
 				: `\nRerunning the test files of ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${plan.files.map(file => `  ${file}`).join('\n')}\n`);
-			runArgs = { ...args, run: plan.files, grep: plan.grep, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, waitServer: undefined };
+			runArgs = { ...args, run: plan.files, grep: plan.grep, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, testShard: undefined, waitServer: undefined };
 			continue;
 		}
 

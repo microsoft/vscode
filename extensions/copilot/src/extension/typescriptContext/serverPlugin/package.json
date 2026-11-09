@@ -10,7 +10,7 @@
 		"typescript": "5.5.4"
 	},
 	"scripts": {
-		"compile": "tsx .esbuild.ts",
-		"bootstrap": "npm run compile && npm pack --pack-destination ../../../../bootstrap"
+		"compile": "node ../../../../node_modules/tsx/dist/cli.mjs .esbuild.ts",
+		"bootstrap": "pnpm run compile && pnpm pack --pack-destination ../../../../bootstrap"
 	}
 }

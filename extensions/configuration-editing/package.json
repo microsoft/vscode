@@ -128,6 +128,14 @@
         "url": "vscode://schemas/mcp"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/mcp.json",
+        "url": "vscode://schemas/mcp"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/mcp.json",
+        "url": "vscode://schemas/mcp"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
         "url": "vscode://schemas/tasks"
       },
@@ -186,7 +194,9 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2"
   },
   "repository": {
     "type": "git",

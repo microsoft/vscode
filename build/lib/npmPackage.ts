@@ -10,13 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { stripVTControlCharacters } from 'util';
 import { extract } from 'tar';
-
-interface NpmPackageLock {
-	packages?: Record<string, {
-		version?: string;
-		integrity?: string;
-	}>;
-}
+import { collectImporterPackages, parsePackageKey, readPnpmLockfile } from './pnpmLock.ts';
 
 type NpmPackError = NodeJS.ErrnoException & Partial<SpawnSyncReturns<string | Buffer>>;
 
@@ -28,7 +22,9 @@ export interface EnsureNpmPackageOptions {
 
 /**
  * Materializes an npm package from the version recorded in the adjacent
- * package-lock.json when it is missing from node_modules.
+ * pnpm-lock.yaml (the lockfile of the install root that owns `nodeModulesRoot`)
+ * when it is missing from node_modules, for example the package of another
+ * platform.
  */
 export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_modules', options: EnsureNpmPackageOptions = {}): void {
 	const packageDir = path.join(nodeModulesRoot, ...packageName.split('/'));
@@ -36,12 +32,8 @@ export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_mo
 		return;
 	}
 
-	const lockFilePath = path.join(path.dirname(nodeModulesRoot), 'package-lock.json');
-	const lockPackageKey = path.posix.join('node_modules', packageName);
-	const lockPackage = readNpmPackageLock(lockFilePath).packages?.[lockPackageKey];
-	if (!lockPackage?.version) {
-		throw new Error(`[ensureNpmPackage] Missing ${lockPackageKey} in ${lockFilePath}. Run npm install to refresh the lockfile.`);
-	}
+	const lockFilePath = path.join(path.dirname(nodeModulesRoot), 'pnpm-lock.yaml');
+	const lockPackage = readLockedPackage(lockFilePath, packageName);
 
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-'));
 	try {
@@ -154,12 +146,29 @@ function getNpmPackErrorDetails(err: NpmPackError): string {
 	return details.join('\n');
 }
 
-function readNpmPackageLock(lockFilePath: string): NpmPackageLock {
+/**
+ * Returns the version and integrity of the one version of `packageName` that the root project of a
+ * pnpm lockfile reaches.
+ */
+function readLockedPackage(lockFilePath: string, packageName: string): { version: string; integrity: string | undefined } {
+	let lockfile: ReturnType<typeof readPnpmLockfile>;
 	try {
-		return JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
+		lockfile = readPnpmLockfile(lockFilePath);
 	} catch (err) {
 		throw new Error(`[ensureNpmPackage] Failed to read ${lockFilePath}: ${err instanceof Error ? err.message : String(err)}`);
 	}
+	const versions = new Set<string>();
+	for (const key of collectImporterPackages(lockfile, '.')) {
+		const parsed = parsePackageKey(key);
+		if (parsed.name === packageName) {
+			versions.add(parsed.version);
+		}
+	}
+	if (versions.size !== 1) {
+		throw new Error(`[ensureNpmPackage] Expected one version of ${packageName} in ${lockFilePath}, found ${versions.size === 0 ? 'none' : [...versions].join(', ')}. Run pnpm install to refresh the lockfile.`);
+	}
+	const [version] = versions;
+	return { version, integrity: lockfile.packages?.[`${packageName}@${version}`]?.resolution.integrity };
 }
 
 function verifyNpmIntegrity(tarballPath: string, integrity: string | undefined): void {

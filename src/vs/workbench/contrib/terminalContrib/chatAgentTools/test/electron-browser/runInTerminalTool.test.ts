@@ -37,7 +37,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
@@ -3604,6 +3604,38 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		await createContribution();
 		ok(registeredToolData.has(TerminalToolId.RunInTerminal), 'Expected run_in_terminal tool to be registered');
 	});
+
+	for (const { key, enabledValue, disabledValue, source } of [
+		{ key: TerminalChatAgentToolsSettingId.EnableAutoApprove, enabledValue: true, disabledValue: false, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.GlobalAutoApprove, enabledValue: true, disabledValue: false, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.AutoApprove, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.Autopilot, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.AutoApprove, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.WORKSPACE },
+	]) {
+		test(`should refresh elevation guidance when ${key} changes to ${enabledValue} and back (source ${source})`, async () => {
+			await configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			await configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+			await configurationService.setUserConfiguration(ChatConfiguration.DefaultPermissionLevel, ChatPermissionLevel.Default);
+			await createContribution();
+
+			const hasElevationGuidance = () => registeredToolData.get(TerminalToolId.RunInTerminal)?.modelDescription.includes('sudo');
+			const guidanceStates = [hasElevationGuidance()];
+			for (const value of [enabledValue, disabledValue]) {
+				await configurationService.setUserConfiguration(key, value);
+				await waitForToolDataRegistration(() => {
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						affectsConfiguration: candidate => candidate === key,
+						affectedKeys: new Set([key]),
+						source,
+						change: null!,
+					});
+				});
+				guidanceStates.push(hasElevationGuidance());
+			}
+
+			deepStrictEqual(guidanceStates, [false, true, false]);
+		});
+	}
 
 	test('should refresh run_in_terminal tool data when sandbox setting changes', async () => {
 		await createContribution();

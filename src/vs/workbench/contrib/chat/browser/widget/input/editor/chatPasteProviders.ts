@@ -32,6 +32,7 @@ import { IExtensionService, isProposedApiEnabled } from '../../../../../../servi
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { fromRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
@@ -260,19 +261,24 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		const dynamicVariables = target.inlineReferences;
+		// A copy with inline attachment pills carries references relative to the copied
+		// prompt text, which is what the clipboard receives, so they apply wherever it is pasted.
+		const copiedInlinePrompt = target.getCopiedInlinePrompt?.(_ranges);
+		const dynamicVariables = copiedInlinePrompt?.references ?? target.inlineReferences;
 		const referencedIds = new Set(dynamicVariables.map(variable => variable.id));
 		// A ranged attachment whose reference is not carried along would be pruned
 		// as an orphan by the receiving input, so send it as a plain attachment.
-		const attachments = target.attachments.map(attachment =>
-			attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
+		// Attachments shown inline only go along with their pills.
+		const attachments = target.attachments
+			.filter(attachment => !copiedInlinePrompt?.excludedAttachmentIds.has(attachment.id))
+			.map(attachment => attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;
 		}
 
 		const result = new VSDataTransfer();
-		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify({ attachments, dynamicVariables })));
+		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify(copiedInlinePrompt ? { attachments, dynamicVariables, relativeReferences: true } : { attachments, dynamicVariables })));
 		return result;
 	}
 
@@ -296,7 +302,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[] } | undefined;
+		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[]; relativeReferences?: boolean } | undefined;
 		try {
 			pastedData = revive(JSON.parse(rawData));
 		} catch {
@@ -306,6 +312,14 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		if (!Array.isArray(pastedData?.attachments) && !Array.isArray(pastedData?.dynamicVariables)) {
 			return;
 		}
+
+		// References relative to the pasted text start where it is inserted.
+		const pasteStart = _ranges.length === 1 ? Range.lift(_ranges[0]).getStartPosition() : undefined;
+		const dynamicVariables = !pastedData.relativeReferences
+			? pastedData.dynamicVariables
+			: pasteStart
+				? pastedData.dynamicVariables.map(variable => ({ ...variable, range: fromRelativeRange(variable.range, pasteStart) }))
+				: [];
 
 		const edit: DocumentPasteEdit = {
 			insertText: textdata,
@@ -317,16 +331,18 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			}
 		};
 
+		// Attachments that a copy of inline attachment pills brings along, but that the input already has, stay on undo.
+		const existingIds = pastedData.relativeReferences ? new Set(target.attachments.map(attachment => attachment.id)) : undefined;
 		edit.additionalEdit?.edits.push({
 			resource: model.uri,
 			redo: () => {
 				target.addAttachments(pastedData.attachments);
-				for (const dynamicVariable of pastedData.dynamicVariables) {
+				for (const dynamicVariable of dynamicVariables) {
 					target.addInlineReference(dynamicVariable);
 				}
 			},
 			undo: () => {
-				target.removeAttachments(pastedData.attachments.map(c => c.id));
+				target.removeAttachments(pastedData.attachments.map(c => c.id).filter(id => !existingIds?.has(id)));
 			}
 		});
 

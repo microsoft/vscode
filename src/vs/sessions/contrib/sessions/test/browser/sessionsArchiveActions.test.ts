@@ -15,22 +15,26 @@ import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/co
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
+import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionComparisonService } from '../../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { IInboxNotificationsService } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 
@@ -62,15 +66,20 @@ suite('Sessions - Bulk archive undo', () => {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const managementService = new class extends mock<ISessionsManagementService>() {
+			override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidArchiveSession = sessionArchived.event;
 			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidDeleteChat = Event.None;
 			override readonly onWillSendRequest = Event.None;
 			override readonly onDidReplaceSession = Event.None;
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
@@ -121,6 +130,7 @@ suite('Sessions - Bulk archive undo', () => {
 			upcastPartial<IChatService>({ getSession: () => undefined }), new NullTelemetryServiceShape(),
 		));
 		instantiationService.stub(ISessionComparisonService, comparisonService);
+		instantiationService.stub(IInboxNotificationsService, upcastPartial<IInboxNotificationsService>({ sessionAttention: constObservable(new Map()) }));
 		const listModel = store.add(instantiationService.createInstance(SessionsListModelService));
 		const membership = () => sessions
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
@@ -316,6 +326,7 @@ suite('Sessions - Bulk archive undo', () => {
 
 					const harness = createListHarness(store, test.managementService.getSessions(), instantiationService => {
 						instantiationService.stub(IStorageService, test.storageService);
+						instantiationService.stub(IConfigurationService, new TestConfigurationService());
 						instantiationService.stub(ISessionsManagementService, test.managementService);
 						instantiationService.stub(ISessionGroupsService, test.groupsService);
 						instantiationService.stub(ISessionsListModelService, test.listModel);
@@ -439,6 +450,7 @@ suite('Sessions - Delete group undo', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const sessions = ['ship', 'fix', 'other'].map(id => createTestSession(id).session);
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onDidArchiveSession = Event.None;
@@ -448,6 +460,8 @@ suite('Sessions - Delete group undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }

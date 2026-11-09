@@ -151,6 +151,15 @@ export default defineConfig(
 			]
 		},
 	},
+	{
+		files: [
+			'src/vs/workbench/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		rules: {
+			'local/code-agent-host-uri-mapping': 'error',
+		},
+	},
 	// Production filesystem operations must not block the event loop.
 	{
 		files: [
@@ -186,6 +195,17 @@ export default defineConfig(
 		],
 		rules: {
 			'local/code-no-sync-fs': 'error',
+		},
+	},
+	// Enforce this rule in migrated areas only.
+	{
+		files: [
+			'src/vs/platform/agentHost/node/claude/**/*.ts',
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'error',
 		},
 	},
 	// Disallow bracket notation for property names that can use dot notation.
@@ -455,6 +475,10 @@ export default defineConfig(
 			'src/vs/platform/agentHost/**/*.ts',
 			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
 			'src/vs/workbench/services/agentHost/**/*.ts',
+			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts',
 			'src/vs/sessions/**/*.ts',
 		],
 		ignores: [
@@ -1883,6 +1907,30 @@ export default defineConfig(
 					]
 				},
 				{
+					// Component fixtures render Agents window UI for screenshots. They are test-only and are
+					// the one place under vs/workbench that may import vs/sessions. Must precede
+					// 'src/vs/workbench/~', which also matches them; the first matching target wins.
+					'target': 'src/vs/workbench/test/browser/componentFixtures/**',
+					'layer': 'browser',
+					'test': true,
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
+						'assert',
+					]
+				},
+				{
 					'target': 'src/vs/workbench/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1940,6 +1988,41 @@ export default defineConfig(
 					]
 				},
 				{
+					// Session providers: may import shared sessions code and sibling providers, never vs/sessions.
+					// Other code, including vs/workbench/contrib/sessions/~, cannot import them: the import pattern
+					// 'vs/workbench/contrib/*/~' expands to layer folders and does not match 'contrib/sessions/providers/*/'.
+					'target': 'src/vs/workbench/contrib/sessions/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
+					]
+				},
+				{
+					// Shared sessions model, services and UI: the Agents window (vs/sessions) builds on them, never the reverse.
+					'target': 'src/vs/workbench/contrib/sessions/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminal/terminalContribChatExports*',
+						'vs/workbench/contrib/terminal/terminalContribExports*',
+					]
+				},
+				{
 					'target': 'src/vs/workbench/contrib/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1950,7 +2033,6 @@ export default defineConfig(
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/sessions/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import
@@ -2181,6 +2263,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2202,6 +2285,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2223,6 +2307,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2241,6 +2326,7 @@ export default defineConfig(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
@@ -2296,6 +2382,7 @@ export default defineConfig(
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/sessions/~', // shared sessions model, services and UI
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
 					]
@@ -2312,6 +2399,7 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
@@ -2479,10 +2567,15 @@ export default defineConfig(
 		// rest of the Agents window (sessions workbench) must stay provider-agnostic.
 		// See src/vs/sessions/SESSIONS.md.
 		files: [
-			'src/vs/sessions/**/*.ts'
+			'src/vs/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts'
 		],
 		ignores: [
-			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts'
+			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
+			'src/vs/workbench/contrib/sessions/providers/copilotChatSessions/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -2499,6 +2592,35 @@ export default defineConfig(
 						{
 							'group': ['**/agentSessions/agentSessionsService', '**/agentSessions/agentSessionsService.js'],
 							'message': 'IAgentSessionsService is provider-internal to Copilot. Only contrib/providers/copilotChatSessions may import it; the rest of the Agents window must stay provider-agnostic. See src/vs/sessions/SESSIONS.md.'
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		// Sessions depends on chat, never the reverse: contrib/chat must not import contrib/sessions.
+		files: [
+			'src/vs/workbench/contrib/chat/**/*.ts'
+		],
+		ignores: [
+			// Existing violations; remove entries as they are fixed (https://github.com/microsoft/vscode/issues/346756)
+			'src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.ts',
+			'src/vs/workbench/contrib/chat/browser/chatTipCatalog.ts',
+			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
+			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'local/code-no-restricted-path-imports': [
+				'error',
+				{
+					'paths': [
+						{
+							'pattern': 'src/vs/workbench/contrib/sessions/**',
+							'message': 'contrib/chat must not import from contrib/sessions: Sessions depends on chat, never the reverse. See https://github.com/microsoft/vscode/issues/346756'
 						}
 					]
 				}
@@ -2758,7 +2880,7 @@ export default defineConfig(
 							from: ['./extensions/copilot/src/extension']
 						},
 						{
-							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							target: './extensions/copilot/test',
 							from: ['**/vscode-node/**', '**/vscode-worker/**']
 						},
 						{
@@ -2933,7 +3055,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
 			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
 			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
-			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
 			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
 			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
 			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
@@ -2991,7 +3112,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
 			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
 			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
-			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
 			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
 			'extensions/copilot/src/platform/test/node/extensionContext.ts',
 			'extensions/copilot/src/platform/test/node/fetcher.ts',

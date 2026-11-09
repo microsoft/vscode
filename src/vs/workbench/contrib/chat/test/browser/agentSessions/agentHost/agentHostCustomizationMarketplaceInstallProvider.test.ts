@@ -7,24 +7,70 @@ import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { parseLinkedText } from '../../../../../../../base/common/linkedText.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallation, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallation, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { type IMcpServerConfiguration, McpServerType } from '../../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, EnablementModel } from '../../../../common/enablement.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IInputBox, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+
+interface ITestProviderOptions {
+	readonly quickInput?: IQuickInputService;
+	readonly trusted?: boolean;
+	readonly requestTrust?: () => Promise<boolean | undefined>;
+}
+
+/** Creates a provider with optional quick input and workspace trust fakes. */
+function createTestProvider(
+	providerId: string,
+	resolveAuthentication: () => Promise<boolean>,
+	agentHostService: IAgentHostService,
+	connections: IAgentHostConnectionsService,
+	customizations: IAgentHostCustomizationService,
+	dialogs: IDialogService,
+	logService: ILogService,
+	plugins: IAgentPluginService,
+	options: ITestProviderOptions = {},
+): AgentHostCustomizationMarketplaceInstallProvider {
+	return new AgentHostCustomizationMarketplaceInstallProvider(
+		providerId,
+		resolveAuthentication,
+		agentHostService,
+		connections,
+		customizations,
+		dialogs,
+		logService,
+		plugins,
+		options.quickInput ?? new class extends mock<IQuickInputService>() { }(),
+		new class extends mock<IWorkspaceTrustManagementService>() {
+			override isWorkspaceTrusted() { return options.trusted ?? true; }
+		}(),
+		new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestWorkspaceTrust() { return options.requestTrust ? options.requestTrust() : true; }
+		}(),
+	);
+}
+
+/** Wraps a review in the owned shape the host returns. */
+function ownedReview<T>(review: T) {
+	return { kind: 'review' as const, review, hostGeneration: 'generation', ownershipToken: 'token' };
+}
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,7 +92,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const backendChat = URI.parse('vendor-chat://host/opaque-chat');
 		const calls: { provider: string; request: IAgentPluginInstallRequest; session: URI | undefined; chat: URI | undefined }[] = [];
 		let connectionAuthority = AMBIENT_AGENT_HOST_AUTHORITY;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -92,7 +138,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
 		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -152,7 +198,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
 		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -313,7 +359,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('vendor-session://opaque-host/backend-session?version=2');
 		const calls: { provider: string; session: string }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -387,7 +433,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');
 		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -528,7 +574,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('offers explicit sign-in before retrying SDK catalog search', async () => {
 		let authenticationRequests = 0;
 		let searchRequests = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				authenticationRequests++;
@@ -595,7 +641,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	});
 
 	test('surfaces an unavailable SDK catalog as a source error', async () => {
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => { throw new Error('Unexpected authentication'); },
 			new class extends mock<IAgentHostService>() {
@@ -633,7 +679,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const applied: string[] = [];
 		let authenticationRequests = 0;
 		let installed = false;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				authenticationRequests++;
@@ -659,7 +705,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'operation',
 						action: 'install' as const,
 						kind: 'skill' as const,
@@ -668,9 +714,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						target: 'skills/demo',
 						fileCount: 1,
 						totalBytes: 10,
-					};
+					});
 				}
-				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+				override async applyCustomizationInstallation(_provider: string, { operationId }: { readonly operationId: string }) {
 					applied.push(operationId);
 					installed = true;
 					return { kind: 'receipt' as const, installationId: 'installation' };
@@ -753,7 +799,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}();
 		pluginService.enablementModel.setEnabled(installedPlugin.uri.toString(), ContributionEnablementState.DisabledProfile);
 		let plugins: readonly IAgentPluginInstallation[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -761,7 +807,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onAgentHostExit = Event.None;
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'plugin-operation',
 						action: 'install' as const,
 						kind: 'plugin' as const,
@@ -774,9 +820,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						totalBytes: 256,
 						installsDisabled: true,
 						mcpServerCount: 1,
-					};
+					});
 				}
-				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+				override async applyCustomizationInstallation(_provider: string, { operationId }: { readonly operationId: string }) {
 					applied.push(operationId);
 					discoveredPlugins.set([installedPlugin], undefined);
 					return {
@@ -919,16 +965,16 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				},
 			};
 			pluginService.enablementModel.setEnabled(uri.toString(), ContributionEnablementState.DisabledProfile);
-			const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			const provider = store.add(createTestProvider(
 				'copilotcli', async () => true,
 				new class extends mock<IAgentHostService>() {
 					override readonly onAgentHostStart = Event.None;
 					override readonly onAgentHostExit = Event.None;
 					override async prepareCustomizationInstallation() {
-						return {
+						return ownedReview({
 							operationId: 'operation', action: 'install' as const, kind: 'plugin' as const, displayName: 'canvas',
 							source: 'owner/repo@revision', target: 'target', fileCount: 1, totalBytes: 1, installsDisabled: true, mcpServerCount: 0,
-						};
+						});
 					}
 					override async applyCustomizationInstallation() {
 						calls.push('install');
@@ -983,7 +1029,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				state: pluginService.enablementModel.readEnabled(uri.toString()),
 			}, {
 				calls: scenario === 'cancelled' ? [] : succeeds || scenario === 'reload failed' ? ['install', 'enable:true', 'reload'] : scenario === 'enable refused' ? ['install', 'enable:true'] : ['install'],
-				changes: applied ? 2 : 0,
+				changes: applied ? 2 : scenario === 'install refused' ? 1 : 0,
 				state: succeeds ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
 			});
 		}));
@@ -993,7 +1039,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: string[] = [];
 		const requests: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const details: string[] = [];
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				calls.push('authenticate');
@@ -1005,15 +1052,18 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					calls.push('prepare');
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'operation',
 						action: 'install' as const,
 						kind: 'mcp' as const,
 						displayName: 'Demo MCP',
 						serverName: 'owner/demo',
 						target: 'owner/demo',
+						command: 'uvx',
+						args: ['markitdown-mcp'],
+						env: { MODE: 'stdio' },
 						configurationFields: [],
-					};
+					});
 				}
 				override async applyCustomizationInstallation() {
 					calls.push('apply');
@@ -1029,7 +1079,10 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
 			new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
+				override readonly confirm: IDialogService['confirm'] = async confirmation => {
+					details.push(typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value ?? '');
+					return { confirmed: true };
+				};
 			}(),
 			new NullLogService(),
 			pluginService,
@@ -1054,8 +1107,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls, requests }, {
+		assert.deepStrictEqual({ calls, requests, localReviewVisible: details.some(detail => detail.includes('Command: uvx') && detail.includes('Arguments: ["markitdown-mcp"]') && detail.includes('Environment: {"MODE":"stdio"}')) }, {
 			calls: ['authenticate', 'prepare', 'apply'],
+			localReviewVisible: true,
 			requests: [{
 				mediaType: 'application/mcp-server+json',
 				identifier: 'default:io.example/demo',
@@ -1077,7 +1131,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('uses the durable MCP server identity when a receipt has no catalogue metadata', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1123,7 +1177,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('installs a featured SDK marketplace plugin without local marketplace identity', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1172,7 +1226,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('completes plugin mutations through SDK records without waiting for client discovery', async () => {
 		let plugins: readonly IAgentPluginInstallation[] = [];
 		const calls: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1222,7 +1276,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1267,7 +1321,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		let failInventory = false;
 		const calls: unknown[] = [];
 		let changes = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1348,7 +1402,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			override readonly onAgentHostExit = Event.None;
 			override async listPluginInstallations() { return inventory; }
 		}();
-		const createProvider = () => store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const createProvider = () => store.add(createTestProvider(
 			'copilotcli', async () => true, hostService,
 			new class extends mock<IAgentHostConnectionsService>() {
 				override resolveSessionResourceIdentity() { return undefined; }
@@ -1412,7 +1466,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			undefined,
 		];
 		const warnings: string[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1446,7 +1500,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('does not read local SDK inventory for a remote host session', async () => {
 		let localReads = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1471,5 +1525,378 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		));
 		await assert.rejects(provider.getInstallations(URI.parse('vendor-session://remote/frontend'), CancellationToken.None), /selected local Agent Host session is unavailable/);
 		assert.strictEqual(localReads, 0);
+	});
+	suite('configured MCP installation', () => {
+		const sentinels = { region: 'SENTINEL-REGION-a1', tenant: 'SENTINEL-TENANT-b2', secret: 'SENTINEL-SECRET-c3' };
+		const backendSession = URI.parse('copilotcli:/backend-session');
+		const configuration: IAgentCustomizationInstallationConfigurationRequest = {
+			kind: 'configuration', operationId: 'preparation', hostGeneration: 'generation', ownershipToken: 'token', displayName: 'Configured MCP', serverName: 'owner/configured',
+			target: 'owner/configured', recommendedChoiceId: 'remote:1',
+			choices: [
+				{ choiceId: 'remote:0', transport: 'sse', endpointSummary: 'https://example.test/sse', configurationFields: ['url'], values: [], secrets: [] },
+				{
+					choiceId: 'remote:1', transport: 'streamable-http', endpointSummary: 'https://example.test/eu/mcp', configurationFields: ['headers', 'url'],
+					values: [
+						{ key: 'X-Region', category: 'header', valueType: 'enum', required: true, isRepeated: false, enumValues: ['eu', sentinels.region] },
+						{ key: 'TENANT', category: 'url-variable', valueType: 'string', required: false, isRepeated: false, defaultValue: 'common' },
+						{ key: 'LIMIT', category: 'url-variable', valueType: 'number', required: false, isRepeated: false, defaultValue: '10' },
+					],
+					secrets: [{ key: 'API_KEY', placeholder: '${secret:a}', title: 'API key' }],
+				},
+			],
+		};
+		const resource = {
+			sourceId: 'agentFinder', identifier: 'selection', displayName: 'Configured MCP', description: '', mediaType: 'application/mcp-server+json',
+			tags: [], capabilities: [], representativeQueries: [],
+			installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection' },
+		} as const;
+
+		/** One quick input step as the user saw it. */
+		interface IShownStep {
+			readonly step: string | undefined;
+			readonly back: boolean;
+			readonly description: string | undefined;
+			readonly prompt: string | undefined;
+			readonly placeholder: string | undefined;
+			/** The pre-filled text, or the label of the preselected item. */
+			readonly value: string | undefined;
+		}
+
+		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly backAt?: readonly number[]; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest; readonly entries?: string[] } = {}) {
+			const calls: unknown[] = [];
+			const details: string[] = [];
+			const validation: (string | undefined)[] = [];
+			const secretValidation: (string | undefined)[] = [];
+			const shown: IShownStep[] = [];
+			const host = new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async prepareCustomizationInstallation(_provider: string, session: URI) {
+					calls.push(['prepare', session.toString()]);
+					return options.configuration ?? configuration;
+				}
+				override async applyCustomizationInstallation(_provider: string, request: IAgentCustomizationInstallationApplyRequest) {
+					calls.push(['apply', request]);
+					return { kind: 'receipt' as const, installationId: 'installation' };
+				}
+			}();
+			const backButton: IQuickInputButton = { tooltip: 'Back' };
+			/** Records a step; returns whether the user goes back from it. */
+			const show = (step: IShownStep) => {
+				shown.push(step);
+				return options.backAt?.includes(shown.length - 1) ?? false;
+			};
+			const stepOf = (input: { readonly step: number | undefined; readonly totalSteps: number | undefined }) => input.step !== undefined ? `${input.step}/${input.totalSteps}` : undefined;
+			const quickInput = new class extends mock<IQuickInputService>() {
+				override readonly backButton = backButton;
+				override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+				override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+				override createQuickPick<T extends IQuickPickItem>(_options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: true }> | IQuickPick<T, { useSeparators: false }> {
+					const disposables = new DisposableStore();
+					const accept = disposables.add(new Emitter<IQuickPickDidAcceptEvent>());
+					const button = disposables.add(new Emitter<IQuickInputButton>());
+					return new class extends mock<IQuickPick<T>>() {
+						override title: string | undefined;
+						override description: string | undefined;
+						override step: number | undefined;
+						override totalSteps: number | undefined;
+						override placeholder: string | undefined;
+						override buttons: readonly IQuickInputButton[] = [];
+						override items: readonly T[] = [];
+						override activeItems: readonly T[] = [];
+						override selectedItems: readonly T[] = [];
+						override ignoreFocusOut = false;
+						override readonly onDidAccept = accept.event;
+						override readonly onDidTriggerButton = button.event;
+						override readonly onDidHide = Event.None;
+						override show(): void {
+							const items = this.items as readonly (T & { readonly value?: string })[];
+							calls.push(['pick', items.map(item => item.label)]);
+							if (show({ step: stepOf(this), back: this.buttons.includes(backButton), description: this.description, prompt: undefined, placeholder: this.placeholder, value: this.activeItems[0]?.label })) {
+								button.fire(backButton);
+								return;
+							}
+							// The transport pick preselects the recommendation; value picks choose the enum's sentinel.
+							this.selectedItems = [this.activeItems[0] ?? items.find(item => item.value === sentinels.region)!];
+							accept.fire({ inBackground: false });
+						}
+						override dispose(): void {
+							disposables.dispose();
+						}
+					}();
+				}
+				override createInputBox(): IInputBox {
+					const disposables = new DisposableStore();
+					const accept = disposables.add(new Emitter<void>());
+					const change = disposables.add(new Emitter<string>());
+					const hide = disposables.add(new Emitter<IQuickInputHideEvent>());
+					const button = disposables.add(new Emitter<IQuickInputButton>());
+					const cancelAt = options.cancelAt;
+					return new class extends mock<IInputBox>() {
+						override title: string | undefined;
+						override description: string | undefined;
+						override step: number | undefined;
+						override totalSteps: number | undefined;
+						override placeholder: string | undefined;
+						override prompt: string | undefined;
+						override buttons: readonly IQuickInputButton[] = [];
+						override value = '';
+						override password = false;
+						override validationMessage: string | undefined;
+						override ignoreFocusOut = false;
+						override readonly onDidAccept = accept.event;
+						override readonly onDidChangeValue = change.event;
+						override readonly onDidHide = hide.event;
+						override readonly onDidTriggerButton = button.event;
+						private enter(value: string): void {
+							this.value = value;
+							change.fire(value);
+						}
+						override show(): void {
+							if (show({ step: stepOf(this), back: this.buttons.includes(backButton), description: this.description, prompt: this.prompt, placeholder: this.placeholder, value: this.password ? undefined : this.value })) {
+								button.fire(backButton);
+								return;
+							}
+							if (this.password) {
+								if (cancelAt === 'secret') {
+									hide.fire({ reason: QuickInputHideReason.Other });
+									return;
+								}
+								for (const probe of ['', 'a\0b', 'x'.repeat(8193)]) {
+									this.enter(probe);
+									secretValidation.push(this.validationMessage);
+								}
+								this.enter(sentinels.secret);
+								secretValidation.push(this.validationMessage);
+								accept.fire();
+								return;
+							}
+							if (options.entries) {
+								this.enter(options.entries.shift() ?? '');
+								accept.fire();
+								return;
+							}
+							const tenant = this.prompt?.includes(`'TENANT'`);
+							for (const probe of tenant ? ['$HOME', '${HOME}', sentinels.tenant, ''] : ['1.0', ' 1', '0x1', '-1.5e3']) {
+								this.enter(probe);
+								validation.push(this.validationMessage);
+							}
+							this.enter(tenant ? sentinels.tenant : '');
+							accept.fire();
+						}
+						override dispose(): void {
+							disposables.dispose();
+						}
+					}();
+				}
+			}();
+			const provider = store.add(createTestProvider(
+				'copilotcli', async () => true,
+				host,
+				new class extends mock<IAgentHostConnectionsService>() {
+					override resolveSessionResourceIdentity() { return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession }; }
+				}(),
+				new class extends mock<IAgentHostCustomizationService>() {
+					override readonly onDidChangeCustomizations = Event.None;
+				}(),
+				new class extends mock<IDialogService>() {
+					override readonly confirm: IDialogService['confirm'] = async confirmation => {
+						details.push(typeof confirmation.detail === 'string' ? confirmation.detail : '');
+						return { confirmed: options.confirm ?? true };
+					};
+				}(),
+				new NullLogService(),
+				pluginService,
+				{
+					quickInput, trusted: options.trusted,
+					requestTrust: async () => { calls.push('requestTrust'); return options.grantTrust; },
+				},
+			));
+			return { provider, calls, details, validation, secretValidation, shown, quickInput };
+		}
+
+		test('installs once through the local host with exact submitted values after a sanitized review', async () => {
+			const { provider, calls, details, validation } = createFlow();
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.ok(!details.join().includes(sentinels.region) && !details.join().includes(sentinels.tenant) && !details.join().includes(sentinels.secret));
+			assert.deepStrictEqual({ calls, validation, detail: details[0].split('\n').slice(2) }, {
+				calls: [
+					['prepare', backendSession.toString()],
+					['pick', ['sse', 'streamable-http']],
+					['pick', ['eu', sentinels.region]],
+					['apply', {
+						hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+						answers: {
+							choiceId: 'remote:1',
+							inputs: [{ key: 'X-Region', category: 'header', value: sentinels.region }, { key: 'TENANT', category: 'url-variable', value: sentinels.tenant }],
+							secrets: [{ placeholder: '${secret:a}', value: sentinels.secret }],
+						},
+					}],
+				],
+				validation: [
+					'Variable references such as $NAME or ${NAME} are not allowed.', 'Variable references such as $NAME or ${NAME} are not allowed.', undefined, undefined,
+					undefined, 'Enter a number, for example 42 or -1.5e3.', 'Enter a number, for example 42 or -1.5e3.', undefined,
+				],
+				detail: [
+					'Server: owner/configured',
+					'Destination: owner/configured',
+					'Endpoint (from the installation plan): https://example.test/eu/mcp',
+					'Configured values: X-Region (header), TENANT (url-variable)',
+					'Secrets: API_KEY',
+					'Configuration fields: headers, url',
+				],
+			});
+		});
+
+		test('rejects secrets the host would refuse while the prompt is still open', async () => {
+			const { provider, secretValidation } = createFlow();
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual(secretValidation, [
+				'A value is required.',
+				'This secret contains characters that are not allowed.',
+				'This secret is longer than 8192 bytes.',
+				undefined,
+			]);
+		});
+
+		test('shows command links from untrusted plan text as plain text', async () => {
+			const link = '[Continue setup](command:workbench.action.files.newUntitledFile)';
+			const { provider, shown } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'remote:0', transport: 'streamable-http', endpointSummary: 'https://example.test/mcp', configurationFields: ['headers'],
+						values: [{ key: 'X-Region', category: 'header', valueType: 'enum', required: true, isRepeated: false, enumValues: ['eu', sentinels.region], title: link, description: link }],
+						secrets: [{ key: 'API_KEY', placeholder: '${secret:a}', title: link }],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			const links = (text: string | undefined) => parseLinkedText(text ?? '').nodes.filter(node => typeof node !== 'string').length;
+			assert.deepStrictEqual(shown.map(step => links(step.prompt) + links(step.placeholder) + links(step.description)), [0, 0]);
+		});
+
+		test('reviews a local package choice by its command and sends its values once', async () => {
+			const { provider, calls, details, shown } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}', env: { NODE_OPTIONS: '--max-old-space-size=64', LOG_LEVEL: '${input:LOG_LEVEL}' }, configurationFields: ['args', 'command', 'env'],
+						values: [
+							{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', sentinels.region] },
+							{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
+							{ key: '-d', category: 'package-argument', valueType: 'string', required: false, isRepeated: false },
+						],
+						secrets: [],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ shown, apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
+				shown: [
+					{ step: '1/3', back: false, description: 'Command: npx @example/local@1.2.3 --port <port> -d <domain>', prompt: undefined, placeholder: `Environment variable 'LOG_LEVEL'`, value: undefined },
+					{ step: '2/3', back: true, description: 'Command: npx @example/local@1.2.3 --port ▶<port> -d <domain>', prompt: `Value for command-line option '--port'. Leave empty to use the default.`, placeholder: 'Default: 3000', value: '' },
+					{ step: '3/3', back: true, description: 'Command: npx @example/local@1.2.3 --port <port> ▶-d <domain>', prompt: `Value for command-line option '-d'. Optional: leave empty to skip.`, placeholder: 'Optional', value: '' },
+				],
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: { choiceId: 'package:0', inputs: [{ key: 'LOG_LEVEL', category: 'environment-variable', value: sentinels.region }], secrets: [] },
+				}],
+				detail: [
+					'Server: owner/configured',
+					'Destination: owner/configured',
+					'Command (your values replace the placeholders): npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}',
+					'Environment: {"NODE_OPTIONS":"--max-old-space-size=64","LOG_LEVEL":"${input:LOG_LEVEL}"}',
+					'Configured values: LOG_LEVEL (environment-variable)',
+					'Configuration fields: args, command, env',
+				],
+			});
+		});
+
+		test('reviews a long package command in full', async () => {
+			const command = `npx @example/local@1.2.3 ${'--flag '.repeat(40)}--last-option`;
+			const { provider, details } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{ choiceId: 'package:0', transport: 'stdio', command, configurationFields: ['args', 'command'], values: [], secrets: [] }],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.ok(details[0].includes(`Command (your values replace the placeholders): ${command}\n`));
+		});
+
+		test('collects a repeated value one entry at a time and sends each entry', async () => {
+			const { provider, calls, shown, details } = createFlow({
+				entries: ['src', 'test', ''],
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --include ${input:include}', configurationFields: ['args', 'command'],
+						values: [{ key: '--include', category: 'package-argument', valueType: 'string', required: true, isRepeated: true }],
+						secrets: [],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ prompts: shown.map(step => [step.step, step.prompt]), apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), values: details[0].split('\n').find(line => line.startsWith('Configured values')) }, {
+				prompts: [
+					['1/1', `Value for command-line option '--include'. Can be given more than once; enter the first value.`],
+					['1/1', `Value for command-line option '--include'. Added: src. Enter another value, or leave empty to finish.`],
+					['1/1', `Value for command-line option '--include'. Added: src, test. Enter another value, or leave empty to finish.`],
+				],
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: { choiceId: 'package:0', inputs: [{ key: '--include', category: 'package-argument', value: 'src' }, { key: '--include', category: 'package-argument', value: 'test' }], secrets: [] },
+				}],
+				values: 'Configured values: --include (package-argument)',
+			});
+		});
+
+		test('going back returns to the previous step with its answer kept', async () => {
+			// Back from the first value returns to the transport pick; back from LIMIT returns to TENANT.
+			const { provider, calls, shown } = createFlow({ backAt: [1, 5] });
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ shown: shown.map(step => [step.step, step.back, step.value]), apply: calls.find(call => Array.isArray(call) && call[0] === 'apply') }, {
+				shown: [
+					[undefined, false, 'streamable-http'],
+					['2/5', true, undefined],
+					[undefined, false, 'streamable-http'],
+					['2/5', true, undefined],
+					['3/5', true, ''],
+					['4/5', true, ''],
+					['3/5', true, sentinels.tenant],
+					['4/5', true, ''],
+					['5/5', true, undefined],
+				],
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: {
+						choiceId: 'remote:1',
+						inputs: [{ key: 'X-Region', category: 'header', value: sentinels.region }, { key: 'TENANT', category: 'url-variable', value: sentinels.tenant }],
+						secrets: [{ placeholder: '${secret:a}', value: sentinels.secret }],
+					},
+				}],
+			});
+		});
+
+		test('declining workspace trust stops before any connection call', async () => {
+			const { provider, calls } = createFlow({ trusted: false, grantTrust: false });
+			await assert.rejects(provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None), /Canceled/);
+			assert.deepStrictEqual(calls, ['requestTrust']);
+		});
+
+		test('sends nothing when the user cancels a prompt or declines the review', async () => {
+			const results: unknown[] = [];
+			for (const scenario of [{ cancelAt: 'secret', confirm: true }, { cancelAt: undefined, confirm: false }]) {
+				const { provider, calls, details } = createFlow(scenario);
+				await assert.rejects(provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None), /Canceled/);
+				results.push({ sent: calls.filter(call => Array.isArray(call) && call[0] === 'apply'), reviewed: details.length });
+			}
+			assert.deepStrictEqual(results, [{ sent: [], reviewed: 0 }, { sent: [], reviewed: 1 }]);
+		});
 	});
 });

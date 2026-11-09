@@ -22,16 +22,20 @@ import { LocalhostLinkOpenerContribution } from '../../../electron-browser/featu
 suite('Localhost Link Opener', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createOpener(openLocalhostLinks: boolean) {
+	async function createOpener(openLocalhostLinks: boolean, remote: boolean = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const opened: { url: unknown; group: PreferredGroup | undefined }[] = [];
+		const placements: { preferredGroup: PreferredGroup | undefined; sourceWindowId: number | undefined }[] = [];
 		instantiationService.stub(IExternalUriOpenerService, { registerExternalOpenerProvider: () => Disposable.None });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			'workbench.browser.openLocalhostLinks': openLocalhostLinks
 		}));
 		instantiationService.stub(IBrowserViewWorkbenchService, {
-			resolveNetwork: () => undefined,
-			getPreferredGroup: async group => group
+			resolveNetwork: () => remote ? { authority: 'remote-host' } : undefined,
+			getPreferredGroup: async (preferredGroup, sourceWindowId) => {
+				placements.push({ preferredGroup, sourceWindowId });
+				return preferredGroup;
+			}
 		});
 		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput, group?: PreferredGroup) => {
 			opened.push({ url: (input.options?.viewState as { url?: unknown } | undefined)?.url, group });
@@ -39,7 +43,7 @@ suite('Localhost Link Opener', () => {
 		});
 		const contribution = store.add(instantiationService.createInstance(LocalhostLinkOpenerContribution));
 		const openers = await Iterable.asyncToArray(contribution.getOpeners(URI.parse('http://localhost:3000')));
-		return { contribution, opener: openers[0], opened };
+		return { contribution, opener: openers[0], opened, placements };
 	}
 
 	test('is preferred for localhost links when enabled, an option for other web links, and never offered for other schemes', async () => {
@@ -68,11 +72,42 @@ suite('Localhost Link Opener', () => {
 		test(`opens the link as written, in the default or explicit side placement: ${viewColumn}`, async () => {
 			const { opener, opened } = await createOpener(true);
 			const href = 'https://localhost:9448/review?pr=342081&q=a%26b#changes';
-			const handled = await opener.openExternalUri(href, { sourceUri: URI.parse(href), viewColumn }, CancellationToken.None);
+			const handled = await opener.openExternalUri(href, { sourceUri: URI.parse(href), sourceHref: href, viewColumn }, CancellationToken.None);
 			assert.deepStrictEqual({ handled, opened }, {
 				handled: true,
 				opened: [{ url: href, group: viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined }]
 			});
+		});
+	}
+
+	test('asks for the group in the window the link was activated in', async () => {
+		const { opener, placements } = await createOpener(true);
+		const href = 'https://github.com/microsoft/vscode/issues/1';
+		for (const [viewColumn, sourceWindowId] of [[undefined, 3], [ViewColumn.Beside, 3], [undefined, undefined]] as const) {
+			await opener.openExternalUri(href, { sourceUri: URI.parse(href), sourceHref: href, viewColumn, sourceWindowId }, CancellationToken.None);
+		}
+		assert.deepStrictEqual(placements, [
+			{ preferredGroup: undefined, sourceWindowId: 3 },
+			{ preferredGroup: SIDE_GROUP, sourceWindowId: 3 },
+			{ preferredGroup: undefined, sourceWindowId: undefined },
+		]);
+	});
+
+	for (const remote of [false, true]) {
+		test(`preserves URL encoding ${remote ? 'before' : 'after'} port forwarding for ${remote ? 'remote' : 'local'} browsers`, async () => {
+			const { opener, opened } = await createOpener(true, remote);
+			const sourceHrefs = [
+				'http://localhost:3000/?q=hi',
+				'http://localhost:3000/a%2Fb?q=a%26b%3Dc&space=a%20b&percent=%25#part%23one',
+			];
+			for (const sourceHref of sourceHrefs) {
+				const href = sourceHref.replace('localhost:3000', '127.0.0.1:4000');
+				await opener.openExternalUri(href, { sourceUri: URI.parse(sourceHref), sourceHref }, CancellationToken.None);
+			}
+			assert.deepStrictEqual(opened, sourceHrefs.map(sourceHref => ({
+				url: remote ? sourceHref : sourceHref.replace('localhost:3000', '127.0.0.1:4000'),
+				group: undefined,
+			})));
 		});
 	}
 });

@@ -69,6 +69,7 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
+.automations-disabled-section,
 .automations-history-state,
 .automations-history {
 	width: 100%;
@@ -159,7 +160,8 @@
 	transform-origin: center;
 }
 
-.automations-ownership-section[open] .automations-ownership-chevron {
+.automations-ownership-section[open] .automations-ownership-chevron,
+.automations-disabled-section[open] .automations-ownership-chevron {
 	transform: rotate(90deg);
 }
 
@@ -504,6 +506,11 @@
 .automations-cards-partial-state-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
+}
+
+/* Disabled automations */
+.automations-disabled-section {
+	margin-top: var(--vscode-spacing-size240);
 }
 
 /* Starter templates */

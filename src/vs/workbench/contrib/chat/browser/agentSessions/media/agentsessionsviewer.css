@@ -139,7 +139,9 @@
 
 	/* On hover or keyboard focus: show toolbar, hide pinned indicator */
 	.monaco-list-row:hover,
-	.monaco-list-row.focused:not(.selected) {
+	.monaco-list-row.focused:not(.selected),
+	.monaco-list-row.agent-session-chat-row.focused,
+	.monaco-list-row.agent-session-chat-row:focus-within {
 
 		.agent-session-pinned-indicator {
 			display: none;
@@ -464,6 +466,10 @@
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+
+		.agent-session-title-toolbar {
+			flex-shrink: 0;
 		}
 
 		&.needs-input .agent-session-chat-title {

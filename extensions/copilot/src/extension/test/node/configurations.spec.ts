@@ -115,6 +115,14 @@ describe('Configurations', () => {
 		});
 	});
 
+	it('Agents window default for github.copilot.enable keeps the catch-all language entry', () => {
+		const setting = packageJson.contributes.configuration.map(section => section.properties[ConfigKey.Enable.fullyQualifiedId]).find(setting => setting !== undefined);
+
+		// `agentsWindow.default` replaces the default instead of merging into it, so it must repeat the
+		// `*` entry. Without it, next edit suggestions are off for every language it does not list.
+		expect(setting?.agentsWindow?.default).toEqual({ ...setting?.default, markdown: true, plaintext: true });
+	});
+
 	it('all localization strings in package.json are present in package.nls.json', async () => {
 		// Get all keys from package.nls.json
 		const packageJsonPath = path.join(__dirname, '../../../../package.json');

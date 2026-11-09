@@ -13,10 +13,11 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
+| Pinned canvas rows after Automations | `IPinnedCanvasService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -27,7 +28,7 @@ Grouping-section appearance is persisted by the section's stable identity, indep
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, or automatically according to a setting (always, once the user sends a message in the run's session, or never). An explicit hide from the run's context menu overrides the setting. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
 
@@ -79,9 +80,25 @@ User-created groups and the date sections share a user-managed order below the f
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
 
+### Inbox grouping
+
+Inbox is an opt-in presentation of the same catalog, classified into Ready for you, Working, Ready to merge, On hold, and Done. On desktop, Pinned and the always-expanded primary Inbox occupy one scrolling region; the remaining categories and optional archived inventory occupy a bottom-anchored, independently scrolling region. Both regions share one list owner, classification, filters, triage, and attention lease. Selection, explicit reveal, search, and programmatic snapshots cover both regions; passive selection restoration must not expand a user-collapsed category. Category expansion is persisted by its existing identity. Phone retains a single grouped tree.
+
+`sessions.list.inboxEnabled` gates entry through menus, commands, and agent tools. Disabling it suspends a saved Inbox selection in favor of workspace grouping without clearing triage or presentation state; reenabling restores the selection unless the user chose another grouping. Pins remain visible above the categories; archived sessions remain separate. Custom memberships, automatic-section placement, and manual ordering are retained but do not determine Inbox placement. Comparison groups remain intact and follow their highest-attention participant. Switching out of Inbox restores ordinary organization.
+
+The setting also enables Cmd/Ctrl+Enter for Send in Background and adds focus preservation and an Open Session confirmation to explicit background sends from the new-session composer. Existing Alt+Enter behavior and always-background composers remain available with the setting disabled.
+
+`ISessionsListModelService` owns profile-local triage state. Completed history from before the sidebar Inbox's first activation starts in Done unless it has an outstanding question or actionable notification. Return to Inbox and expired snoozes override that initial placement, including after reload. Subsequent Done decisions are explicit, reversible acknowledgements, not archiving, stopping, or deleting sessions. New activity or newly observed notification identities return acknowledged sessions to the inbox. Put on Hold persists until explicit resumption, regardless of new activity or reloads. Timed and until-activity snoozes share the On hold section but expire automatically; none of these states pauses execution. Pinning keeps even held sessions visible. New completions are never marked Done merely because time passes or a pull request merges.
+
+`IInboxNotificationsService.sessionAttention` shares the original Inbox's notification-based classification and priority without importing its workflow decisions. A visible Inbox-mode list acquires attention tracking and releases it on hiding, leaving the mode, or disposal. Its first activation establishes a persisted, profile-local completion cutoff, independent of the canvas's cutoff, so late-arriving history does not appear as new work. That demand respects disabled AI and does not enable the Inbox canvas, generate previews, record canvas lifecycle telemetry, or establish the canvas's completion cutoff.
+
+Inbox categories have fixed order; ordinary rows prioritize the shared notification priority and then recent activity. Placement drag and drop is unavailable in this mode rather than changing the saved project organization. Provider-owned nested chat moves are unchanged.
+
 ### Nested custom groups
 
-User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group. Comparison groups cannot be manually nested or hold children; they retain their automatic placement within grouping sections.
+User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
+
+A comparison is one sortable entry alongside ordinary sessions, in its automatic section or an explicitly chosen custom group. Its creation time is the comparison's creation time; its updated time is the latest participant update. Manual sort keys are stored under the comparison group's section identity, independently for each ordering mode. Comparison membership and participant display order remain comparison-owned: moving the parent never regroups or reorders individual participants. A comparison cannot hold subgroups.
 
 A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
 
@@ -97,9 +114,11 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
+Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
+
 ## Durable user intent
 
-Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
+Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
 List-owned state is removed only when:
 
@@ -109,13 +128,15 @@ List-owned state is removed only when:
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
 
+A new session joins the custom group its draft's owner chose. The main window's New Session composer keeps one pending group, such as from New Session on a group. A composer with a draft slot of its own, such as a chat window's, keeps the group of the session it was opened from for its slot (`ISessionGroupsService.setDraftSlotGroup`), and never takes the main composer's pending group. A slot's intent belongs to its owner, not to one draft: it applies to every send of the slot until its registration (the disposable `setDraftSlotGroup` returns) is disposed. Each accepted request copies it into an association of its own with the accepted session, which becomes membership once that session starts and is dropped when the request ends without starting it; the slot's intent stays as it is either way.
+
 ## Sorting and filtering
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
 Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance.
 
-The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. Searching shows the sessions whose title, chat titles, location, group, branch, pull requests, or remote host contain every word of the query, in any order, ignoring case and accents; a session's nested chats show when their title contains a word. A search bypasses presentation capping and expands the rows that hold its results without persisting that expansion, and the rows return to their previous collapse state when it ends.
 
 ## Drag and drop
 
@@ -131,7 +152,7 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - user groups and workspace, repository, or environment sections may reorder where the grouping mode allows, move into custom groups, and return to the top level; a user group never moves into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
+Archived sections keep a fixed order. Comparison parents can reorder alongside sessions and move into or out of custom groups; comparison participant membership cannot change by dragging. Multi-selection preserves relative order.
 
 ## Agent tools
 
@@ -149,7 +170,9 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+
+Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 
 ## Change policy
 

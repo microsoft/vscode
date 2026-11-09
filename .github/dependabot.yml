@@ -10,8 +10,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  # The "npm" ecosystem also covers pnpm. extensions/markdown-language-features is a member of
+  # the extensions pnpm workspace, so point Dependabot at that workspace's root: it then updates the
+  # member's package.json together with extensions/pnpm-lock.yaml. `allow` keeps it to the Markdown editor.
   - package-ecosystem: "npm"
-    directory: "/extensions/markdown-language-features"
+    directory: "/extensions"
     schedule:
       interval: "daily"
       time: "16:00"

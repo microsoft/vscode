@@ -28,6 +28,7 @@ interface IGitHub {
 interface IContext {
 	readonly repo: { readonly owner: string; readonly repo: string };
 	readonly ref: string;
+	readonly payload?: { readonly repository?: { readonly default_branch?: string } };
 }
 
 interface ICore {
@@ -60,6 +61,8 @@ export interface ICacheWarmingJob {
 	readonly builtInExtensions?: { readonly target: string };
 	/** Whether the job caches the WSL installer with `.github/actions/restore-wsl-installer`. */
 	readonly wslInstaller?: boolean;
+	/** The `runner.arch` and `browsers` of `.github/actions/restore-playwright`. */
+	readonly playwright?: { readonly arch: string; readonly browsers: string };
 }
 
 /**
@@ -83,17 +86,21 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		os: 'Linux',
 		nodeModules: { prefix: 'node_modules-linux', args: ['linux', 'x64', 'x64'] },
 		electron: { arch: 'x64' },
+		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
-	'macOS': {
-		os: 'macOS',
-		nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
-		electron: { arch: 'arm64' },
-	},
+	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// 'macOS': {
+	// 	os: 'macOS',
+	// 	nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
+	// 	electron: { arch: 'arm64' },
+	// 	playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
+	// },
 	'windows': {
 		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
 		electron: { arch: 'x64' },
 		wslInstaller: true,
+		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
 	'copilot-linux': {
 		os: 'Linux',
@@ -110,7 +117,7 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
  * depends on the home directory of the runners and is part of the cache version.
  */
 const electronCachePaths: Readonly<Record<RunnerOs, string>> = {
-	Linux: '/home/cloudtest/.cache/electron',
+	Linux: '/home/runner/.cache/electron',
 	macOS: '/Users/runner/Library/Caches/electron',
 	Windows: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache',
 };
@@ -146,7 +153,7 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	const cache = (key: string, cachePath: string, enableCrossOsArchive?: boolean): ICache => ({ key, version: getCacheVersion(job.os, cachePath, enableCrossOsArchive) });
 	const caches = [cache(`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`, '.build/node_modules_cache')];
 	if (job.electron) {
-		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('.npmrc'), readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
+		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
 	}
 	if (job.builtInExtensions) {
 		const target = job.builtInExtensions.target;
@@ -154,6 +161,11 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	}
 	if (job.wslInstaller) {
 		caches.push(cache(`wsl-installer-v1-${job.os}-${hashFiles(readFile('build/checksums/wsl.txt'))}`, '.build/wsl-installer'));
+	}
+	if (job.playwright) {
+		const version = /\n  \.:\n(?:(?!\n  \S)[\s\S])*?\n      '@playwright\/test':\n        specifier: .*\n        version: ([^\s(]+)/.exec(readFile('pnpm-lock.yaml').toString('utf8').replace(/\r\n/g, '\n'))![1];
+		const browsers = job.playwright.browsers.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+		caches.push(cache(`playwright-v1-${job.os}-${job.playwright.arch}-${version}-${browsers}`, '.build/ms-playwright'));
 	}
 	return caches;
 }
@@ -176,17 +188,22 @@ function createCheckoutReaders(): Readonly<Record<LineEndings, ReadRepositoryFil
 }
 
 /**
- * Returns the versions of the caches on the current branch with the given key.
+ * Returns the versions of the caches with the given key that the current branch can restore: its
+ * own and, on another branch than the default branch, those of the default branch. A job that
+ * restores a cache of the default branch doesn't save a copy on its own branch, so only listing the
+ * current branch would run the job on every push to a release branch.
  */
 async function listCacheVersions(github: IGitHub, context: IContext, key: string): Promise<(string | undefined)[]> {
+	const defaultRef = `refs/heads/${context.payload?.repository?.default_branch ?? 'main'}`;
+	const refs = context.ref === defaultRef ? [context.ref] : [context.ref, defaultRef];
 	// The key parameter matches key prefixes.
-	const { data } = await github.rest.actions.getActionsCacheList({ ...context.repo, ref: context.ref, key, per_page: 100 });
-	return (data.actions_caches ?? []).filter(cache => cache.key === key).map(cache => cache.version);
+	const lists = await Promise.all(refs.map(ref => github.rest.actions.getActionsCacheList({ ...context.repo, ref, key, per_page: 100 })));
+	return lists.flatMap(({ data }) => (data.actions_caches ?? []).filter(cache => cache.key === key).map(cache => cache.version));
 }
 
 /**
- * Sets an output for each cache warming job: 'true' when one of its caches is missing on the
- * current branch, otherwise 'false'. A cache with the right key but another version is missing,
+ * Sets an output for each cache warming job: 'true' when the current branch can't restore one of
+ * its caches, otherwise 'false'. A cache with the right key but another version is missing,
  * because the job could not restore it. Jobs whose caches cannot be checked run.
  */
 export async function detectMissingCaches(github: IGitHub, context: IContext, core: ICore, readers: Readonly<Record<LineEndings, ReadRepositoryFile>> = createCheckoutReaders()): Promise<void> {

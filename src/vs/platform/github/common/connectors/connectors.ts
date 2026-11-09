@@ -3,10 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { ApiRequestOptions } from '../client/request.js';
 
 /** OAuth permission requested by VS Code for explicit Connector management actions. */
 export const copilotConnectorsScope = 'write:plugin_gateway_connections';
+
+/**
+ * The scopes of the account's GitHub Copilot credential without Copilot Connector authorization: those of its
+ * narrowest sessions that grant every Copilot scope but not the Connector scope. Any of those sessions can be the
+ * credential the Agent Host forwards, also for GitHub requests beyond Copilot (for example, the built-in GitHub
+ * MCP server), so a Connector-authorized session replaces it only when it keeps all of these scopes. Returns
+ * `undefined` when the account has no such session.
+ */
+export function copilotCredentialBaselineScopes(sessions: readonly { readonly scopes: readonly string[] }[], copilotScopes: readonly string[]): readonly string[] | undefined {
+	const credentials = sessions.filter(session => !session.scopes.includes(copilotConnectorsScope) && copilotScopes.every(scope => session.scopes.includes(scope)));
+	if (!credentials.length) {
+		return undefined;
+	}
+	const scopeCount = (session: { readonly scopes: readonly string[] }) => new Set(session.scopes).size;
+	const fewest = Math.min(...credentials.map(scopeCount));
+	return distinct(credentials.filter(session => scopeCount(session) === fewest).flatMap(session => session.scopes));
+}
 
 /** Service-owned plugin manifest and the authenticated user's catalog connection state. */
 export interface ConnectorPlugin {

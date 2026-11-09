@@ -84,6 +84,39 @@ suite('FileSystemFileSearchProvider', () => {
 		}, { files: ['src/.ignore', 'src/app.ts', 'src/keep.log'], listed: ['', '/src'] });
 	});
 
+	test('exclude exceptions re-include excluded and ignored paths without walking other excluded folders', async () => {
+		const listed: string[] = [];
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			override async readdir(resource: URI): Promise<[string, FileType][]> {
+				listed.push(resource.path.slice(root.path.length));
+				return super.readdir(resource);
+			}
+		}());
+		const { search, query } = await setup({
+			'.gitignore': 'build/\n',
+			'build/keep.txt': '',
+			'build/drop.txt': '',
+			'node_modules/@types/node/index.d.ts': '',
+			'node_modules/react/index.js': '',
+			'src/a.js': '',
+			'gulpfile.js': '',
+			'index.js': '',
+		}, provider);
+		listed.length = 0;
+		const result = await search.fileSearch({
+			...query,
+			excludePattern: { 'node_modules': true, '*.js': true, '!node_modules/@types': true, '!gulpfile.js': true, '!build/keep.txt': true },
+		});
+
+		assert.deepStrictEqual({
+			files: result.results.map(match => match.resource.path.slice(root.path.length + 1)).sort(),
+			listed: listed.sort(),
+		}, {
+			files: ['.gitignore', 'build/keep.txt', 'gulpfile.js', 'node_modules/@types/node/index.d.ts', 'src/a.js'],
+			listed: ['', '/build', '/node_modules', '/node_modules/@types', '/node_modules/@types/node', '/src'],
+		});
+	});
+
 	test('supports attachment glob queries, ignore overrides, result limits, and exists queries', async () => {
 		const { search, query } = await setup({ '.gitignore': 'hidden/', 'hidden/package.json': '{}', 'package.json': '{}', 'src/package.json': '{}' });
 		const globQuery: IFileQuery = { ...query, filePattern: '**/*PACKAGE*.JSON', shouldGlobMatchFilePattern: true, ignoreGlobCase: true };

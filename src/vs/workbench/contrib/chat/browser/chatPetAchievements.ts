@@ -60,6 +60,7 @@ export interface IChatPetAccessory {
 	readonly atlasCellSize?: 64 | 96;
 	readonly eyeAccessoryMirrorsWithFacing?: boolean;
 	readonly coversAntennae?: boolean;
+	readonly hasAnimatedPropeller?: boolean;
 }
 
 export interface IChatPetAchievement {
@@ -186,6 +187,7 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 			atlasName: 'propeller-hat',
 			atlasCellSize: 96,
 			coversAntennae: true,
+			hasAnimatedPropeller: true,
 		}],
 	},
 	{

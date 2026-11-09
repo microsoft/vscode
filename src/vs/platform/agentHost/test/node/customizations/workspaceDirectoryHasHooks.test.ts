@@ -14,8 +14,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { workspaceDirectoryHasHooks } from '../../../node/copilot/sessionCustomizationDiscovery.js';
-import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { seedFile } from './claudeCustomizationTestUtils.js';
 
 suite('workspaceDirectoryHasHooks', () => {
 

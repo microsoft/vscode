@@ -169,6 +169,35 @@ suite('SSEParser', () => {
 		assert.strictEqual(receivedEvents[0].data, 'hello');
 	});
 
+	test('strips only a stream-leading byte order mark', () => {
+		for (const leadingBOM of ['', '\uFEFF']) {
+			for (const eol of ['\n', '\r\n', '\r']) {
+				const message = toUint8Array(
+					`${leadingBOM}data: first${eol}\uFEFFdata: ignored${eol}data: last${eol}${eol}` +
+					`\uFEFFdata: ignored too${eol}${eol}data: \uFEFFkept${eol}${eol}`
+				);
+				for (const chunkSize of [1, 2, 3, message.length]) {
+					const events: ISSEEvent[] = [];
+					const parser = new SSEParser(event => events.push(event));
+					for (let offset = 0; offset < message.length; offset += chunkSize) {
+						parser.feed(message.subarray(offset, offset + chunkSize));
+					}
+					assert.deepStrictEqual(events, [
+						{ type: 'message', data: 'first\nlast' },
+						{ type: 'message', data: '\uFEFFkept' }
+					]);
+				}
+			}
+		}
+	});
+
+	test('replaces incomplete UTF-8 before a line ending', () => {
+		parser.feed(toUint8Array('data: '));
+		parser.feed(new Uint8Array([0xE2]));
+		parser.feed(toUint8Array('\ndata: next\n\n'));
+		assert.deepStrictEqual(receivedEvents, [{ type: 'message', data: '\uFFFD\nnext' }]);
+	});
+
 	test('supports spec example', () => {
 		// Example from the spec
 		parser.feed(toUint8Array(':This is a comment\ndata: first event\nid: 1\n\n'));

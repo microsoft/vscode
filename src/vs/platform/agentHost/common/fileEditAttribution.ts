@@ -55,6 +55,8 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 
 export interface IAgentEditAttribution {
 	readonly provider?: string;
+	/** Account identity captured for the edit, retained only in host telemetry state and never in protocol markers. */
+	readonly copilotTrackingId?: string;
 	readonly sessionUri: string;
 	/** The session that owns the edit's chat. */
 	readonly ownerSessionUri: string;

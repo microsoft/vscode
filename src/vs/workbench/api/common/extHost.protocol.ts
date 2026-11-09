@@ -602,8 +602,12 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
 	$computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$setLanguageStatus(handle: number, status: ILanguageStatusDto): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ILanguageStatusDto extends Omit<ILanguageStatus, 'detail'> {
+	readonly detail: string;
 }
 
 export interface ISyntaxHighlightingTokenDto {
@@ -2443,6 +2447,7 @@ export interface ExtHostChatArtifactIntegrationsShape {
 	$disposeIntegration(handle: number): void;
 	$acquireDetails(resourceHandle: number, detailsHandle: number, detailsId: string): Promise<{ readonly details: ArtifactDetails; readonly canLoadMore: boolean }>;
 	$loadMoreDetails(detailsHandle: number, token: CancellationToken): Promise<void>;
+	$runItemAction(detailsHandle: number, itemId: string, actionId: string, token: CancellationToken): Promise<void>;
 	$disposeDetails(detailsHandle: number): void;
 	$prepareAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<{ readonly kind: 'ready' } | { readonly kind: 'skip'; readonly reason: string }>;
 	$runAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ChatArtifactActionResultDto | undefined>;
@@ -3347,10 +3352,11 @@ export interface ExtHostShareShape {
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): void;
+	$onWillStartTask(taskId: string, startId?: string): void;
+	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO, startId?: string): void;
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
+	$OnDidEndTask(execution: tasks.ITaskExecutionDTO, startId?: string): void;
 	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
 	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;

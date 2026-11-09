@@ -34,6 +34,8 @@ class TestObservation extends Disposable implements vscode.ChatArtifactIntegrati
 	detailsDisposed = 0;
 	loadMoreCalls = 0;
 	canLoadMore = false;
+	canRunItemActions = false;
+	readonly itemActionRuns: string[] = [];
 	effects = 0;
 	failure: Error | undefined;
 	skip = false;
@@ -73,6 +75,7 @@ class TestObservation extends Disposable implements vscode.ChatArtifactIntegrati
 			get details() { return self.details[detailsId]; },
 			onDidChange: this.detailsChanged.event,
 			dispose: () => { this.detailsDisposed++; },
+			...this.canRunItemActions ? { runItemAction: async (itemId: string, actionId: string) => { this.itemActionRuns.push(`${itemId}:${actionId}`); } } : {},
 		};
 		if (!this.canLoadMore) {
 			return model;
@@ -132,6 +135,7 @@ suite('Chat artifact integration extension bridge', () => {
 			$disposeIntegration: handle => extHost.$disposeIntegration(handle),
 			$acquireDetails: (...args) => extHost.$acquireDetails(...args),
 			$loadMoreDetails: (...args) => extHost.$loadMoreDetails(...args),
+			$runItemAction: (...args) => extHost.$runItemAction(...args),
 			$disposeDetails: handle => extHost.$disposeDetails(handle),
 			$prepareAction: (...args) => extHost.$prepareAction(...args),
 			$runAction: (...args) => extHost.$runAction(...args),
@@ -255,16 +259,16 @@ suite('Chat artifact integration extension bridge', () => {
 		});
 	});
 
-	test('carries the provider group label and each observation group icon and priority', async () => {
+	test('carries the provider group label and each observation group ID, icon and priority', async () => {
 		const { extHost, service } = bridge();
 		const { observations } = register(extHost, { groupLabel: 'Experiments' });
 		const model = store.add(await service.acquireArtifact('vendor-session://opaque', 'record')).object;
 		const observation = observations[0];
 		const ungrouped = model.snapshot.get().contributions[0].view.group;
-		observation.update({ ...observation.state, group: { icon: new ThemeIcon('beaker', new ThemeColor('charts.red')), priority: 3 } });
+		observation.update({ ...observation.state, groupId: 'experiments', group: { icon: new ThemeIcon('beaker', new ThemeColor('charts.red')), priority: 3 } });
 		const contribution = model.snapshot.get().contributions[0];
-		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, ungrouped, group: contribution.view.group }, {
-			groupLabel: 'Experiments', ungrouped: undefined, group: { icon: { id: 'beaker', colorId: 'charts.red' }, priority: 3 },
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, ungrouped, groupId: contribution.view.groupId, group: contribution.view.group }, {
+			groupLabel: 'Experiments', ungrouped: undefined, groupId: 'experiments', group: { icon: { id: 'beaker', colorId: 'charts.red' }, priority: 3 },
 		});
 		assert.throws(() => extHost.registerProvider(nullExtensionDescription, 'invalidGroup', {
 			label: 'Invalid', groupLabel: 'Two\nlines', match: () => undefined, createArtifactIntegration: () => undefined,
@@ -559,6 +563,55 @@ suite('Chat artifact integration extension bridge', () => {
 			duplicate: true, disposed: true, cancelled: true,
 		});
 		await assert.rejects(async () => context.runAutomation(automaticRequest(context)), isCancellationError);
+	});
+
+	test('item actions run directly in the extension or as a registered action with the item as input', async () => {
+		const { extHost, service, prompts, errors } = bridge();
+		const { prepared, observations } = registerAutomation(extHost);
+		const model = store.add(await service.acquireArtifact('vendor-session://opaque', 'record')).object;
+		const observation = observations[0];
+		observation.canRunItemActions = true;
+		const issues: vscode.ChatArtifactDetails = {
+			title: 'Issues',
+			itemActions: [
+				{ id: 'fix', label: 'Fix', icon: new ThemeIcon('sparkle'), actionId: 'analyze' },
+				{ id: 'copyLink', label: 'Copy Link', icon: new ThemeIcon('link') },
+			],
+			items: [
+				{ id: 'one', label: 'Issue one', icon: new ThemeIcon('issues'), resource, actions: ['fix', 'copyLink'] },
+				{ id: 'two', label: 'Issue two', icon: new ThemeIcon('issues'), resource, actions: ['copyLink'] },
+			],
+		};
+		observation.update({ ...observation.state, lists: [{ id: 'issues', label: 'Issues', detailsId: 'issues' }] });
+		observation.updateDetails({ ...observation.details, issues });
+		const contribution = model.snapshot.get().contributions[0];
+		const details = store.add(await model.acquireDetails(contribution.integrationId, 'issues'));
+		await waitForState(details.details, value => value.items.length > 0);
+		await details.runItemAction!('two', 'copyLink', CancellationToken.None);
+		const rejected = await Promise.all([
+			details.runItemAction!('two', 'fix', CancellationToken.None),
+			details.runItemAction!('one', 'unknown', CancellationToken.None),
+		].map(promise => promise.then(() => 'ran', () => 'rejected')));
+		const input = { detailsId: 'issues', itemId: 'one' };
+		const run = await model.invoke(contribution.integrationId, 'analyze', 'vendor-chat://invoking', 'fix-one', undefined, input);
+		await waitForState(model.snapshot, snapshot => snapshot.runs.some(candidate => candidate.id === run.id && candidate.state === 'completed'));
+		const reused = await model.invoke(contribution.integrationId, 'analyze', 'vendor-chat://invoking', 'fix-one', undefined, { ...input, itemId: 'two' }).then(() => 'ran', () => 'rejected');
+		observation.updateDetails({ ...observation.details, issues: { ...issues, itemActions: [{ id: 'fix', label: 'Fix', icon: new ThemeIcon('sparkle'), actionId: 'unknown' }] } });
+		assert.deepStrictEqual({
+			itemActions: details.details.get().itemActions,
+			items: details.details.get().items.map(item => ({ id: item.id, actions: item.actions })),
+			direct: observation.itemActionRuns, rejected, reused,
+			prepared: prepared.map(context => context.input),
+			prompts: prompts.map(request => request.chat),
+			invalid: errors.filter(error => error.includes('Invalid extension details')).length,
+		}, {
+			itemActions: [{ id: 'fix', label: 'Fix', iconId: 'sparkle', actionId: 'analyze' }, { id: 'copyLink', label: 'Copy Link', iconId: 'link' }],
+			items: [{ id: 'one', actions: ['fix', 'copyLink'] }, { id: 'two', actions: ['copyLink'] }],
+			direct: ['two:copyLink'], rejected: ['rejected', 'rejected'], reused: 'rejected',
+			prepared: [input],
+			prompts: ['vendor-chat://invoking'],
+			invalid: 1,
+		});
 	});
 
 	test('shared observations have isolated session consent and durable, revisioned checkpoints', async () => {

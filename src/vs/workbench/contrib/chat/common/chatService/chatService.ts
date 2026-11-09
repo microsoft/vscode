@@ -266,6 +266,8 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
+	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
+	codeblockUri?: IChatResponseCodeblockUriPart;
 }
 
 export interface IChatTreeData {
@@ -356,6 +358,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Keep the notification visible after the response completes instead of folding it into the completed steps. */
+	alwaysVisible?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
 	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
@@ -437,6 +441,8 @@ export interface IChatResponseCodeblockUriPart {
 	isEdit?: boolean;
 	undoStopId?: string;
 	subAgentInvocationId?: string;
+	/** A file reference with no surrounding streamed Markdown code fence. */
+	isStandalone?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -656,9 +662,11 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
-	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
+	/** Marks provider-managed reasoning boundaries, including runs without recorded timing. */
+	reasoningTimingSource?: 'provider';
+	/** Provider-reported epoch milliseconds when reasoning started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
-	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	/** Provider-reported reasoning duration in milliseconds; never inferred from client observation or replay. */
 	reasoningDurationMs?: number;
 }
 
@@ -676,6 +684,18 @@ export interface IChatAutoModeResolutionPart {
 	 * of the pick; it already names the model.
 	 */
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
+	/** A router other than Auto, such as a host-side model router. */
+	router?: string;
+	/** The chosen route's `when`, when it decided the pick. */
+	preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	effort?: string;
+	/** Display name of the model the router moved off on this turn. */
+	switchedFrom?: string;
+	/** The router had no confident pick and used its first route. */
+	defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	kept?: boolean;
 }
 
 /**
@@ -770,8 +790,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
@@ -927,6 +945,12 @@ export interface IChatToolInvocation {
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
+	/**
+	 * What the user typed into the optional feedback field of a confirmation that offers one
+	 * (see {@link IToolConfirmationMessages.feedback}). Active-only: it is sent with the decision
+	 * and omitted when the invocation is serialized.
+	 */
+	confirmationFeedback?: string;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -1287,6 +1311,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */
@@ -2239,6 +2265,8 @@ export interface IChatService {
 	 * Removes a pending request from the session's queue.
 	 */
 	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/** Correlates a remotely consumed queue entry with its actual request, without canceling its submission. */
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void;
 	/**
 	 * Sets the pending requests for a session, allowing for deletions/reordering.
 	 * Adding new requests should go through sendRequest with the queue option.

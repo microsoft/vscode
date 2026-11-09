@@ -100,14 +100,17 @@
 
 .ai-customization-management-editor .sidebar-migration-shortcut {
 	flex-shrink: 0;
-	margin-top: var(--vscode-spacing-size80);
-	padding-top: var(--vscode-spacing-size40);
 }
 
 .ai-customization-management-editor .sidebar-migration-separator {
+	display: none;
 	height: var(--vscode-strokeThickness);
-	margin: 0 8px 6px;
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut.show-separator .sidebar-migration-separator {
+	display: block;
 }
 
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button {
@@ -183,10 +186,15 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+/* The separator is drawn in the spacing above the row's box, which the row's own clipping would hide. */
+.ai-customization-management-editor .section-list-item.section-separator-before {
+	overflow: visible;
+}
+
 .ai-customization-management-editor .section-list-item.section-separator-before::before {
 	content: '';
 	position: absolute;
-	top: 0;
+	top: calc(-1 * var(--vscode-spacing-size40));
 	left: var(--vscode-spacing-size80);
 	right: var(--vscode-spacing-size80);
 	height: var(--vscode-strokeThickness);
@@ -868,6 +876,10 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 1;
 }
 
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-skills {
+	flex-shrink: 0;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -1002,7 +1014,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions,
-.mcp-list-widget .section-title-header .section-title-actions {
+.mcp-list-widget .section-title-header .section-title-actions,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -1010,7 +1023,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
-.mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
+.mcp-list-widget .section-title-header .section-title-actions > .monaco-button,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-actions > .monaco-button {
 	width: auto;
 	height: var(--vscode-spacing-size240);
 	font-size: var(--vscode-fontSize-label1);
@@ -2258,16 +2272,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
-	color: var(--vscode-errorForeground);
-	border-color: transparent;
-	background: transparent;
-}
-
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading2);
@@ -2396,7 +2400,12 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link {
 	color: var(--vscode-textLink-foreground);
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-decoration: none;
+	white-space: nowrap;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link:hover {
@@ -2943,7 +2952,8 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link,
 .copilot-customization-tree-source-link.source-link,
-.tools-list-connected-row .source-link {
+.tools-list-connected-row .source-link,
+.ai-customization-list-item .item-source.source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	text-decoration: none;
@@ -2951,14 +2961,16 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link:hover,
 .copilot-customization-tree-source-link.source-link:hover,
-.tools-list-connected-row .source-link:hover {
+.tools-list-connected-row .source-link:hover,
+.ai-customization-list-item .item-source.source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:focus-visible,
 .copilot-customization-tree-source-link.source-link:focus-visible,
-.tools-list-connected-row .source-link:focus-visible {
+.tools-list-connected-row .source-link:focus-visible,
+.ai-customization-list-item .item-source.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -3457,6 +3469,34 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-card-section-actions .plugin-installed-action.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-group-header .plugin-card-split-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-group-header .plugin-card-split-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-button-dropdown-separator {
+	display: none;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button {
+	border: 0;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button:hover:not(:focus) {
+	background: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-dropdown-button.codicon-chevron-down-compact {
+	width: var(--vscode-spacing-size200);
+	min-width: var(--vscode-spacing-size200);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,

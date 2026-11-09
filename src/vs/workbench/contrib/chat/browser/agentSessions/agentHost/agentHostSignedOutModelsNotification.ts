@@ -7,8 +7,7 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
@@ -43,7 +42,6 @@ export const enum SignedOutModelsNotificationState {
 }
 
 export function getSignedOutModelsNotificationState(options: {
-	readonly allowSignedOutWhenUsable: boolean;
 	readonly accountResolved: boolean;
 	readonly entitlementResolved: boolean;
 	readonly signedIn: boolean;
@@ -53,7 +51,7 @@ export function getSignedOutModelsNotificationState(options: {
 	readonly gracePeriodElapsed: boolean;
 	readonly setupDialogVisible: boolean;
 }): SignedOutModelsNotificationState {
-	if (options.setupDialogVisible || !options.allowSignedOutWhenUsable || !options.accountResolved || !options.entitlementResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
+	if (options.setupDialogVisible || !options.accountResolved || !options.entitlementResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
 		return SignedOutModelsNotificationState.Hidden;
 	}
 	// Readiness is the fast path; the grace period bounds it because a vendor named
@@ -69,7 +67,7 @@ export function areLocalModelsLoaded(extensionsRegistered: boolean, configuratio
 }
 
 /**
- * Shows harness-scoped guidance when signed-out operation is enabled but the selected harness has no usable models.
+ * Shows harness-scoped guidance when signed out and the selected harness has no usable models.
  */
 export class AgentHostSignedOutModelsNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -89,7 +87,6 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
@@ -114,11 +111,6 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
 			Event.filter(this._contextKeyService.onDidChangeContext, event => event.affectsSome(NOTIFICATION_CONTEXT_KEYS)),
 		)(() => this._update()));
-		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)) {
-				this._update();
-			}
-		}));
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (!this._store.isDisposed) {
 				this._extensionsRegistered = true;
@@ -146,7 +138,6 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 
 	private _update(): void {
 		// Local BYOK readiness is shared by both harnesses; the Agent Host's own bridged catalog is covered by the grace period.
-		const allowSignedOutWhenUsable = this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 		const entitlement = this._chatEntitlementService.entitlement;
 		const entitlementResolved = entitlement !== ChatEntitlement.Unresolved;
 		const signedIn = this._defaultAccountService.currentDefaultAccount !== null
@@ -167,7 +158,6 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		const hasModels = this._chatEntitlementService.clientByokEnabled
 			&& hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot);
 		const state = getSignedOutModelsNotificationState({
-			allowSignedOutWhenUsable,
 			accountResolved: this._accountResolved,
 			entitlementResolved,
 			signedIn,

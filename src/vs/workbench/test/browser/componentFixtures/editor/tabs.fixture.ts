@@ -44,6 +44,7 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { CHAT_PART_OPTIONS } from '../../../../contrib/chatWindow/browser/chatWindow.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
@@ -199,6 +200,16 @@ function longLabelEditorSpecs(): IEditorSpec[] {
 		{ resource: file('/project/src/features/authentication/providers/veryLongAuthenticationProviderImplementation.ts'), pinned: true, active: true },
 		{ resource: file('/project/src/features/authentication/providers/anotherExtremelyLongProviderFactoryModule.ts'), pinned: true },
 		{ resource: file('/project/documentation/architecture/decisions/0001-use-a-really-long-descriptive-file-name.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+	];
+}
+
+/** Chats with long titles, as the tabs of a chat window's chat part show them, each with its status icon. */
+function longChatTitleEditorSpecs(): IEditorSpec[] {
+	const chat = (path: string) => URI.from({ scheme: 'fixture-chat', path });
+	return [
+		{ resource: chat('/1'), name: 'Chat Windows', icon: ThemeIcon.fromId(Codicon.gitPullRequest.id), pinned: true, active: true },
+		{ resource: chat('/2'), name: 'Bug: Changes pill shows wrong chat\'s diffs; canvas error', icon: ThemeIcon.fromId(Codicon.gitPullRequest.id), pinned: true },
+		{ resource: chat('/3'), name: 'Fix #346721: workspace child of a no-workspace session', icon: ThemeIcon.fromId(Codicon.copilot.id), pinned: true },
 	];
 }
 
@@ -488,6 +499,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 		options.showHeader ?? false,
 		options.reserveHeaderSpace ? () => true : undefined,
 		options.useModernUITabs ?? false,
+		undefined,
 	));
 
 	const layout = () => {
@@ -532,7 +544,7 @@ function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'mod
 	return ctx => renderEditorTabsFixture(ctx, { ...options, modernUI });
 }
 
-function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight'], showScrollbar = false): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
 		for (const [name, modernUI, editorTabStyle] of [
 			['Legacy', false, undefined],
@@ -548,8 +560,10 @@ function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeigh
 			renderEditorTabsFixture({ ...ctx, container }, {
 				modernUI,
 				editorTabStyle,
-				partOptions: { tabHeight },
-				editors: [
+				partOptions: { tabHeight, titleScrollbarVisibility: showScrollbar ? 'visible' : 'auto' },
+				width: showScrollbar ? 520 : undefined,
+				breadcrumbs: showScrollbar ? {} : undefined,
+				editors: showScrollbar ? manyEditorSpecs(5) : [
 					{ resource: file('/project/alpha.ts'), pinned: true },
 					{ resource: file('/project/beta.ts'), pinned: true, active: true },
 					{ resource: file('/project/gamma.ts'), pinned: true },
@@ -712,6 +726,10 @@ function createLayoutFixtures() {
 			render: render(true, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Shrink-sized long labels ellipsize while preserving extensions and action targets.'],
 		}),
+		ChatPartLongTitles: defineComponentFixture({
+			render: render(true, { partOptions: CHAT_PART_OPTIONS, editors: longChatTitleEditorSpecs(), width: 640 }),
+			expectedVisualDescriptions: ['The tabs of a chat window\'s chat part are equally wide, at most as wide as fixed-size editor tabs by default, keep each chat\'s status icon, and ellipsize long chat titles before the Close action.'],
+		}),
 		ModifiedAndMultiSelected: defineComponentFixture({
 			render: render(true, { editors: multiSelectEditorSpecs() }),
 			expectedVisualDescriptions: ['Modified and multi-selected tabs retain their indicators, selected boundaries, and active document connection.'],
@@ -758,6 +776,14 @@ function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
+	ScrollbarPlacement: defineComponentFixture({
+		render: renderTabStyleDensityComparison('default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: [
+			'Overflowing Modern UI Pill and Connected tabs show the scrollbar at the top, keeping a consistent tab-strip treatment.',
+			'Legacy tabs retain their bottom scrollbar; the breadcrumb bar and editor body remain below each tab strip in all styles.',
+		],
+	}),
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),

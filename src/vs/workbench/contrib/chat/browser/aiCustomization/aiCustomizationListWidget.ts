@@ -10,6 +10,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -23,26 +24,29 @@ import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstract
 import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, getAICustomizationManagementItemMenuId, sectionToPromptType } from './aiCustomizationManagement.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, getAICustomizationManagementItemMenuId, sectionToPromptType } from './aiCustomizationManagement.js';
+import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { isPluginUriRequiredByPolicy } from '../agentPluginActions.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
+import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { focusFirstCustomizationTreeItem } from './customizationCardList.js';
+import { getCustomizationGroupAriaLabel } from './customizationGroupHeaderRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -54,12 +58,14 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { getCustomizationListItemScope, IAICustomizationListItem, IAICustomizationListItemOrigin } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { getCustomizationContributionSourceLabel, type CustomizationContributionSourceKind } from './customizationContributionSource.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
-import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -101,10 +107,10 @@ interface IGroupHeaderEntry {
 }
 
 /**
- * Represents an individual file item in the list.
+ * Represents a customization file or skill bundle in the list.
  */
 interface IFileItemEntry {
-	readonly type: 'file-item';
+	readonly type: 'file-item' | 'skill-bundle';
 	readonly item: IAICustomizationListItem;
 }
 
@@ -122,7 +128,20 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 	}
 
 	getTemplateId(element: IListEntry): string {
-		return element.type === 'group-header' ? 'groupHeader' : 'aiCustomizationItem';
+		switch (element.type) {
+			case 'group-header': return 'groupHeader';
+			default: return 'aiCustomizationItem';
+		}
+	}
+}
+
+function getPromptTypeLabel(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.agent: return localize('agent', "Agent");
+		case PromptsType.skill: return localize('skill', "Skill");
+		case PromptsType.instructions: return localize('instruction', "Instruction");
+		case PromptsType.hook: return localize('hook', "Hook");
+		case PromptsType.prompt: return localize('prompt', "Prompt");
 	}
 }
 
@@ -133,14 +152,23 @@ interface IAICustomizationItemTemplateData {
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
+	readonly tag: HTMLElement;
 	readonly statusIcon: HTMLElement;
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly path: MiddleEllipsisPathLabel;
+	readonly source: HTMLAnchorElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	readonly iconDisposables: DisposableStore;
 	currentItemId: string | undefined;
+}
+
+interface IContributionSourcePresentation {
+	readonly kind: CustomizationContributionSourceKind;
+	readonly name: string;
+	readonly open?: () => void;
+	readonly openLabel?: string;
 }
 
 interface IGroupHeaderTemplateData {
@@ -261,13 +289,14 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	constructor(
 		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
+		private readonly presentation: IAICustomizationItemPresentation,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
 
 	/**
@@ -279,6 +308,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		this.focusedItemId = itemId;
 		for (const template of this.templates) {
 			template.actionBar.setFocusable(itemId !== undefined && template.currentItemId === itemId);
+			template.source.tabIndex = template.source.classList.contains('source-link') && itemId !== undefined && template.currentItemId === itemId ? 0 : -1;
 		}
 	}
 
@@ -295,10 +325,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const tag = DOM.append(nameRow, $('.inline-badge.item-tag'));
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
 		const path = disposables.add(new MiddleEllipsisPathLabel(DOM.append(descriptionContainer, $('.item-path'))));
+		const source = DOM.append(descriptionContainer, $<HTMLAnchorElement>('a.item-source'));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -318,10 +350,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			typeIcon,
 			nameLabel,
 			badge,
+			tag,
 			statusIcon,
 			descriptionContainer,
 			description,
 			path,
+			source,
 			disposables,
 			elementDisposables,
 			iconDisposables,
@@ -352,24 +386,23 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		renderIcon();
 		templateData.elementDisposables.add(this.themeService.onDidColorThemeChange(renderIcon));
 
-		// Hover tooltip: name + source + badge context + plugin source
+		// Hover tooltip: name + where it comes from + badge context
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			let content: string;
-			if (element.isBuiltin) {
-				content = `${element.name}\n${localize('builtinSource', "Built-in")}`;
-			} else if (element.extensionId) {
-				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
+			if (entry.type === 'skill-bundle') {
+				content = `${element.name}\n${element.description}`;
 			} else {
-				const isWorkspaceItem = element.source === AICustomizationSources.local;
-				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
-				content = `${element.name}\n${uriLabel}`;
+				const originLabel = element.origin ? this.presentation.getOriginLabel(element.origin) : undefined;
+				if (element.origin?.kind === 'plugin' || element.origin?.kind === 'extension' || !hasReadableCustomizationContent(element.uri) || element.isBuiltin) {
+					content = `${element.name}\n${originLabel?.detail ? localize('itemOriginWithDetail', "{0} ({1})", originLabel.label, originLabel.detail) : originLabel?.label ?? localize('builtinSource', "Built-in")}`;
+				} else {
+					const isWorkspaceItem = element.source === AICustomizationSources.local;
+					const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
+					content = `${element.name}\n${uriLabel}`;
+				}
 			}
 			if (element.badgeTooltip) {
 				content += `\n\n${element.badgeTooltip}`;
-			}
-			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
-			if (plugin) {
-				content += `\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`;
 			}
 			return {
 				content,
@@ -403,6 +436,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.badge.style.display = 'none';
 		}
 
+		templateData.tag.textContent = '';
+		templateData.tag.style.display = 'none';
+
 		// Status icon for external items with sync/loading status
 		const hideLoadedStatus = element.status === 'loaded'
 			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook);
@@ -435,21 +471,60 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.statusIcon.className = 'item-status-icon';
 		}
 
-		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
-		if (secondaryText) {
-			const isPath = element.promptType !== PromptsType.hook || !element.description;
-			templateData.description.element.style.display = isPath ? 'none' : '';
-			templateData.path.element.style.display = isPath ? '' : 'none';
-			if (isPath) {
-				templateData.path.set(secondaryText, element.secondaryTextMatches);
+		const contributionSource = this.presentation.getContributionSource(element);
+		if (contributionSource) {
+			templateData.description.element.style.display = 'none';
+			templateData.path.element.style.display = 'none';
+			templateData.source.style.display = '';
+			templateData.source.textContent = getCustomizationContributionSourceLabel(contributionSource.kind, contributionSource.name);
+			templateData.source.classList.toggle('source-link', contributionSource.open !== undefined);
+			templateData.source.tabIndex = contributionSource.open && this.focusedItemId === element.id ? 0 : -1;
+			if (contributionSource.open) {
+				templateData.source.setAttribute('href', '#');
+				templateData.source.setAttribute('aria-label', contributionSource.openLabel ?? templateData.source.textContent);
+				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.source, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
+				templateData.elementDisposables.add(DOM.addStandardDisposableListener(templateData.source, DOM.EventType.KEY_DOWN, event => {
+					if (event.keyCode === KeyCode.Enter) {
+						event.stopPropagation();
+					}
+				}));
+				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.source, DOM.EventType.CLICK, event => {
+					DOM.EventHelper.stop(event, true);
+					contributionSource.open?.();
+				}));
 			} else {
-				templateData.description.set(secondaryText, element.secondaryTextMatches);
+				templateData.source.removeAttribute('href');
+				templateData.source.removeAttribute('aria-label');
 			}
 			templateData.descriptionContainer.style.display = '';
 		} else {
-			templateData.description.set('', undefined);
-			templateData.path.set('');
-			templateData.descriptionContainer.style.display = 'none';
+			const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
+			templateData.source.textContent = '';
+			templateData.source.style.display = 'none';
+			templateData.source.classList.remove('source-link');
+			templateData.source.removeAttribute('href');
+			templateData.source.removeAttribute('aria-label');
+			templateData.source.tabIndex = -1;
+			if (!secondaryText) {
+				templateData.description.set('', undefined);
+				templateData.path.set('');
+				templateData.descriptionContainer.style.display = 'none';
+			} else {
+				const isPath = element.promptType !== PromptsType.hook || !element.description;
+				templateData.description.element.style.display = isPath ? 'none' : '';
+				templateData.path.element.style.display = isPath ? '' : 'none';
+				if (isPath) {
+					templateData.path.set(secondaryText, element.secondaryTextMatches);
+				} else {
+					templateData.description.set(secondaryText, element.secondaryTextMatches);
+				}
+				templateData.descriptionContainer.style.display = '';
+			}
+		}
+
+		if (entry.type === 'skill-bundle') {
+			templateData.actionBar.clear();
+			return;
 		}
 
 		// Inline action bar from menu
@@ -473,6 +548,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		}
 		if (element.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, element.pluginUri.toString()]);
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, isPluginUriRequiredByPolicy(this.agentPluginService, element.pluginUri)]);
 		}
 		const overlay = this.contextKeyService.createOverlay(overlayPairs);
 
@@ -538,6 +614,22 @@ export function usesCustomizationTreePresentation(section: AICustomizationManage
 		|| section === AICustomizationManagementSection.Instructions
 		|| section === AICustomizationManagementSection.Hooks
 		|| section === AICustomizationManagementSection.Prompts;
+}
+
+export function getCustomizationSearchAriaLabel(section: AICustomizationManagementSection): string {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return localize('searchAgentsAriaLabel', "Search agents...");
+		case AICustomizationManagementSection.Skills:
+			return localize('searchSkillsAriaLabel', "Search skills...");
+		case AICustomizationManagementSection.Instructions:
+			return localize('searchInstructionsAriaLabel', "Search instructions...");
+		case AICustomizationManagementSection.Hooks:
+			return localize('searchHooksAriaLabel', "Search hooks...");
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return localize('searchPromptsAriaLabel', "Search prompts...");
+	}
 }
 
 export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationManagementSection, isFiltering: boolean): readonly string[] {
@@ -628,6 +720,17 @@ interface ICustomizationItemGroup {
 }
 
 /**
+ * Presentation context the item renderer needs from the widget.
+ */
+interface IAICustomizationItemPresentation {
+	getOriginLabel(origin: IAICustomizationListItemOrigin): { readonly label: string; readonly detail: string };
+	getContributionSource(item: IAICustomizationListItem): IContributionSourcePresentation | undefined;
+}
+
+/** Group key for customizations built into VS Code or the agent. */
+const BUILTIN_GROUP_KEY = 'builtin';
+
+/**
  * Widget that displays a searchable list of AI customization items.
  */
 export function getCollapsedCustomizationGroupKey(section: AICustomizationManagementSection, groupKey: string): string {
@@ -644,9 +747,9 @@ export function getCustomizationItemStatusLabel(item: IAICustomizationListItem):
 	}
 }
 
-export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): string {
+export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, sourceLabel?: string): string {
 	const displayName = item.displayName ?? formatDisplayName(item.name);
-	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+	const secondaryText = sourceLabel ?? getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
 	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
@@ -662,6 +765,7 @@ export function getMultiRootWorkspaceRelativeFilename(item: IAICustomizationList
 }
 
 export class AICustomizationListWidget extends Disposable {
+	private readonly expandedSkillBundles = new Set<string>();
 
 	readonly element: HTMLElement;
 
@@ -687,6 +791,7 @@ export class AICustomizationListWidget extends Disposable {
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
+	private skillBundleFilter: string | undefined;
 	private sectionLoading = false;
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
@@ -718,6 +823,13 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
 	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
 
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<{ readonly plugin?: IAgentPlugin; readonly name: string }>());
+	/**
+	 * Fires when a row's plugin link is activated, with the plugin when it is
+	 * installed on this computer. Plugin links are only shown while this has listeners.
+	 */
+	readonly onDidRequestShowPlugin: Event<{ readonly plugin?: IAgentPlugin; readonly name: string }> = this._onDidRequestShowPlugin.event;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -739,6 +851,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -832,12 +945,15 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Search container
 		this.searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
 		this.searchInput = this._register(new InputBox(this.searchContainer, this.contextViewService, {
-			placeholder: localize('searchPlaceholder', "Type to search..."),
+			placeholder: searchLabel,
+			ariaLabel: searchLabel,
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
 		this._register(this.searchInput.onDidChange(() => {
+			this.skillBundleFilter = undefined;
 			this.searchQuery = this.searchInput.value;
 			this.delayedFilter.trigger(() => {
 				const matchCount = this.filterItems();
@@ -885,6 +1001,10 @@ export class AICustomizationListWidget extends Disposable {
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
 			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
+			{
+				getOriginLabel: origin => this.getOriginLabel(origin),
+				getContributionSource: item => this.getContributionSource(item),
+			} satisfies IAICustomizationItemPresentation,
 		);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IListEntry>,
@@ -906,10 +1026,12 @@ export class AICustomizationListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
-						const label = getCustomizationItemAriaLabel(entry.item);
-						if (!hasReadableCustomizationContent(entry.item.uri)) {
+						const contributionSource = this.getContributionSource(entry.item);
+						const sourceLabel = contributionSource && getCustomizationContributionSourceLabel(contributionSource.kind, contributionSource.name);
+						const label = getCustomizationItemAriaLabel(entry.item, sourceLabel);
+						if (entry.type === 'file-item' && !hasReadableCustomizationContent(entry.item.uri)) {
 							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
 						return label;
@@ -917,22 +1039,28 @@ export class AICustomizationListWidget extends Disposable {
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Agent Customizations"),
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.name,
+					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.displayName ?? entry.item.name,
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
+				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 
 		// Handle item selection (single click opens item, group header toggles)
 		this._register(this.list.onDidOpen(e => {
-			if (e.element) {
-				if (e.element.type === 'group-header') {
-					return;
+			if (e.element?.type === 'file-item' && hasReadableCustomizationContent(e.element.item.uri)) {
+				this._onDidSelectItem.fire(e.element.item);
+			}
+		}));
+
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'skill-bundle' && !this.searchQuery.trim()) {
+				if (event.node.collapsed) {
+					this.expandedSkillBundles.delete(entry.item.id);
 				} else {
-					if (hasReadableCustomizationContent(e.element.item.uri)) {
-						this._onDidSelectItem.fire(e.element.item);
-					}
+					this.expandedSkillBundles.add(entry.item.id);
 				}
 			}
 		}));
@@ -950,12 +1078,7 @@ export class AICustomizationListWidget extends Disposable {
 		// so the focus indicator is visible instead of requiring the user to
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
-			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
-				const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
-				if (firstItem) {
-					this.list.setFocus([firstItem]);
-				}
-			}
+			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header');
 		}));
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -1004,6 +1127,7 @@ export class AICustomizationListWidget extends Disposable {
 		}
 		if (item.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, isPluginUriRequiredByPolicy(this.agentPluginService, item.pluginUri)]);
 		}
 		const overlay = this.contextKeyService.createOverlay(overlayPairs);
 
@@ -1049,6 +1173,9 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		const loadId = ++this._sectionLoadId;
+		if (section !== this.currentSection) {
+			this.skillBundleFilter = undefined;
+		}
 		this.currentSection = section;
 		this.updateSectionHeader();
 
@@ -1118,7 +1245,7 @@ export class AICustomizationListWidget extends Disposable {
 				break;
 			case AICustomizationManagementSection.Hooks:
 				title = localize('hooks', "Hooks");
-				description = localize('hooksDescription', "Prompts executed at specific points during an agentic lifecycle.");
+				description = localize('hooksDescription', "Commands that run at specific points in an agent session.");
 				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/hooks?referrer=in-product';
 				learnMoreLabel = localize('learnMoreHooks', "Learn more about hooks");
 				break;
@@ -1134,6 +1261,9 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
+		this.searchInput.setPlaceHolder(searchLabel);
+		this.searchInput.setAriaLabel(searchLabel);
 		this.updateHeaderActions();
 	}
 
@@ -1380,19 +1510,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Gets the type label for the current section.
 	 */
 	private getTypeLabel(): string {
-		switch (this.currentSection) {
-			case AICustomizationManagementSection.Agents:
-				return localize('agent', "Agent");
-			case AICustomizationManagementSection.Skills:
-				return localize('skill', "Skill");
-			case AICustomizationManagementSection.Instructions:
-				return localize('instruction', "Instruction");
-			case AICustomizationManagementSection.Hooks:
-				return localize('hook', "Hook");
-			case AICustomizationManagementSection.Prompts:
-			default:
-				return localize('prompt', "Prompt");
-		}
+		return getPromptTypeLabel(sectionToPromptType(this.currentSection) ?? PromptsType.prompt);
 	}
 
 	/**
@@ -1447,6 +1565,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * Applies the search query to items, returning matched items with highlight info.
 	 */
 	private applySearchFilter(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
+		if (this.skillBundleFilter !== undefined) {
+			items = items.filter(item => item.skillBundle?.id === this.skillBundleFilter);
+		}
 		if (!this.searchQuery.trim()) {
 			return items.map(item => ({ ...item, nameMatches: undefined, secondaryTextMatches: undefined }));
 		}
@@ -1457,12 +1578,18 @@ export class AICustomizationListWidget extends Disposable {
 		for (const item of items) {
 			const displayName = item.displayName ?? formatDisplayName(item.name);
 			const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
-			const nameMatches = matchesContiguousSubString(query, displayName);
-			const secondaryTextMatches = matchesContiguousSubString(query, secondaryText);
-			const descriptionMatches = item.description && item.description !== secondaryText ? matchesContiguousSubString(query, item.description) : null;
-			const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
+			const nameMatches = matchesCustomizationSearchQuery(query, displayName);
+			const secondaryTextMatches = matchesCustomizationSearchQuery(query, secondaryText);
+			const descriptionMatches = item.description && item.description !== secondaryText ? matchesCustomizationSearchQuery(query, item.description) : null;
+			const badgeMatches = item.badge ? matchesCustomizationSearchQuery(query, item.badge) : null;
+			const contributionSource = this.getContributionSource(item);
+			const contributionMatches = contributionSource
+				? matchesCustomizationSearchQuery(query, getCustomizationContributionSourceLabel(contributionSource.kind, contributionSource.name))
+				: null;
 
-			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches) {
+			const bundleMatches = item.skillBundle && (matchesCustomizationSearchQuery(query, item.skillBundle.name)
+				|| matchesCustomizationSearchQuery(query, item.skillBundle.description));
+			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches || contributionMatches || bundleMatches) {
 				matched.push({
 					...item,
 					nameMatches: nameMatches || undefined,
@@ -1490,15 +1617,42 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Builds the child rows of a group: items authored directly in the scope
+	 * first, then supplied items ordered by their source.
+	 */
+	private buildGroupChildren(group: ICustomizationItemGroup): IListEntry[] {
+		const byName = (a: IAICustomizationListItem, b: IAICustomizationListItem) => a.name.localeCompare(b.name);
+		if (group.groupKey === BUILTIN_GROUP_KEY) {
+			// VS Code's own items come first, then those tagged with the agent.
+			const agentRank = (item: IAICustomizationListItem) => item.origin?.kind === 'harness' ? 1 : 0;
+			return [...group.items].sort((a, b) => agentRank(a) - agentRank(b) || byName(a, b)).map(item => ({ type: 'file-item', item }));
+		}
+		// Items authored in the scope come first, followed by contributed items
+		// ordered by their plugin, extension, or organization.
+		const direct: IFileItemEntry[] = [];
+		const sources = new Map<string, IAICustomizationListItem[]>();
+		for (const item of [...group.items].sort(byName)) {
+			const origin = item.origin;
+			if (origin && (origin.kind === 'plugin' || origin.kind === 'extension' || origin.kind === 'account')) {
+				const items = sources.get(origin.id) ?? [];
+				items.push(item);
+				sources.set(origin.id, items);
+			} else {
+				direct.push({ type: 'file-item', item });
+			}
+		}
+		const contributed = [...sources.values()]
+			.map(items => ({ label: this.getOriginLabel(items[0].origin!).label, items }))
+			.sort((a, b) => a.label.localeCompare(b.label))
+			.flatMap(source => source.items.map(item => ({ type: 'file-item' as const, item })));
+		return [...direct, ...contributed];
+	}
+
+	/**
 	 * Builds grouped display entries from items assigned to groups.
 	 * Empty groups are omitted. Collapsed groups show only their header.
 	 */
 	private buildGroupedEntries(groups: ICustomizationItemGroup[]): void {
-		// Sort items within each group
-		for (const group of groups) {
-			group.items.sort((a, b) => a.name.localeCompare(b.name));
-		}
-
 		this.displayEntries = [];
 		let isFirstGroup = true;
 		for (const group of groups) {
@@ -1522,9 +1676,7 @@ export class AICustomizationListWidget extends Disposable {
 			isFirstGroup = false;
 
 			if (!collapsed) {
-				for (const item of group.items) {
-					this.displayEntries.push({ type: 'file-item', item });
-				}
+				this.displayEntries.push(...this.buildGroupChildren(group));
 			}
 		}
 	}
@@ -1539,13 +1691,62 @@ export class AICustomizationListWidget extends Disposable {
 
 	private renderCustomizationTree(groups: readonly ICustomizationTreeGroup<IListEntry>[]): void {
 		this.listContainer.style.display = '';
-		this.displayEntries = groups.flatMap(group => [group.element, ...group.children]);
-		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => ({
-			element: group.element,
-			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-			children: group.children.map(element => ({ element })),
-		}));
+		this.displayEntries = [];
+		const createFileElements = (fileEntries: readonly IFileItemEntry[]): IObjectTreeElement<IListEntry>[] => {
+			const entries: IObjectTreeElement<IListEntry>[] = [];
+			const bundles = new Map<string, IObjectTreeElement<IListEntry>[]>();
+			for (const element of fileEntries) {
+				const bundle = element.type === 'file-item' ? element.item.skillBundle : undefined;
+				if (!bundle) {
+					entries.push({ element });
+					this.displayEntries.push(element);
+					continue;
+				}
+				let bundleChildren = bundles.get(bundle.id);
+				if (!bundleChildren) {
+					bundleChildren = [];
+					bundles.set(bundle.id, bundleChildren);
+					const id = `skill-bundle:${bundle.id}`;
+					const entry: IFileItemEntry = {
+						type: 'skill-bundle',
+						item: {
+							id,
+							uri: element.item.uri,
+							name: bundle.name,
+							displayName: bundle.name,
+							description: bundle.description,
+							filename: bundle.description,
+							source: element.item.source,
+							promptType: PromptsType.skill,
+							disabled: false,
+							typeIcon: Codicon.server,
+							skillBundle: bundle,
+						},
+					};
+					this.displayEntries.push(entry);
+					entries.push({
+						element: entry,
+						collapsible: true,
+						collapsed: !this.searchQuery.trim() && !this.expandedSkillBundles.has(id),
+						children: bundleChildren,
+					});
+				}
+				bundleChildren.push({ element });
+				this.displayEntries.push(element);
+			}
+			return entries;
+		};
+		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => {
+			this.displayEntries.push(group.element);
+			const fileEntries = group.children.filter((element): element is IFileItemEntry => element.type !== 'group-header');
+			const entries = createFileElements(fileEntries);
+			return {
+				element: group.element,
+				collapsible: true,
+				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				children: entries,
+			};
+		});
 		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateAddButton();
@@ -1557,62 +1758,22 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Groups normalized list items for display.
-	 * Groups items by normalized storage/groupKey.
+	 * Groups normalized list items for display by scope: User, Workspace (one
+	 * group per folder in a multi-root workspace), and Built-in.
 	 */
 	private groupMatchedItems(matchedItems: IAICustomizationListItem[]): void {
 		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
+		const workspaceDescription = localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control.");
 		const groups: ICustomizationItemGroup[] = [
-			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-			...(workspaceGroups.length > 0
-				? workspaceGroups.map(group => ({ groupKey: group.key, label: group.label, icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [], workspaceFolder: group.uri }))
-				: [{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] }]),
-			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-			{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+			...workspaceGroups.map(group => ({ groupKey: group.key, label: localize('workspaceFolderGroup', "Workspace · {0}", group.label), icon: workspaceIcon, description: workspaceDescription, items: [], workspaceFolder: group.uri })),
+			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: workspaceDescription, items: [] },
+			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userScopeGroupDescription', "Customizations in your home folder or supplied by plugins, extensions, and organizations. Private to you and available across all projects."), items: [] },
+			{ groupKey: BUILTIN_GROUP_KEY, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinScopeGroupDescription', "Read-only customizations built into VS Code or the agent."), items: [] },
 		];
 
 		for (const item of matchedItems) {
 			const key = this.getItemGroupKey(item, workspaceGroups.length > 0);
-			let group = groups.find(g => g.groupKey === key);
-			if (!group) {
-				// Dynamically create a group for unknown groupKeys from providers
-				let label: string;
-				let description = '';
-				switch (key) {
-					case 'remote-host':
-						label = localize('remoteHostGroupShort', "Remote");
-						if (this.currentSection === AICustomizationManagementSection.Skills) {
-							description = localize(
-								'remoteSkillsGroupDescription',
-								"Skills available from {0}, the active remote agent environment.",
-								this.harnessService.getActiveDescriptor().label,
-							);
-						}
-						break;
-					case 'remote-client':
-						label = localize('remoteClientGroupShort', "This Computer");
-						if (this.currentSection === AICustomizationManagementSection.Skills) {
-							description = localize(
-								'localSkillsGroupDescription',
-								"Skills stored on your local machine and synced to {0}, the active remote agent environment.",
-								this.harnessService.getActiveDescriptor().label,
-							);
-						}
-						break;
-					default:
-						label = formatDisplayName(key);
-				}
-				group = { groupKey: key, label, icon: Codicon.folder, description, items: [] };
-				// Insert dynamic groups before the built-in group so it always stays last.
-				const builtinIdx = groups.findIndex(g => g.groupKey === PromptsStorage.builtIn);
-				if (builtinIdx >= 0) {
-					groups.splice(builtinIdx, 0, group);
-				} else {
-					groups.push(group);
-				}
-			}
-			group.items.push(item);
+			groups.find(g => g.groupKey === key)!.items.push(item);
 		}
 
 		this.buildGroupedEntries(groups);
@@ -1642,7 +1803,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: group.description,
 					count: group.items.length,
 					element,
-					children: group.items.map(item => ({ type: 'file-item' as const, item })),
+					children: this.buildGroupChildren(group),
 				};
 			});
 			this.renderCustomizationTree(treeGroups);
@@ -1652,13 +1813,79 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private getItemGroupKey(item: IAICustomizationListItem, isMultiRoot: boolean): string {
-		const key = this.currentSection === AICustomizationManagementSection.Instructions
-			? item.source
-			: item.groupKey ?? item.source ?? AICustomizationSources.local;
-		if (key !== PromptsStorage.local || !isMultiRoot) {
-			return key;
+		switch (getCustomizationListItemScope(item)) {
+			case AICustomizationScopes.application: return BUILTIN_GROUP_KEY;
+			case AICustomizationScopes.workspace: {
+				if (!isMultiRoot) {
+					return PromptsStorage.local;
+				}
+				// Items outside every workspace folder stay in a plain Workspace
+				// group instead of being attributed to an arbitrary folder.
+				return findAICustomizationWorkspaceGroupContaining(item.uri, this.workspaceContextService)?.key ?? PromptsStorage.local;
+			}
+			default: return PromptsStorage.user;
 		}
-		return getAICustomizationWorkspaceGroupForResource(item.uri, this.workspaceContextService)?.key ?? key;
+	}
+
+	private getAgentLabel(): string {
+		const descriptor = this.harnessService.getActiveDescriptor();
+		return descriptor.agentLabel ?? descriptor.label;
+	}
+
+	private getProductName(): string {
+		return this.productService.nameShort || 'VS Code';
+	}
+
+	private getContributionSource(item: IAICustomizationListItem): IContributionSourcePresentation | undefined {
+		const origin = item.origin;
+		if (!origin || origin.kind === 'harness' || origin.kind === 'vscode') {
+			return undefined;
+		}
+		const name = this.getOriginLabel(origin).label;
+		switch (origin.kind) {
+			case 'plugin': {
+				const plugin = item.pluginUri ? this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri)) : undefined;
+				if (!this._onDidRequestShowPlugin.hasListeners()) {
+					return { kind: 'plugin', name };
+				}
+				return {
+					kind: 'plugin',
+					name,
+					open: () => this._onDidRequestShowPlugin.fire({ plugin, name }),
+					openLabel: plugin ? localize('openSourcePlugin', "Open plugin details for {0}", name) : localize('showSourcePlugin', "Show {0} in Plugins", name),
+				};
+			}
+			case 'extension':
+				return {
+					kind: 'extension',
+					name,
+					open: item.extensionId ? () => this.commandService.executeCommand('extension.open', item.extensionId) : undefined,
+					openLabel: localize('openSourceExtension', "Open extension details for {0}", name),
+				};
+			case 'account':
+				return { kind: 'organization', name };
+		}
+	}
+
+	private getOriginLabel(origin: IAICustomizationListItemOrigin): { readonly label: string; readonly detail: string } {
+		switch (origin.kind) {
+			case 'plugin': {
+				const marketplace = this.agentPluginService.plugins.get().find(plugin => `plugin:${plugin.uri.toString()}` === origin.id)?.fromMarketplace?.marketplace;
+				return {
+					label: origin.label ?? localize('unknownPlugin', "Plugin"),
+					detail: marketplace ? localize('pluginOriginFromMarketplace', "Plugin from {0}", marketplace) : localize('pluginOrigin', "Plugin"),
+				};
+			}
+			case 'extension':
+				return { label: origin.label ?? origin.id, detail: localize('extensionOrigin', "Extension") };
+			case 'account':
+				return { label: origin.label ?? localize('githubAccountOrigin', "GitHub"), detail: localize('organizationOrigin', "GitHub organization") };
+			case 'harness':
+				return { label: origin.label ?? this.getAgentLabel(), detail: localize('harnessOrigin', "Built into the agent") };
+			case 'vscode':
+			default:
+				return { label: origin.label ?? this.getProductName(), detail: localize('vscodeOrigin', "Built-in") };
+		}
 	}
 
 	private usesCustomizationTreePresentation(): boolean {
@@ -1835,14 +2062,37 @@ export class AICustomizationListWidget extends Disposable {
 	 * Sets the search query programmatically.
 	 */
 	setSearchQuery(query: string): void {
+		this.skillBundleFilter = undefined;
 		this.searchInput.value = query;
+		this.filterItems();
+	}
+
+	/** Filters to one MCP server's bundle and focuses it expanded, even when server names collide. */
+	showSkillBundle(bundleId: string): void {
+		const bundle = this.allItems.find(item => item.skillBundle?.id === bundleId)?.skillBundle;
+		if (!bundle || this.currentSection !== AICustomizationManagementSection.Skills) {
+			return;
+		}
+		this.searchInput.value = bundle.name;
+		this.skillBundleFilter = bundleId;
+		this.delayedFilter.cancel();
+		this.announceItemCount(this.filterItems());
+		const entry = this.displayEntries.find(entry => entry.type === 'skill-bundle' && entry.item.skillBundle?.id === bundleId);
+		if (entry) {
+			this.list.expandTo(entry);
+			this.list.expand(entry);
+			this.list.reveal(entry);
+			this.list.setFocus([entry]);
+			this.list.setSelection([entry]);
+			this.list.domFocus();
+		}
 	}
 
 	/**
 	 * Clears the search query.
 	 */
 	clearSearch(): void {
-		this.searchInput.value = '';
+		this.setSearchQuery('');
 	}
 
 	/**
@@ -1857,7 +2107,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type === 'file-item');
+		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
@@ -1868,7 +2118,9 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	revealLastItem(): void {
 		if (this.displayEntries.length > 0) {
-			this.list.reveal(this.displayEntries[this.displayEntries.length - 1]);
+			const entry = this.displayEntries[this.displayEntries.length - 1];
+			this.list.expandTo(entry);
+			this.list.reveal(entry);
 		}
 	}
 
@@ -1882,7 +2134,11 @@ export class AICustomizationListWidget extends Disposable {
 		if (!entry) {
 			return false;
 		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			this.list.expand(parent);
+		}
 
+		this.list.expandTo(entry);
 		this.list.reveal(entry);
 		this.list.setFocus([entry]);
 		this.list.setSelection([entry]);

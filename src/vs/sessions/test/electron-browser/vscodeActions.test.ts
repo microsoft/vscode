@@ -11,26 +11,30 @@ import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindow
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LabelService } from '../../../workbench/services/label/common/labelService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { ITunnelAgentHostService, TunnelGatewayServerType } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 
 suite('VS Code Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let labelService: LabelService;
+	let notifications: string[];
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -38,6 +42,10 @@ suite('VS Code Actions', () => {
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
+		instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
+		notifications = [];
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { notifications.push(String(message)); } }));
 	});
 
 	test('shows return action only when there is no other main window', () => {
@@ -77,13 +85,18 @@ suite('VS Code Actions', () => {
 		const provisional = createSession('provisional', false);
 		const materialized = createSession('materialized', true);
 
+		// Created per the provider's status: a draft carries no flag that says it is one.
 		assert.deepStrictEqual({
 			provisional: getChatSessionToOpenInEditor(provisional)?.toString(),
+			provisionalChat: getChatSessionToOpenInEditor(provisional, provisional.mainChat.get())?.toString(),
 			materialized: getChatSessionToOpenInEditor(materialized)?.toString(),
+			materializedChat: getChatSessionToOpenInEditor(materialized, materialized.mainChat.get())?.toString(),
 			missing: getChatSessionToOpenInEditor(undefined),
 		}, {
 			provisional: undefined,
+			provisionalChat: undefined,
 			materialized: 'test:/materialized',
+			materializedChat: 'test:/materialized/chat',
 			missing: undefined,
 		});
 	});
@@ -125,6 +138,31 @@ suite('VS Code Actions', () => {
 		assert.deepStrictEqual(calls, [{ empty: true }]);
 	});
 
+	test('opens the clicked nested chat and its workspace instead of the active chat', async () => {
+		const calls: { folders: string[]; chat: string | undefined }[] = [];
+		const session = createSession('parent', true, [URI.file('/active')]);
+		const folder = URI.file('/nested');
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:/nested-chat'),
+			workspace: constObservable({
+				...session.mainChat.get().workspace.get()!,
+				folders: [{ root: folder, workingDirectory: folder, name: 'nested', description: undefined }],
+			}),
+		});
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+				calls.push({
+					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(folder => folder.folderUri.toString()) : [],
+					chat: options?.chatSessionToOpen?.toString(),
+				});
+			}
+		}());
+
+		await instantiationService.invokeFunction(openSessionInVSCode, session, chat);
+
+		assert.deepStrictEqual(calls, [{ folders: ['file:///nested'], chat: 'test:/nested-chat' }]);
+	});
+
 	for (const folders of [
 		[toAgentHostUri(URI.file('C:\\Users\\test\\project'), agentHostAuthority('cloudsandbox:environment'))],
 		[URI.file('/local/project'), toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('ws:host'))],
@@ -149,7 +187,7 @@ suite('VS Code Actions', () => {
 			assert.deepStrictEqual({
 				calls,
 				session: session.resource.toString(),
-				folders: session.activeChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				folders: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 			}, {
 				calls: [{ toOpen: { remoteAuthority: null }, options: undefined }],
 				session: 'test:/unsupported',
@@ -158,13 +196,14 @@ suite('VS Code Actions', () => {
 		});
 	}
 
-	for (const connection of [
-		{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host' },
-		{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' },
-		{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
-		{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' },
-	] satisfies IRemoteAgentHostEntry['connection'][]) {
-		test(`preserves supported ${connection.type} workspace and chat handoff`, async () => {
+	for (const [connection, selectedServerType] of [
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host' }, undefined],
+		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'standalone'],
+		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'editor'],
+		[{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' }, undefined],
+		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' }, undefined],
+	] satisfies [IRemoteAgentHostEntry['connection'], TunnelGatewayServerType | undefined][]) {
+		test(`preserves supported ${connection.type} workspace and hands off only the chats of a tunnel's standalone agent host (${selectedServerType ?? 'no gateway'})`, async () => {
 			const calls: { folders?: { uri: URI; label: string | undefined }[]; options?: IOpenWindowOptions }[] = [];
 			const folder = toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('test:host'));
 			const entry: IRemoteAgentHostEntry = { name: 'Remote host', connection };
@@ -181,13 +220,24 @@ suite('VS Code Actions', () => {
 			}());
 			instantiationService.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>() => provider as T });
 			instantiationService.stub(IRemoteAgentHostService, { getEntryByAddress: () => entry });
-			await instantiationService.invokeFunction(openSessionInVSCode, createSession('remote', true, [folder]));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: resource => ({ connectionAuthority: folder.authority, backendSession: resource.with({ scheme: 'copilotcli', fragment: '' }) }),
+			}));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => selectedServerType }));
+			const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(folder.authority, 'copilotcli'), path: '/remote', fragment: 'chat' });
+			await instantiationService.invokeFunction(openSessionInVSCode, createSession('remote', true, [folder], resource));
+			const isTunnel = connection.type === RemoteAgentHostEntryType.Tunnel;
+			const sharesAgentHost = isTunnel && selectedServerType !== 'editor';
 			assert.deepStrictEqual({
 				folders: calls[0].folders?.map(folder => ({ scheme: folder.uri.scheme, path: folder.uri.path, label: folder.label, title: folder.label && splitRecentLabel(folder.label).name })),
 				options: calls[0].options,
+				notifications,
 			}, {
 				folders: [{ scheme: 'vscode-remote', path: '/remote/project', label: '/remote/project [Remote host]', title: 'project [Remote host]' }],
-				options: { forceNewWindow: true, chatSessionToOpen: URI.from({ scheme: 'test', path: '/remote' }) },
+				options: { forceNewWindow: true, chatSessionToOpen: sharesAgentHost ? URI.from({ scheme: 'agent-host-copilotcli', path: '/remote', fragment: 'chat' }) : undefined },
+				notifications: sharesAgentHost ? [] : [isTunnel
+					? 'The session\'s folder was opened in a new editor window, but the session can\'t be opened there. This window is connected to a different agent host on the tunnel\'s machine than the one its editor windows use.'
+					: 'The session\'s folder was opened in a new editor window, but editor windows can\'t open sessions from this remote yet. Only local and tunnel sessions can be opened there.'],
 			});
 		});
 	}
@@ -265,7 +315,8 @@ function createWindow(id: number): IOpenedMainWindow {
 	};
 }
 
-function createSession(id: string, isCreated: boolean, folders?: URI[]): IActiveSession {
+/** A provider's session: created per its status, with no pane state; `folders` are its main chat's workspace. */
+function createSession(id: string, isCreated: boolean, folders?: URI[], resource = URI.from({ scheme: 'test', path: `/${id}` })): ISession {
 	const workspace = constObservable(folders ? {
 		uri: URI.from({ scheme: 'test', path: `/${id}/workspace` }),
 		label: id,
@@ -279,13 +330,14 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	} : undefined);
-	const activeChat = new class extends mock<IChat>() {
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = URI.from({ scheme: 'test', path: `/${id}/chat` });
 		override readonly workspace = workspace;
 	}();
-	return new class extends mock<IActiveSession>() {
-		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
+	return new class extends mock<ISession>() {
+		override readonly resource = resource;
 		override readonly providerId = 'test';
-		override readonly isCreated = constObservable(isCreated);
-		override readonly activeChat = constObservable(activeChat);
+		override readonly status = constObservable(isCreated ? SessionStatus.Completed : SessionStatus.Untitled);
+		override readonly mainChat = constObservable(mainChat);
 	}();
 }

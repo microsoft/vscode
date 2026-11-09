@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../browser/media/aquarium.css';
-import '../../../../browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -37,16 +37,7 @@ suite('AquariumService', () => {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly mainContainer = mainContainer;
 		}();
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupManagedHover(): IManagedHover {
-				return {
-					dispose() { },
-					show() { },
-					hide() { },
-					update() { },
-				};
-			}
-		}();
+		const hoverService = { ...NullHoverService };
 		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const service = store.add(new AquariumService(
@@ -115,16 +106,7 @@ suite('AquariumService', () => {
 				return true;
 			}
 		}();
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupManagedHover(): IManagedHover {
-				return {
-					dispose() { },
-					show() { },
-					hide() { },
-					update() { },
-				};
-			}
-		}();
+		const hoverService = { ...NullHoverService };
 		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const service = store.add(new AquariumService(
@@ -170,16 +152,7 @@ suite('AquariumService', () => {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly mainContainer = document.createElement('div');
 		}();
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupManagedHover(): IManagedHover {
-				return {
-					dispose() { },
-					show() { },
-					hide() { },
-					update() { },
-				};
-			}
-		}();
+		const hoverService = { ...NullHoverService };
 		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const service = store.add(new AquariumService(

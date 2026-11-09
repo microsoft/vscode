@@ -1,6 +1,6 @@
 ---
 name: smoke-tests
-description: Use when running VS Code smoke tests or working on smoke-test CI steps. Covers npm run smoketest / smoketest-no-compile, grep filtering tests, and a temporary repeat-loop technique for tracking down flaky smoke tests in CI.
+description: Use when running VS Code smoke tests or working on smoke-test CI steps. Covers pnpm run smoketest / smoketest-no-compile, grep filtering tests, and a temporary repeat-loop technique for tracking down flaky smoke tests in CI.
 ---
 
 # Running Smoke Tests
@@ -9,8 +9,8 @@ Smoke tests live in `test/smoke/` and drive a full VS Code instance (Electron, w
 
 ## Scripts
 
-- `npm run smoketest` — compiles the smoke tests first (`test/smoke`), then runs them.
-- `npm run smoketest-no-compile` — runs the already-compiled smoke tests. CI uses this after an explicit compile step.
+- `pnpm run smoketest` — compiles the smoke tests first (`test/smoke`), then runs them.
+- `pnpm run smoketest-no-compile` — runs the already-compiled smoke tests. CI uses this after an explicit compile step.
 
 Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js`).
 
@@ -28,13 +28,13 @@ Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js
 
 ```bash
 # Run everything (Electron, from source)
-npm run smoketest
+pnpm run smoketest
 
 # Run only a subset of suites by name, with tracing (replace <suite name> with your suite, e.g. "Agents Window")
-npm run smoketest -- -g "<suite name>" --tracing
+pnpm run smoketest -g "<suite name>" --tracing
 
 # Run against a packaged build (CI style)
-npm run smoketest-no-compile -- --tracing --build "/path/to/VSCode-darwin-arm64/Code - OSS.app"
+pnpm run smoketest-no-compile --tracing --build "/path/to/VSCode-darwin-arm64/Code - OSS.app"
 ```
 
 The `-g` pattern matches against test/suite titles. For example, `-g "Agents Window"` matches all three Agents Window suites (`Agents Window`, `Agents Window (local AgentHost)`, and `Agents Window (local AgentHost, SDK sandbox)`); use whatever substring identifies the suite(s) you care about.
@@ -43,17 +43,18 @@ The runner exits non-zero if any test fails, so a `0` exit code means every sele
 
 ### Sharding in PR CI
 
-The GitHub PR workflows split the Electron smoke tests into shards: the `electron-smoke-1` and `electron-smoke-2` jobs of `.github/workflows/pr-linux-test.yml` and `pr-darwin-test.yml`, and `electron-smoke-1` through `electron-smoke-3` of `pr-win32-test.yml`, whose first shard also sets up WSL, pass their `SMOKE_SHARD_INDEX`/`SMOKE_SHARD_TOTAL` env to the runner as `--shard`. They report as `<OS> / Electron-Smoke (shard 1/2)` and `<OS> / Electron-Smoke (shard 2/2)`, or `Windows / Electron-Smoke (shard 1/3)` through `Windows / Electron-Smoke (shard 3/3)`. On Windows, the remote smoke tests also run in their own `Windows / Remote (smoke)` job, next to `Windows / Remote (integration)`. The `PR Gate` job (`pr-gate`) reports a single check for every job of the workflow and fails if any shard did not succeed. The shards are skipped, and the gate passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count of a platform, add or remove `electron-smoke-<index>` jobs in its workflow, and update the shard numbers in the names and env of all of them. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+The GitHub PR workflows split the Electron smoke tests into shards: the `electron-smoke-1` through `electron-smoke-3` jobs of `.github/workflows/pr-linux-test.yml` and `pr-win32-test.yml` pass their `SMOKE_SHARD_INDEX`/`SMOKE_SHARD_TOTAL` env to the runner as `--shard`. They report as `<OS> / Electron-Smoke (shard 1/3)` through `<OS> / Electron-Smoke (shard 3/3)`. On Windows, the WSL Dev Container suite runs in its own `electron-smoke-wsl` job instead of a shard, which reports as `Windows / Electron-Smoke (WSL)`. The `electron-smoke-1` and `electron-smoke-2` jobs of `pr-darwin-test.yml` split them into two shards on macOS, but `pr.yml` does not run the macOS jobs for now (see its commented-out `macos-tests` job). On Linux, the remote smoke tests also run in their own `Linux / Remote (smoke)` job, and on Windows in two shards, `Windows / Remote (smoke, shard 1/2)` and `Windows / Remote (smoke, shard 2/2)`, next to `<OS> / Remote (integration)`. The `PR Gate` job (`pr-gate`) reports a single check for every job of the workflow and fails if any shard did not succeed. The shards are skipped, and the gate passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count of a platform, add or remove `electron-smoke-<index>` jobs in its workflow, and update the shard numbers in the names and env of all of them. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
 
-Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
+Some placement is coupled to the workflows:
 
-- **WSL:** The WSL Dev Container suite is pinned to shard 1, and `pr-win32-test.yml` provisions WSL only in shard 1. Keep `VSCODE_SMOKE_TEST_WSL_REQUIRED` set in every shard, so that all shards register the same suites and compute the same split. On Windows, shard 1 runs on the 1ES pool instead of the `vscode-large-runners-windows-8-core` larger runners: GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution ([actions/runner-images#14938](https://github.com/actions/runner-images/issues/14938)), which leaves the check pending for about 45 minutes until GitHub reports that it lost communication with the runner.
+- **WSL:** The `electron-smoke-wsl` job of `pr-win32-test.yml` (env `WSL_SMOKE_TESTS`) provisions WSL, runs only the WSL Dev Container suite (`-g`), and then the WSL Kerberos proxy run. The provisioning runs in the background while the job installs and builds, and a step before the smoke tests waits for it. The shards don't set the `VSCODE_SMOKE_TEST_WSL_*` variables, so every shard skips the WSL suite and computes the same split. The WSL job runs on the 1ES pool instead of the `vscode-large-runners-windows-8-core` larger runners, so it sets up without a workspace image: GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution ([actions/runner-images#14938](https://github.com/actions/runner-images/issues/14938)), which leaves the check pending for about 45 minutes until GitHub reports that it lost communication with the runner.
 - **WSL version:** the agents' Windows Server 2022 image only has the inbox WSL, so provisioning installs the WSL release pinned in `build/checksums/wsl.txt` (see `build/azure-pipelines/common/wsl.psm1`). To update it, put the SHA256 and file name of a newer `wsl.<version>.x64.msi` from the [microsoft/WSL releases](https://github.com/microsoft/WSL/releases) there. The installer caches key on that file; `pr-node-modules.yml` fills the GitHub cache on `main`.
-- **macOS proxy runs:** On macOS, the PAC proxy Agents Window runs happen only in the last shard, so the balancer reserves their time there.
+- **Prepared WSL distribution:** the `wsl-distro` job of `pr-workspace-images.yml` (1ES pool, daily schedule and manual runs only) runs `wslDevContainer.ps1 -Operation Prepare` and saves the exported VHD in a cache keyed on the hash of `wslDevContainer.ps1` and `build/checksums/wsl.txt`. The WSL job restores the newest entry for its hash and imports it with `wsl --import-in-place` instead of building the distribution. It builds the distribution when there is no entry for its hash (for example after a change to either file, until the next daily run or a manual run of the workflow on `main`), or when the import fails.
+- **macOS proxy runs:** In `pr-darwin-test.yml`, the PAC proxy Agents Window runs happen only in the last shard, so `test/smoke/src/shard.ts` reserves their time there.
 
 Every shard must register the same suites; otherwise suites can be skipped or run twice. Don't make suite registration depend on anything that differs between shards.
 
-When a run finishes, the runner prints each top-level suite's duration, longest first. When you add a smoke suite that takes much longer than launching the app (about 20 seconds), or the printed durations drift from `suiteDurations` in `test/smoke/src/shard.ts`, update that table so the shards stay balanced.
+When a run finishes, the runner prints each top-level suite's duration, longest first. When you add a smoke suite that takes much longer than launching the app (about 20 seconds), or the printed durations drift from `suiteDurations` in `test/smoke/src/shard.ts`, update that table so the shards stay balanced. Use the durations of the PR workflows, and a condition on `process.platform` for a suite whose duration differs between platforms, such as `Terminal`, which takes seconds on Linux and over two minutes on macOS and Windows.
 
 ## Temporarily looping a suite to hunt flaky CI tests
 
@@ -71,7 +72,6 @@ Drop the loop next to the existing Electron smoke step, gated on the same condit
 
 **GitHub PR workflows** (run from source, no `--build`):
 - `.github/workflows/pr-linux-test.yml` (bash; sets `DISPLAY: ":10"`)
-- `.github/workflows/pr-darwin-test.yml` (bash; no `DISPLAY`)
 - `.github/workflows/pr-win32-test.yml` (PowerShell)
 
 **Azure DevOps test steps** (run against the packaged build via `--build`):
@@ -94,7 +94,7 @@ Bash (Linux/macOS):
   run: |
     for i in $(seq 1 20); do
       echo "::group::Smoke probe run $i/20"
-      npm run smoketest-no-compile -- --tracing -g "<suite name>" || { echo "::error::Smoke test failed on run $i/20"; exit 1; }
+      pnpm run smoketest-no-compile --tracing -g "<suite name>" || { echo "::error::Smoke test failed on run $i/20"; exit 1; }
       echo "::endgroup::"
     done
 ```
@@ -113,7 +113,7 @@ Both CI systems publish the smoke runner's per-platform logs (the `.build/logs` 
 
 #### GitHub Actions
 
-The GitHub PR workflows upload the artifact as `logs-<os>-<arch>-<suite>-<attempt>`, where `<os>` is `linux` / `macos` / `windows`, `<suite>` identifies the job (for example `electron`, `browser`, `remote`, or `electron-smoke-shard1` for the first Electron smoke shard), and `<attempt>` is the run attempt (e.g. `logs-macos-arm64-electron-smoke-shard1-1`).
+The GitHub PR workflows upload the artifact as `logs-<os>-<arch>-<suite>-<attempt>`, where `<os>` is `linux` / `windows`, `<suite>` identifies the job (for example `electron`, `browser`, `remote-smoke`, or `electron-smoke-shard1` for the first Electron smoke shard), and `<attempt>` is the run attempt (e.g. `logs-linux-x64-electron-smoke-shard1-1`).
 
 The run id is the number in the run/job URL — for `…/actions/runs/<run-id>/job/<job-id>` use `<run-id>`. Download with the `gh` CLI:
 
@@ -150,7 +150,7 @@ For the VS Code build that is `--org https://dev.azure.com/monacotools --project
 Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, or `smoke-tests-remote/`, matching the suite that ran):
 
 - `smoke-test-runner.log` — the mocha driver output plus, for suites that use the mock LLM server, its verbose request/response bodies (look for `request body:`). On a Copilot CLI / Copilot session failure it also carries a tail of the captured Copilot runtime logs (see below).
-- `<N>_suite_<Suite_Name>/copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot` CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. **Check these first for a hang or "Timed out waiting for response"**: they are the SDK/CLI's own account of what it did (startup, auth, model request, turn lifecycle, and any panic / out-of-order event / protocol error) and explain a timeout that the test error alone does not. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace` (`chat.agentHost.copilotSdk.logLevel`). Chat Sessions editor (Copilot CLI / Claude) and Local sessions run the SDK in-process and write only a minimal startup log here (`Server started, waiting for requests`) — enough to tell whether the runtime came up; their detailed model/turn diagnostics are in the `GitHub Copilot Chat.log` below. (Claude / Codex sessions use a different runtime and are not captured here.)
+- `<N>_suite_<Suite_Name>/copilot-runtime-logs/process-*.log` — the Copilot runtime (`copilot-runtime` from `@github/copilot-sdk-<platform>`) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. **Check these first for a hang or "Timed out waiting for response"**: they are the SDK/CLI's own account of what it did (startup, auth, model request, turn lifecycle, and any panic / out-of-order event / protocol error) and explain a timeout that the test error alone does not. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace` (`chat.agentHost.copilotSdk.logLevel`). Chat Sessions editor (Copilot CLI / Claude) and Local sessions run the SDK in-process and write only a minimal startup log here (`Server started, waiting for requests`) — enough to tell whether the runtime came up; their detailed model/turn diagnostics are in the `GitHub Copilot Chat.log` below. (Claude / Codex sessions use a different runtime and are not captured here.)
 - `<N>_suite_<Suite_Name>/window2/exthost/<extension>/…log` — per-suite extension-host logs (e.g. `GitHub.copilot-chat/GitHub Copilot Chat.log`). Many diagnostics are gated behind a setting the suite enables in its `before` hook, so check the suite's setup if an expected log line is missing.
 - `<N>_suite_<Suite_Name>/playwright-screenshot-*.png` — last-frame screenshot captured when a test fails (only when the suite ran with `--tracing`).
 
@@ -162,4 +162,4 @@ Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, o
 
 - **Unit tests** (`.test.ts`) → `scripts/test.sh` / `runTests` tool (see the `unit-tests` skill).
 - **Integration tests** (`.integrationTest.ts` + extension tests) → `scripts/test-integration.sh` (see the `integration-tests` skill).
-- **Smoke tests** (`test/smoke/`) → `npm run smoketest` — full end-to-end UI flows.
+- **Smoke tests** (`test/smoke/`) → `pnpm run smoketest` — full end-to-end UI flows.

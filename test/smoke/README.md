@@ -6,23 +6,23 @@ Make sure you are on **Node v12.x**.
 
 ```bash
 # Build extensions in the VS Code repo (if needed)
-npm i && npm run compile
+pnpm install && pnpm run compile
 
 # Dev (Electron)
-npm run smoketest
+pnpm run smoketest
 
 # Dev (Web - Must be run on distro)
-npm run smoketest -- --web --browser [chromium|webkit]
+pnpm run smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
-npm run smoketest -- --build <path to latest version>
-example: npm run smoketest -- --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
+pnpm run smoketest --build <path to latest version>
+example: pnpm run smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
 # Build (Web - read instructions below)
-npm run smoketest -- --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
+pnpm run smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
 # Remote (Electron)
-npm run smoketest -- --build <path to latest version> --remote
+pnpm run smoketest --build <path to latest version> --remote
 ```
 
 \* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
@@ -34,9 +34,9 @@ You must always run the smoketest version that matches the release you are testi
 ```bash
 git fetch
 git checkout release/1.22
-npm i && npm run compile
+pnpm install && pnpm run compile
 cd test/smoke
-npm i
+pnpm install
 ```
 
 #### Web
@@ -65,7 +65,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 ```bash
 cd test/smoke
-npm run watch
+pnpm run watch
 ```
 
 ## Troubleshooting
@@ -84,6 +84,26 @@ Proxy runs disable worktree isolation. The mandatory Copilot test sends a fresh 
 
 Kerberos mode serves the mock API over HTTPS so the runtime exercises proxy CONNECT before TLS, matching production CAPI transport. The fixture generates a one-day test CA and server certificate, passes the CA through `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`, and removes the certificate material during cleanup. The Agent Host includes Node's process-supplied extra certificates alongside system certificates in the proxy-agent certificate callback, so Node-side model discovery uses the same CA without modifying the macOS trust store. TLS verification remains enabled. The unauthenticated proxy fixture continues to use HTTP.
 
+### WSL Agent Hosts through a Windows Kerberos proxy
+
+These Windows suites check that an Agent Host in WSL uses its Windows client's proxy configuration, Kerberos tickets and certificates, so that the WSL distribution needs none of them. The Agents Window suite starts the Agent Host itself; the editor window suite opens a remote window on a VS Code server in WSL, which spawns the Agent Host. After compiling the smoke tests, run:
+
+```powershell
+.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+```
+
+The distribution needs WSL 2 NAT networking and the `krb5-kdc`, `krb5-admin-server`, `squid-openssl`, `openssl` and `curl` packages; the script does not start their system services. `-WslServerPath` is an extracted Linux VS Code server, or a source checkout set up with `pnpm install` and `pnpm run build-fast --client-only`, for which `-WslNodePath` names a Linux Node. For the editor window suite, a packaged server only accepts a packaged client of its commit, while a source checkout accepts any client; `-Suites AgentsWindow` or `-Suites EditorWindow` runs only one suite. The Agent Host uses its bundled Copilot SDK and runtime; to test a locally built runtime, `-WslCopilotRuntimePath` seeds the WSL Agent Host's `runtimePath` with a `copilot-runtime` next to its matching `runtime.node`. `-ProxyScheme Https` uses TLS to the proxy as well; the bundled Copilot runtime authenticates with Kerberos only to `http://` proxies, so its model requests then fail with `non_http_proxy`. Any further arguments, such as `--build`, go to the smoke test.
+
+In WSL, the script starts an MIT Kerberos KDC as root and a Squid proxy that requires Kerberos, with a one-day test CA for the HTTPS mock server and, with `-ProxyScheme Https`, the proxy. Only Squid resolves `vscode-smoke.test`, the mock server's host. On Windows, the script registers the realm's KDC and the `localhost` host mapping with `ksetup`, adds the test CA to the machine's trusted roots, and allows inbound connections from WSL to the mock server through the firewall. These changes need administrator rights: the script asks for them once for setup and once for cleanup, unless it already runs elevated, as CI agents do. In CI, it fails rather than prompt when it does not run elevated. A PAC served on `127.0.0.1:44444` and set in the user's proxy settings sends only `vscode-smoke.test` to the proxy on `localhost:3129`. The smoke tests run with network-only credentials for the realm, like `runas /netonly`, so Windows obtains the Kerberos tickets; this needs the Secondary Logon service and a user account rather than LocalSystem. The WSL Agent Host gets no proxy, credentials or CA, and its Kerberos ticket cache is empty.
+
+The Agents Window suite connects to the WSL host through the UI, sends a prompt with a fresh marker, and waits for the reply and the matching model request. It checks that the Agent Host used the mock CAPI URL, forwarded the proxy to the Copilot runtime and, when given, used the selected runtime. It also checks that the client answered the host's `vscode/resolveProxy` with the PAC's proxy and returned a Kerberos token and certificates.
+
+The editor window suite opens `vscode-remote://wsl+<distribution>/...` through the test resolver, which resolves `wsl+` authorities only when the fixture gives it the command that starts the server in WSL with `--use-host-proxy`. The suite opens an Agent Host Copilot session in a chat editor, sends a prompt with a fresh marker, and waits for the reply and the matching model request. The editor window's Agent Host connection writes no protocol transcript, so the suite checks the server's Agent Host log for the mock CAPI URL, the forwarded proxy and, when given, the selected runtime; the model request can only reach the mock server with the client's proxy, Kerberos token and CA.
+
+For both suites, the script first verifies that Squid answers an unauthenticated tunnel with HTTP 407 and that Windows can obtain an `HTTP/localhost` ticket. Afterwards, it requires the PAC fetch, a Kerberos-authenticated tunnel to the mock host in Squid's access log, and a ticket that the KDC issued to Windows. Cleanup restores the proxy settings and the Kerberos, certificate and firewall configuration, and removes all temporary files. Logs are kept in `.build/logs/agents-window-wsl-kerberos-proxy`, including the smoke test logs, so that an earlier run's `.build/logs/smoke-tests-electron` is kept. Likewise, the JUnit report goes to `test-results/*-desktop-smoke-tests-wsl-kerberos-proxy-results.xml`, keeping an earlier run's report.
+
+In CI, the Windows Electron smoke job that runs the WSL Dev Container suite also runs this script after the main smoke tests, in the distribution that `test/smoke/wslDevContainer.ps1` provisions with the KDC and Squid packages and the pinned server. The pinned server refuses a client built from source or of another commit, so pull request CI runs only the Agents Window suite. The Azure product build (`smoke-wsl-kerberos-proxy`) runs both suites with its packaged client: the editor window suite uses the Linux server of the same run's Linux x64 compile job, which `wslDevContainer.ps1 -Operation AddServer` extracts into the distribution. Without a Linux x64 build in the run, only the Agents Window suite runs.
+
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
 The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. SSH/Tunnel suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
@@ -95,7 +115,7 @@ The shared container fixture reads the selected desktop's product quality and co
 Run the local and SSH Dev Container cases:
 
 ```bash
-npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
 The Tunnel suite uses a real private Dev Tunnel with remote editor access and agent-host support. The fixture provisions and verifies exactly the editor control port 31545 and agent-host port 31546, then starts the normal `tunnel` command. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
@@ -103,7 +123,7 @@ The Tunnel suite uses a real private Dev Tunnel with remote editor access and ag
 ```bash
 export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"
 export VSCODE_SMOKE_TEST_TUNNEL_CLI="/path/to/code-tunnel-insiders"
-npm run smoketest -- --tracing -g 'Agents Window \(Tunnel Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \(Tunnel Dev Container AgentHost\)'
 unset VSCODE_SMOKE_TEST_TUNNEL_TOKEN
 ```
 
@@ -114,7 +134,7 @@ The WSL suite runs on Windows with an explicitly selected WSL 2 distribution. Do
 ```powershell
 $env:VSCODE_SMOKE_TEST_WSL_DISTRO = 'Ubuntu'
 $env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH = '/path/to/linux/server'
-npm run smoketest -- --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
 Remove-Item Env:VSCODE_SMOKE_TEST_WSL_DISTRO, Env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH
 ```
 
@@ -123,6 +143,8 @@ An explicitly selected WSL suite fails on missing prerequisites rather than skip
 The source Agent Host uses a fixture-owned loopback TCP proxy to reach the Windows mock server. This keeps its CAPI override inside the production allowlist even in WSL NAT mode, without changing the distribution's DNS or hosts file. The suite verifies that the source host accepted that override; the proxy and its connections are closed with the fixture.
 
 The GitHub and Azure Pipelines Windows x64 Electron smoke jobs use [wslDevContainer.ps1](wslDevContainer.ps1) to provision a job-owned WSL 2 distribution with Linux Docker Engine and a non-root test user. Azure Pipelines passes `-CI AzureDevOps` to use its source directory, build ID, job attempt, and pipeline variables; GitHub uses its workspace, run identifiers, and step outputs. Azure enables this coverage for Windows x64 builds with Electron tests enabled, and uses the freshly built Windows product. The test suite retains its existing Exploration exclusion; build scripts do not gate on quality. Both cache the Microsoft-signed WSL kernel installer under a daily key, restore the most recent earlier cache if needed, and refresh it in the background for the next build. A cold cache still requires a synchronous download. The installer signature is checked before use and before updating the cache; the pinned Ubuntu rootfs and Linux server are checked against their SHA256 hashes. The unchanged source-host backend uses the pinned published server recorded in the script. Setup verifies a real container and bind mount before running the UI suite. Cleanup runs even after failure or cancellation, removes the owned distribution and its temporary mock-server firewall rule, and retains Docker diagnostics with the smoke logs. The runner must already have the WSL and VirtualMachinePlatform Windows features enabled; setup does not enable features or reboot Windows.
+
+On GitHub, the `wsl-distro` job of [pr-workspace-images.yml](../../.github/workflows/pr-workspace-images.yml) runs `wslDevContainer.ps1 -Operation Prepare` on `main` every day and on manual runs, on the 1ES pool. Prepare builds the same distribution, up to the pulled dev container image, and exports its VHD, which the job saves in a cache whose key hashes this script and `build/checksums/wsl.txt`. The Windows WSL smoke test job (`Windows / Electron-Smoke (WSL)`) restores the newest entry for its own versions of those files and passes the VHD in `WSL_PREPARED_DISTRO_VHD`. Setup then registers it under the run's distribution name with `wsl --import-in-place`, starts Docker Engine and checks the container and bind mount, instead of downloading and installing everything. Without a prepared distribution (for example until the next daily run after a change to this script), or when importing or starting it fails, Setup builds the distribution as before. Azure Pipelines always builds it.
 
 All remote suites drive host connection, remote folder selection, **Use Dev Container**, prompt submission, the rendered response, and reopening the session through the UI. Model requests use the local mock LLM server, not paid models. They also verify that container startup uses the selected SSH/Tunnel/WSL connection and that the turn travels over the nested Dev Container transport.
 

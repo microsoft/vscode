@@ -49,6 +49,7 @@ import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IExternalUriOpenContext } from '../../../../../platform/opener/common/opener.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -636,10 +637,10 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		}
 	}
 
-	private async open(href: string, ctx: { sourceUri: URI; viewColumn?: ViewColumn }): Promise<boolean> {
-		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
+	private async open(href: string, ctx: IExternalUriOpenContext): Promise<boolean> {
+		// Remote browsers need the original URL, not the forwarded address or a re-encoded URI.
 		if (this.browserViewWorkbenchService.resolveNetwork({ type: 'user' })) {
-			href = ctx.sourceUri.toString();
+			href = ctx.sourceHref;
 		}
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
@@ -649,7 +650,7 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		const isDefaultLinkOpen = this.opensByDefault(ctx.sourceUri) && !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined));
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined, ctx.sourceWindowId));
 		return true;
 	}
 }

@@ -38,18 +38,17 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, type ICloudSandboxCreateSessionRequest, type ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ConfigPropertySchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../common/copilotChatSessions.js';
-import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
+import { CloudSandboxSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatDefaultPermissionLevel, ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
-import { CopilotChatSessionsProvider, CopilotCloudSessionType, CopilotSandboxSessionType, RemoteNewSession } from '../../browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, CopilotCloudSessionType, CopilotSandboxSessionType, RemoteNewSession } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -57,8 +56,8 @@ import { IProgress } from '../../../../../../platform/progress/common/progress.j
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
-import { createSessionViewTestServices, createTestActiveSession } from '../../../../../test/browser/sessionViewTestUtils.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../../test/browser/sessionViewTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
@@ -66,21 +65,24 @@ import { TestPathService } from '../../../../../../workbench/test/browser/workbe
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
+import { ISessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../../../workbench/contrib/sessions/common/github/types.js';
 import { CloudSandboxModels } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { CloudSandboxDraftPreparationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { createCloudSandboxSessionConfig, resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
-import { AutomationModelConfiguration } from '../../../../automations/browser/automationModelConfiguration.js';
+import { AutomationModelConfiguration } from '../../../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
-import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
-import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { ITestShownChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -220,9 +222,9 @@ interface ICreateProviderOptions {
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	readonly chatModels?: IChatService['chatModels'];
 	readonly providerMode?: 'default' | 'sandbox';
-	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly commandService?: ICommandService;
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
+	readonly sessionRepositoryPicker?: ISessionRepositoryPicker;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
@@ -365,7 +367,6 @@ function createProviderWithConfig(
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
 	const configService = new TestConfigurationService();
-	configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, opts?.consolidatedRemoteWorkspaces ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(ICloudSandboxDraftPreparationService, opts?.draftPreparation ?? createDraftPreparationStub());
@@ -418,6 +419,7 @@ function createProviderWithConfig(
 	if (opts?.repositoryPicker) {
 		instantiationService.stubInstance(RepositoryPicker, opts.repositoryPicker);
 	}
+	instantiationService.stub(ISessionRepositoryPicker, opts?.sessionRepositoryPicker ?? instantiationService.createInstance(DefaultSessionRepositoryPicker));
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, opts?.providerMode ?? 'default'));
 	return { provider, configService, labelService };
@@ -469,6 +471,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
+	instantiationService.stub(ISessionRepositoryPicker, { pickRepository: async () => assert.fail('Repository selection is not expected while sending') });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -542,9 +545,8 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('offers a single repository selection action', () => {
-		const localProvider = createProvider(disposables, model, { consolidatedRemoteWorkspaces: true });
+		const localProvider = createProvider(disposables, model);
 		const remoteProvider = createProvider(disposables, model, {
-			consolidatedRemoteWorkspaces: true,
 			pathService: new TestPathService(URI.file('/home/test'), Schemas.vscodeRemote),
 		});
 
@@ -568,7 +570,6 @@ suite('CopilotChatSessionsProvider', () => {
 	test('keeps repository selection available when a Cloud draft changes the default URI scheme', () => {
 		const pathService = new TestPathService(URI.file('/home/test'));
 		const provider = createProvider(disposables, model, {
-			consolidatedRemoteWorkspaces: true,
 			pathService,
 		});
 		const labels = () => provider.browseActions.map(action => action.label);
@@ -594,111 +595,83 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('preserves the legacy repository action when unified workspaces are disabled', () => {
+	test('uses unified repository actions', () => {
 		const provider = createProvider(disposables, model);
 
 		assert.deepStrictEqual(provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id })), [
-			{ label: 'Repository...', icon: 'library' },
+			{ label: 'Work in Repository...', icon: 'github' },
 			{ label: 'Issue...', icon: 'issues' },
-			{ label: 'Pull Request...', icon: 'git-pull-request' },
+			{ label: 'Pull Request...', icon: 'github' },
 		]);
 	});
 
-	test('updates repository actions when unified workspaces setting changes', () => {
-		const { provider, configService } = createProviderWithConfig(disposables, model);
-		const legacyActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
+	test('shares repository selection and workspace resolution across creation modes', async () => {
+		const pickerCalls: string[] = [];
+		const pickerDisposals: string[] = [];
+		const commands: IExecutedCommand[] = [];
+		const workspaces: (ISessionWorkspace | undefined)[] = [];
+		const actions = [];
 
-		configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
-		const unifiedActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
+		for (const providerMode of ['default', 'sandbox'] as const) {
+			const provider = createProvider(disposables, model, {
+				providerMode,
+				repositoryPicker: {
+					pickRepository: async () => {
+						pickerCalls.push(providerMode);
+						return { repository: 'microsoft/vscode' };
+					},
+					dispose: () => pickerDisposals.push(providerMode),
+				},
+				commandService: new class extends mock<ICommandService>() {
+					override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+						commands.push({ id, args });
+						return 'microsoft/vscode' as T;
+					}
+				}(),
+			});
+			const action = provider.browseActions[0];
+			actions.push({
+				label: action.label,
+				providerId: action.providerId,
+				attachesContext: action.attachesContext,
+				supportsContextAttachment: action.supportsContextAttachment,
+			});
+			workspaces.push(await action.run());
+			provider.dispose();
+		}
 
 		assert.deepStrictEqual({
-			legacyActions,
-			unifiedActions,
+			actions,
+			pickerCalls,
+			pickerDisposals,
+			commands,
+			workspaces: workspaces.map(workspace => workspace && ({
+				uri: workspace.uri.toString(),
+				root: workspace.folders[0].root.toString(),
+				group: workspace.group,
+				isVirtualWorkspace: workspace.isVirtualWorkspace,
+				requiresWorkspaceTrust: workspace.requiresWorkspaceTrust,
+			})),
 		}, {
-			legacyActions: [
-				{ label: 'Repository...', icon: 'library' },
-				{ label: 'Issue...', icon: 'issues' },
-				{ label: 'Pull Request...', icon: 'git-pull-request' },
+			actions: [
+				{ label: 'Work in Repository...', providerId: COPILOT_PROVIDER_ID, attachesContext: false, supportsContextAttachment: true },
+				{ label: 'Choose Repository...', providerId: CLOUD_SANDBOX_CREATION_PROVIDER_ID, attachesContext: false, supportsContextAttachment: false },
 			],
-			unifiedActions: [
-				{ label: 'Work in Repository...', icon: 'github' },
-				{ label: 'Issue...', icon: 'issues' },
-				{ label: 'Pull Request...', icon: 'github' },
+			pickerCalls: isWeb ? ['default', 'sandbox'] : [],
+			pickerDisposals: isWeb ? ['default', 'sandbox'] : [],
+			commands: isWeb ? [] : [
+				{ id: 'github.copilot.chat.cloudSessions.openRepository', args: [undefined, { allowRepositoryUrl: true }] },
+				{ id: 'github.copilot.chat.cloudSessions.openRepository', args: [undefined, { allowRepositoryUrl: false }] },
 			],
+			workspaces: ['default', 'sandbox'].map(() => ({
+				uri: 'https://github.com/microsoft/vscode',
+				root: 'github-remote-file://github/microsoft/vscode/HEAD',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				isVirtualWorkspace: true,
+				requiresWorkspaceTrust: false,
+			})),
 		});
 	});
-
-	for (const consolidatedRemoteWorkspaces of [false, true]) {
-		test(`shares repository selection and workspace resolution across creation modes (unified: ${consolidatedRemoteWorkspaces})`, async () => {
-			const pickerCalls: string[] = [];
-			const pickerDisposals: string[] = [];
-			const commands: IExecutedCommand[] = [];
-			const workspaces: (ISessionWorkspace | undefined)[] = [];
-			const actions = [];
-
-			for (const providerMode of ['default', 'sandbox'] as const) {
-				const provider = createProvider(disposables, model, {
-					providerMode,
-					consolidatedRemoteWorkspaces,
-					repositoryPicker: {
-						pickRepository: async () => {
-							pickerCalls.push(providerMode);
-							return { repository: 'microsoft/vscode' };
-						},
-						dispose: () => pickerDisposals.push(providerMode),
-					},
-					commandService: new class extends mock<ICommandService>() {
-						override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
-							commands.push({ id, args });
-							return 'microsoft/vscode' as T;
-						}
-					}(),
-				});
-				const action = provider.browseActions[0];
-				actions.push({
-					label: action.label,
-					providerId: action.providerId,
-					attachesContext: action.attachesContext,
-					supportsContextAttachment: action.supportsContextAttachment,
-				});
-				workspaces.push(await action.run());
-				provider.dispose();
-			}
-
-			assert.deepStrictEqual({
-				actions,
-				pickerCalls,
-				pickerDisposals,
-				commands,
-				workspaces: workspaces.map(workspace => workspace && ({
-					uri: workspace.uri.toString(),
-					root: workspace.folders[0].root.toString(),
-					group: workspace.group,
-					isVirtualWorkspace: workspace.isVirtualWorkspace,
-					requiresWorkspaceTrust: workspace.requiresWorkspaceTrust,
-				})),
-			}, {
-				actions: [
-					{ label: consolidatedRemoteWorkspaces ? 'Work in Repository...' : 'Repository...', providerId: COPILOT_PROVIDER_ID, attachesContext: false, supportsContextAttachment: true },
-					{ label: 'Choose Repository...', providerId: CLOUD_SANDBOX_CREATION_PROVIDER_ID, attachesContext: false, supportsContextAttachment: false },
-				],
-				pickerCalls: isWeb ? ['default', 'sandbox'] : [],
-				pickerDisposals: isWeb ? ['default', 'sandbox'] : [],
-				commands: isWeb ? [] : [
-					{ id: 'github.copilot.chat.cloudSessions.openRepository', args: [undefined, { allowRepositoryUrl: true }] },
-					{ id: 'github.copilot.chat.cloudSessions.openRepository', args: [undefined, { allowRepositoryUrl: false }] },
-				],
-				workspaces: ['default', 'sandbox'].map(() => ({
-					uri: 'https://github.com/microsoft/vscode',
-					root: 'github-remote-file://github/microsoft/vscode/HEAD',
-					group: SESSION_WORKSPACE_GROUP_GITHUB,
-					isVirtualWorkspace: true,
-					requiresWorkspaceTrust: false,
-				})),
-			});
-		});
-
-	}
 
 	test('cancelling repository selection creates no workspace or session in either mode', async () => {
 		const workspaces: (ISessionWorkspace | undefined)[] = [];
@@ -751,6 +724,37 @@ suite('CopilotChatSessionsProvider', () => {
 			uri: 'https://github.com/microsoft/vscode',
 		});
 	});
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		(isWeb ? test : test.skip)(`uses the entry-selected repository picker after authentication (${providerMode})`, async () => {
+			const steps: string[] = [];
+			const gitHubService = new class extends TestGitHubService {
+				override async authenticateForRepositoryAccess(): Promise<void> {
+					steps.push('authenticate');
+				}
+				override async getRepositories(query: string): Promise<readonly IGitHubRepository[]> {
+					steps.push(`search:${query}`);
+					return [{ owner: 'microsoft', name: 'vscode', fullName: 'microsoft/vscode', defaultBranch: 'main', isPrivate: false, description: '' }];
+				}
+			}();
+			const sessionRepositoryPicker = new class extends mock<ISessionRepositoryPicker>() {
+				override async pickRepository(getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>, token: CancellationToken) {
+					steps.push('presentation');
+					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token);
+					return repositories[0];
+				}
+			}();
+			const provider = createProvider(disposables, model, {
+				providerMode, gitHubService, sessionRepositoryPicker,
+				repositoryPicker: { pickRepository: async () => assert.fail('Must not open the default picker'), dispose: () => { } },
+			});
+			const workspace = await provider.browseActions[0].run();
+			assert.deepStrictEqual({ steps, uri: workspace?.uri.toString() }, {
+				steps: ['authenticate', 'presentation', 'search:microsoft/vscode'],
+				uri: 'https://github.com/microsoft/vscode',
+			});
+		});
+	}
 
 	for (const changesWhilePicking of [false, true]) {
 		(isWeb ? test : test.skip)(`rejects enterprise identities instead of creating github.com workspaces (changes during picker: ${changesWhilePicking})`, async () => {
@@ -1207,7 +1211,6 @@ suite('CopilotChatSessionsProvider', () => {
 	test('getSessionTypes offers Cloud for a local workspace with a GitHub remote', async () => {
 		const folder = URI.file('/test/vscode');
 		const provider = createProvider(disposables, model, {
-			consolidatedRemoteWorkspaces: true,
 			fileService: createGitConfigFileService(folder, '[remote "origin"]\n\turl = https://github.com/microsoft/vscode.git'),
 		});
 		const changes: string[][] = [];
@@ -1238,7 +1241,6 @@ suite('CopilotChatSessionsProvider', () => {
 	test('getSessionTypes hides Cloud for a local workspace without a GitHub remote', async () => {
 		const folder = URI.file('/test/local-only');
 		const provider = createProvider(disposables, model, {
-			consolidatedRemoteWorkspaces: true,
 			fileService: createGitConfigFileService(folder, '[core]\n\trepositoryformatversion = 0'),
 		});
 
@@ -2380,6 +2382,19 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('search catalog enumeration does not allocate or evict Git metadata', () => {
+		const provider = createProvider(disposables, model);
+		const folder = URI.file('/test/selected');
+		const selectedRepository = provider.resolveWorkspace(folder)?.folders[0].gitRepository;
+		const uncachedRepositories = Array.from({ length: 100 }, (_, index) =>
+			provider.resolveWorkspace(URI.file(`/test/older-${index}`), { resolveMetadata: false })?.folders[0].gitRepository);
+		assert.deepStrictEqual({
+			allocated: uncachedRepositories.filter(repository => repository !== undefined).length,
+			retained: provider.resolveWorkspace(folder)?.folders[0].gitRepository?.gitHubInfo === selectedRepository?.gitHubInfo,
+			cached: provider.resolveWorkspace(folder, { resolveMetadata: false })?.folders[0].gitRepository?.gitHubInfo === selectedRepository?.gitHubInfo,
+		}, { allocated: 0, retained: true, cached: true });
+	});
+
 	test('resolveWorkspace retries unresolved GitHub metadata', async () => {
 		let readConfigCalls = 0;
 		let config = '[core]\n\trepositoryformatversion = 0';
@@ -2654,7 +2669,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('shared model selection captures raw Cloud models for automation drafts', async () => {
 			const { provider, configurationService, rawModel } = await createAutomationProvider();
 			const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
-			const session = disposables.add(new VisibleSession(draft, draft.mainChat.get()));
+			const session: ITestShownChat = { session: draft, chat: draft.mainChat.get() };
 			const providers = upcastPartial<ISessionsProvidersService>({
 				onDidChangeProviders: Event.None,
 				getProvider: <T extends ISessionsProvider>(id: string) => {
@@ -2663,7 +2678,7 @@ suite('CopilotChatSessionsProvider', () => {
 				},
 			});
 			const selection = disposables.add(new SessionModelSelection(
-				constObservable(session), { modelConfiguration: true }, providers,
+				testChatSourceOf(constObservable(session)), { modelConfiguration: true }, providers,
 				disposables.add(new TestStorageService()), configurationService, disposables.add(new NullLogService()),
 			));
 			const selected = selection.selectModel(rawModel);
@@ -3507,13 +3522,14 @@ suite('CopilotChatSessionsProvider', () => {
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'mode', 'plan');
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'approvalMode', 'manual');
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
-				const view = disposables.add(instantiationService.createInstance(SessionView));
-				view.openSession({
+				stubSessionsHostLayout(instantiationService);
+				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
+				view.openPane(testPaneOf({
 					...createTestActiveSession(draft.sessionId, false),
 					...draft,
 					isCreated: draft.status.map(status => status !== SessionStatus.Untitled),
 					activeChat: draft.mainChat,
-				}, {});
+				}), {});
 				const composer = chatViews[0];
 				composer.input.value = 'Review this file';
 				const removed: string[] = [];

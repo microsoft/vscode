@@ -25,17 +25,19 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
-import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty } from './desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
-import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
+import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
+import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
@@ -70,10 +72,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		private readonly _visibilityStore: DesktopVisibilityProfileStore,
 		private readonly _detailPanel: DesktopDetailPanelCoordinator,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super(ctx);
 
@@ -103,14 +105,14 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
-			const session = this._sessionsService.activeSession.get();
+			const shown = this._ctx.shownByMainWindow();
 			if (this._ctx.isRestoringSessionLayout
 				|| this._otherSessionShown()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
-				|| !session
-				|| session.isQuickChat?.get()
-				|| !session.isCreated.get()
-				|| !session.workspace.get()
+				|| !shown
+				|| isQuickChatShown(shown)
+				|| !isSessionCreated(shown.session)
+				|| !getLayoutWorkspace(shown)
 				|| !isMainPartEmpty(this._editorGroupsService)) {
 				return;
 			}
@@ -144,17 +146,22 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let wasExistingActive = false;
 		let previousQuickChatResource: URI | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IActiveSession | undefined;
+		let previousSession: ISession | undefined;
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
+		let draftCompositionChosen = false;
+		let pendingComposition: { readonly ownerKey: URI; readonly state: ISidePaneVisibilityState; readonly reveal: boolean } | undefined;
 		this._register(autorun(reader => {
 			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			activeSession?.activeChat.read(reader);
-			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+			const shown = this._ctx.shownByMainWindow(reader);
+			const activeSession = shown?.session;
+			const isQuickChat = isQuickChatShown(shown, reader);
+			const perChatLayout = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout;
+			const restoringWorkingSet = perChatLayout && this._editorWorkingSetService.restoreState.read(reader).restoring;
 
 			if (this._ctx.chatLayoutSuspended(reader)) {
+				pendingComposition = undefined;
 				wasSuspended = true;
 				return;
 			}
@@ -162,21 +169,21 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			wasSuspended = false;
 
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
-			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
-			previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
+			const isWorkspaceConversion = !isQuickChat && !!shown && isEqual(previousQuickChatResource, shown.chat.resource);
+			previousQuickChatResource = isQuickChat ? shown?.chat.resource : undefined;
 			if (isWorkspaceConversion && !this._ctx.sharedChatLayout) {
 				this._captureExistingProfile();
 			}
 
-			const ownerKey = this._ctx.chatLayoutActive(reader) && activeSession ? this._ctx.ownerKeyFor(activeSession, reader) : undefined;
+			const ownerKey = this._ctx.chatLayoutActive(reader) && shown ? this._ctx.ownerKeyFor(shown, reader) : undefined;
 
 			if (multipleLayoutOwnersVisible) {
+				pendingComposition = undefined;
 				if (!this._ctx.chatLayoutActive(reader) || this._ctx.sharedChatLayout) {
-					const activeChat = activeSession?.activeChat.read(reader);
-					const workspace = activeChat?.workspace.read(reader);
-					const isCreated = activeSession?.isCreated.read(reader);
-					if ((!isWorkspaceConversion || this._ctx.sharedChatLayout) && activeSession && !isQuickChat && workspace && isCreated === true) {
-						const resolved = this._resolveComposition(activeSession, ownerKey);
+					const workspace = shown?.chat.workspace.read(reader);
+					const isCreated = isSessionCreated(activeSession, reader);
+					if ((!isWorkspaceConversion || this._ctx.sharedChatLayout) && shown && !isQuickChat && workspace && isCreated === true) {
+						const resolved = this._resolveComposition(shown, ownerKey);
 						this._ctx.withSessionLayoutRestore(() => this._apply(resolved, !ownerKey));
 					}
 				}
@@ -185,38 +192,58 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
-			if (!activeSession) {
+			if (!shown || !activeSession) {
+				pendingComposition = undefined;
 				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (isQuickChat) {
+				pendingComposition = undefined;
 				wasExistingActive = false;
 				previousOwnerKey = ownerKey;
 				return;
 			}
 
-			const isCreated = activeSession.isCreated.read(reader);
+			const isCreated = isSessionCreated(activeSession, reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
 			const ownerChanged = !sessionChanged && ownerKey !== undefined && (resuming || !isEqual(previousOwnerKey, ownerKey));
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
-				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
-			if (isSubmit && !this._ctx.sharedChatLayout) {
+				&& (previousSession === activeSession || isSessionCreated(previousSession));
+			if (isSubmit && !this._ctx.sharedChatLayout && (this._ctx.chatLayoutActive(reader) || draftCompositionChosen)) {
 				this._captureExistingProfile();
 			}
 
 			if (isCreated) {
 				if ((this._ctx.sharedChatLayout && (isSubmit || isWorkspaceConversion))
 					|| (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged || ownerChanged))) {
-					const compositionKey = this._ctx.chatLayoutActive(reader) ? this._ctx.compositionKeyFor(activeSession, reader) : undefined;
+					const compositionKey = this._ctx.chatLayoutActive(reader) ? this._ctx.compositionKeyFor(shown, reader) : undefined;
 					const revealSavedComposition = !this._ctx.sharedChatLayout && initialized && !!compositionKey && this._ctx.compositionStore.get(compositionKey) !== undefined;
-					this._ctx.withSessionLayoutRestore(() => this._apply(this._resolveComposition(activeSession, ownerKey), false, revealSavedComposition));
+					const state = this._resolveComposition(shown, ownerKey);
+					if (perChatLayout && ownerKey) {
+						pendingComposition = { ownerKey, state, reveal: revealSavedComposition || this._layoutService.isSidePaneVisible() };
+						if (restoringWorkingSet && shown.chat.status.read(reader) !== SessionStatus.Untitled) {
+							this._ctx.withSessionLayoutRestore(() => this._apply({ editorVisible: false, auxiliaryBarVisible: false }));
+						}
+					} else {
+						this._ctx.withSessionLayoutRestore(() => this._apply(state, false, revealSavedComposition));
+					}
 				}
 				wasExistingActive = true;
 			} else {
+				pendingComposition = undefined;
 				wasExistingActive = false;
 			}
 
+			if (pendingComposition && !restoringWorkingSet && isEqual(pendingComposition.ownerKey, ownerKey)) {
+				const { state, reveal } = pendingComposition;
+				pendingComposition = undefined;
+				this._ctx.withSessionLayoutRestore(() => this._apply(state, false, reveal));
+			}
+
+			if (isCreated !== false || !isEqual(previousSession?.resource, activeSession.resource)) {
+				draftCompositionChosen = false;
+			}
 			previousIsCreated = isCreated;
 			previousSession = activeSession;
 			previousOwnerKey = ownerKey;
@@ -230,20 +257,35 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._detailPanel.changingVisibility)) {
 				return;
 			}
+			if (!this._ctx.isRestoringSessionLayout && !this._layoutService.isEditorPartAutoVisibilitySuppressed() && this._isDraftActive()) {
+				draftCompositionChosen = true;
+			}
 			this._captureExistingProfileIfApplicable();
 		}));
 		this._register(this._layoutService.onWillToggleSidePane(() => {
+			pendingComposition = undefined;
 			togglingSidePane = true;
 			this._capturePreHideComposition();
 		}));
+		this._register(this._layoutService.onDidRevealSidePane(() => {
+			pendingComposition = undefined;
+		}));
 		this._register(this._layoutService.onDidToggleSidePane(e => {
 			try {
+				if (this._isDraftActive()) {
+					draftCompositionChosen = true;
+				}
 				this._correctToggleReopen(e);
 				this._captureExistingProfileIfApplicable();
 			} finally {
 				togglingSidePane = false;
 			}
 		}));
+	}
+
+	private _isDraftActive(): boolean {
+		const shown = this._ctx.shownByMainWindow();
+		return !!shown && !isQuickChatShown(shown) && !isSessionCreated(shown.session);
 	}
 
 	private _capturePreHideComposition(): void {
@@ -269,9 +311,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			|| (this._ctx.multipleChatsVisibleObs.get() && !this._ctx.sharedChatLayout)) {
 			return;
 		}
-		const composition = this._getToggleReopenComposition();
+		let composition = this._getToggleReopenComposition();
 		if (!composition || (!composition.editor && !composition.auxiliaryBar)) {
 			return;
+		}
+		const shown = this._ctx.shownByMainWindow();
+		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
+			&& shown && isSessionCreated(shown.session)
+			&& shown.chat.status.get() !== SessionStatus.Untitled
+			&& !composition.editor && composition.auxiliaryBar) {
+			composition = { editor: true, auxiliaryBar: true };
 		}
 		if (composition.editor !== e.after.editor || composition.auxiliaryBar !== e.after.auxiliaryBar) {
 			this._layoutService.restoreSidePaneComposition(composition);
@@ -279,18 +328,19 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _getToggleReopenComposition(): ISidePaneState | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
-		if (!activeSession || activeSession.isQuickChat?.get()) {
+		const shown = this._ctx.shownByMainWindow();
+		const activeSession = shown?.session;
+		if (!shown || !activeSession || isQuickChatShown(shown)) {
 			return undefined;
 		}
-		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(shown) : undefined;
 		if (ownerKey) {
 			const saved = this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
 			if (saved) {
 				return saved;
 			}
 		}
-		if (!activeSession.isCreated.get()) {
+		if (!isSessionCreated(activeSession)) {
 			return undefined;
 		}
 		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
@@ -298,15 +348,15 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _activeOwnerKey(): URI | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
-		return activeSession && !activeSession.isQuickChat?.get() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+		const shown = this._ctx.shownByMainWindow();
+		return shown && !isQuickChatShown(shown) ? this._ctx.compositionKeyFor(shown) : undefined;
 	}
 
-	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
+	private _resolveComposition(shown: IShownChat, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
 		if (!ownerKey) {
 			return this._visibilityStore.get(SessionVisibilityProfile.Existing);
 		}
-		const compositionKey = this._ctx.compositionKeyFor(activeSession);
+		const compositionKey = this._ctx.compositionKeyFor(shown);
 		const stored = compositionKey && this._ctx.compositionStore.get(compositionKey);
 		if (stored) {
 			return { editorVisible: stored.editor, auxiliaryBarVisible: stored.auxiliaryBar };
@@ -324,15 +374,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()) {
 			return;
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const shown = this._ctx.shownByMainWindow();
+		const activeSession = shown?.session;
 		if (this._ctx.multipleChatsVisibleObs.get()) {
-			const ownerKey = activeSession && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(activeSession) : undefined;
+			const ownerKey = shown && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(shown) : undefined;
 			if (!ownerKey || !this._ctx.sharedChatLayout) {
 				return;
 			}
 		}
-		if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
-			|| (this._ctx.sharedChatLayout && !activeSession.activeChat.get().workspace.get())
+		if (!shown || !activeSession || isQuickChatShown(shown) || !isSessionCreated(activeSession)
+			|| (this._ctx.sharedChatLayout && !shown.chat.workspace.get())
 			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
 		}
@@ -349,8 +400,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		};
 
 		if (this._ctx.chatLayoutActive()) {
-			const activeSession = this._sessionsService.activeSession.get();
-			const ownerKey = activeSession && this._ctx.compositionKeyFor(activeSession);
+			const shown = this._ctx.shownByMainWindow();
+			const ownerKey = shown && this._ctx.compositionKeyFor(shown);
 			if (ownerKey) {
 				this._ctx.compositionStore.set(ownerKey, { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
 			}
@@ -360,6 +411,13 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false, revealSavedComposition = false): void {
+		const draftDetailsOnly = !state.editorVisible && state.auxiliaryBarVisible
+			&& this._ctx.shownByMainWindow()?.chat.status.get() === SessionStatus.Untitled;
+		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
+			&& !draftDetailsOnly
+			&& (!state.editorVisible || !this._editorGroupsService.mainPart.groups.some(group => group.editors.some(editor => !(editor instanceof DockedEditorInput))))) {
+			state = { editorVisible: false, auxiliaryBarVisible: false };
+		}
 		this._detailPanel.resetTransientVisibility();
 		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
@@ -405,17 +463,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (this._ctx.chatLayoutSuspended(reader)) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
-			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
+			const shown = this._ctx.shownByMainWindow(reader);
+			const activeSession = shown?.session;
+			const isQuickChat = isQuickChatShown(shown, reader);
+			const isWorkspaceConversion = !isQuickChat && !!shown && isEqual(previousQuickChatResource, shown.chat.resource);
 			if (!isWorkspaceConversion) {
-				previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
+				previousQuickChatResource = isQuickChat ? shown?.chat.resource : undefined;
 			}
-			const workspace = activeSession?.activeChat.read(reader).workspace.read(reader);
-			if (!activeSession
+			const workspace = shown?.chat.workspace.read(reader);
+			if (!shown || !activeSession
 				|| isQuickChat
 				|| !workspace
-				|| !activeSession.isCreated.read(reader)) {
+				|| !isSessionCreated(activeSession, reader)) {
 				wasExistingActive = false;
 				previousActiveEditor = undefined;
 				previousEditorPartVisible = false;
@@ -424,7 +483,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 			previousQuickChatResource = undefined;
 
-			const sessionKey = this._ctx.ownerKeyFor(activeSession, reader)?.toString();
+			const sessionKey = this._ctx.ownerKeyFor(shown, reader)?.toString();
 			const sessionChanged = activeSessionKey !== undefined && activeSessionKey !== sessionKey;
 			if (!wasExistingActive || sessionChanged) {
 				activeSessionKey = sessionKey;
@@ -477,8 +536,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 		this._register(autorun(sync));
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			const activeSession = this._sessionsService.activeSession.get();
-			if (pendingSessionKey && (!activeSession || this._ctx.ownerKeyFor(activeSession)?.toString() !== pendingSessionKey)) {
+			const shown = this._ctx.shownByMainWindow();
+			if (pendingSessionKey && (!shown || this._ctx.ownerKeyFor(shown)?.toString() !== pendingSessionKey)) {
 				return;
 			}
 			pendingSessionKey = undefined;
@@ -549,26 +608,27 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _registerManagedTabsSupplement(): void {
 		let previousSessionKey: string | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IActiveSession | undefined;
+		let previousSession: ISession | undefined;
 		let changesActivationPendingForSession: string | undefined;
 
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
-			const isQuickChat = session?.isQuickChat?.read(reader) ?? false;
-			const isCreated = session && !isQuickChat ? session.isCreated.read(reader) : false;
-			const sessionKey = session && this._ctx.ownerKeyFor(session, reader)?.toString();
+			const shown = this._ctx.shownByMainWindow(reader);
+			const session = shown?.session;
+			const isQuickChat = isQuickChatShown(shown, reader);
+			const isCreated = session && !isQuickChat ? isSessionCreated(session, reader) : false;
+			const sessionKey = shown && this._ctx.ownerKeyFor(shown, reader)?.toString();
 
 			const isSubmit = !isQuickChat && previousIsCreated === false && isCreated
-				&& (previousSession === session || previousSession?.isCreated.read(undefined) === true);
+				&& (previousSession === session || isSessionCreated(previousSession));
 			if (isSubmit) {
 				changesActivationPendingForSession = sessionKey;
 			} else if (sessionKey !== previousSessionKey) {
 				changesActivationPendingForSession = undefined;
 			}
 
-			if (session && !isQuickChat && isCreated) {
+			if (shown && !isQuickChat && isCreated) {
 				const target = this.managedTabs.readTarget(reader);
-				const hasChanges = session.activeChat.read(reader).changes.read(reader).length > 0;
+				const hasChanges = shown.chat.changes.read(reader).length > 0;
 				const ensureChangesActive = changesActivationPendingForSession === sessionKey && hasChanges;
 				if (ensureChangesActive) {
 					changesActivationPendingForSession = undefined;

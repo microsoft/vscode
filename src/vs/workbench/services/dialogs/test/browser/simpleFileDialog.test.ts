@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../base/common/path.js';
@@ -17,7 +18,11 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileServic
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
 
@@ -32,6 +37,201 @@ suite('SimpleFileDialog', () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		provider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
+	});
+
+	suite('resource selection', () => {
+		interface ResourceItem extends IQuickPickItem {
+			uri: URI;
+			isFolder: boolean;
+		}
+
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const textFile = resources.joinPath(root, 'notes.txt');
+		const imageFile = resources.joinPath(root, 'screenshot.png');
+		const childFolder = resources.joinPath(root, 'child');
+
+		async function createDialog() {
+			await fileService.createFolder(childFolder);
+			await fileService.createFile(textFile, VSBuffer.fromString('notes'));
+			await fileService.createFile(imageFile, VSBuffer.fromString('image'));
+			const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, disposables);
+			const quickInputService = instantiationService.get(IQuickInputService);
+			const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog));
+			return { dialog, quickInputService };
+		}
+
+		async function openDialog(options: Partial<IOpenDialogOptions> = {}) {
+			const { dialog, quickInputService } = await createDialog();
+			const result = dialog.showOpenDialog({
+				defaultUri: root,
+				canSelectFiles: true,
+				canSelectFolders: false,
+				canSelectMany: true,
+				...options,
+			});
+			await timeout(0);
+			const picker = quickInputService.currentQuickInput as IQuickPick<ResourceItem>;
+			assert.ok(picker && !picker.busy);
+			return { picker, result };
+		}
+
+		suite('initial selection', () => {
+			async function openWith(setting: string, screenReader: boolean, mode: 'open' | 'save', defaultUri: URI) {
+				const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, disposables);
+				instantiationService.get(IConfigurationService).getValue = (() => setting) as IConfigurationService['getValue'];
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized() { return screenReader; }
+				}());
+				const quickInputService = instantiationService.get(IQuickInputService);
+				const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog));
+				const result = mode === 'open'
+					? dialog.showOpenDialog({ defaultUri, canSelectFiles: true, canSelectFolders: false, canSelectMany: false })
+					: dialog.showSaveDialog({ defaultUri });
+				await timeout(0);
+				const picker = quickInputService.currentQuickInput as IQuickPick<ResourceItem>;
+				const state = { value: picker.value, selection: picker.valueSelection };
+				picker.hide();
+				await result;
+				return state;
+			}
+
+			setup(async () => {
+				await fileService.createFolder(childFolder);
+				await fileService.createFile(textFile, VSBuffer.fromString('notes'));
+			});
+
+			test('open dialog with folder default', async () => {
+				const results = {
+					off: await openWith('off', true, 'open', root),
+					on: await openWith('on', false, 'open', root),
+					autoScreenReader: await openWith('auto', true, 'open', root),
+					autoNoScreenReader: await openWith('auto', false, 'open', root),
+				};
+				assert.deepStrictEqual(
+					Object.values(results).map(r => r.selection),
+					[
+						[results.off.value.length, results.off.value.length],
+						[0, results.on.value.length],
+						[0, results.autoScreenReader.value.length],
+						[results.autoNoScreenReader.value.length, results.autoNoScreenReader.value.length],
+					]);
+			});
+
+			test('open dialog with file default', async () => {
+				const on = await openWith('on', false, 'open', textFile);
+				const autoScreenReader = await openWith('auto', true, 'open', textFile);
+				const off = await openWith('off', true, 'open', textFile);
+				assert.deepStrictEqual(
+					[on.selection, autoScreenReader.selection, off.selection],
+					[
+						[0, on.value.length],
+						[0, autoScreenReader.value.length],
+						[off.value.length - 'notes.txt'.length, off.value.length - '.txt'.length],
+					]);
+			});
+
+			test('save dialog selects the file name stem', async () => {
+				const save = await openWith('on', true, 'save', textFile);
+				assert.deepStrictEqual(save.selection, [save.value.length - 'notes.txt'.length, save.value.length - '.txt'.length]);
+			});
+		});
+
+		test('returns all checked files through the real quick pick', async () => {
+			const { picker, result } = await openDialog();
+			picker.selectedItems = picker.items.filter(item => !item.isFolder);
+			picker.accept();
+
+			assert.deepStrictEqual({ canSelectMany: picker.canSelectMany, paths: (await result)?.map(uri => uri.path) }, {
+				canSelectMany: true,
+				paths: [textFile.path, imageFile.path],
+			});
+		});
+
+		test('returns the active file when no files are checked', async () => {
+			const { picker, result } = await openDialog();
+			picker.activeItems = picker.items.filter(item => item.uri.path === textFile.path);
+			picker.accept();
+
+			assert.deepStrictEqual((await result)?.map(uri => uri.path), [textFile.path]);
+		});
+
+		test('preserves single selection when multiple selection is disabled', async () => {
+			const { picker, result } = await openDialog({ canSelectMany: false });
+			picker.activeItems = picker.items.filter(item => item.uri.path === textFile.path);
+			picker.accept();
+
+			assert.deepStrictEqual({ canSelectMany: picker.canSelectMany, paths: (await result)?.map(uri => uri.path) }, {
+				canSelectMany: false,
+				paths: [textFile.path],
+			});
+		});
+
+		test('cancelling does not return checked files', async () => {
+			const { picker, result } = await openDialog();
+			picker.selectedItems = picker.items.filter(item => !item.isFolder);
+			picker.hide();
+
+			assert.strictEqual(await result, undefined);
+		});
+
+		test('validates every selected file before returning the selection', async () => {
+			const { picker, result } = await openDialog();
+			picker.selectedItems = picker.items.filter(item => !item.isFolder);
+			await fileService.del(imageFile);
+			picker.accept();
+			await timeout(0);
+			const validationMessage = picker.validationMessage;
+			picker.selectedItems = picker.items.filter(item => item.uri.path === textFile.path);
+			picker.accept();
+
+			assert.deepStrictEqual({ validationMessage, paths: (await result)?.map(uri => uri.path) }, {
+				validationMessage: 'Please enter a path that exists.',
+				paths: [textFile.path],
+			});
+		});
+
+		test('folder rows navigate rather than becoming file attachments', async () => {
+			const { picker, result } = await openDialog();
+			const folder = picker.items.find(item => resources.isEqual(resources.removeTrailingPathSeparator(item.uri), childFolder));
+			assert.ok(folder);
+			picker.activeItems = [folder];
+			picker.accept();
+			await timeout(0);
+			const navigated = picker.value;
+			const labels = picker.items.map(item => item.label);
+			picker.hide();
+
+			assert.deepStrictEqual({ pickable: folder.pickable, navigated, labels, result: await result }, {
+				pickable: false,
+				navigated: '/root/child/',
+				labels: ['..'],
+				result: undefined,
+			});
+		});
+
+		test('allows multiple folders when folder selection is enabled', async () => {
+			const anotherFolder = resources.joinPath(root, 'another');
+			await fileService.createFolder(anotherFolder);
+			const { picker, result } = await openDialog({ canSelectFolders: true });
+			picker.selectedItems = picker.items.filter(item => item.isFolder && item.pickable);
+			picker.accept();
+
+			assert.deepStrictEqual((await result)?.map(uri => uri.path), [anotherFolder.path, childFolder.path]);
+		});
+
+		test('save dialogs remain single-select', async () => {
+			const { dialog, quickInputService } = await createDialog();
+			const result = dialog.showSaveDialog({ defaultUri: resources.joinPath(root, 'new.txt') });
+			await timeout(0);
+			const picker = quickInputService.currentQuickInput as IQuickPick<ResourceItem>;
+			const canSelectMany = picker.canSelectMany;
+			picker.hide();
+
+			assert.deepStrictEqual({ canSelectMany, result: await result }, {
+				canSelectMany: false,
+				result: undefined,
+			});
+		});
 	});
 
 	function createFolderOnlyDialog(fileService: IFileService, options: { isWindows?: boolean } = {}) {

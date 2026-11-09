@@ -21,6 +21,7 @@ import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
 import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { extUri, isEqual } from '../../../base/common/resources.js';
+import { getAgentHostSessionResource } from '../common/agentHostSessionIdentity.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -228,6 +229,34 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return resource;
 	}
 
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable {
+		const alias = resource.with({ fragment: '' });
+		const entry = { backend: backendSession, authority, provider };
+		const previous = this._backendSessions.get(alias);
+		if (previous) {
+			throw new Error(`Catalog resource already has an execution: ${alias.toString()}`);
+		}
+		const canonical = this.registerSessionResource(backendSession, authority, provider);
+		this._backendSessions.set(alias, entry);
+		const key = this._backendIdentityKey(backendSession, authority);
+		const original = this._frontendByBackend.get(key);
+		this._frontendByBackend.set(key, alias);
+		this._fireSessionResolutionChanged();
+		return toDisposable(() => {
+			if (this._backendSessions.get(alias) === entry) {
+				this._backendSessions.delete(alias);
+				if (this._frontendByBackend.get(key) === alias) {
+					if (original && this._backendSessions.has(original)) {
+						this._frontendByBackend.set(key, original);
+					} else {
+						this._frontendByBackend.set(key, canonical);
+					}
+				}
+				this._fireSessionResolutionChanged();
+			}
+		});
+	}
+
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
 		return this._frontendByBackend.get(this._backendIdentityKey(backendSession, authority));
 	}
@@ -257,17 +286,23 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return isEqual(this.resolveSessionResourceIdentity(resource)?.backendSession, backendSession) ? resource : undefined;
 	}
 
+	private _normalizeSessionResource(sessionResource: URI): URI {
+		const withoutFragment = sessionResource.with({ fragment: '' });
+		return this._backendSessions.has(withoutFragment) ? withoutFragment : getAgentHostSessionResource(sessionResource);
+	}
+
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {
-		const known = this._backendSessions.get(sessionResource.with({ fragment: '' }));
+		const normalized = this._normalizeSessionResource(sessionResource);
+		const known = this._backendSessions.get(normalized);
 		if (known) {
-			return this._createSessionIdentity(known.authority, known.provider, sessionResource);
+			return this._createSessionIdentity(known.authority, known.provider, normalized);
 		}
-		const scheme = sessionResource.scheme;
+		const scheme = normalized.scheme;
 
 		if (scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
 			const provider = scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length);
 			return provider
-				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, sessionResource)
+				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, normalized)
 				: undefined;
 		}
 
@@ -283,7 +318,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			if (authority) {
 				const provider = scheme.substring(remoteAgentHostSessionTypeAuthorityPrefix(authority).length);
 				if (provider) {
-					return this._createSessionIdentity(authority, provider, sessionResource);
+					return this._createSessionIdentity(authority, provider, normalized);
 				}
 			}
 		}
@@ -298,9 +333,9 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return {
 			connectionAuthority: authority,
 			...(policy?.connectionAddress !== undefined ? { connectionAddress: policy.connectionAddress } : {}),
-			backendSession: this._backendSessions.get(sessionResource.with({ fragment: '' }))?.backend
+			backendSession: this._backendSessions.get(sessionResource)?.backend
 				?? sessionResource.with({ scheme: backendProvider, fragment: '' }),
-			...(this._backendSessions.has(sessionResource.with({ fragment: '' })) ? { backendSessionIsAdvertised: true as const } : {}),
+			...(this._backendSessions.has(sessionResource) ? { backendSessionIsAdvertised: true as const } : {}),
 			defaultChangesetKind: policy?.defaultChangesetKind,
 		};
 	}

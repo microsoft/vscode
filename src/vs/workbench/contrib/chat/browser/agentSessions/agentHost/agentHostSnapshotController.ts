@@ -13,7 +13,8 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { FileEditKind, ToolCallStatus, type ISessionFileDiff, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -105,8 +106,14 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	private readonly _currentCheckpointIndex = observableValue<number>(this, -1);
 	private readonly _undoRedoSequencer = new Sequencer();
 
+	/**
+	 * @param _connection The session's connection, whose `resourceUris` map checkpoint files into this window's
+	 * URI space, so a restore writes the files the workbench opens.
+	 * @param _connectionAuthority The authority through which recorded contents are read from the host.
+	 */
 	constructor(
 		readonly chatSessionResource: URI,
+		private readonly _connection: Pick<IAgentConnection, 'resourceUris'>,
 		private readonly _connectionAuthority: string,
 		private readonly _turnEdits: {
 			readonly getChanges: (requestId: string) => IObservable<readonly IEditSessionEntryDiff[]> | undefined;
@@ -195,12 +202,13 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 	private _addCheckpointEdits(cp: IAgentHostCheckpoint, fileEdits: readonly IToolCallFileEdit[], replace = false): void {
 		const authority = this._connectionAuthority;
+		const resourceUris = this._connection.resourceUris;
 		for (const edit of fileEdits) {
-			const resource = toAgentHostUri(edit.resource, authority);
+			const resource = resourceUris.fromAgentHost(edit.resource);
 			const entry: IToolCallFileEdit = {
 				kind: edit.kind,
 				resource,
-				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
+				originalResource: edit.originalResource ? resourceUris.fromAgentHost(edit.originalResource) : undefined,
 				beforeContentUri: edit.beforeContentUri ? toAgentHostContentUri(edit.beforeContentUri, authority, edit.originalResource ?? edit.resource) : undefined,
 				afterContentUri: edit.afterContentUri ? toAgentHostContentUri(edit.afterContentUri, authority, edit.resource) : undefined,
 				undoStopId: edit.undoStopId,

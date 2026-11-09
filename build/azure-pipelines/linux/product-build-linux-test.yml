@@ -12,8 +12,10 @@ parameters:
 
 # Each product test job tests the builds of the compilation artifact published
 # by the compile job (see product-build-linux.yml, which must set
-# VSCODE_RUN_TESTS) with the selected test IDs. Retrying a test job skips the
-# test tasks that already passed in an earlier attempt.
+# VSCODE_RUN_TESTS) with the selected test IDs. Failed unit, Agent Host E2E and
+# node.js integration tests are rerun, as in the pull request workflows.
+# Retrying a test job skips the test tasks that already passed in an earlier
+# attempt.
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}
     displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
@@ -26,6 +28,12 @@ jobs:
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
+      # Defender for Linux can block the 1ES PT antimalware scan of the outputs for 45-55 min (see
+      # product-build-linux-cli.yml), so cap it. Until that's fixed the cap is 2 min, which also
+      # stops some scans that aren't blocked (up to 7 min).
+      sdl:
+        antimalwareScan:
+          scanTimeoutInMinutes: '2'
       outputs:
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/crashes
@@ -62,3 +70,4 @@ jobs:
         parameters:
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
           VSCODE_COMPILE_TEST_SUITES: true
+          VSCODE_RERUN_FAILED_TESTS: true

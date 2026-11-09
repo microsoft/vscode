@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -24,33 +24,103 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
+import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents inline row actions only when enabled and AI is visible', () => {
+		const results = [[false, false], [true, false], [true, true]].map(([enabled, aiDisabled]) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: enabled,
+				'chat.disableAIFeatures': aiDisabled,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.');
+		});
+		assert.deepStrictEqual(results, [false, true, false]);
+	});
+
+	test('documents comment card previews, secondary actions and review states', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiation, configuration);
+		instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiation.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+
+		assert.deepStrictEqual({
+			preview: content.includes('See more or See less'),
+			keyboard: content.includes('Enter or Space to activate them'),
+			scrolling: content.includes('Tab to the scrollable comments region and use the arrow keys to scroll.'),
+			secondaryActions: content.includes('The More Actions menu includes Edit and Add to Comment.'),
+			states: content.includes('Accepted means it is ready to submit; Investigating means it has been submitted to the agent.'),
+		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
+	});
+
+	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.deepStrictEqual({
+				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
+				checked: help.includes('The active mode is checked'),
+				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
+				thinking: help.includes('only when a live section finishes with its header in view'),
+				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
+			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+		});
+	}
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
 			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
 				const instantiation = store.add(new TestInstantiationService());
 				const configuration = new TestConfigurationService({
-					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 					[ENVIRONMENT_PICKER_SETTING]: true,
 					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
 					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
@@ -64,6 +134,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				const container = mainWindow.document.createElement('div');
 				instantiation.stub(IWorkbenchLayoutService, { mainContainer: container });
 				instantiation.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+				instantiation.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				instantiation.stub(ITelemetryService, telemetry);
 				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
@@ -81,6 +152,34 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}
 	}
 
+	test('documents chat windows, and New Session in them, only when enabled', () => {
+		const help = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			const container = mainWindow.document.createElement('div');
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+			instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			const lines = content.split('\n');
+			return [lines.find(line => line.startsWith('To show a chat in a window of its own')) ?? null, lines.find(line => line.startsWith('In a chat window, New Session')) ?? null];
+		});
+
+		assert.deepStrictEqual(help, [
+			[null, null],
+			[
+				'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+				'In a chat window, New Session<keybinding:sessions.chatWindow.newSession> opens a new session as a tab of the window\'s active chat. It starts with that chat\'s workspace, agent, model and mode, which you can change before sending, and joins the group of that chat\'s session in the sessions list. While the window\'s active chat is a new session that has not been sent, New Session moves focus to it instead. Choosing New Session in the Sessions picker of a chat window opens it in that window too, beside the active chat when opened to the side. Press Enter to send its first prompt: the tab becomes the session\'s chat. Use Send in Background<keybinding:sessions.sendInBackground> to start the session in the background: the tab stays a new session, and its status offers Open Session, which opens the started session beside it. If a background start fails, its prompt goes back into the new session when nothing changed there since; otherwise a notification offers Copy Prompt, and Restore Prompt while the new session is still open. A new session that has not been sent can\'t move to the main window or to another window: send it first, or close it to discard it. It reopens with its prompt after a restart. Compare Agents is available in the main window\'s new session.',
+			],
+		]);
+	});
+
 	for (const enabled of [true, false]) {
 		test(`documents chat-scoped activity bar selection only when enabled: ${enabled}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -94,6 +193,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const container = mainWindow.document.createElement('div');
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+			instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
 				automatic: content.includes('The pull request action appears automatically in the side-pane group.'),
@@ -115,11 +215,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
-			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
+			back: content.includes('Go back through visited sessions, the New Session view, custom views such as Automations, and canvas tabs such as Inbox<keybinding:sessions.goBack>'),
+			forward: content.includes('Go forward through visited sessions, views, and canvas tabs<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
 			independentDrag: content.includes('without moving its parent.'),
@@ -132,9 +233,30 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
+			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, moveToSession: true });
+	});
+
+	test('documents terminal command descriptions and Explain in confirmations', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a fresh side chat that explains only the terminal command, without the prior conversation as context'),
+			pending: content.includes('The confirmation stays pending until you allow or skip it'),
+		}, { description: true, explain: true, pending: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -152,6 +274,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
 				.includes('No connector recommendation appears without a matching URL');
 		});
@@ -169,6 +292,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
@@ -187,6 +311,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
@@ -205,6 +330,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
@@ -234,6 +360,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phone);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
 				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
@@ -269,6 +396,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			assert.deepStrictEqual({
@@ -280,6 +408,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
+		instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -307,6 +437,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
 				discoveryHelp: content.includes('choose GitHub Environments to discover your environments'),
@@ -358,6 +489,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return content.includes('The workspace picker includes Dev Container Sample.');
 		});
@@ -375,6 +507,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
 				nameEditing: content.includes('Press Tab to reach Customize Welcome Message'),
@@ -399,6 +532,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
 				pullRequestBanner: content.includes('When pull requests have failing checks or unreviewed comments, one banner appears above the input.'),
@@ -423,6 +557,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.strictEqual(
@@ -441,6 +576,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
@@ -467,6 +603,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			const sectionHelp = content.split('\n').find(line => line.includes('External section above Archived'));
 			return {
@@ -489,10 +626,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		]);
 	});
 
-	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {
-		const getPickerHelp = (enabled: boolean) => {
+	test('describes listing automation sessions in the Sessions list only when Automations are enabled', () => {
+		const getAutomationHelp = (enabled: boolean) => {
 			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [UNIFIED_WORKSPACE_PICKER_SETTING]: enabled });
+			const configuration = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: enabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiationService, configuration);
@@ -500,19 +637,41 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.split('\n')
+				.filter(line => line.includes('Show in Sessions List'));
+		};
+
+		assert.deepStrictEqual({ disabled: getAutomationHelp(false), enabled: getAutomationHelp(true) }, {
+			disabled: [],
+			enabled: [`Automation sessions are listed in Automations rather than in the Sessions list. To also list one in the Sessions list, open its context menu<keybinding:editor.action.showContextMenu> in Automations and choose Show in Sessions List. The ${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} setting controls when automation sessions automatically also appear in the Sessions list: always, after you send a message in one, or never. To list it only in Automations again, open its context menu in the Sessions list and choose Hide from Sessions List; neither later messages nor the setting list it again.`],
+		});
+	});
+
+	test('describes picker shortcuts', () => {
+		const getPickerHelp = () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
 				.split('\n')
 				.find(line => line.includes('open and focus the workspace picker'));
 		};
-		const enabledHelp = getPickerHelp(true);
+		const enabledHelp = getPickerHelp();
 
 		assert.deepStrictEqual({
-			disabled: getPickerHelp(false) !== undefined,
 			enabled: enabledHelp !== undefined,
 			contextMenuKeybinding: enabledHelp?.includes('<keybinding:editor.action.showContextMenu>'),
 			mouseOnly: enabledHelp?.includes('Right-click'),
 		}, {
-			disabled: false,
 			enabled: true,
 			contextMenuKeybinding: true,
 			mouseOnly: false,
@@ -524,19 +683,18 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const configuration = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 				[WORKSPACE_OPT_OUT_SETTING]: enabled,
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
-			instantiationService.stub(ITelemetryService, telemetryService);
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false, onDidChangeScreenReaderOptimized: Event.None });
 			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ITelemetryService, telemetryService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
 				hasOptOutHelp: content.includes('reveal Chat without a workspace'),
@@ -550,12 +708,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes controls according to the effective new-session layout', () => {
-		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, agentPickerInAttachContext = false, screenReader = false) => {
+		const getLayoutHelp = (agentPickerInAttachContext = false, screenReader = false) => {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 			const configuration = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
 				[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: agentPickerInAttachContext,
 				[WORKSPACE_OPT_OUT_SETTING]: true,
 			});
@@ -566,6 +722,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => screenReader, onDidChangeScreenReaderOptimized: Event.None });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().split('\n');
 			return {
@@ -578,43 +735,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		};
 
 		assert.deepStrictEqual([
-			getLayoutHelp(false, false),
-			getLayoutHelp(false, false, true),
-			getLayoutHelp(true, false),
+			getLayoutHelp(),
 			getLayoutHelp(false, true),
-			getLayoutHelp(true, true),
-			getLayoutHelp(true, true, false, true),
-			getLayoutHelp(true, true, true),
+			getLayoutHelp(true)
 		], [
 			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
 				controls: 'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
@@ -629,12 +754,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasClearWorkspace: true,
 			},
 			{
-				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
 				hasClearWorkspace: true,
-			},
+			}
 		]);
 	});
 
@@ -651,6 +776,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				selectedHost: upcastPartial<IAgentHostFilterEntry>({ sessionCreationProviderId }),
 			});
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 			assert.deepStrictEqual({
@@ -679,6 +805,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const content = provider.provideContent();
 		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Options'));
@@ -704,6 +831,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
@@ -721,7 +849,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			downloadSnapshot: content.includes('Only images ready when you start the download are included'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
-			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
+			artifactDownload: content.includes('Files and folders from a remote device, such as one reached over SSH or a dev tunnel, offer Download... instead, as do other image rows'),
+			artifactReveal: content.includes('that are on this device offer Reveal in Finder, Reveal in File Explorer, or Open Containing Folder'),
 			draftImages: content.includes('includes all images attached to that draft'),
 			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
@@ -745,6 +874,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			imageNavigation: true,
 			carouselDownload: true,
 			artifactDownload: true,
+			artifactReveal: true,
 			draftImages: true,
 			transcriptImages: true,
 			singleItemActions: true,
@@ -767,6 +897,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
@@ -787,6 +918,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
@@ -805,10 +937,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-			.split('\n').find(line => line.startsWith('Artifacts and references with an integration'));
+			.split('\n').find(line => line.startsWith('Integrations decide which artifacts and references get pills of their own'));
 
 		assert.deepStrictEqual({
+			listedInKindPills: content?.includes('Other integrated artifacts and references are listed in the Artifacts, References, Pull Requests or Issues pill'),
+			listedRowDetails: content?.includes('where Enter or Space opens the artifact\'s details and the row\'s Open action opens the resource'),
 			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
 			runOnce: content?.includes('Actions below the lists run once'),
 			standingPermission: content?.includes('standing permission'),
@@ -818,7 +953,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			switchKeyboard: content?.includes('Space to change a switch'),
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
-		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+		}, { listedInKindPills: true, listedRowDetails: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('describes grouped artifact pills, their list navigation, and pinning', () => {
@@ -831,6 +966,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
 			.split('\n').find(line => line.startsWith('When two or more artifacts of the same kind share an integration'));
 
@@ -857,6 +993,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const provider = store.add(new SessionsChatAccessibilityHelp(false).getProvider(instantiationService));
 			return provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text'));
 		});
@@ -874,11 +1011,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('Alt-click')),
-			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork\'s context menu.',
+			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Split View from the Open in submenu of the fork\'s context menu.',
 		);
 	});
 
@@ -892,6 +1030,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.strictEqual(
@@ -901,7 +1040,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	for (const { configuredValue, expectedConversation, expectedListAction, expectedGroupCloseHelp } of [
-		{ configuredValue: undefined, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false },
+		{ configuredValue: undefined, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true },
 		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false },
 		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true },
 	]) {
@@ -915,6 +1054,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent().split('\n');
 
@@ -957,6 +1097,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
@@ -969,7 +1110,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
-				continuation: content.includes('Sending a new message after the suggestion appears hides it for those pull requests, including after a reload. It can appear again when a new pull request is added to the session and all its pull requests have merged.'),
+				continuation: content.includes('Sending a new message after the suggestion appears hides it for those pull requests, including after a reload. It can appear again in a chat when a new pull request is added to that chat and all of its pull requests have merged.'),
 				sessionListHelp,
 			}, {
 				controls: true,
@@ -994,6 +1135,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const content = provider.provideContent();
 		const backgroundHelp = content.split('\n').find(line => line.includes('Set Background'));
@@ -1018,6 +1160,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
 
@@ -1029,8 +1172,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 				'workbench.action.navigateDown',
 			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
 			openInGrid: content.includes('Open in Grid'),
-			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
-		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
+			splitView: content.includes('choose Split View from the Open in submenu of the session row\'s context menu'),
+			editorWindow: content.includes('choose Editor Window from the Open in submenu of its context menu in the Sessions list'),
+		}, { navigation: [true, true, true, true], openInGrid: false, splitView: true, editorWindow: true });
+	});
+
+	test('describes evaluator tools only while both feature gates are enabled', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
+		const getHelp = () => store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		const defaultHelp = getHelp();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_TOOLS_ENABLED_SETTING, true);
+		const enabledHelp = getHelp();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, false);
+		const disabledHelp = getHelp();
+		assert.deepStrictEqual({
+			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
+			manualComparison: defaultHelp.includes('activate Compare Models'),
+		}, { tools: [false, true, false], manualComparison: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {
@@ -1045,6 +1212,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
@@ -1059,7 +1227,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
 			discovery: enabledProvider.provideContent().includes('Send Query to Multiple Models at the bottom'),
-			folderless: enabledProvider.provideContent().includes('Folderless comparisons do not offer Judge or Synthesizer steps.'),
+			folderless: enabledProvider.provideContent().includes('optionally configure a Judge and Synthesizer with Next'),
 			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
@@ -1068,12 +1236,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
 			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
 			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
-			archiveComparison: enabledProvider.provideContent().includes('comparison header\'s Mark All as Done action'),
-			undoComparison: enabledProvider.provideContent().includes('Undo restores the group and its sessions.'),
+			archiveComparison: enabledProvider.provideContent().includes('normal session Mark as Done and Undo actions'),
+			nestedParticipants: enabledProvider.provideContent().includes('other attempts, Judge, and synthesis are nested sessions'),
+			legacyGroups: enabledProvider.provideContent().includes('providers without nesting support use a comparison group'),
 			tokenWarning: enabledProvider.provideContent().includes('Running a comparison uses tokens for each session.'),
 			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
-			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Solution, Comparison, Validation, Code quality'),
 			attemptRows: enabledProvider.provideContent().includes('Up Arrow or Down Arrow to move between them, then press Enter or Space to expand a row'),
@@ -1099,11 +1267,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopAll: false,
 			stopOnlyWhileRunning: false,
 			archiveComparison: true,
-			undoComparison: true,
+			nestedParticipants: true,
+			legacyGroups: true,
 			tokenWarning: true,
 			instructions: true,
 			gridOptOut: true,
-			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,
 			attemptRows: true,
@@ -1145,12 +1313,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 			},
 		};
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
-				sessionId: 'judge',
-				resource: judgeResource,
-			}));
+		// The grid's active pane shows the Judge.
+		const judgePane = upcastPartial<ITestSessionWithChat>({
+			sessionId: 'judge',
+			resource: judgeResource,
+			activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => judgePane, pane: constObservable(testGridPane(judgePane)), focus: () => { } }); }
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override readonly comparisons = constObservable([comparison]);

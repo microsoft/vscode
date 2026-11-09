@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -26,6 +27,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ICustomizationSyncProvider } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsConfig } from '../../../../../workbench/contrib/chat/common/promptSyntax/config/config.js';
@@ -33,13 +35,13 @@ import { PromptFileSource, PromptsType } from '../../../../../workbench/contrib/
 import { ILocalPromptPath, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptFilesLocator } from '../../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../browser/chat.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];
@@ -83,18 +85,18 @@ suite('Sessions - Appearance tools', () => {
 			findAgentSkills: async () => localSkills,
 		});
 		await Promise.all([
-			...['commit', 'generate-chat-background'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
+			...['automate', 'commit', 'generate-chat-background'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
 			...localSkills.map(skill => ({ name: 'generate-chat-background', uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
 		const service = disposables.add(instantiationService.createInstance(AgenticPromptsService));
-		const setEnabled = async (value: boolean) => {
+		const setSetting = async (key: string, value: boolean) => {
 			const skillsChanged = Event.toPromise(service.onDidChangeSkills);
 			const slashCommandsChanged = Event.toPromise(service.onDidChangeSlashCommands);
-			await configuration.setUserConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value);
+			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-				affectsConfiguration: key => key === AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING,
-				affectedKeys: new Set([AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]),
+				affectsConfiguration: setting => setting === key,
+				affectedKeys: new Set([key]),
 			}));
 			await Promise.all([skillsChanged, slashCommandsChanged]);
 		};
@@ -106,8 +108,26 @@ suite('Sessions - Appearance tools', () => {
 			builtinFiles: (await service.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None)).map(file => file.name).sort(),
 			forwarded: (await enumerateLocalCustomizationsForHarness(service, syncProvider, 'agent-host-copilot', CancellationToken.None, undefined)).map(file => basename(dirname(file.uri))).sort(),
 		});
-		return { service, configuration, context, instantiationService, setEnabled, snapshot };
+		return { service, configuration, context, instantiationService, setEnabled: (value: boolean) => setSetting(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value), setSetting, snapshot };
 	}
+
+	test('the automate skill follows automation and AI enablement across discovery, slash commands, and harness sync', async () => {
+		const fixture = await setup(false);
+		const visible = async () => {
+			const snapshot = await fixture.snapshot();
+			return Object.fromEntries(Object.entries(snapshot).map(([key, names]) => [key, names?.includes('automate') === true]));
+		};
+		const disabled = await visible();
+		await fixture.setSetting(CHAT_AUTOMATIONS_ENABLED_SETTING, true);
+		const enabled = await visible();
+		await fixture.setSetting(ChatAIDisabledSettingId, true);
+		const aiDisabled = await visible();
+		assert.deepStrictEqual({ disabled, enabled, aiDisabled }, {
+			disabled: { skills: false, slashCommands: false, allFiles: false, builtinFiles: false, forwarded: false },
+			enabled: { skills: true, slashCommands: true, allFiles: true, builtinFiles: true, forwarded: true },
+			aiDisabled: { skills: false, slashCommands: false, allFiles: false, builtinFiles: false, forwarded: false },
+		});
+	});
 
 	test('is advanced, experiment-controlled, and disabled by default', () => {
 		assert.deepStrictEqual({
@@ -190,7 +210,7 @@ suite('Sessions - Appearance tools', () => {
 			let items: string[] = [];
 			const executed: unknown[][] = [];
 			t.instantiationService.stub(ISessionsChatBackgroundService, upcastPartial<ISessionsChatBackgroundService>({
-				getBackground: () => undefined,
+				getConfiguredBackground: () => undefined,
 				getRecentBackgroundImages: () => [URI.file('/backgrounds/recent.png')],
 				getConfiguredBackgroundImage: () => undefined,
 			}));
@@ -212,7 +232,7 @@ suite('Sessions - Appearance tools', () => {
 			results.push({ name: scenario.name, items, executed });
 		}
 
-		const backgroundTypes = ['No Background', 'Codicons', 'Image...'];
+		const backgroundTypes = ['No Background', 'Codicons', 'Koi Light', 'Koi Dark', 'Image...'];
 		const recentImages = ['--- recently used', 'recent.png'];
 		assert.deepStrictEqual(results, [{
 			name: 'available',

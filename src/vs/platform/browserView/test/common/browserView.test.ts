@@ -37,6 +37,7 @@ suite('BrowserView', () => {
 			noGesture: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', false),
 			customScheme: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'vscode://settings', true),
 			blank: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'about:blank', true),
+			remote: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', true, true),
 		}, {
 			listed: { action: 'integrated', consumeUserGesture: false },
 			https: { action: 'external', consumeUserGesture: true },
@@ -44,6 +45,7 @@ suite('BrowserView', () => {
 			noGesture: { action: 'deny', consumeUserGesture: false },
 			customScheme: { action: 'deny', consumeUserGesture: false },
 			blank: { action: 'deny', consumeUserGesture: false },
+			remote: { action: 'deny', consumeUserGesture: true },
 		});
 	});
 

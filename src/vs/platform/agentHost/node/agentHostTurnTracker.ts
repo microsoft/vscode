@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type AgentHostPrewarmSkipReason, type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
@@ -212,6 +212,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
 	/** Records that the turn's send used a pre-warmed provider session, or, with a reason, that it discarded one. */
 	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void;
+	/** Records why the turn's send found no pre-warmed provider session to claim or discard. */
+	markPrewarmSkipped(session: string, turnId: string, reason: AgentHostPrewarmSkipReason): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
 	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
@@ -668,6 +670,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timing.fusion = {
 				autoTier: fusion.autoTier ?? timing.fusion.autoTier,
 				fusionModel: fusion.fusionModel ?? timing.fusion.fusionModel,
+				modelRouterOutcome: fusion.modelRouterOutcome ?? timing.fusion.modelRouterOutcome,
 			};
 		}
 	}
@@ -750,6 +753,16 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timing.providerTelemetryContext = Object.freeze({
 				...timing.providerTelemetryContext,
 				...(discardReason === undefined ? { usedPrewarmedSession: true } : { prewarmedSessionDiscardReason: discardReason }),
+			});
+		}
+	}
+
+	markPrewarmSkipped(session: string, turnId: string, reason: AgentHostPrewarmSkipReason): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.providerTelemetryContext = Object.freeze({
+				...timing.providerTelemetryContext,
+				prewarmSkipReason: reason,
 			});
 		}
 	}

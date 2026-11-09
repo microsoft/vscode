@@ -30,7 +30,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -539,7 +539,7 @@ suite('AgentHostEditReview', () => {
 	test('hiding review releases editor restrictions and re-enabling reviews the latest host changes', async () => {
 		review.dispose();
 		const enabled = observableValue('reviewEnabled', true);
-		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }(), store.add(new WorkingCopyService())));
+		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, host, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }(), store.add(new WorkingCopyService())));
 		controller.attachReview(enabled, () => review = createReview());
 		hostWrites('/a.ts', 'A\nb\n');
 		const first = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
@@ -593,24 +593,26 @@ suite('AgentHostEditReview', () => {
 	});
 
 	for (const provider of ['claude', 'codex', 'third-party']) {
-		for (const authority of ['local', 'remote.example']) {
-			test(`reviews ${provider} changes on ${authority} using advertised URIs without optional metadata`, async () => {
+		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files are the remote window's files
+		for (const { name, authority, resourceUris, contentAuthority } of [
+			{ name: 'local', authority: 'local', resourceUris: createAgentHostResourceUriMapper('local'), contentAuthority: 'local' },
+			{ name: 'remote.example', authority: 'remote.example', resourceUris: createAgentHostResourceUriMapper('remote.example'), contentAuthority: 'remote.example' },
+			{ name: 'a remote window', authority: 'local', resourceUris: createEditorRemoteAgentHostResourceUriMapper('wsl+debian', 'editor-remote'), contentAuthority: 'local' },
+		]) {
+			test(`reviews ${provider} changes on ${name} using advertised URIs without optional metadata`, async () => {
 				review.dispose();
 				connectionAuthority = authority;
 				backendSession = URI.parse('ahp-session:/opaque-host-session');
 				const channel = 'ahp-changeset:/opaque-host-review';
 				host.session = { ...host.session, provider, changesets: [{ label: 'Review', uriTemplate: channel, changeKind: ChangesetKind.WorkingSet }] };
-				host.resourceUris = {
-					fromAgentHost: resource => toAgentHostUri(resource, authority),
-					toAgentHost: fromAgentHostUri,
-				};
-				const resource = toAgentHostUri(URI.file('/a.ts'), authority);
+				host.resourceUris = resourceUris;
+				const resource = resourceUris.fromAgentHost(URI.file('/a.ts'));
 				disk.set(resource, 'A\n');
 				const file = workingSetFile('/a.ts', 'a\n', 'A\n');
 				for (const side of [file.edit.before, file.edit.after]) {
 					if (side?.content) {
 						const snapshot = URI.parse(side.content.uri);
-						recorded.set(toAgentHostContentUri(snapshot, authority, URI.parse(side.uri)), recorded.get(snapshot)!);
+						recorded.set(toAgentHostContentUri(snapshot, contentAuthority, URI.parse(side.uri)), recorded.get(snapshot)!);
 					}
 				}
 				host.setWorkingSet([file]);
@@ -753,7 +755,7 @@ suite('AgentHostEditReview', () => {
 			host.setWorkingSet([file]);
 			await waitForEntries('/dirty.ts');
 			await getChanges(getEntry('/dirty.ts'));
-			const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, {
+			const controller = store.add(new AgentHostSnapshotController(chatSessionResource, host, connectionAuthority, {
 				getChanges: () => undefined,
 				resolve: async () => [file.edit],
 			}, new NullLogService(), files, workingCopyService));
