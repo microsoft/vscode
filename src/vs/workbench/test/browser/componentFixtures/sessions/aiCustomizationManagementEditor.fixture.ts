@@ -5098,7 +5098,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			copilotConnectorsEnabled: true,
 			mcpSearchQuery: 'workiq',
 			openFirstItem: true,
-			openItemLabel: 'workiq-mail-mcp',
+			openItemLabel: 'Work IQ Mail',
 		}),
 	}),
 

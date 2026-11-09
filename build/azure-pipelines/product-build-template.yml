@@ -976,32 +976,6 @@ stages:
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: web/product-build-web-node-modules.yml@self
-
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
         - stage: APIScan
           dependsOn: []

@@ -3132,7 +3132,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await harness.contribution.refreshFeed('renewal');
 			await harness.contribution.refreshFeed('renewal');
 			assert.deepStrictEqual({
-				requests: requests.map(({ diagnostics, ...options } = {}) => options),
+				requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options),
 				reasons: requests.map(options => options?.diagnostics?.fullScanReason),
 				retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
 			}, {
@@ -3169,7 +3169,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		harness.archiveProvider!.setRequested(false);
 		harness.archiveProvider!.setRequested(true);
 		await harness.contribution.refreshFeed('renewal');
-		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: false, includeArchived: true, trigger: 'manual' },
 			{ incremental: true, includeArchived: true, trigger: 'feedRenewal' },
@@ -3191,7 +3191,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await harness.contribution.refreshFeed('renewal');
 		await harness.contribution.refreshFeed('reconnect');
 
-		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
 			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
@@ -3222,7 +3222,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const removedAfterPeriodicFullScan = provider.disposed;
 		await harness.contribution.refreshFeed('reconnect');
 		assert.deepStrictEqual({
-			requests: requests.map(({ diagnostics, ...options } = {}) => options), retainedAfterRenewal, removedAfterPeriodicFullScan,
+			requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), retainedAfterRenewal, removedAfterPeriodicFullScan,
 			diagnostics: requests.map(options => options?.diagnostics),
 		}, {
 			requests: [
@@ -3272,7 +3272,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
 			await Promise.all([first, queued, queuedAgain, full]);
 			assert.deepStrictEqual({
-				requests: requests.map(({ diagnostics, ...options } = {}) => options),
+				requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options),
 				queue: requests.map(options => [options?.diagnostics?.queued, options?.diagnostics?.coalescedRequestCount, options?.diagnostics?.coalescedTrigger]),
 			}, {
 				requests: [
@@ -3301,7 +3301,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			h.setFocused(true);
 			await h.runDiscovery('automatic');
 			await h.runDiscovery();
-			assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+			assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
 				...connected ? [] : [{ incremental: true, includeArchived: false, trigger: 'focus' }],
 				{ incremental: false, includeArchived: false, trigger: 'manual' },
@@ -3331,7 +3331,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		h.changeAccount('["github","account-1"]');
 		await listed.p;
 		await h.contribution.checkForUpdates();
-		assert.deepStrictEqual({ requests: requests.map(({ diagnostics, ...options } = {}) => options), disposed: provider.disposed, disconnects: h.disconnectedFrom, negotiations }, {
+		assert.deepStrictEqual({ requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), disposed: provider.disposed, disconnects: h.disconnectedFrom, negotiations }, {
 			requests: [
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
 				{ incremental: true, includeArchived: false, trigger: 'configurationChange' },

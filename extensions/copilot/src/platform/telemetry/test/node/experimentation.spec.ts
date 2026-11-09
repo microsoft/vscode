@@ -17,6 +17,7 @@ import { ILogService } from '../../../log/common/logService';
 import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { createTasFetch } from '../../vscode-node/tasFetch';
 import { BaseExperimentationService, RevocationGate, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
 
