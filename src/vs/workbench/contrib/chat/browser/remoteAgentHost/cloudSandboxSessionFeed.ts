@@ -203,6 +203,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 						this._report('disconnected', reason, delay, undefined, diagnostics);
 					} else {
 						this._logService.debug(`${LOG_PREFIX} Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.`);
+						this._deferred = false;
 						this._reconnect.cancel();
 						this._report('invalidMessage', reason, undefined, undefined, diagnostics);
 					}

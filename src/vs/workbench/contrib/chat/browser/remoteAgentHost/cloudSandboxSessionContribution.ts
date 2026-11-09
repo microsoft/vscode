@@ -340,7 +340,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		if (this._discoveryInFlight) {
 			await (this._discoveryQueued ?? this._discoveryInFlight);
-			if (this._discoveryDeferred) {
+			if (this._discoveryDeferred || this._sessionFeed.value?.deferred || this._pendingTaskIds.size) {
 				await this._refreshIfStale(trigger);
 			}
 			return;

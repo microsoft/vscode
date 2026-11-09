@@ -996,6 +996,55 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(calls, ['feed', 'list', 'feed', 'list']);
 	});
 
+	for (const deferred of ['taskHints', 'feedRetry'] as const) {
+		test(`resuming during an in-flight inventory scan drains deferred ${deferred}`, async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+			let feedDeferred = false;
+			let scans = 0;
+			const h = createHarness(store, {
+				sessionFeed: {
+					connected: true,
+					get deferred() { return feedDeferred; },
+					start: async () => { feedDeferred = false; },
+					dispose: () => { },
+				},
+				listSessions: async () => {
+					if (++scans === 2) {
+						void started.complete();
+						return pending.p;
+					}
+					return { kind: 'complete', sessions: [] };
+				},
+			});
+			await Promise.all(h.initialRefreshes);
+			const scan = h.refresh();
+			await started.p;
+			h.state.hasFocus = false;
+			if (deferred === 'taskHints') {
+				await h.contribution.refreshTasks(['deferred-task']);
+			} else {
+				feedDeferred = true;
+			}
+			h.state.hasFocus = true;
+			h.focusChanged.fire(true);
+			await pending.complete({ kind: 'complete', sessions: [] });
+			await scan;
+			await timeout(0);
+			assert.deepStrictEqual({
+				requests: h.discoveryRequests.map(request => ({ trigger: request?.trigger, taskIds: request?.taskIds })),
+				feedDeferred,
+			}, {
+				requests: [
+					{ trigger: 'startup', taskIds: undefined },
+					{ trigger: 'manual', taskIds: undefined },
+					deferred === 'taskHints' ? { trigger: 'feedChange', taskIds: ['deferred-task'] } : { trigger: 'focus', taskIds: undefined },
+				],
+				feedDeferred: false,
+			});
+		});
+	}
+
 	for (const change of ['account', 'enablement'] as const) {
 		test(`${change} changes discard task hints deferred while Chat is hidden`, async () => {
 			const h = createHarness(store);

@@ -279,6 +279,21 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('an invalid message after deferred renewal prevents resume from restarting the feed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		await timeout(8 * 60_000 + 1);
+		h.sockets[0].receive('{invalid');
+		active = true;
+		await h.feed.start();
+		await timeout(501);
+		assert.deepStrictEqual({ requests: h.requests.length, connected: h.feed.connected, deferred: h.feed.deferred, reasons: h.reasons }, {
+			requests: 1, connected: false, deferred: false, reasons: [],
+		});
+	}));
+
 	test('does not open a socket if demand disappears during negotiation', async () => {
 		let active = true;
 		const pending = new DeferredPromise<ICloudSandboxSessionFeedConnection>();
