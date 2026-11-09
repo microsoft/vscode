@@ -7,9 +7,9 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { getPnpmCommand } from '../../../../build/lib/pnpm';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
-const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 /**
  * Packages the extension with `vsce package`, passing on the arguments of this script.
@@ -25,7 +25,9 @@ function main(): void {
 	const vsceArgs = withAbsoluteOutPath(process.argv.slice(2));
 	const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-vsix-'));
 	try {
-		run(pnpm, ['--filter', name, 'deploy', '--prod', '--config.node-linker=hoisted', stagingDir], REPO_ROOT, process.platform === 'win32');
+		// The pnpm that runs this script, which may not be on PATH (`corepack pnpm` without `corepack enable`).
+		const pnpm = getPnpmCommand();
+		run(pnpm.command, [...pnpm.args, '--filter', name, 'deploy', '--prod', '--config.node-linker=hoisted', stagingDir], REPO_ROOT, pnpm.shell);
 
 		// `pnpm deploy` pins the versions of the dependencies in the manifest and drops its
 		// devDependencies. Package the manifest as it is.
@@ -64,8 +66,10 @@ function withAbsoluteOutPath(args: string[]): string[] {
 }
 
 function run(command: string, args: string[], cwd: string, shell: boolean): void {
-	// A shell splits the arguments on whitespace, e.g. in the path of the staging folder.
-	const commandArgs = shell ? args.map(arg => /\s/.test(arg) ? `"${arg}"` : arg) : args;
+	// Only pnpm.cmd on Windows runs through a shell. cmd.exe treats characters such as `&` or
+	// spaces in an unquoted argument as syntax, for example in the path of the staging folder. The
+	// arguments are options, a package name and paths, which on Windows can't contain `"`.
+	const commandArgs = shell ? args.map(arg => `"${arg}"`) : args;
 	const result = spawnSync(command, commandArgs, { cwd, stdio: 'inherit', shell });
 	if (result.error || result.status !== 0) {
 		throw new Error(`${command} ${args.join(' ')} failed in ${cwd} (${result.error?.message ?? `exit code ${result.status}`}; see its output above).`);
