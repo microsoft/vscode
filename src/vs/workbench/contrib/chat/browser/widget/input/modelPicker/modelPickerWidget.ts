@@ -387,8 +387,12 @@ export class ModelPickerWidget extends Disposable {
 
 	/** The name of the Auto model the picker offers as Copilot Fusion, which then stands for Auto while no model is selected. */
 	private _getFusionAutoName(models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+		const fusionModels = models.filter(candidate => candidate.metadata.autoModelFusion);
+		if (!fusionModels.length) {
+			return undefined;
+		}
 		const runnable = this._getRunnablePredicate(models);
-		return models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate))?.metadata.name;
+		return fusionModels.find(runnable)?.metadata.name;
 	}
 
 	/**
