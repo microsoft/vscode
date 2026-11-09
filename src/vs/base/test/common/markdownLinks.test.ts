@@ -46,6 +46,13 @@ suite('rewriteMarkdownLinks', () => {
 			});
 	});
 
+	test('gives up quickly on a CRLF block it cannot locate', () => {
+		// The lexer expands the tab, so the lookup fails only after matching every line break. Each
+		// `\r\n` must have a single way to match, or this backtracks exponentially and hangs.
+		const markdown = '```\r\n' + '\r\n'.repeat(60) + '\tcode\r\n```\r\n\r\n[a](./x.txt)';
+		assert.strictEqual(rewriteMarkdownLinks(markdown, rewriteToMarker), markdown.replace('[a](./x.txt)', 'REWRITTEN'));
+	});
+
 	test('keeps tokens the rewriter declines', () => {
 		const markdown = 'See [a](./x.txt) and ![b](./y.png).';
 		assert.strictEqual(rewriteMarkdownLinks(markdown, { rewriteLink: () => undefined }), markdown);

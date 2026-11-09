@@ -55,7 +55,9 @@ function locate(markdown: string, raw: string, from: number): { start: number; e
 		const start = markdown.indexOf(raw, from);
 		return start < 0 ? undefined : { start, end: start + raw.length };
 	}
-	const pattern = new RegExp(escapeRegExpCharacters(raw).replace(/\n/g, '(?:\\r\\n|\\r|\\n)'), 'g');
+	// `\r(?!\n)` gives each line break exactly one way to match. Letting a lone `\r` take the first
+	// half of a `\r\n` would count it as two breaks, and backtracking over those splits is exponential.
+	const pattern = new RegExp(escapeRegExpCharacters(raw).replace(/\n/g, '(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g');
 	pattern.lastIndex = from;
 	const match = pattern.exec(markdown);
 	return match ? { start: match.index, end: match.index + match[0].length } : undefined;
