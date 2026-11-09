@@ -33,6 +33,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEditorTransferVeto, showEditorTransferVeto } from './editorTransferVeto.js';
 
 function isInPartGrid(element: Element | null): boolean {
 	return !!element?.closest(`.${PART_GRID_CLASS}`);
@@ -85,7 +87,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IThemeService themeService: IThemeService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -1098,6 +1101,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				globalContextKey.reset();
 			}
 		}
+	}
+
+	showTransferVeto(veto: IEditorTransferVeto): void {
+		showEditorTransferVeto(this.dialogService, veto);
 	}
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {

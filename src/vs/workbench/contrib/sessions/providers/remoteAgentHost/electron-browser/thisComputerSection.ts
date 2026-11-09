@@ -64,7 +64,7 @@ export class ThisComputerSection extends Disposable {
 	) {
 		super();
 		const state = this._register(instantiationService.createInstance(RemoteConnectionsState));
-		this.sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, state, () => commandService.executeCommand(TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID)));
+		this.sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, state, () => commandService.executeCommand(TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID), 'remotesEditor'));
 
 		const titleId = generateUuid();
 		this.domNode = dom.append(container, dom.$('section.remotes-this-computer', { 'aria-labelledby': titleId }));

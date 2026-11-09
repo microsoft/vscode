@@ -769,7 +769,7 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 	return service;
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean }) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean; readonly database?: TestSessionDatabase }) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
@@ -800,12 +800,14 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase()), disposables), logService);
+	const sessionDataService = createSessionDataService(options?.database ?? new TestSessionDatabase());
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostLocalTurns, localTurns],
+		[ISessionDataService, sessionDataService],
 	), /*strict*/ true));
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SideChatContribution));
@@ -3981,6 +3983,37 @@ suite('AgentHostChatContributions', () => {
 		});
 
 		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question'));
+	});
+
+	test('preserves active side-chat context when the source completes during metadata lookup', async () => {
+		const metadataReadStarted = new DeferredPromise<void>();
+		const releaseMetadata = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async getMetadata(key: string): Promise<string | undefined> {
+				metadataReadStarted.complete();
+				await releaseMetadata.p;
+				return super.getMetadata(key);
+			}
+		}();
+		const sideChat = createSideChatContributions(disposables, undefined, undefined, { database });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnStarted('source-turn', 'source question'));
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 'source-turn',
+			part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+		});
+
+		const sending = sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+		await metadataReadStarted.p;
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnComplete('source-turn', 1));
+		await releaseMetadata.complete();
+
+		assert.strictEqual((await sending).message.text, injectSideChatContext('side question', 'partial answer', 'User request:\nsource question'));
 	});
 
 	test('includes only local context after the active side-chat fork anchor', async () => {

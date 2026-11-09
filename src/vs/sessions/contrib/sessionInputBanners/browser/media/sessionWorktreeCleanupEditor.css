@@ -31,6 +31,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.session-worktree-cleanup-intro h2 {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-intro p {
+	margin: 0;
+	line-height: 1.4;
+}
+
 .session-worktree-cleanup-controls {
 	display: flex;
 	align-items: center;
@@ -209,28 +221,24 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	line-height: 44px;
+	line-height: 60px;
 }
 
 .session-worktree-cleanup-row .selection {
 	align-items: center;
 }
 
-.session-worktree-cleanup-reason {
-	display: block;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .session-worktree-cleanup-session-link {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
+	white-space: normal;
+	line-height: 1.4;
 }
 
 .session-worktree-cleanup-session-link:hover {

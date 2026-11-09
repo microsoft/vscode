@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteWorkspaceFolder } from '../../../common/remoteWorkspaceHandoff.js';
-import { WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
 
 const DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX = 'dev-container+';
 

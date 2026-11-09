@@ -11,7 +11,7 @@ import { AgentsWindowOpenSource } from '../../../../../platform/window/common/wi
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';

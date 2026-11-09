@@ -5,6 +5,12 @@ parameters:
   - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
     default: false
+  # Reruns failed unit, Agent Host E2E and node.js integration tests, like the
+  # pull request workflows do (the extension host suites are not rerun). Only
+  # the product build test jobs set it.
+  - name: VSCODE_RERUN_FAILED_TESTS
+    type: boolean
+    default: false
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same run.
@@ -40,7 +46,7 @@ steps:
       parameters:
         testId: unit-electron
         testStep:
-          script: ./scripts/test.sh --build --tfs "Unit Tests"
+          script: ./scripts/test.sh --build --tfs "Unit Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run unit tests (Electron)
@@ -54,7 +60,7 @@ steps:
           script: |
             set -e
             mkdir -p .build/crashes
-            pnpm run test-node --build
+            pnpm run test-node --build${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
@@ -65,7 +71,7 @@ steps:
       parameters:
         testId: unit-browser-webkit
         testStep:
-          script: pnpm run test-browser-no-install --build --browser webkit --tfs "Browser Unit Tests"
+          script: pnpm run test-browser-no-install --build --browser webkit --tfs "Browser Unit Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             DEBUG: "*browser*"
           displayName: 🧪 Run unit tests (Browser, Webkit)
@@ -110,7 +116,7 @@ steps:
             ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
             BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
             INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
-            ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"
+            ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
@@ -132,7 +138,7 @@ steps:
             ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
             BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
             INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
-            ./scripts/test-integration.sh --build --tfs "Integration Tests"
+            ./scripts/test-integration.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'

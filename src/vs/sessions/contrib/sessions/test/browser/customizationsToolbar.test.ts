@@ -22,11 +22,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpr, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingResolver } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -41,7 +47,6 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
 import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
@@ -50,7 +55,7 @@ import { CustomizationsNavigationState } from '../../../../../workbench/contrib/
 import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
@@ -163,7 +168,7 @@ suite('Customizations toolbar', () => {
 					[`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`]: values.managementEnabled,
 				}[key] as T | undefined),
 			};
-			return { commandPalette: palette?.when?.evaluate(context), keybinding: keybinding?.when?.evaluate(context) };
+			return { commandPalette: palette?.when?.evaluate(context) };
 		};
 
 		assert.deepStrictEqual({
@@ -171,6 +176,7 @@ suite('Customizations toolbar', () => {
 			title: `${text(palette?.command.category)}: ${text(palette?.command.title)}`,
 			keybindingsOnLoad: keybindingsOnLoad.map(rule => rule.keybinding?.getHashCode()),
 			keybindingsWithContribution: keybindings().map(rule => rule.keybinding?.getHashCode()),
+			keybindingWhen: keybinding?.when?.serialize(),
 			offered: offered({ chatEnabled: true, sectionVisible: true, managementEnabled: true }),
 			aiFeaturesDisabled: offered({ chatEnabled: false, sectionVisible: true, managementEnabled: true }),
 			hiddenByHarness: offered({ chatEnabled: true, sectionVisible: false, managementEnabled: true }),
@@ -180,16 +186,78 @@ suite('Customizations toolbar', () => {
 			title: 'Extensions: Manage Extensions...',
 			keybindingsOnLoad: [decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode()],
 			keybindingsWithContribution: [decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode()],
-			offered: { commandPalette: true, keybinding: true },
-			aiFeaturesDisabled: { commandPalette: false, keybinding: false },
-			hiddenByHarness: { commandPalette: false, keybinding: false },
-			managementDisabled: { commandPalette: false, keybinding: false },
+			// Like in editor windows, so that removals of the keybinding written by the Keyboard Shortcuts editor there apply.
+			keybindingWhen: 'viewContainer.workbench.view.extensions.enabled',
+			offered: { commandPalette: true },
+			aiFeaturesDisabled: { commandPalette: false },
+			hiddenByHarness: { commandPalette: false },
+			managementDisabled: { commandPalette: false },
+		});
+	});
+
+	test('applies the keybindings that users assign Show Extensions in the Keyboard Shortcuts editor of editor windows, where the sidebar offers Extensions', () => {
+		const configurationService = new TestConfigurationService({ [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: true });
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const chatEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		chatEnabled.set(true);
+		const activeHarness = observableValue<string>(disposables, 'vscode');
+		disposables.add(new CustomizationsToolbarContribution(
+			new class extends mock<IActionViewItemService>() {
+				override register() { return toDisposable(() => { }); }
+			},
+			new class extends mock<IInstantiationService>() { },
+			new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = activeHarness;
+				override readonly availableHarnesses = constObservable<readonly IHarnessDescriptor[]>([]);
+				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: activeHarness.get() === 'vscode' ? [] : [AICustomizationManagementSection.Extensions] }); }
+			},
+			contextKeyService,
+		));
+
+		// As the Keyboard Shortcuts editor of editor windows writes them, scoped to the Extensions view container's enablement like the default keybinding there.
+		const userKeybinding = (keybinding: number, command: string) => new ResolvedKeybindingItem(createUSLayoutResolvedKeybinding(keybinding, OS), command, undefined, ContextKeyExpr.deserialize('viewContainer.workbench.view.extensions.enabled'), false, null, false);
+		const changed = [
+			userKeybinding(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyX, 'workbench.view.extensions'),
+			userKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, '-workbench.view.extensions'),
+		];
+		const removed = [userKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, '-workbench.view.extensions')];
+		const defaults = KeybindingsRegistry.getDefaultKeybindings()
+			.filter(rule => rule.command === EXTENSIONS_VIEWLET_ID)
+			.map(rule => new ResolvedKeybindingItem(rule.keybinding ? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, OS)[0] : undefined, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false));
+		const activeKeybindings = (userKeybindings: ResolvedKeybindingItem[]) => new KeybindingResolver(defaults, userKeybindings, () => { })
+			.lookupKeybindings(EXTENSIONS_VIEWLET_ID)
+			.filter(item => contextKeyService.contextMatchesRules(item.when))
+			.map(item => item.resolvedKeybinding?.getUserSettingsLabel());
+		const state = () => ({ default: activeKeybindings([]), changed: activeKeybindings(changed), removed: activeKeybindings(removed) });
+
+		const offered = state();
+		chatEnabled.set(false);
+		const aiFeaturesDisabled = state();
+		chatEnabled.set(true);
+		activeHarness.set('claude', undefined);
+		const hiddenByHarness = state();
+		activeHarness.set('vscode', undefined);
+		configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]), affectsConfiguration: key => key === EXTENSIONS_AGENTS_WINDOW_MANAGEMENT }));
+		const managementDisabled = state();
+
+		const label = (keybinding: number) => createUSLayoutResolvedKeybinding(keybinding, OS)?.getUserSettingsLabel();
+		const none = { default: [], changed: [], removed: [] };
+		assert.deepStrictEqual({ offered, aiFeaturesDisabled, hiddenByHarness, managementDisabled }, {
+			offered: {
+				default: [label(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX)],
+				changed: [label(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyX)],
+				removed: [],
+			},
+			aiFeaturesDisabled: none,
+			hiddenByHarness: none,
+			managementDisabled: none,
 		});
 	});
 
 	test('tracks the active customization total and migration availability', async () => {
 		const enabled = observableValue(disposables, true);
-		const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+		const activeSession = observableValue<ITestSessionWithChat | undefined>(disposables, upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host-test:/session'),
 			workspace: constObservable(undefined),
 		}));

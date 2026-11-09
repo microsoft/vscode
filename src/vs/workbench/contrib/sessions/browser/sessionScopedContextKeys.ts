@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /*
@@ -34,7 +34,7 @@ export function bindHasWorktreeAndRepositoryContextKey(contextKeyService: IConte
 export function bindIsAgentHostSessionContextKey(contextKeyService: IContextKeyService, session: IObservable<ISession | undefined>, sessionsProvidersService: ISessionsProvidersService): IDisposable {
 	return bindContextKey(IsAgentHostSession, contextKeyService, reader => {
 		const value = session.read(reader);
-		const provider = value && sessionsProvidersService.getProvider(value.providerId);
+		const provider = value && sessionsProvidersService.getProvider(value.providerId, value.sessionId);
 		return !!provider && isAgentHostProvider(provider);
 	});
 }
