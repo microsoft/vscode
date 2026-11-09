@@ -251,7 +251,7 @@ suite('Workbench - TerminalProfiles', () => {
 				];
 				profilesEqual(profiles, expected);
 			});
-			test('should try login shell paths in the configured path order', async () => {
+			test('should preserve configured path order when trying login shell paths', async () => {
 				const config = ({
 					profiles: {
 						windows: {},
@@ -262,13 +262,26 @@ suite('Workbench - TerminalProfiles', () => {
 				} as ITestTerminalConfig) as ITerminalConfiguration;
 				const fsProvider = createFsProvider([
 					'/opt/homebrew/bin/fish',
-					'/opt/homebrew/bin/zsh'
+					'/usr/bin/zsh'
 				]);
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish']);
-				const expected: ITerminalProfile[] = [
-					{ profileName: 'shell', path: '/opt/homebrew/bin/fish', isDefault: false }
-				];
+				const expected: ITerminalProfile[] = [{ profileName: 'shell', path: '/opt/homebrew/bin/fish', isDefault: false }];
+				profilesEqual(profiles, expected);
+			});
+			test('should prefer a bare path on PATH before its login-shell path', async () => {
+				const config = ({
+					profiles: {
+						windows: {},
+						osx: { 'shell': { path: 'fish' } },
+						linux: { 'shell': { path: 'fish' } }
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+				const fsProvider = createFsProvider(['/usr/bin/fish', '/opt/homebrew/bin/fish']);
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/fish']);
+				const expected: ITerminalProfile[] = [{ profileName: 'shell', path: '/usr/bin/fish', isFromPath: true, isDefault: false }];
 				profilesEqual(profiles, expected);
 			});
 		}
