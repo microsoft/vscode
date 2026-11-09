@@ -84,15 +84,6 @@ function isOnEditorWorkbenchContributionInstantiation(obj: unknown): obj is IOnE
 
 export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation | IOnEditorWorkbenchContributionInstantiation;
 
-function toWorkbenchPhase(phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually {
-	switch (phase) {
-		case LifecyclePhase.Restored:
-			return WorkbenchPhase.AfterRestored;
-		case LifecyclePhase.Eventually:
-			return WorkbenchPhase.Eventually;
-	}
-}
-
 function toLifecyclePhase(instantiation: WorkbenchPhase): LifecyclePhase {
 	switch (instantiation) {
 		case WorkbenchPhase.BlockStartup:
@@ -109,11 +100,6 @@ function toLifecyclePhase(instantiation: WorkbenchPhase): LifecyclePhase {
 type IWorkbenchContributionSignature<Service extends BrandedService[]> = new (...services: Service) => IWorkbenchContribution;
 
 export interface IWorkbenchContributionsRegistry {
-
-	/**
-	 * @deprecated use `registerWorkbenchContribution2` instead.
-	 */
-	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -196,7 +182,7 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 				if (!this.contributionsById.has(id)) {
 					this.contributionsById.set(id, contribution);
 				} else {
-					console.error(`IWorkbenchContributionsRegistry#registerWorkbenchContribution(): Can't register multiple contributions with same id '${id}'`);
+					console.error(`IWorkbenchContributionsRegistry#registerWorkbenchContribution2(): Can't register multiple contributions with same id '${id}'`);
 				}
 
 				// by editor
@@ -205,10 +191,6 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 				}
 			}
 		}
-	}
-
-	registerWorkbenchContribution(ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void {
-		this.registerWorkbenchContribution2(undefined, ctor, toWorkbenchPhase(phase));
 	}
 
 	getWorkbenchContribution<T extends IWorkbenchContribution>(id: string): T {
@@ -416,6 +398,11 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 /**
  * Register a workbench contribution that will be instantiated
  * based on the `instantiation` property.
+ *
+ * The `id` must be unique across the workbench, for example
+ * `workbench.contrib.<area>.<name>`. A second contribution with the same
+ * `id` is never created, and only an error is logged. Classes with the same
+ * name in `browser` and `electron-browser` need different ids.
  */
 export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as {
 	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, instantiation: WorkbenchContributionInstantiation): void;
