@@ -19,7 +19,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { FileOperation, IFileService } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileOperation, FileSystemProviderErrorCode, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
@@ -361,5 +361,27 @@ suite('ElectronWebviewElement', () => {
 				assert.strictEqual(await result.error.p, failure);
 			});
 		}
+
+		for (const failingSource of [true, false]) {
+			test(`reports ${failingSource ? 'missing source' : 'inaccessible destination'} realpath failures before streaming`, async () => {
+				const source = URI.file('/media/video.mp4');
+				const result = await createDownloadWebview(source);
+				const failure = createFileSystemProviderError('Cannot resolve real path', failingSource ? FileSystemProviderErrorCode.FileNotFound : FileSystemProviderErrorCode.NoPermissions);
+				sinon.stub(result.fileService, 'realpath').callsFake(async resource => {
+					if (isEqual(resource, failingSource ? source : target)) {
+						throw failure;
+					}
+					return resource;
+				});
+				result.download();
+
+				assert.deepStrictEqual({ error: await result.error.p, reads: result.read.callCount, writes: result.write.callCount }, {
+					error: failure,
+					reads: 0,
+					writes: 0,
+				});
+			});
+		}
+
 	});
 });

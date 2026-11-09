@@ -32,6 +32,7 @@ import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { getResourceToLoad } from '../browser/resourceLoading.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
+import { saveWebviewResource } from '../common/resourceDownload.js';
 import { decodeAuthority, webviewRootResourceAuthority } from '../common/webview.js';
 import { WindowIgnoreMenuShortcutsManager } from './windowIgnoreMenuShortcutsManager.js';
 
@@ -138,18 +139,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			return;
 		}
 
-		const source = resolveResource();
-		const sourceForComparison = source.scheme === Schemas.file ? source.with({ query: '' }) : source;
-		if (this.uriIdentityService.extUri.isEqual(sourceForComparison, target)) {
-			return;
-		}
-
-		const content = await this.fileService.readFileStream(source);
-		try {
-			await this.fileService.writeFile(target, content.value);
-		} finally {
-			content.value.destroy();
-		}
+		await saveWebviewResource(() => this._store.isDisposed ? undefined : resolveResource(), target, this.fileService, this.uriIdentityService);
 	}
 
 	override dispose(): void {
