@@ -371,11 +371,16 @@ suite('MainThreadTask task handle lookup', () => {
 
 		test(`${operation} does not retry when workspace trust is denied`, async () => {
 			const lookups: Parameters<ITaskService['getTask']>[] = [];
+			const knownTaskLookups: Parameters<ITaskService['getKnownTask']>[] = [];
 			const taskService = new class extends mock<ITaskService>() {
 				override readonly onDidStateChange: Event<ITaskEvent> = Event.None;
 				override async getTask(...args: Parameters<ITaskService['getTask']>) {
 					lookups.push(args);
 					return undefined;
+				}
+				override async getKnownTask(...args: Parameters<ITaskService['getKnownTask']>) {
+					knownTaskLookups.push(args);
+					return workspaceTask;
 				}
 				override run() {
 					return Promise.resolve(undefined);
@@ -397,9 +402,10 @@ suite('MainThreadTask task handle lookup', () => {
 
 			await assert.rejects(() => invoke(mainThread, handle), /Task not found/);
 
-			assert.deepStrictEqual(lookups, [
-				['test-workspace', 'fetched-task', true, 'shell']
-			]);
+			assert.deepStrictEqual({ lookups, knownTaskLookups }, {
+				lookups: [['test-workspace', 'fetched-task', true, 'shell']],
+				knownTaskLookups: []
+			});
 		});
 	}
 });

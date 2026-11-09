@@ -92,13 +92,18 @@ suite('AbstractTaskService', () => {
 		const otherWorkspaceTask = createTask('other-only', otherFolder);
 		const userTask = new CustomTask('user-task', {
 			kind: TaskSourceKind.User, label: 'user', config: { file: '', index: 0, element: undefined }
-		}, 'user-task', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
+		}, 'user', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
 			name: 'user-task', identifier: 'user-task', problemMatchers: []
+		});
+		const duplicateUserTask = new CustomTask('user-task', {
+			kind: TaskSourceKind.User, label: 'user', config: { file: '', index: 0, element: undefined }
+		}, 'user-task-duplicate', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
+			name: 'user-task-duplicate', identifier: 'user-task-duplicate', problemMatchers: []
 		});
 		const tasksByFolder = new Map<string, Task[]>([
 			[folder.uri.toString(), [workspaceTask]],
 			[otherFolder.uri.toString(), [otherWorkspaceTask]],
-			[USER_TASKS_GROUP_KEY, [userTask]]
+			[USER_TASKS_GROUP_KEY, [userTask, duplicateUserTask]]
 		]);
 		const service = Object.assign(Object.create(AbstractTaskService.prototype), {
 			_versionAndEngineCompatible: () => true,
@@ -112,8 +117,8 @@ suite('AbstractTaskService', () => {
 
 		assert.deepStrictEqual([
 			(await service.getKnownTask(folder.uri.toString(), 'same-id'))?._id,
-			(await service.getKnownTask(folder.uri.toString(), 'user-task'))?._id,
+			(await service.getKnownTask(folder.uri.toString(), 'user-task'))?._label,
 			(await service.getKnownTask(folder.uri.toString(), 'other-only'))?._id
-		], ['same-id', 'user-task', undefined]);
+		], ['same-id', 'user', undefined]);
 	});
 });
