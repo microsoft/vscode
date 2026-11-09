@@ -386,6 +386,7 @@ suite('Mission Control client', () => {
 			'<https://unapproved.example.test/agents/tasks?page=2>; rel="next"',
 			'<https://user:secret@api.github.com/agents/tasks?page=2>; rel="next"',
 			'<https://api.github.com/agents/environments?page=2>; rel="next"',
+			'<https://api.githubcopilot.com/agents/tasks/task/events?page=2>; rel="next"',
 			'<https://api.github.com/agents/tasks?page=2#fragment>; rel="next"',
 		]) {
 			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
@@ -410,6 +411,15 @@ suite('Mission Control client', () => {
 			rejectedRequests: { requests: 0, identities: 0 },
 			pagination: [{ page: null, cursor: 'next' }],
 		});
+	});
+
+	test('task reads preserve nullable and provisioning compute metadata', async () => {
+		const provisioning = { ...task, compute: { provider: '' }, current_environment: { id: 'environment', kind: 'managed-sandbox' } };
+		const unbound = { ...task, id: 'unbound', compute: null };
+		const { client } = setup(({ url }) => Response.json(url.pathname === '/agents/tasks' ? { tasks: [unbound, provisioning] } : provisioning));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ tasks: listed.data.tasks, detail }, { tasks: [unbound, provisioning], detail: provisioning });
 	});
 
 	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {

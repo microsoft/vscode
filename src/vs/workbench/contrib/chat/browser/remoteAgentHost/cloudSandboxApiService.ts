@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isObject } from '../../../../../base/common/types.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -53,13 +53,14 @@ import { SessionModelInfo } from '../../../../../platform/agentHost/common/state
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
-import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
-import { GitHubRequestTimeoutError } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubRequestError, GitHubRequestTimeoutError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
 import { isRetryableMissionControlError, parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
-import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
+import type { ListTasksOptions, Repository, TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
@@ -71,7 +72,7 @@ import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOpera
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
-import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
+import { retryAfterSeconds } from './cloudSandboxRateLimit.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
@@ -93,12 +94,8 @@ interface ITaskSummary {
 	readonly state?: string;
 	readonly agent_collaborators?: readonly { readonly slug?: string }[];
 	readonly compute?: { readonly provider?: string } | null;
-	readonly current_environment?: { readonly kind?: string };
-	/**
-	 * The owning repository, identified by numeric id only — the payload carries no name. See
-	 * {@link CloudSandboxApiService._resolveRepositoryName}.
-	 */
-	readonly repository?: { readonly id?: number };
+	readonly current_environment?: { readonly kind?: string } | null;
+	readonly repository?: Repository;
 }
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
@@ -171,11 +168,7 @@ function taskSessionStatus(state: string | undefined, logService: ILogService): 
 	}
 }
 
-/**
- * The github.com REST API base, used for the repository-name lookup discovery needs. The CORS
- * caveat on {@link CloudSandboxApiService._tasksBaseUrl} is specific to `api.github.com/agents/*`;
- * the general REST API is CORS-enabled and already called from the renderer elsewhere.
- */
+/** GitHub gateway used by credential operations. */
 const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
 
 /** Default per-request timeout (ms) for environment reads and task updates. */
@@ -184,7 +177,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 /** Connection requests can wait for an environment to wake before returning. */
 const CONNECTION_REQUEST_TIMEOUT_MS = 30_000;
 
-/** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
+/** Deadline (ms) for each discovery operation, including its collected task-list pages. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
 /** Per-request timeout (ms) for allocating sandbox compute, with or without a task. */
@@ -199,43 +192,26 @@ const DISCOVERY_TASK_SCAN_LIMIT = 100;
 /** Maximum pages to read per repository/archive task scope during discovery. */
 const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
 
-/**
- * Max concurrent task-detail fetches during discovery.
- *
- * Discovery used to resolve every sandbox task at once, which meant a user with a few dozen
- * sandbox tasks issued that many simultaneous requests and tripped GitHub's rate limit. Each
- * rejected fetch drops its session from the pass, and the burst also starves the `listTasks` call
- * of whichever pass runs next — including the one a freshly reloaded window depends on.
- */
+/** Bounds caller fan-out so discovery batches do not exhaust shared queue admission. */
 const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
 
 const DISCOVERY_OVERLAP_MS = 60_000;
 
-/** Minimum automatic inventory retry interval after a first-page authorization refusal. */
+/** Minimum automatic inventory retry interval after an authorization refusal. */
 const DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS = 15 * 60_000;
-
-/** HTTP status GitHub answers a rate-limited request with. */
-const HTTP_TOO_MANY_REQUESTS = 429;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 
-/**
- * Mission Control client for cloud sandbox sessions: mints (`connect`) and refreshes (`reconnect`)
- * Web PubSub credentials, reads environment and task records, discovers sandbox-backed sessions,
- * and replays a task's persisted AHP history.
- *
- * Runs in the renderer so the sandbox path works in VS Code Web, where no Copilot extension host is
- * available.
- */
+/** Coordinates sandbox lifecycle, discovery, and recorded history. Lightweight reads use typed GitHub clients with host-owned execution. */
 export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _identityTokenProvider: CloudSandboxIdentityTokenProvider;
 	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
-	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
-	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
+	private readonly _readClient = this._register(new MutableDisposable<IReference<IGitHubAccountClient>>());
+	private readonly _repositoryNames = new Map<number, string>();
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private readonly _sessionResolutions = new Map<string, ISessionResolution>();
 	private readonly _sessionResolutionSources = this._register(new DisposableMap<string, CancellationTokenSource>());
@@ -322,7 +298,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const session = await this._resolveStableGitHubSession();
 		// Token rotation preserves the declared listing scope; unannounced access changes need full reconciliation.
 		this._updateDiscoveryAuthorization(session ? JSON.stringify([
-			this._authenticationProviderId, session.account.id, this._tasksBaseUrl(), this._userDataProfileService.currentProfile.id, [...new Set(session.scopes)].sort(),
+			this._authenticationProviderId, session.account.id, session.id, session.authorizationServer?.toString(),
+			this._tasksBaseUrl(), this._userDataProfileService.currentProfile.id, [...new Set(session.scopes)].sort(),
 		]) : undefined);
 		return session;
 	}
@@ -335,6 +312,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			this._discoveryGeneration++;
 		}
 		this._discoveryAuthorization = authorization;
+		this._readClient.clear();
 		this._discoveryAuthorizationFailure = undefined;
 		this._discoverySince = undefined;
 		this._archivedDiscoverySince = undefined;
@@ -351,6 +329,83 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			resolution.source.cancel();
 		}
 		this._sessionResolutions.clear();
+	}
+
+	private async _getReadClient(session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const authorization: GitHubAuthorizationContext = {
+			providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
+			scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
+		};
+		const current = this._readClient.value?.object;
+		if (current && isEqualAuthorization(current.authorization, authorization)) {
+			return current;
+		}
+		const generation = this._accountGeneration;
+		const lifetime = new DisposableStore();
+		try {
+			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(authorization, signal));
+			signal.throwIfAborted();
+			if (generation !== this._accountGeneration || this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			const existing = this._readClient.value?.object;
+			if (existing && isEqualAuthorization(existing.authorization, authorization)) {
+				lifetime.dispose();
+				return existing;
+			}
+			lifetime.add(Event.once(acquired.onDidInvalidate)(() => {
+				if (this._readClient.value?.object === acquired) {
+					this._updateDiscoveryAuthorization(undefined);
+				}
+			}));
+			this._readClient.value = { object: acquired, dispose: () => lifetime.dispose() };
+			return acquired;
+		} catch (error) {
+			lifetime.dispose();
+			throw error;
+		}
+	}
+
+	private async _withReadClient<T>(
+		token: CancellationToken,
+		options: ApiRequestOptions,
+		read: (client: IGitHubAccountClient, signal: AbortSignal, options: ApiRequestOptions) => Promise<T>,
+		authentication?: AuthenticationSession,
+	): Promise<T> {
+		const lifetime = new DisposableStore();
+		try {
+			const signal = AbortSignal.any([
+				CancellationToken.toAbortSignal(token, lifetime),
+				CancellationToken.toAbortSignal(this._lifetimeToken, lifetime),
+			]);
+			signal.throwIfAborted();
+			const session = authentication ?? await raceCancellationError(this._resolveDiscoveryAuthorization(), token);
+			if (!session) {
+				throw new CloudSandboxAuthenticationRequiredError();
+			}
+			const deadline = Date.now() + DISCOVERY_TIMEOUT_MS;
+			const client = await this._getReadClient(session, signal);
+			signal.throwIfAborted();
+			const result = await read(client, signal, { ...options, deadline });
+			signal.throwIfAborted();
+			return result;
+		} catch (error) {
+			if (token.isCancellationRequested || this._store.isDisposed || isCancellationError(error)) {
+				throw new CancellationError();
+			}
+			if (error instanceof ApiRequestError) {
+				throw new CloudSandboxRequestError(error.statusCode, error.message, error.retryAfterSeconds, {
+					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
+				});
+			}
+			if (error instanceof GitHubRequestError && error.statusCode !== undefined) {
+				throw new CloudSandboxRequestError(error.statusCode, error.message, error.responseMetadata?.retryAfterSeconds,
+					parseMissionControlError(error.responseBody, error.responseMetadata?.requestId));
+			}
+			throw error;
+		} finally {
+			lifetime.dispose();
+		}
 	}
 
 	private _accountKeyForSession(session: AuthenticationSession): string {
@@ -651,16 +706,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Full scans replace recent inventory; automatic retries of first-page authorization refusals are paced without blocking manual or targeted reads. */
+	/** Full scans replace recent inventory; automatic retries of authorization refusals are paced without blocking manual or targeted reads. */
 	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const stopwatch = StopWatch.create();
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
 		const telemetry: ICloudSandboxDiscoveryTelemetryData = {
 			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
-			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0,
+			durationMs: 0, listOperationCount: 0, taskCount: 0,
 			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
 			checkpointAvailable: false, checkpointSource: 'unavailable',
-			listPageFailureCount: 0, taskDetailFailureCount: 0, repositoryEnrichmentMissCount: 0,
+			listOperationFailureCount: 0, taskDetailFailureCount: 0, repositoryEnrichmentMissCount: 0,
 			unresolvedTaskCount: 0, unreadPageScopeCount: 0, generationInvalidated: false,
 		};
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
@@ -705,7 +760,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'failed', reason: toErrorMessage(error) };
 		}
 		const generation = this._discoveryGeneration;
-		let requestSession = session;
 		const targeted = options?.taskIds !== undefined;
 		const includeArchived = options?.includeArchived !== false;
 		const checkpointSince = includeArchived
@@ -757,11 +811,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			try {
 				await Promise.all([...new Set(options.taskIds)].map(id => limiter.queue(async () => {
 					try {
-						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(id)}`, 'get', token);
-						const task = await this._readJson<ITaskDetail>(context);
-						if (!task || task.id !== id) {
-							throw new Error('getTask returned an invalid task');
-						}
+						const task = await this._withReadClient(token, { caller: 'mc.taskClient.get', priority: 'background' },
+							(client, signal, options) => client.tasks.get(id, signal, options), session);
 						recordTask({ ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
 						details.set(id, task);
 					} catch (error) {
@@ -789,75 +840,63 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
 			...(includeArchived ? [{ withRepository: true, archived: true }, { withRepository: false, archived: true }] : []),
 		]) {
-			const query: Record<string, string> = {
-				per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
+			const query: NonNullable<ListTasksOptions['query']> = {
+				per_page: DISCOVERY_TASK_SCAN_LIMIT,
+				page: 1,
 				sort: 'updated_at',
 				direction: 'desc',
-				with_repo: String(withRepository),
-				is_archived: String(archived),
+				with_repo: withRepository,
+				is_archived: archived,
+				include_counts: false,
 				...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
 			};
-			const requestedUrls = new Set<string>();
-			let url: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
-			for (let page = 1; url && page <= DISCOVERY_TASK_SCAN_MAX_PAGES; page++) {
+			try {
+				telemetry.listOperationCount = (telemetry.listOperationCount ?? 0) + 1;
+				const response = await this._withReadClient(token, {
+					caller: 'mc.taskClient.list', priority: options?.trigger === 'manual' ? 'interactive' : 'background',
+				}, (client, signal, requestOptions) => client.tasks.list(signal, {
+					...requestOptions, query, maxPages: DISCOVERY_TASK_SCAN_MAX_PAGES, pageLimitBehavior: 'returnPartial',
+				}), session);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				try {
-					if (requestedUrls.has(url)) {
-						throw new Error('Task list repeated a pagination URL');
-					}
-					requestedUrls.add(url);
-					const context = await this._sendTask(url, 'list', token, () => telemetry.listRequestCount++, responseSession => requestSession = responseSession);
-					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
-					if (!Array.isArray(response?.tasks)) {
-						throw new Error('listTasks returned no tasks array');
-					}
-					telemetry.pageCount++;
-					if (generation === this._discoveryGeneration) {
-						this._discoveryAuthorizationFailure = undefined;
-					}
-					const date = context.res.headers?.date;
-					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
-					if (!Number.isNaN(serverTime)) {
-						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
-						telemetry.checkpointSource = 'serverDate';
-					}
-					for (const task of response.tasks) {
-						recordTask({ ...task, hasRepository: withRepository });
-						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
-						if (!Number.isNaN(updatedAt)) {
-							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
-							if (checkpoint === undefined) {
-								telemetry.checkpointSource = 'taskUpdate';
-							}
+				if (generation === this._discoveryGeneration) {
+					this._discoveryAuthorizationFailure = undefined;
+				}
+				const serverTime = response.serverDate ? Date.parse(response.serverDate) : Number.NaN;
+				if (!Number.isNaN(serverTime)) {
+					checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
+					telemetry.checkpointSource = 'serverDate';
+				}
+				for (const task of response.data.tasks) {
+					recordTask({ ...task, hasRepository: withRepository });
+					const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
+					if (!Number.isNaN(updatedAt)) {
+						latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
+						if (checkpoint === undefined) {
+							telemetry.checkpointSource = 'taskUpdate';
 						}
 					}
-					url = nextTaskPageUrl(context.res.headers?.link, url, query);
-					if (page === DISCOVERY_TASK_SCAN_MAX_PAGES && url) {
-						hasUnreadPages = true;
-						telemetry.unreadPageScopeCount = (telemetry.unreadPageScopeCount ?? 0) + 1;
-					}
-				} catch (error) {
-					if (isCancellationError(error) || token.isCancellationRequested) {
-						throw new CancellationError();
-					}
-					telemetry.listPageFailureCount = (telemetry.listPageFailureCount ?? 0) + 1;
-					if (telemetry.pageCount === 0 && generation === this._discoveryGeneration && error instanceof CloudSandboxRequestError
-						&& (error.statusCode === 401 || error.statusCode === 403) && !isRetryableMissionControlError(error.statusCode, error.code)) {
-						this._discoveryAuthorizationFailure = {
-							session: requestSession,
-							retryAt: Date.now() + Math.max(DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS, (error.retryAfterSeconds ?? 0) * 1000),
-							error,
-						};
-					}
-					if (tasks.size === 0) {
-						return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
-					}
-					this._logService.warn(`${LOG_PREFIX} Discovery page ${page} (with_repo=${withRepository}) failed: ${toErrorMessage(error)}`);
-					truncated = true;
-					break;
 				}
+				if (response.nextLink) {
+					hasUnreadPages = true;
+					telemetry.unreadPageScopeCount = (telemetry.unreadPageScopeCount ?? 0) + 1;
+				}
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				telemetry.listOperationFailureCount = (telemetry.listOperationFailureCount ?? 0) + 1;
+				if (telemetry.listOperationCount === 1 && generation === this._discoveryGeneration && error instanceof CloudSandboxRequestError
+					&& (error.statusCode === 401 || error.statusCode === 403) && !isRetryableMissionControlError(error.statusCode, error.code)) {
+					this._discoveryAuthorizationFailure = {
+						session,
+						retryAt: Date.now() + Math.max(DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS, (error.retryAfterSeconds ?? 0) * 1000),
+						error,
+					};
+				}
+				this._logService.warn(`${LOG_PREFIX} Discovery task list failed: ${toErrorMessage(error)}`);
+				return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 			}
 		}
 
@@ -892,6 +931,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		let unresolved = 0;
+		const repositoryMisses = new Set<number>();
 		const limiter = new Limiter<ICloudSandboxTask | undefined>(DISCOVERY_TASK_FETCH_CONCURRENCY);
 		let discovered: (ICloudSandboxTask | undefined)[];
 		try {
@@ -903,7 +943,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					const previous = cache.get(task.id);
 					const full = details.get(task.id);
 					const binding = full ? getTaskEnvironmentBinding(full) : previous?.session;
-					const { repositoryId, session: summary } = await this._taskSummary(task, previous, token);
+					const { repositoryId, session: summary } = await this._taskSummary(task, previous, token, repositoryMisses);
 					const session: ICloudSandboxTask = {
 						...summary,
 						...(binding?.environmentId && binding.sessionId ? { environmentId: binding.environmentId, sessionId: binding.sessionId } : {}),
@@ -1043,14 +1083,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
-	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
+	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken, repositoryMisses?: Set<number>): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
 		const application = task.clients?.find(client => client.creator === true)?.slug;
 		const repositoryId = [task.repository?.id, previous?.repositoryId].find(id => id !== undefined && id > 0);
 		const status = taskSessionStatus(task.state, this._logService);
 		const eventType = task.event_type || previous?.session?.eventType;
 		const creatingApplication = application ?? previous?.session?.application;
 		const repoName = previous?.repositoryId === repositoryId ? previous?.session?.repoName : undefined;
-		const repositoryName = repoName ?? (repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined);
+		const repositoryName = task.repository?.full_name || repoName
+			|| (repositoryId !== undefined && !repositoryMisses?.has(repositoryId) ? await this._resolveRepositoryName(repositoryId, token) : undefined);
+		if (!repositoryName && repositoryId !== undefined) {
+			repositoryMisses?.add(repositoryId);
+		}
 		return {
 			repositoryId,
 			session: {
@@ -1082,7 +1126,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const source = new CancellationTokenSource(this._lifetimeToken);
 			this._sessionResolutionSources.set(taskId, source);
 			const pending = raceCancellationError(this._sessionResolutionLimiter.queue(async () => {
-				const full = await this._readJson<ITaskDetail>(await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'get', source.token));
+				const full = await this._withReadClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
+					(client, signal, options) => client.tasks.get(taskId, signal, options));
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
 					throw new CancellationError();
 				}
@@ -1490,43 +1535,27 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	/**
-	 * Resolve a numeric repository id to its `owner/name`, memoized for the life of the service.
-	 * A task names its repository nowhere — `repository` carries an id, and the session's
-	 * `event_url` / `base_ref` are empty for tasks created through the tasks API.
-	 *
-	 * The cached promise must never reject: every task in a pass shares it, and a rejection would
-	 * count each one as unresolved (forcing the scan `partial`) and drop those sessions from the
-	 * listing entirely. A miss is evicted so the next pass retries.
-	 */
-	private _resolveRepositoryName(repositoryId: number, token: CancellationToken): Promise<string | undefined> {
+	private async _resolveRepositoryName(repositoryId: number, token: CancellationToken): Promise<string | undefined> {
 		const cached = this._repositoryNames.get(repositoryId);
 		if (cached) {
 			return cached;
 		}
-		const pending = (async () => {
-			try {
-				const url = `${GITHUB_DOT_COM_API_BASE_URI}/repositories/${repositoryId}`;
-				const context = await this._retryWhileRateLimited('repository get', token, () => this._request(url, 'mc.repositoryClient.get', 'getRepository', {
-					'Accept': 'application/vnd.github.v3+json',
-				}, token, DISCOVERY_TIMEOUT_MS));
-				if (!isSuccess(context)) {
-					throw new CloudSandboxRequestError(context.res.statusCode, `HTTP ${context.res.statusCode ?? 'none'}`);
-				}
-				const body = await this._readJson<{ full_name?: string }>(context);
-				return body?.full_name;
-			} catch (error) {
-				this._logService.warn(`${LOG_PREFIX} Repository ${repositoryId} lookup failed: ${toErrorMessage(error)}`);
-				return undefined;
+		const generation = this._discoveryGeneration;
+		try {
+			const repository = await this._withReadClient(token, { caller: 'mc.repositoryClient.get', priority: 'enrichment' },
+				(client, signal, options) => client.repositories.getById(repositoryId, signal, options));
+			if (generation !== this._discoveryGeneration) {
+				throw new CancellationError();
 			}
-		})();
-		this._repositoryNames.set(repositoryId, pending);
-		pending.then(name => {
-			if (!name && this._repositoryNames.get(repositoryId) === pending) {
-				this._repositoryNames.delete(repositoryId);
+			this._repositoryNames.set(repositoryId, repository.full_name);
+			return repository.full_name;
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw new CancellationError();
 			}
-		});
-		return pending;
+			this._logService.warn(`${LOG_PREFIX} Repository ${repositoryId} lookup failed: ${toErrorMessage(error)}`);
+			return undefined;
+		}
 	}
 
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */
@@ -1591,49 +1620,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}, token, action === 'get' ? REQUEST_TIMEOUT_MS : CONNECTION_REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
 	}
 
-	/** Issue a task API request, throwing on a non-success status. */
-	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken, onRequest?: () => void, onResponse?: (session: AuthenticationSession) => void): Promise<IRequestContext> {
-		const context = await this._retryWhileRateLimited(`task ${action}`, token, () => this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
-			'Accept': 'application/json',
-			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, onRequest, { onResponse }));
-		if (!isSuccess(context)) {
-			await this._throwForStatus(`task ${action}`, context);
-		}
-		return context;
-	}
-
-	/**
-	 * Re-issue a discovery read that came back rate-limited, waiting for `Retry-After` when the
-	 * response names one and backing off exponentially when it does not.
-	 *
-	 * Discovery reads the API far harder than any other sandbox call, so it is the one path that
-	 * routinely trips the limit. Reporting a 429 rather than retrying it loses the session being
-	 * resolved for the rest of the window, because nothing re-runs a pass that otherwise succeeded.
-	 */
-	private async _retryWhileRateLimited(action: string, token: CancellationToken, send: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		let waited = 0;
-		for (let attempt = 0; ; attempt++) {
-			const context = await send();
-			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
-				return context;
-			}
-			const delay = rateLimitDelay(retryAfterSeconds(context.res.headers?.['retry-after']), attempt);
-			// Waiting less than asked would re-issue inside the server's window, so a delay that
-			// does not fit ends the retries rather than being trimmed to fit.
-			if (waited + delay > RATE_LIMIT_WAIT_BUDGET_MS) {
-				this._logService.warn(`${LOG_PREFIX} ${action} was rate limited and asks for another ${delay}ms, beyond what is left of its ${RATE_LIMIT_WAIT_BUDGET_MS}ms budget; giving up so the pass stays bounded. A later pass retries it.`);
-				return context;
-			}
-			// Nothing reads the body on this path, and an unconsumed stream holds its connection.
-			await asText(context).catch(() => undefined);
-			this._logService.warn(`${LOG_PREFIX} ${action} was rate limited; retrying in ${delay}ms (attempt ${attempt + 1} of ${RATE_LIMIT_MAX_RETRIES}).`);
-			await timeout(delay, token);
-			waited += delay;
-		}
-	}
-
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], requestContext?: { readonly diagnosticId?: string; readonly authentication?: AuthenticationSession; readonly expectedAccountKey?: string; readonly onResponse?: (session: AuthenticationSession) => void }): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], requestContext?: { readonly diagnosticId?: string; readonly authentication?: AuthenticationSession; readonly expectedAccountKey?: string }): Promise<IRequestContext> {
 		let session = requestContext?.authentication ?? await this._resolveGitHubSession();
 		if (!session?.accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -1692,7 +1679,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						continue;
 					}
 				}
-				requestContext?.onResponse?.(session);
 				return context;
 			}
 		} catch (error) {
@@ -1918,34 +1904,6 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 function isCloudSandboxTask(task: ITaskSummary): boolean {
 	const provider = task.compute?.provider;
 	return provider === 'sandboxes' || ((provider === undefined || provider === '') && task.current_environment?.kind === 'managed-sandbox');
-}
-
-/**
- * The next task-list page advertised by a `Link` header, or `undefined` on the last page.
- * Only the query is adopted: discovery stays on the CORS-enabled endpoint and keeps the
- * scope filters a numbered link may omit.
- */
-function nextTaskPageUrl(value: string | string[] | undefined, requestUrl: string, query: Record<string, string>): string | undefined {
-	const raw = Array.isArray(value) ? value.join(',') : value;
-	const link = nextLink(raw);
-	if (!link) {
-		if (raw && /\brel\s*=\s*["']?[^;,]*\bnext\b/i.test(raw)) {
-			throw new Error('Task list returned an unsupported pagination link');
-		}
-		return undefined;
-	}
-	const current = new URL(requestUrl);
-	const next = new URL(link, current);
-	if ((next.origin !== current.origin && next.origin !== GITHUB_DOT_COM_API_BASE_URI) || next.pathname !== current.pathname) {
-		throw new Error('Task list returned an invalid pagination URL');
-	}
-	for (const [key, value] of Object.entries(query)) {
-		if (!next.searchParams.has(key)) {
-			next.searchParams.set(key, value);
-		}
-	}
-	current.search = next.search;
-	return current.href;
 }
 
 function isConcreteEnvironmentId(value: unknown): value is string {

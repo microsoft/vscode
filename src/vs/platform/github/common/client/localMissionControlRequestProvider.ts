@@ -24,14 +24,17 @@ export function missionControlAccount(endpoint: ApiEndpoint, account: AccountHan
 
 function getMissionControlNextPagePath(apiBaseUri: string, responseUrl: string, link: string | undefined): string | null | undefined {
 	const path = getNextPagePath(apiBaseUri, responseUrl, link);
+	const current = new URL(responseUrl);
 	if (path !== null) {
+		if (path !== undefined && current.pathname === '/agents/tasks' && new URL(path, current).pathname !== '/tasks') {
+			return null;
+		}
 		return path;
 	}
 	const base = new URL(apiBaseUri);
 	if (base.origin !== new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).origin || base.pathname.replace(/\/+$/, '') !== '/agents') {
 		return path;
 	}
-	const current = new URL(responseUrl);
 	const next = nextLink(link);
 	if (current.origin !== base.origin || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
 		return null;

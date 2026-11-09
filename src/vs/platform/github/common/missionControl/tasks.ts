@@ -32,8 +32,8 @@ export type TaskSharingStatus = 'unshared' | 'shared' | 'unlisted';
 
 /** Compute associated with a task. */
 export interface TaskCompute {
-	/** The compute provider. */
-	readonly provider?: 'codespaces' | 'sandboxes';
+	/** The compute provider; an empty value can be returned while provisioning. */
+	readonly provider?: 'codespaces' | 'sandboxes' | '';
 	/** The identifier of the compute resource. */
 	readonly resource_id?: string;
 	/** The user or organization login against which compute is provisioned. */
@@ -42,6 +42,8 @@ export interface TaskCompute {
 
 /** Compute selection supplied when creating a task. */
 export interface TaskComputeRequest extends TaskCompute {
+	/** The compute provider requested for a new task. */
+	readonly provider?: 'codespaces' | 'sandboxes';
 	/** The sandbox owner, required for organization-owned app-principal sandbox tasks. */
 	readonly user_id?: number;
 }
@@ -210,7 +212,7 @@ export interface Task {
 	/** The deadline after which the session becomes stale without a heartbeat. */
 	readonly stale_at?: string;
 	/** The compute environment associated with the task. */
-	readonly compute?: TaskCompute;
+	readonly compute?: TaskCompute | null;
 	/** The visibility of the task to readers and collection listings. */
 	readonly sharing_status?: TaskSharingStatus;
 	/** The Azure DevOps repository against which the task is running. */

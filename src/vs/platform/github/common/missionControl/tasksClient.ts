@@ -252,11 +252,11 @@ const parseTaskFields = parse.object<Task>({
 	automation_id: parse.optional(parse.string),
 	automation_revision_id: parse.optional(parse.string),
 	stale_at: parse.optional(parse.dateTime),
-	compute: parse.optional(parse.object({
-		provider: parse.optional(parse.oneOf('codespaces', 'sandboxes')),
+	compute: parse.optional(parse.nullable(parse.object({
+		provider: parse.optional(parse.oneOf('codespaces', 'sandboxes', '')),
 		resource_id: parse.optional(parse.string),
 		scope: parse.optional(parse.string),
-	})),
+	}))),
 	sharing_status: parse.optional(parse.oneOf('unshared', 'shared', 'unlisted')),
 	azure_devops_repository_context: parse.optional(parse.object({
 		url: parse.string,
