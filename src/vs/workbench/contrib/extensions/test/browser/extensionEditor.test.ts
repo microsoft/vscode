@@ -36,6 +36,7 @@ suite('ExtensionEditor', () => {
 			override readonly onChange = Event.None;
 			override readonly local = [];
 			override canSetLanguage() { return false; }
+			override async canInstall() { return true as const; }
 			override isAutoUpdateEnabledFor() { return false; }
 			override getAutoUpdateValue() { return 'off' as const; }
 		});
