@@ -990,10 +990,6 @@ stages:
               parameters:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-pnpm-store.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
             - template: alpine/product-build-alpine-pnpm-store.yml@self
               parameters:
                 VSCODE_ARCH: x64

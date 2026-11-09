@@ -59,7 +59,10 @@ steps:
 
   - template: ../../common/restore-pnpm-store.yml@self
     parameters:
-      keyArgs: linux $(VSCODE_ARCH)
+      # The store holds the packages for the agent's platform and architecture (which the key adds),
+      # whatever architecture the job builds for (npm_config_arch only affects native builds), so all
+      # Linux builds on the same agents share one store.
+      keyArgs: linux
       os: linux
 
   - script: |
