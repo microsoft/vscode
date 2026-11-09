@@ -13,8 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { TerminalEditorService } from '../../../contrib/terminal/browser/terminalEditorService.js';
 import { TerminalGroupService } from '../../../contrib/terminal/browser/terminalGroupService.js';
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
@@ -39,6 +41,7 @@ suite('MainThreadTerminalService', () => {
 	let service: MainThreadTerminalService;
 	let terminals: TerminalService;
 	let groups: TerminalGroupService;
+	let editors: TerminalEditorService;
 	let environmentVariableService: IEnvironmentVariableService;
 	let instantiationService: TestInstantiationService;
 	let input: string[];
@@ -51,6 +54,7 @@ suite('MainThreadTerminalService', () => {
 				terminal: {
 					integrated: {
 						allowInUntrustedWorkspace: true,
+						defaultLocation: 'view',
 						fontFamily: 'monospace',
 						scrollback: 1000,
 						fastScrollSensitivity: 2,
@@ -71,6 +75,8 @@ suite('MainThreadTerminalService', () => {
 			override getDefaultProfileName() { return undefined; }
 		});
 		instantiationService.set(ITerminalInstanceService, store.add(instantiationService.createInstance(TerminalInstanceService)));
+		editors = store.add(instantiationService.createInstance(TerminalEditorService));
+		instantiationService.set(ITerminalEditorService, editors);
 		groups = store.add(instantiationService.createInstance(TerminalGroupService));
 		instantiationService.set(ITerminalGroupService, groups);
 		terminals = store.add(instantiationService.createInstance(TerminalService));
@@ -316,7 +322,48 @@ suite('MainThreadTerminalService', () => {
 	});
 
 	for (const identifier of ['extension identifier', 'instance id'] as const) {
-		test(`falls back to the default location for a hidden parent referenced by its ${identifier}`, async () => {
+		for (const state of ['hidden', 'backgrounded'] as const) {
+			test(`preserves the location of a ${state} editor parent referenced by its ${identifier}`, async () => {
+				await service.$createTerminal('parent-terminal', {
+					name: 'Parent',
+					hideFromUser: state === 'hidden',
+					isExtensionCustomPtyTerminal: true,
+					location: TerminalLocation.Editor
+				});
+				const parent = store.add(terminals.instances[0]);
+				if (state === 'backgrounded') {
+					store.add(editors.getInputFromResource(parent.resource));
+					terminals.moveToBackground(parent);
+				}
+				await service.$createTerminal('child-terminal', {
+					name: 'Child',
+					isExtensionCustomPtyTerminal: true,
+					location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+				});
+				const child = store.add(terminals.foregroundInstances[0]);
+				if (child.target === TerminalLocation.Editor) {
+					store.add(editors.getInputFromResource(child.resource));
+				}
+				try {
+					assert.deepStrictEqual({
+						childLocation: child.target,
+						editorInstances: editors.instances.map(instance => instance.instanceId),
+						panelInstances: groups.instances.map(instance => instance.instanceId),
+						parentInForeground: terminals.foregroundInstances.includes(parent)
+					}, {
+						childLocation: TerminalLocation.Editor,
+						editorInstances: [child.instanceId],
+						panelInstances: [],
+						parentInForeground: false
+					});
+				} finally {
+					child.dispose();
+					parent.dispose();
+				}
+			});
+		}
+
+		test(`falls back to the default location for a hidden panel parent referenced by its ${identifier}`, async () => {
 			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
 			const parent = store.add(terminals.instances[0]);
 			await service.$createTerminal('child-terminal', {
@@ -360,7 +407,7 @@ suite('MainThreadTerminalService', () => {
 		});
 	}
 
-	test('falls back to the default location for a parent moved to the background', async () => {
+	test('falls back to the default location for a panel parent moved to the background', async () => {
 		await service.$createTerminal('parent-terminal', { name: 'Parent', isExtensionCustomPtyTerminal: true });
 		const parent = store.add(terminals.instances[0]);
 		terminals.moveToBackground(parent);
