@@ -24,6 +24,9 @@ import { NullState } from '../../../../../editor/common/languages/nullTokenize.j
 import { MetadataConsts, StandardTokenType } from '../../../../../editor/common/encodedTokenAttributes.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { FileAccess } from '../../../../../base/common/network.js';
+import { EditorAutoIndentStrategy } from '../../../../../editor/common/config/editorOptions.js';
+import { IndentAction } from '../../../../../editor/common/languages/languageConfiguration.js';
+import { OnEnterSupport } from '../../../../../editor/common/languages/supports/onEnter.js';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -132,6 +135,34 @@ suite('Language Configuration Parsing', () => {
 			[{ open: 'begin', close: 'end', beforeText: { source: '(?:^|\\s)begin$', flags: 'i' } }]
 		);
 	});
+});
+
+suite('OnEnter - JSX tags', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const configPath = FileAccess.asFileUri('vs/../../extensions/javascript/tags-language-configuration.json').fsPath;
+	const config = LanguageConfigurationFileHandler.extractValidConfig('jsx-tags', parse(fs.readFileSync(configPath, 'utf8'), []));
+	const support = new OnEnterSupport(config);
+
+	for (const beforeText of [
+		'<div>',
+		'<div className="w-[50%]">',
+		'      <div className="w-1/2">',
+		'<div className=\'w-1/2\'>',
+		'<div data-url="https://example.com/">',
+		'<div title="1 > 0" className="w-1/2">',
+		'<div title="it\'s 1/2">',
+		'<div title=\'say "1/2"\'>',
+	]) {
+		test(`indents after ${beforeText}`, () => {
+			assert.deepStrictEqual(['', '</div>'].map(afterText => support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText)?.indentAction), [IndentAction.Indent, IndentAction.IndentOutdent]);
+		});
+	}
+
+	for (const beforeText of ['<div/>', '<div className="w-1/2" />', '<div className="w-1/2"', '</div>', '<img src="/image.png">']) {
+		test(`does not indent after ${beforeText}`, () => {
+			assert.strictEqual(support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, ''), null);
+		});
+	}
 });
 
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
