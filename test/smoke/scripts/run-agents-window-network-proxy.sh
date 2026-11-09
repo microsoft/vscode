@@ -427,7 +427,11 @@ elif [[ "$PROXY_AUTH" == "basic" ]]; then
 fi
 
 # The Basic run covers the Copilot runtime and the Agent Host's own requests, which the local AgentHost suites exercise.
-smoke_grep="$([[ "$PROXY_AUTH" == "basic" ]] && echo 'Agents Window (local AgentHost' || echo 'Agents Window')"
+# Mocha reads -g as a regular expression.
+smoke_grep='Agents Window'
+if [[ "$PROXY_AUTH" == "basic" ]]; then
+	smoke_grep='Agents Window \(local AgentHost'
+fi
 cd "$ROOT"
 run_restricted env VSCODE_SMOKE_TEST_MOCK_HOST="$MOCK_HOST" VSCODE_SMOKE_TEST_PROXY_HEADER="$PROXY_HEADER_VALUE" \
 	pnpm run smoketest-no-compile --tracing -g "$smoke_grep" --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
