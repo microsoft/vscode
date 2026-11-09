@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import zlib from 'zlib';
 import { download, sha256 } from '../lib/download.ts';
@@ -51,25 +53,47 @@ export function extractFileFromTgz(tgz: Uint8Array, filePath: string): Uint8Arra
 }
 
 /**
+ * Fetches the `electron` npm package tarball with `npm pack`, so that it uses the npm registry and
+ * credentials the build configured (for example the Azure Artifacts feed in product builds).
+ */
+export function packElectronFromNpm(electronVersion: string): Uint8Array {
+	if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(electronVersion)) {
+		throw new Error(`Unexpected Electron version: ${electronVersion}`);
+	}
+	const destination = fs.mkdtempSync(path.join(os.tmpdir(), 'electron-types-'));
+	try {
+		const output = execSync(`npm pack electron@${electronVersion} --pack-destination "${destination}" --json --ignore-scripts`, {
+			cwd: destination,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'inherit'],
+			timeout: 5 * 60 * 1000,
+		});
+		const [{ filename }] = JSON.parse(output) as { filename: string }[];
+		return fs.readFileSync(path.join(destination, filename));
+	} finally {
+		fs.rmSync(destination, { recursive: true, force: true });
+	}
+}
+
+/**
  * Downloads `electron.d.ts` from the Electron GitHub release. When GitHub fails (for example with
  * HTTP 504 during a GitHub incident), it falls back to the same file in the `electron` npm package
- * on the npm registry. Both sources are checked against the pinned checksum.
+ * from the configured npm registry. Both sources are checked against the pinned checksum.
  */
-export async function downloadElectronTypes(electronVersion: string, expectedChecksum: string): Promise<Uint8Array> {
+export async function downloadElectronTypes(electronVersion: string, expectedChecksum: string, packFromNpm: (electronVersion: string) => Uint8Array | Promise<Uint8Array> = packElectronFromNpm): Promise<Uint8Array> {
 	const githubUrl = `https://github.com/electron/electron/releases/download/v${electronVersion}/electron.d.ts`;
 	try {
 		return await download(githubUrl, { checksumSha256: expectedChecksum });
 	} catch (githubError) {
-		const npmUrl = `https://registry.npmjs.org/electron/-/electron-${electronVersion}.tgz`;
-		console.warn(`Downloading electron.d.ts from GitHub failed (${githubError}), using ${npmUrl} instead.`);
+		console.warn(`Downloading electron.d.ts from GitHub failed (${githubError}), using the electron@${electronVersion} npm package instead.`);
 		try {
-			const contents = extractFileFromTgz(await download(npmUrl), 'package/electron.d.ts');
+			const contents = extractFileFromTgz(await packFromNpm(electronVersion), 'package/electron.d.ts');
 			if (!contents) {
-				throw new Error(`${npmUrl} does not contain package/electron.d.ts`);
+				throw new Error(`electron@${electronVersion} does not contain package/electron.d.ts`);
 			}
 			const actualChecksum = sha256(contents);
 			if (actualChecksum !== expectedChecksum) {
-				throw new Error(`Checksum mismatch for electron.d.ts in ${npmUrl} (expected ${expectedChecksum}, actual ${actualChecksum})`);
+				throw new Error(`Checksum mismatch for electron.d.ts in electron@${electronVersion} (expected ${expectedChecksum}, actual ${actualChecksum})`);
 			}
 			return contents;
 		} catch (npmError) {

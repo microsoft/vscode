@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { afterEach, suite, test } from 'node:test';
 import zlib from 'node:zlib';
 import { sha256 } from '../../lib/download.ts';
-import { downloadElectronTypes, extractFileFromTgz } from '../electronTypes.ts';
+import { downloadElectronTypes, extractFileFromTgz, packElectronFromNpm } from '../electronTypes.ts';
 
 function tgz(entries: { name: string; prefix?: string; contents: string }[]): Uint8Array {
 	const blocks: Buffer[] = [];
@@ -58,26 +58,32 @@ suite('electron.d.ts download', () => {
 
 	test('uses the GitHub release when it succeeds', async () => {
 		const requested = stubFetch({ 'github.com': () => new Response(typings) });
-		const contents = await downloadElectronTypes('1.2.3', sha256(Buffer.from(typings)));
+		const packed: string[] = [];
+		const contents = await downloadElectronTypes('1.2.3', sha256(Buffer.from(typings)), version => { packed.push(version); return npmTarball; });
 		assert.equal(Buffer.from(contents).toString(), typings);
 		assert.deepEqual(requested, ['https://github.com/electron/electron/releases/download/v1.2.3/electron.d.ts']);
+		assert.deepEqual(packed, []);
 	});
 
 	test('falls back to the npm package when GitHub fails', async () => {
-		const requested = stubFetch({
-			'github.com': () => new Response('', { status: 504 }),
-			'registry.npmjs.org': () => new Response(npmTarball),
-		});
-		const contents = await downloadElectronTypes('1.2.3', sha256(Buffer.from(typings)));
+		stubFetch({ 'github.com': () => new Response('', { status: 504 }) });
+		const packed: string[] = [];
+		const contents = await downloadElectronTypes('1.2.3', sha256(Buffer.from(typings)), version => { packed.push(version); return npmTarball; });
 		assert.equal(Buffer.from(contents).toString(), typings);
-		assert.equal(requested.at(-1), 'https://registry.npmjs.org/electron/-/electron-1.2.3.tgz');
+		assert.deepEqual(packed, ['1.2.3']);
 	});
 
 	test('rejects a fallback that does not match the pinned checksum', async () => {
-		stubFetch({
-			'github.com': () => new Response('', { status: 504 }),
-			'registry.npmjs.org': () => new Response(npmTarball),
-		});
-		await assert.rejects(downloadElectronTypes('1.2.3', '0'.repeat(64)), /status code: 504.*Checksum mismatch/s);
+		stubFetch({ 'github.com': () => new Response('', { status: 504 }) });
+		await assert.rejects(downloadElectronTypes('1.2.3', '0'.repeat(64), () => npmTarball), /status code: 504.*Checksum mismatch/s);
+	});
+
+	test('reports both failures when the npm package cannot be fetched either', async () => {
+		stubFetch({ 'github.com': () => new Response('', { status: 504 }) });
+		await assert.rejects(downloadElectronTypes('1.2.3', sha256(Buffer.from(typings)), () => { throw new Error('npm pack failed'); }), /status code: 504.*npm pack failed/s);
+	});
+
+	test('rejects an unexpected Electron version before running npm', () => {
+		assert.throws(() => packElectronFromNpm('1.2.3 && echo'), /Unexpected Electron version/);
 	});
 });
