@@ -41,7 +41,11 @@ export function extractFileFromTgz(tgz: Uint8Array, filePath: string): Uint8Arra
 			return undefined;
 		}
 		const prefix = readString(offset + 345, 155);
-		const size = Number.parseInt(readString(offset + 124, 12).trim() || '0', 8);
+		const sizeField = readString(offset + 124, 12).trim();
+		const size = sizeField ? Number.parseInt(sizeField, 8) : 0;
+		if (!/^[0-7]*$/.test(sizeField) || offset + 512 + size > tar.length) {
+			throw new Error(`Invalid tar entry size for ${name}: ${JSON.stringify(sizeField)}`);
+		}
 		const type = readString(offset + 156, 1);
 		const dataStart = offset + 512;
 		if ((type === '' || type === '0') && (prefix ? `${prefix}/${name}` : name) === filePath) {

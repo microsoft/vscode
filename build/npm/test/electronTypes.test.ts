@@ -9,13 +9,13 @@ import zlib from 'node:zlib';
 import { sha256 } from '../../lib/download.ts';
 import { downloadElectronTypes, extractFileFromTgz, packElectronFromNpm } from '../electronTypes.ts';
 
-function tgz(entries: { name: string; prefix?: string; contents: string }[]): Uint8Array {
+function tgz(entries: { name: string; prefix?: string; contents: string; size?: string }[]): Uint8Array {
 	const blocks: Buffer[] = [];
 	for (const entry of entries) {
 		const contents = Buffer.from(entry.contents);
 		const header = Buffer.alloc(512);
 		header.write(entry.name, 0, 100);
-		header.write(contents.length.toString(8).padStart(11, '0'), 124, 12);
+		header.write(entry.size ?? contents.length.toString(8).padStart(11, '0'), 124, 12);
 		header.write('0', 156, 1);
 		header.write('ustar\u000000', 257, 8);
 		header.write(entry.prefix ?? '', 345, 155);
@@ -54,6 +54,16 @@ suite('electron.d.ts download', () => {
 		assert.equal(Buffer.from(extractFileFromTgz(archive, 'package/a.txt')!).toString(), 'a'.repeat(700));
 		assert.equal(Buffer.from(extractFileFromTgz(archive, 'package/electron.d.ts')!).toString(), 'typings');
 		assert.equal(extractFileFromTgz(archive, 'package/missing.d.ts'), undefined);
+	});
+
+	test('rejects malformed entry sizes instead of looping or reading past the archive', () => {
+		for (const size of ['-0000001000', '0000000001x', '77777777777']) {
+			const archive = tgz([
+				{ name: 'package/other.txt', contents: 'x'.repeat(10), size },
+				{ name: 'package/electron.d.ts', contents: 'typings' },
+			]);
+			assert.throws(() => extractFileFromTgz(archive, 'package/electron.d.ts'), /Invalid tar entry size/, size);
+		}
 	});
 
 	test('uses the GitHub release when it succeeds', async () => {
