@@ -1,0 +1,20 @@
+name: Build Windows app
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      - run: npm run gulp vscode-win32-x64
+      - name: Collect output
+        run: Copy-Item -Recurse ..\VSCode-win32-x64 .\VSCode-win32-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VSCode-win32-x64
+          path: VSCode-win32-x64
