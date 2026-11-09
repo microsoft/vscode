@@ -178,13 +178,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/133b77cee2dd44df7906261b12cbf019eb0a4dbc2dc9d88a865d04687cdbbf8f)
 
 #### sessions/sessionsList/SessionsList_CompactNeedsInput/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/778c3e04d207f63666014e25e3adb8de274a39505e0a38050b9a75a71373f520)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b1bd5903157a80ed09290a8a03521ff0f4963f31c5f66e869cd245cac9258137)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatActions/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8806d13377c47bb5e81a5ddda8756bb91d06b05a07b0a997b6a9947311649169)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatApprovals/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/e6748a205f7f3cebe5e08ed4e64c00355c6a2914c0972a24cfc122d6d020be0a)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7d4bb1a9e03f5c6b606cbc6a10360f286d3561d1b667b09e4717eef062627dcc)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatPrimaryAction/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ed18223f207e2dd6968527c3594213879ca07b1462e6e91b6cfc233d8578cf20)
