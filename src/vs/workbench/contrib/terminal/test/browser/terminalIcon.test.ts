@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Color } from '../../../../../base/common/color.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getIconColorStyle } from '../../browser/terminalIcon.js';
 
@@ -19,7 +19,7 @@ suite('Terminal icon colors', () => {
 		const container = dom.$('.monaco-workbench');
 		store.add(toDisposable(() => container.remove()));
 		mainWindow.document.body.appendChild(container);
-		const style = createStyleSheet(container, undefined, store.add(new DisposableStore()));
+		const style = createStyleSheet(container);
 		style.textContent = getIconColorStyle('terminal-icon-test', Color.fromHex('#ff0000'));
 
 		const icons = new Map<string, HTMLElement>();
