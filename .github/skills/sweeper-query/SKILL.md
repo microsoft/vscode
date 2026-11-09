@@ -119,8 +119,11 @@ rejected), the fix brief under `## Auto-fix candidate` (implement records) or
 a few fields the index drops (`breadth`, `priority`, `visionFit`, `milestone`,
 `refutedReason`). Read it when the question is about ONE issue — "what did the sweeper
 find on 12345?", "why does it think this is a duplicate?", "show me the brief" — or to
-explain a single row the index query returned. Never read records in bulk; the index
-is the corpus query.
+explain a single row the index query returned. Read the record only when the question
+asks for what the row does not carry — the reasoning, the evidence, the brief or the
+proposed comment; a verdict, readiness, assignee, label or staleness question is
+answered from the row alone (offer the brief, don't paste it). Never read records in
+bulk; the index is the corpus query.
 
 ```bash
 STATE=egamma/vscodesweeper-state
