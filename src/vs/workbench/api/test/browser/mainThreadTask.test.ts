@@ -284,6 +284,45 @@ suite('MainThreadTask task handle lookup', () => {
 	];
 
 	for (const [operation, invoke] of operations) {
+		test(`${operation} does not retry when the typed lookup succeeds`, async () => {
+			const lookups: Parameters<ITaskService['getTask']>[] = [];
+			const taskService = new class extends mock<ITaskService>() {
+				override readonly onDidStateChange: Event<ITaskEvent> = Event.None;
+				override async getTask(...args: Parameters<ITaskService['getTask']>) {
+					lookups.push(args);
+					return workspaceTask;
+				}
+				override run() {
+					return Promise.resolve(undefined);
+				}
+			};
+			const rpc = new TestRPCProtocol();
+			rpc.set(ExtHostContext.ExtHostTask, new class extends mock<ExtHostTaskShape>() {
+				override $OnDidEndTask() { }
+			});
+			const mainThread = store.add(new MainThreadTask(
+				rpc,
+				taskService,
+				new class extends mock<IWorkspaceContextService>() { },
+				upcastPartial<IConfigurationResolverService>({}),
+				new class extends mock<IWorkspaceTrustManagementService>() {
+					override isWorkspaceTrusted() { return true; }
+				}
+			));
+
+			const result = await invoke(mainThread, handle);
+
+			assert.deepStrictEqual({
+				lookups,
+				taskName: result.task?.name
+			}, {
+				lookups: [
+					['test-workspace', 'fetched-task', true, 'shell']
+				],
+				taskName: 'fetched-task'
+			});
+		});
+
 		test(`${operation} retries without the task type when a typed lookup misses`, async () => {
 			const lookups: Parameters<ITaskService['getTask']>[] = [];
 			const taskService = new class extends mock<ITaskService>() {
