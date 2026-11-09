@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, addDisposableListener, append, EventLike, EventType } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventLike, EventType, getWindow } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverWidget, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -616,13 +616,14 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		if (!this.element) {
 			return;
 		}
+		const trigger = this.element;
 		const card = this.getHoverCard(design);
 		this.hover?.hide();
 		const cardListeners = new DisposableStore();
 		// Shown like the managed hover shows the card, but with focus in it.
 		const hover = this.hoverService.showInstantHover({
 			content: card.element,
-			target: this.element,
+			target: trigger,
 			additionalClasses: ['managed-hover-content-owns-padding'],
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true, compact: true, skipFadeInAnimation: true },
@@ -635,6 +636,14 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 		this.focusedHoverCard.value = hover;
 		cardListeners.add(card.onDidEscape(() => this.focusedHoverCard.clear()));
+		// The hover service closes the hover on a mousedown that bubbles to the document, but toolbar actions stop
+		// theirs, so close it on any mousedown outside the card. The button's own click toggles the card.
+		cardListeners.add(addDisposableListener(getWindow(trigger).document, EventType.MOUSE_DOWN, e => {
+			const path = e.composedPath();
+			if (!path.includes(card.element) && !path.includes(trigger)) {
+				this.focusedHoverCard.clear();
+			}
+		}, true));
 		card.focus();
 	}
 }

@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverOptions, IManagedHover, IManagedHoverContent, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -541,5 +542,35 @@ suite('Agents Window titlebar copy experiment', () => {
 			focusedHovers: [true, true, true],
 			hover: 'Open in Agents Window (shortcut)',
 		});
+	});
+
+	test('the focused card closes on a mousedown outside it, even on a toolbar action that stops its propagation', async () => {
+		const h = createHarness(1, 'manyWindowsToOne', true);
+		const otherItem = disposables.add(new ActionViewItem(undefined, disposables.add(new Action('other', 'Other', undefined, true)), {}));
+		const toolbar = $('div');
+		otherItem.render(toolbar);
+		const mouseDown = (target: Element | null | undefined) => target?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		const rendered = [h.container, toolbar];
+		try {
+			mainWindow.document.body.append(...rendered);
+			await h.activateByClick();
+			const card = h.hoverCard();
+			assert.ok(card);
+			// Where the hover service renders it.
+			rendered.push(card);
+			mainWindow.document.body.append(card);
+			mouseDown(card.querySelector('.monaco-button'));
+			mouseDown(h.container);
+			const afterInsideAndTrigger = h.focusedHovers().map(hover => hover.disposed);
+			await h.activateByClick();
+			await h.activateByClick();
+			mouseDown(toolbar.querySelector('.action-label'));
+			assert.deepStrictEqual({ afterInsideAndTrigger, afterToolbarAction: h.focusedHovers().map(hover => hover.disposed) }, {
+				afterInsideAndTrigger: [false],
+				afterToolbarAction: [true, true],
+			});
+		} finally {
+			rendered.forEach(element => element.remove());
+		}
 	});
 });
