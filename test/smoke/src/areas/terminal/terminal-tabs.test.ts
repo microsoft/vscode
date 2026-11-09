@@ -111,19 +111,24 @@ export function setup(options?: { skipSuite: boolean }) {
 
 		describe('during title updates', () => {
 			const rowSelector = '.tabs-list .monaco-list-row[data-index="0"]';
+			let bellCount = 0;
 
 			before(async () => {
 				await settingsEditor.addUserSettings([
 					['terminal.integrated.tabs.title', '"${sequence}"'],
 					['terminal.integrated.tabs.showActions', '"always"'],
-					['terminal.integrated.confirmOnKill', '"never"']
+					['terminal.integrated.confirmOnKill', '"never"'],
+					['terminal.integrated.enableVisualBell', 'true'],
+					['terminal.integrated.bellDuration', '60000']
 				]);
 			});
 
 			beforeEach(async () => {
+				bellCount = 0;
 				await terminal.createTerminal();
 				const script = [
 					'let i = 0;',
+					'let bells = 0;',
 					'let timer;',
 					'const tick = () => process.stdout.write(String.fromCharCode(27) + \']0;working-\' + (++i) + String.fromCharCode(7) + \'tick-\' + i + String.fromCharCode(13, 10));',
 					'tick();',
@@ -131,6 +136,7 @@ export function setup(options?: { skipSuite: boolean }) {
 					'process.stdin.on(\'data\', data => {',
 					'if (data.toString() === \'r\') { timer = setInterval(tick, 50); }',
 					'if (data.toString() === \'s\') { clearInterval(timer); process.stdout.write(\'stopped-\' + i + String.fromCharCode(13, 10)); }',
+					'if (data.toString() === \'b\') { process.stdout.write(String.fromCharCode(7) + \'bell-\' + (++bells) + String.fromCharCode(13, 10)); }',
 					'});'
 				].join(' ');
 				await terminal.runCommandInTerminal(`node -e "${script}"`);
@@ -140,6 +146,12 @@ export function setup(options?: { skipSuite: boolean }) {
 				await page.waitForFunction((selector: string) =>
 					/^working-\d+$/.test(document.querySelector(`${selector} .label-name`)?.textContent?.trim() ?? ''), rowSelector);
 			});
+
+			async function ringBell(): Promise<void> {
+				const marker = `bell-${++bellCount}`;
+				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'b');
+				await terminal.waitForTerminalText(buffer => buffer.some(line => line === marker));
+			}
 
 			async function startTitleUpdates(): Promise<void> {
 				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'r');
@@ -200,10 +212,13 @@ export function setup(options?: { skipSuite: boolean }) {
 
 			it('should kill the intended terminal when its title changes during a click', async () => {
 				const page = await terminal.getPage();
+				// Show the badge before pressing so its appearance cannot move the action.
+				await ringBell();
 				await pressAction('trashcan');
 				try {
 					await startTitleUpdates();
 					await waitForTitleUpdates();
+					await ringBell();
 				} finally {
 					await page.mouse.up();
 				}
@@ -213,10 +228,12 @@ export function setup(options?: { skipSuite: boolean }) {
 
 			it('should split once when its title changes during a click', async () => {
 				const page = await terminal.getPage();
+				await ringBell();
 				await pressAction('split-horizontal');
 				try {
 					await startTitleUpdates();
 					await waitForTitleUpdates();
+					await ringBell();
 				} finally {
 					await page.mouse.up();
 				}
@@ -246,13 +263,22 @@ export function setup(options?: { skipSuite: boolean }) {
 					await page.getByRole('menuitem', { name: /^Rename/ }).click({ delay: 150 });
 					const input = page.locator(`${rowSelector} .monaco-inputbox input`);
 					await input.fill('renamed');
+					await ringBell();
 					await startTitleUpdates();
 					await waitForTitleUpdates();
 					const lastTitle = await stopTitleUpdates();
 					assert.deepStrictEqual(await page.evaluate((selector: string) => {
 						const element = document.querySelector<HTMLInputElement>(selector);
-						return element ? { value: element.value, focused: document.activeElement === element } : undefined;
-					}, `${rowSelector} .monaco-inputbox input`), { value: 'renamed', focused: true });
+						if (!element) {
+							return undefined;
+						}
+						const bounds = element.getBoundingClientRect();
+						return {
+							value: element.value,
+							focused: document.activeElement === element,
+							visible: document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) === element
+						};
+					}, `${rowSelector} .monaco-inputbox input`), { value: 'renamed', focused: true, visible: true });
 					if (finish === 'blur') {
 						await input.evaluate(element => element.blur());
 					} else {

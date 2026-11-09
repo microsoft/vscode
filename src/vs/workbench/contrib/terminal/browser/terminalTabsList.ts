@@ -41,7 +41,7 @@ import { IProcessDetails } from '../../../../platform/terminal/common/terminalPr
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getColorForSeverity } from './terminalStatusList.js';
 import { TerminalContextActionRunner } from './terminalContextMenu.js';
@@ -126,7 +126,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
-			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
 			this._themeService.onDidColorThemeChange(() => this.refresh()),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
@@ -355,14 +354,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}));
 
 		const editableData = this._terminalEditingService.getEditableData(instance);
-		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
 			// eslint-disable-next-line no-restricted-syntax
 			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
 
-		template.elementDisposables.add(instance.onTitleChanged(() => {
+		template.elementDisposables.add(Event.any(instance.onTitleChanged, instance.statusList.onDidChangePrimaryStatus)(() => {
 			if (this._terminalEditingService.isEditable(instance)) {
 				return;
 			}
@@ -419,6 +417,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		const extraClasses: string[] = [];
+		if (editableData) {
+			extraClasses.push('editable-tab');
+		}
 		const colorClass = getColorClass(instance);
 		if (colorClass) {
 			extraClasses.push(colorClass);
