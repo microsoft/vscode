@@ -13,7 +13,7 @@ Choose the design role before the implementation value. Use the [design philosop
 
 Read current IDs, values, units, deprecation messages, and replacements from these sources. Do not infer a value from a token name or maintain another numeric table, token catalog, or alias map in instructions.
 
-The [design-system book](../extensions/vscode-design-system/README.md) provides source-backed references and a [headless interface](../extensions/vscode-design-system/README.md#headless-access) for agents. A visible canvas is not required.
+The [design-system book](../design-system/README.md) provides source-backed references and checkout-owned Markdown guidance. The separately installed private viewer also provides a headless interface for agents. A visible canvas is not required.
 
 ## Choose by role
 
