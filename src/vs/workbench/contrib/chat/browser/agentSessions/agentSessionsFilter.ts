@@ -164,8 +164,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			undefined;
 	}
 
-	private updateSorting(sorting: AgentSessionsSorting): void {
-		if (this.currentSorting === sorting) {
+	private updateSorting(sorting: AgentSessionsSorting, forceUpdate = false): void {
+		if (this.currentSorting === sorting && !forceUpdate) {
 			return;
 		}
 
@@ -177,8 +177,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	setSorting(sorting: AgentSessionsSorting): void {
 		// the selection is remembered even when it matches the default, so the
 		// setting no longer overrides it
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
 		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
-		this.updateSorting(sorting);
+		this.updateSorting(sorting, !hasStoredSorting);
 	}
 
 	private updateFilterActions(): void {
@@ -441,7 +442,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.storeExcludes({ ...DEFAULT_EXCLUDES });
 
 		// dropping the selected sorting makes the configured one apply again
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
 		this.storageService.remove(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
-		this.updateSorting(this.getPreferredSorting());
+		this.updateSorting(this.getPreferredSorting(), hasStoredSorting);
 	}
 }

@@ -1498,6 +1498,32 @@ suite('AgentSessions', () => {
 			filter.dispose();
 		});
 
+		test('should emit onDidChange when the selected sorting matches the configured sorting', () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Created }));
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+
+			filter.setSorting(AgentSessionsSorting.Created);
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(filter.isDefault(), false);
+			assert.strictEqual(changeCount, 1);
+
+			filter.reset();
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(filter.isDefault(), true);
+			assert.strictEqual(changeCount, 2);
+
+			filter.dispose();
+		});
+
 		test('should re-sort when the configured sorting changes', async () => {
 			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Updated });
 			instantiationService.stub(IConfigurationService, configurationService);
