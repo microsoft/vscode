@@ -4473,13 +4473,13 @@ suite('Sessions - SessionsList', () => {
 					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude'],
 					showMore: ['Show less', '+1 more workspace'],
 					excludeArchived: true,
-					stored: { filters: undefined, excludeArchived: true, sessionGroupExpansionState: undefined },
+					stored: { filters: undefined, excludeArchived: undefined, sessionGroupExpansionState: undefined },
 				},
 				undone: before,
 			});
 		});
 
-		test('undoing a reset restores Show All and an archived filter that follows its default setting', () => {
+		test('a reset leaves the archived filter following its default setting, and undoing it restores Show All', () => {
 			const { list, stored } = createList([createTestSession('session').session], {}, true);
 			list.setWorkspaceGroupCapped(false);
 			const state = () => ({ capped: list.isWorkspaceGroupCapped(), excludeArchived: list.isExcludeArchived(), storedExcludeArchived: stored('excludeArchived') });
@@ -4491,7 +4491,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, reset, undone: state() }, {
 				before: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
-				reset: { capped: true, excludeArchived: true, storedExcludeArchived: true },
+				reset: { capped: true, excludeArchived: false, storedExcludeArchived: undefined },
 				undone: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
 			});
 		});
