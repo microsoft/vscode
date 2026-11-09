@@ -418,6 +418,7 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async proxyUrl => `Negotiate client-token for ${proxyUrl}`,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const { lookupProxyAuthorization } = (resolver as unknown as {
 			_getProxyResolver(): { readonly params: ProxyAgentParams };
@@ -436,6 +437,48 @@ suite('AgentHostProxyResolver', () => {
 		});
 	});
 
+	test('authenticates its own requests with Basic credentials from a client sharing the network', async () => {
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const lookups: [string, string | undefined, number][] = [];
+		disposables.add(resolver.registerSharedNetworkClient('failing', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async () => { throw new Error('disconnected'); },
+		}));
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+				lookups.push([proxyUrl, realm, attempt]);
+				return proxyUrl.includes('proxy.example') ? { username: 'user', password: 'secret' } : undefined;
+			},
+		}));
+		const { lookupProxyAuthorization } = (resolver as unknown as {
+			_getProxyResolver(): { readonly params: ProxyAgentParams };
+		})._getProxyResolver().params;
+
+		const authorized = await lookupProxyAuthorization!('http://proxy.example:8080/', 'Basic realm="Corp"', {});
+		const secure = await lookupProxyAuthorization!('https://user:pass@proxy.example/', 'Basic', {});
+		const state = {};
+		const declined = [
+			await lookupProxyAuthorization!('http://other.example/', 'Basic', state),
+			await lookupProxyAuthorization!('http://other.example/', 'Basic', state),
+		];
+
+		assert.deepStrictEqual({ authorized, secure, declined, lookups }, {
+			authorized: 'Basic dXNlcjpzZWNyZXQ=',
+			secure: 'Basic dXNlcjpzZWNyZXQ=',
+			declined: [undefined, undefined],
+			// The default port of an HTTPS proxy needs its scheme, and the credentials in a proxy URL stay with the host.
+			lookups: [
+				['http://proxy.example:8080', 'Corp', 1],
+				['https://proxy.example', undefined, 1],
+				['http://other.example', undefined, 1],
+				['http://other.example', undefined, 2],
+			],
+		});
+	});
+
 	test('resolves proxies through a client sharing the network only while it is registered', async () => {
 		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
 		let registrations = 0;
@@ -447,6 +490,7 @@ suite('AgentHostProxyResolver', () => {
 				return 'PROXY proxy.example:8080';
 			},
 			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const shared = await resolver.resolveProxy('https://shared.example/path');
 		const sharedInfo = await resolver.resolveProxyByURL('https://shared-info.example/path');
@@ -472,6 +516,7 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => clientProxy,
 			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const before = await resolver.resolveProxy('https://shared.example/path');
 
@@ -491,9 +536,11 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('failing', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async () => { throw new Error('disconnected'); },
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 			lookupKerberosAuthorization: async proxyUrl => {
 				lookups.push(`client ${proxyUrl}`);
 				return 'Negotiate client-token';

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from '../../../base/common/event.js';
-import { vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
+import { vNumber, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
+import type { Credentials } from '../../request/common/request.js';
 
 /** Host → client: the client's raw proxy resolution for a URL; sent only to clients advertising `vscode.clientProxy`. */
 export const ResolveClientProxyExtensionMethod = 'vscode/resolveProxy';
@@ -15,6 +16,16 @@ export const resolveClientProxyResultValidator = vObj({ proxy: vOptionalProp(vSt
 export const LookupClientProxyKerberosAuthorizationExtensionMethod = 'vscode/lookupProxyKerberosAuthorization';
 export const lookupClientProxyKerberosAuthorizationParamsValidator = vObj({ proxyUrl: vString() });
 export const lookupClientProxyKerberosAuthorizationResultValidator = vObj({ authorization: vOptionalProp(vString()) });
+
+/**
+ * Host → client: Basic credentials for a proxy that challenged a request; sent only to clients advertising
+ * `vscode.clientProxy`. `attempt` is 1 for the first credentials a request asks for and higher after the proxy rejected
+ * earlier ones, and `realm` comes from the proxy, so it is untrusted. An omitted or empty `username` means the client has
+ * none; an omitted `password` is empty.
+ */
+export const LookupClientProxyBasicAuthorizationExtensionMethod = 'vscode/lookupProxyBasicAuthorization';
+export const lookupClientProxyBasicAuthorizationParamsValidator = vObj({ proxyUrl: vString(), realm: vOptionalProp(vString()), attempt: vNumber() });
+export const lookupClientProxyBasicAuthorizationResultValidator = vObj({ username: vOptionalProp(vString()), password: vOptionalProp(vString()) });
 
 /**
  * Client → host: the client's proxy resolution may have changed, so the host drops cached resolutions and refreshes the
@@ -35,4 +46,6 @@ export interface IAgentHostClientProxyProvider {
 	resolveProxy(url: string): Promise<string | undefined>;
 	/** A `Negotiate` `Proxy-Authorization` value for `proxyUrl`, or `undefined` when the client declines or has no ticket. */
 	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
+	/** Basic credentials for `proxyUrl`, or `undefined` when the client declines or has none. */
+	lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
 }

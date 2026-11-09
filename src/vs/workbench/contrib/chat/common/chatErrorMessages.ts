@@ -117,7 +117,10 @@ function secondsToHumanReadableTime(seconds: number): string {
 	return localize('chatError.duration.hours', "{0} hours", hours);
 }
 
-function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined): string {
+/**
+ * @param autoModelFusion Whether the chat's Auto model is presented as Copilot Fusion, so suggestions to switch to it name it that way.
+ */
+function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined, autoModelFusion: boolean | undefined): string {
 	const retryAfterString = fetchError.retryAfter ? secondsToHumanReadableTime(fetchError.retryAfter) : localize('chatError.aMoment', "a moment");
 	const code = fetchError.capiError?.code;
 	if (code?.startsWith('agent_mode_limit_exceeded')) { // Rate limited in agent mode
@@ -126,6 +129,9 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 	if (code?.startsWith('model_overloaded') || code?.startsWith('upstream_provider_rate_limit')) {
 		if (fetchError.isAuto) {
 			return localize({ key: 'chatError.rateLimit.overloadedAuto', comment: [`{Locked=']({'}`] }, "Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
+		}
+		if (autoModelFusion) {
+			return localize({ key: 'chatError.rateLimit.overloadedFusion', comment: [`{Locked=']({'}`] }, "Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0} or consider switching to Copilot Fusion. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		return localize({ key: 'chatError.rateLimit.overloaded', comment: [`{Locked=']({'}`] }, "Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0} or consider switching to Auto. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
@@ -142,16 +148,25 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 			if (fetchError.isAuto) {
 				return localize({ key: 'chatError.rateLimit.weeklyDateAuto', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please wait for your limit to reset on {0}. [Learn More]({1})", resetDateString, RATE_LIMIT_LEARN_MORE_URL);
 			}
+			if (autoModelFusion) {
+				return localize({ key: 'chatError.rateLimit.weeklyDateFusion', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please switch to Copilot Fusion to continue working or wait for your limit to reset on {0}. [Learn More]({1})", resetDateString, RATE_LIMIT_LEARN_MORE_URL);
+			}
 			return localize({ key: 'chatError.rateLimit.weeklyDate', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please switch to the Auto model to continue working or wait for your limit to reset on {0}. [Learn More]({1})", resetDateString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		if (fetchError.isAuto) {
 			return localize({ key: 'chatError.rateLimit.weeklyAuto', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
+		}
+		if (autoModelFusion) {
+			return localize({ key: 'chatError.rateLimit.weeklyFusion', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please switch to Copilot Fusion to continue working or wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		return localize({ key: 'chatError.rateLimit.weekly', comment: [`{Locked=']({'}`] }, "You've reached your weekly rate limit. Please switch to the Auto model to continue working or wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 	if (code?.startsWith('user_model_rate_limited')) {
 		if (fetchError.isAuto) {
 			return localize({ key: 'chatError.rateLimit.modelAuto', comment: [`{Locked=']({'}`] }, "You've hit the rate limit for this model. Please try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
+		}
+		if (autoModelFusion) {
+			return localize({ key: 'chatError.rateLimit.modelFusion', comment: [`{Locked=']({'}`] }, "You've hit the rate limit for this model. Please try switching to Copilot Fusion or try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		return localize({ key: 'chatError.rateLimit.model', comment: [`{Locked=']({'}`] }, "You've hit the rate limit for this model. Please try switching to Auto or try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
@@ -163,11 +178,17 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 		if (fetchError.isAuto) {
 			return localize({ key: 'chatError.rateLimit.serverAuto', comment: [`{Locked=']({'}`] }, "Sorry, you have been rate-limited. Please wait {0} before trying again. [Learn More]({1})\n\nServer Error: {2}\nError Code: {3}", retryAfterString, RATE_LIMIT_LEARN_MORE_URL, fetchError.capiError.message, fetchError.capiError.code);
 		}
+		if (autoModelFusion) {
+			return localize({ key: 'chatError.rateLimit.serverFusion', comment: [`{Locked=']({'}`] }, "Sorry, you have been rate-limited. Please wait {0} before trying again or consider switching to Copilot Fusion. [Learn More]({1})\n\nServer Error: {2}\nError Code: {3}", retryAfterString, RATE_LIMIT_LEARN_MORE_URL, fetchError.capiError.message, fetchError.capiError.code);
+		}
 		return localize({ key: 'chatError.rateLimit.server', comment: [`{Locked=']({'}`] }, "Sorry, you have been rate-limited. Please wait {0} before trying again or consider switching to Auto. [Learn More]({1})\n\nServer Error: {2}\nError Code: {3}", retryAfterString, RATE_LIMIT_LEARN_MORE_URL, fetchError.capiError.message, fetchError.capiError.code);
 	}
 
 	if (fetchError.isAuto) {
 		return localize({ key: 'chatError.rateLimit.genericAuto', comment: [`{Locked=']({'}`] }, "Sorry, your request was rate-limited. Please wait {0} before trying again. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
+	}
+	if (autoModelFusion) {
+		return localize({ key: 'chatError.rateLimit.genericFusion', comment: [`{Locked=']({'}`] }, "Sorry, your request was rate-limited. Please wait {0} before trying again or consider switching to Copilot Fusion. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 	return localize({ key: 'chatError.rateLimit.generic', comment: [`{Locked=']({'}`] }, "Sorry, your request was rate-limited. Please wait {0} before trying again or consider switching to Auto. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 }
@@ -273,11 +294,11 @@ export function getFilteredMessage(category: FilterReason | string, supportsMark
  * access to the GitHub outage status, so the outage note is never appended
  * (assume no outage).
  */
-export function getChatErrorDetailsFromFetchError(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined, isUsageBasedBilling?: boolean, quotaResetDate?: string): IChatResponseErrorDetails {
-	return { code: fetchError.type, ...getChatErrorDetailsInner(fetchError, copilotPlan, isUsageBasedBilling, quotaResetDate) };
+export function getChatErrorDetailsFromFetchError(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined, isUsageBasedBilling?: boolean, quotaResetDate?: string, autoModelFusion?: boolean): IChatResponseErrorDetails {
+	return { code: fetchError.type, ...getChatErrorDetailsInner(fetchError, copilotPlan, isUsageBasedBilling, quotaResetDate, autoModelFusion) };
 }
 
-function getChatErrorDetailsInner(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined, isUsageBasedBilling?: boolean, quotaResetDate?: string): IChatResponseErrorDetails {
+function getChatErrorDetailsInner(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined, isUsageBasedBilling?: boolean, quotaResetDate?: string, autoModelFusion?: boolean): IChatResponseErrorDetails {
 	const requestId = fetchError.requestId ?? '';
 	const reason = fetchError.reason ?? '';
 	switch (fetchError.type) {
@@ -287,7 +308,7 @@ function getChatErrorDetailsInner(fetchError: IChatFetchErrorPayload, copilotPla
 			return CanceledMessage;
 		case ChatFetchResponseType.RateLimited:
 			return {
-				message: getRateLimitMessage(fetchError, copilotPlan),
+				message: getRateLimitMessage(fetchError, copilotPlan, autoModelFusion),
 				level: ChatErrorLevel.Info,
 				isRateLimited: true
 			};
@@ -381,6 +402,7 @@ export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, contex
 		context?.copilotPlan ?? chatError.copilotPlan,
 		context?.isUsageBasedBilling ?? chatError.isUsageBasedBilling,
 		context?.quotaResetDate ?? chatError.quotaResetDate,
+		context?.autoModelFusion,
 	);
 }
 
@@ -393,6 +415,8 @@ export interface IChatErrorContext {
 	readonly copilotPlan?: string;
 	readonly isUsageBasedBilling?: boolean;
 	readonly quotaResetDate?: string;
+	/** Whether the chat's Auto model is presented as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 }
 
 /**
