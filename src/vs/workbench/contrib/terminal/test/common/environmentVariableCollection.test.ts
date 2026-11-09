@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { EnvironmentVariableMutatorType } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
 import { IProcessEnvironment, isWindows } from '../../../../../base/common/platform.js';
 import { MergedEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableCollection.js';
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableShared.js';
@@ -192,6 +192,114 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	});
 
 	suite('applyToProcessEnvironment', () => {
+		for (const scopedFirst of [false, true]) {
+			test(`should apply scoped mutations after global mutations (scoped first: ${scopedFirst})`, async () => {
+				const scope = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+				const globalEntries: ISerializableEnvironmentVariableCollection = [
+					['A', { variable: 'A', value: 'global', type: EnvironmentVariableMutatorType.Replace }],
+					['B', { variable: 'B', value: ':global', type: EnvironmentVariableMutatorType.Append }],
+					['C', { variable: 'C', value: 'global:', type: EnvironmentVariableMutatorType.Prepend }]
+				];
+				const scopedEntries: ISerializableEnvironmentVariableCollection = [
+					[`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: ':scoped', type: EnvironmentVariableMutatorType.Append, scope }],
+					[`B:::${scope.workspaceFolder.uri}`, { variable: 'B', value: 'scoped:', type: EnvironmentVariableMutatorType.Prepend, scope }],
+					[`C:::${scope.workspaceFolder.uri}`, { variable: 'C', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope }]
+				];
+				const merged = new MergedEnvironmentVariableCollection(new Map([
+					['ext1', { map: new Map(scopedFirst ? [...scopedEntries, ...globalEntries] : [...globalEntries, ...scopedEntries]) }]
+				]));
+				const env = { A: 'base', B: 'base', C: 'base' };
+
+				await merged.applyToProcessEnvironment(env, scope);
+
+				deepStrictEqual(env, { A: 'global:scoped', B: 'scoped:base:global', C: 'scoped' });
+			});
+		}
+
+		test('should preserve extension precedence within global and scoped mutations', async () => {
+			const scope = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A', { variable: 'A', value: 'global1:', type: EnvironmentVariableMutatorType.Prepend }],
+						[`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: ':scoped1', type: EnvironmentVariableMutatorType.Append, scope }]
+					])
+				}],
+				['ext2', {
+					map: deserializeEnvironmentVariableCollection([
+						[`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: ':scoped2', type: EnvironmentVariableMutatorType.Append, scope }],
+						['A', { variable: 'A', value: 'global2:', type: EnvironmentVariableMutatorType.Prepend }]
+					])
+				}]
+			]));
+			const envs = [{ A: 'base' }, { A: 'base' }, { A: 'base' }];
+
+			await merged.applyToProcessEnvironment(envs[0], scope);
+			await merged.applyToProcessEnvironment(envs[1], undefined);
+			await merged.applyToProcessEnvironment(envs[2], { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 1 } });
+
+			deepStrictEqual(envs, [
+				{ A: 'global1:global2:base:scoped2:scoped1' },
+				{ A: 'global1:global2:base' },
+				{ A: 'global1:global2:base' }
+			]);
+		});
+
+		test('should retain global and scoped mutations for shell integration', async () => {
+			const scope = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const options = { applyAtProcessCreation: false, applyAtShellIntegration: true };
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						[`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: ':scoped', type: EnvironmentVariableMutatorType.Append, scope, options }],
+						['A', { variable: 'A', value: ':global', type: EnvironmentVariableMutatorType.Append, options }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = { A: 'base' };
+
+			await merged.applyToProcessEnvironment(env, scope);
+
+			deepStrictEqual(env, { A: 'base', VSCODE_ENV_APPEND: 'A=\\x3aglobal:A=\\x3ascoped' });
+		});
+
+		for (const scopedFirst of [false, true]) {
+			test(`should compose replacements separately at each application stage (scoped first: ${scopedFirst})`, async () => {
+				const scope = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+				const shellOnly = { applyAtProcessCreation: false, applyAtShellIntegration: true };
+				const both = { applyAtProcessCreation: true, applyAtShellIntegration: true };
+				const globalEntries: ISerializableEnvironmentVariableCollection = [
+					['A', { variable: 'A', value: ':global', type: EnvironmentVariableMutatorType.Append, options: shellOnly }],
+					['B', { variable: 'B', value: 'global:', type: EnvironmentVariableMutatorType.Prepend, options: shellOnly }],
+					['C', { variable: 'C', value: ':global', type: EnvironmentVariableMutatorType.Append, options: shellOnly }],
+					['D', { variable: 'D', value: 'global:', type: EnvironmentVariableMutatorType.Prepend, options: shellOnly }],
+					['E', { variable: 'E', value: 'global:', type: EnvironmentVariableMutatorType.Prepend, options: both }],
+					['F', { variable: 'F', value: ':global', type: EnvironmentVariableMutatorType.Append, options: both }]
+				];
+				const scopedEntries: ISerializableEnvironmentVariableCollection = [
+					[`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope, options: shellOnly }],
+					[`B:::${scope.workspaceFolder.uri}`, { variable: 'B', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope, options: shellOnly }],
+					[`C:::${scope.workspaceFolder.uri}`, { variable: 'C', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope }],
+					[`D:::${scope.workspaceFolder.uri}`, { variable: 'D', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope }],
+					[`E:::${scope.workspaceFolder.uri}`, { variable: 'E', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope, options: shellOnly }],
+					[`F:::${scope.workspaceFolder.uri}`, { variable: 'F', value: 'scoped', type: EnvironmentVariableMutatorType.Replace, scope, options: both }]
+				];
+				const merged = new MergedEnvironmentVariableCollection(new Map([
+					['ext1', { map: new Map(scopedFirst ? [...scopedEntries, ...globalEntries] : [...globalEntries, ...scopedEntries]) }]
+				]));
+				const env: IProcessEnvironment = { A: 'base', B: 'base', C: 'base', D: 'base', E: 'base', F: 'base' };
+
+				await merged.applyToProcessEnvironment(env, scope);
+
+				deepStrictEqual(env, {
+					A: 'base', B: 'base', C: 'scoped', D: 'scoped', E: 'global:base', F: 'scoped',
+					VSCODE_ENV_REPLACE: 'A=scoped:B=scoped:E=scoped:F=scoped',
+					VSCODE_ENV_APPEND: 'C=\\x3aglobal',
+					VSCODE_ENV_PREPEND: 'D=global\\x3a'
+				});
+			});
+		}
+
 		test('should apply the collection to an environment', async () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
@@ -295,6 +403,55 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	});
 
 	suite('diff', () => {
+		suite('global and scoped mutations of the same variable', () => {
+			const scope = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+
+			function createCollection(globalValue: string | undefined, scopedValue: string | undefined): MergedEnvironmentVariableCollection {
+				const map = new Map<string, IEnvironmentVariableMutator>();
+				if (globalValue !== undefined) {
+					map.set('A', { variable: 'A', value: globalValue, type: EnvironmentVariableMutatorType.Append });
+				}
+				if (scopedValue !== undefined) {
+					map.set(`A:::${scope.workspaceFolder.uri}`, { variable: 'A', value: scopedValue, type: EnvironmentVariableMutatorType.Append, scope });
+				}
+				return new MergedEnvironmentVariableCollection(new Map([['ext1', { map }]]));
+			}
+
+			test('should not report a change when both scopes are unchanged', () => {
+				deepStrictEqual(createCollection('global', 'scoped').diff(createCollection('global', 'scoped'), scope), undefined);
+			});
+
+			for (const scoped of [false, true]) {
+				for (const change of ['added', 'removed', 'changed'] as const) {
+					test(`should identify ${change} mutations independently (scoped: ${scoped})`, () => {
+						const before = change === 'added' ? undefined : 'before';
+						const after = change === 'removed' ? undefined : 'after';
+						const oldCollection = scoped ? createCollection('global', before) : createCollection(before, 'scoped');
+						const newCollection = scoped ? createCollection('global', after) : createCollection(after, 'scoped');
+						const diff = oldCollection.diff(newCollection, scope);
+						const expectedMutator = {
+							extensionIdentifier: 'ext1',
+							variable: 'A',
+							value: change === 'removed' ? before : after,
+							type: EnvironmentVariableMutatorType.Append,
+							options: undefined,
+							...(scoped ? { scope } : {})
+						};
+
+						deepStrictEqual(diff && {
+							added: [...diff.added.values()].flat(),
+							removed: [...diff.removed.values()].flat(),
+							changed: [...diff.changed.values()].flat()
+						}, {
+							added: change === 'added' ? [expectedMutator] : [],
+							removed: change === 'removed' ? [expectedMutator] : [],
+							changed: change === 'changed' ? [expectedMutator] : []
+						});
+					});
+				}
+			}
+		});
+
 		test('should return undefined when collectinos are the same', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {

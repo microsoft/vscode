@@ -299,8 +299,13 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {
-				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
-					prependToPath.push(mutator.value);
+				if (!(mutator.options?.applyAtProcessCreation ?? true)) {
+					continue;
+				}
+				if (mutator.type === EnvironmentVariableMutatorType.Replace) {
+					prependToPath.length = 0;
+				} else if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+					prependToPath.unshift(mutator.value);
 				}
 			}
 		}
