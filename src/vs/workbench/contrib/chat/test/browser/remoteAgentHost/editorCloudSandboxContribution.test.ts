@@ -132,6 +132,8 @@ function scmRepository(repository: IGitRepository): ISCMRepository {
 
 class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContribution {
 	materializeTasks = true;
+	monitoringActive = true;
+	protected override get discoveryActive(): boolean { return this.monitoringActive; }
 	private readonly _materializing = new Set<string>();
 	pickRepository: () => Promise<string | undefined> = () => { throw new Error('repository picker not available'); };
 	/** Draft → committed session pairs, in commit order. */
@@ -143,6 +145,9 @@ class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContri
 	}
 	refreshTasks(taskIds: readonly string[]): Promise<void> {
 		return this._refreshFromFeed({ reason: 'change', taskIds });
+	}
+	refreshFeed(reason: 'renewal' | 'reconnect'): Promise<void> {
+		return this._refreshFromFeed({ reason });
 	}
 	protected override _pollJitter(): number {
 		return 0;
@@ -242,6 +247,7 @@ function catalogueFeed() {
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly hasFocus?: boolean;
+	readonly monitoringActive?: boolean;
 	readonly catalogueVisible?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
@@ -700,6 +706,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const preparation = store.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
 	instantiationService.stub(ICloudSandboxDraftPreparationService, preparation);
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
+	contribution.monitoringActive = options?.monitoringActive ?? true;
 	if (options?.pickRepository) {
 		contribution.pickRepository = options.pickRepository;
 	}
@@ -1025,7 +1032,7 @@ suite('Editor cloud sandbox discovery', () => {
 	]) {
 		test(`known background work retains monitoring until settled (${JSON.stringify(active)})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const feed = catalogueFeed();
-			const h = createHarness(store, feed.options);
+			const h = createHarness(store, { ...feed.options, hasFocus: false });
 			h.contribution.materializeTasks = false;
 			h.state.result = { kind: 'complete', sessions: [{ ...discovered, ...active, updatedAt: new Date(Date.now()).toISOString() }] };
 			await h.setCatalogueVisible(true);
@@ -1043,7 +1050,7 @@ suite('Editor cloud sandbox discovery', () => {
 
 	test('open and restored cloud models retain monitoring without the catalogue, and suspension leaves AHP connected', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const feed = catalogueFeed();
-		const h = createHarness(store, feed.options);
+		const h = createHarness(store, { ...feed.options, hasFocus: false });
 		h.contribution.materializeTasks = false;
 		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle }] };
 		h.state.hostSessions = h.state.hostSessions.map(session => ({ ...session, status: SessionStatus.Idle }));
@@ -1330,6 +1337,163 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
+	test('defers automatic scans and deduplicates task hints while automatic monitoring is paused', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createHarness(store, { sessionFeed: { connected: true, start: async () => { }, dispose: () => { } } });
+		await Promise.all(h.initialRefreshes);
+		h.contribution.monitoringActive = false;
+		await h.contribution.refreshTasks([otherDiscovered.taskId]);
+		await h.contribution.refreshTasks([otherDiscovered.taskId, discovered.taskId]);
+		await h.contribution.refreshFeed('renewal');
+		await h.contribution.refreshFeed('reconnect');
+		h.accountChanged.fire(h.state.accountKey);
+		h.sentimentChanged.fire();
+		await timeout(20 * 60_000);
+		const before = { requests: h.discoveryRequests.length, items: h.items().map(item => item.resource.toString()) };
+		h.state.result = { kind: 'incremental', sessions: [{ ...otherDiscovered, repoName: discovered.repoName }], removedTaskIds: [] };
+		h.contribution.monitoringActive = true;
+		h.focusChanged.fire(true);
+		await h.refresh('automatic');
+		assert.deepStrictEqual({
+			before,
+			resumed: h.discoveryRequests.slice(1).map(request => ({ incremental: request?.incremental, taskIds: request?.taskIds })),
+			items: h.items().map(item => item.resource.toString()),
+		}, {
+			before: { requests: 1, items: [resource.toString()] },
+			resumed: [{ incremental: false, taskIds: undefined }, { incremental: true, taskIds: [otherDiscovered.taskId, discovered.taskId] }],
+			items: [resource.toString(), cloudSandboxTaskResource(otherDiscovered.taskId).toString()],
+		});
+	}));
+
+	test('defers initial discovery while automatic monitoring is paused', async () => {
+		const listed = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			monitoringActive: false,
+			listSessions: async () => { void listed.complete(); return { kind: 'complete', sessions: [] }; },
+		});
+		await Promise.all(h.initialRefreshes);
+		await h.refresh('automatic');
+		const before = [...h.networkCalls];
+		h.contribution.monitoringActive = true;
+		h.focusChanged.fire(true);
+		await listed.p;
+		assert.deepStrictEqual({ before, network: h.networkCalls }, { before: [], network: ['feed', 'list'] });
+	});
+
+	test('resumes a deferred feed before one catch-up even when the old socket remains connected', async () => {
+		let deferred = false;
+		const calls: string[] = [];
+		const h = createHarness(store, {
+			sessionFeed: {
+				connected: true,
+				get deferred() { return deferred; },
+				start: async () => { calls.push('feed'); deferred = false; },
+				dispose: () => { },
+			},
+			listSessions: async () => { calls.push('list'); return { kind: 'complete', sessions: [] }; },
+		});
+		await Promise.all(h.initialRefreshes);
+		deferred = true;
+		await h.refresh('automatic');
+		assert.deepStrictEqual(calls, ['feed', 'list', 'feed', 'list']);
+	});
+
+	for (const deferred of ['taskHints', 'feedRetry'] as const) {
+		test(`resuming during an in-flight inventory scan drains deferred ${deferred}`, async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+			let feedDeferred = false;
+			let scans = 0;
+			const h = createHarness(store, {
+				sessionFeed: {
+					connected: true,
+					get deferred() { return feedDeferred; },
+					start: async () => { feedDeferred = false; },
+					dispose: () => { },
+				},
+				listSessions: async () => {
+					if (++scans === 2) {
+						void started.complete();
+						return pending.p;
+					}
+					return { kind: 'complete', sessions: [] };
+				},
+			});
+			await Promise.all(h.initialRefreshes);
+			const scan = h.refresh();
+			await started.p;
+			h.contribution.monitoringActive = false;
+			if (deferred === 'taskHints') {
+				await h.contribution.refreshTasks(['deferred-task']);
+			} else {
+				feedDeferred = true;
+			}
+			h.contribution.monitoringActive = true;
+			h.focusChanged.fire(true);
+			await pending.complete({ kind: 'complete', sessions: [] });
+			await scan;
+			await timeout(0);
+			assert.deepStrictEqual({
+				requests: h.discoveryRequests.map(request => ({ trigger: request?.trigger, taskIds: request?.taskIds })),
+				feedDeferred,
+			}, {
+				requests: [
+					{ trigger: 'startup', taskIds: undefined },
+					{ trigger: 'manual', taskIds: undefined },
+					deferred === 'taskHints' ? { trigger: 'feedChange', taskIds: ['deferred-task'] } : { trigger: 'focus', taskIds: undefined },
+				],
+				feedDeferred: false,
+			});
+		});
+	}
+
+	for (const change of ['account', 'enablement'] as const) {
+		test(`${change} changes discard task hints while automatic monitoring is paused`, async () => {
+			const h = createHarness(store);
+			await Promise.all(h.initialRefreshes);
+			h.contribution.monitoringActive = false;
+			await h.contribution.refreshTasks(['old-account-task']);
+			if (change === 'account') {
+				h.state.accountKey = 'github:other-account';
+				h.accountChanged.fire(h.state.accountKey);
+				await timeout(0);
+			} else {
+				await h.setEnabled(CloudSandboxEnabledSettingId, false);
+				await h.setEnabled(CloudSandboxEnabledSettingId, true);
+			}
+			const before = h.discoveryRequests.length;
+			h.contribution.monitoringActive = true;
+			await h.refresh('automatic');
+			assert.deepStrictEqual({ before, taskIds: h.discoveryRequests.map(request => request?.taskIds) }, {
+				before: 1, taskIds: [undefined, undefined],
+			});
+		});
+	}
+
+	test('does not list if automatic monitoring is paused during feed negotiation', async () => {
+		const started = new DeferredPromise<void>();
+		const pending = new DeferredPromise<undefined>();
+		const h = createHarness(store, { connectSessionFeed: () => { void started.complete(); return pending.p; } });
+		await started.p;
+		h.contribution.monitoringActive = false;
+		await pending.complete(undefined);
+		await Promise.all(h.initialRefreshes);
+		const before = [...h.networkCalls];
+		h.contribution.monitoringActive = true;
+		h.focusChanged.fire(true);
+		await h.refresh('automatic');
+		assert.deepStrictEqual({ before, network: h.networkCalls }, { before: ['feed'], network: ['feed', 'list'] });
+	});
+
+	test('manual refresh while automatic monitoring is paused does not start a feed', async () => {
+		const h = createHarness(store, { monitoringActive: false, catalogueVisible: false });
+		await h.refresh();
+		const before = [...h.networkCalls];
+		h.contribution.monitoringActive = true;
+		h.focusChanged.fire(true);
+		await h.setCatalogueVisible(true);
+		assert.deepStrictEqual({ before, network: h.networkCalls }, { before: ['list'], network: ['list', 'feed', 'list'] });
+	});
+
 	test('retains catalogue demand while disabled and resumes discovery when authentication arrives', async () => {
 		const h = createHarness(store, { catalogueVisible: false, enabled: false });
 		await h.setCatalogueVisible(true);
@@ -1533,8 +1697,9 @@ suite('Editor cloud sandbox discovery', () => {
 	});
 
 	test('connecting after first use does not add a catalog refresh trigger', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createHarness(store, { hasFocus: false });
+		const h = createHarness(store);
 		await Promise.all(h.initialRefreshes);
+		h.state.hasFocus = false;
 		await timeout(5 * 60_000 + 1_000);
 		h.state.hasFocus = true;
 		await h.contribution.connect({ environmentId: discovered.environmentId, sessionId: discovered.sessionId, name: discovered.name });
@@ -1598,14 +1763,41 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('labels initial and manual discovery without requiring window focus', async () => {
-		const h = createHarness(store, { hasFocus: false, sessionFeedEnabled: false });
+	test('manual discovery works while automatic monitoring is paused', async () => {
+		const h = createHarness(store, { monitoringActive: false, sessionFeedEnabled: false });
 		await Promise.all(h.initialRefreshes);
 		await h.refresh();
 
 		assert.deepStrictEqual({
 			scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
-		}, { scans: 2, triggers: ['startup', 'manual'], items: [discovered.name] });
+		}, { scans: 1, triggers: ['manual'], items: [discovered.name] });
+	});
+
+	test('manual refresh retries after an automatic scan awaiting authorization is refused', async () => {
+		const entered = new DeferredPromise<void>();
+		const authorization = new DeferredPromise<void>();
+		let lookups = 0;
+		let scans = 0;
+		const h = createHarness(store, {
+			sessionFeedEnabled: false,
+			getAccountKey: async accountKey => {
+				if (++lookups === 1) {
+					await entered.complete();
+					await authorization.p;
+				}
+				return accountKey;
+			},
+			listSessions: async () => ++scans === 1
+				? { kind: 'failed', reason: 'Inventory authorization refused' }
+				: { kind: 'complete', sessions: [discovered] },
+		});
+		await entered.p;
+		const manual = h.refresh();
+		await authorization.complete();
+		await manual;
+		assert.deepStrictEqual({ triggers: h.discoveryTriggers, items: h.items().map(item => item.label) }, {
+			triggers: ['startup', 'manual'], items: [discovered.name],
+		});
 	});
 
 	for (const sessionFeedEnabled of [false, true]) {

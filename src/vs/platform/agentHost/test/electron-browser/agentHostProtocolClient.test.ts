@@ -2987,6 +2987,39 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
+		test('requests context exclusion without dropping the side-chat source', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sideChatWithoutContext': true });
+			transport.sentMessages.length = 0;
+			const created = client.createChat(sessionUri, chatUri, {
+				sideChat: { source: sourceUri, turnId: 'turn-1', includeSourceContext: false },
+			});
+			const request = transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, params: true }));
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await created;
+
+			assert.deepStrictEqual(request.params, {
+				channel: sessionUri.toString(),
+				chat: chatUri.toString(),
+				source: { kind: ChatSourceKind.SideChat, chat: sourceUri.toString(), turnId: 'turn-1' },
+				_meta: { 'vscode.sideChatWithoutContext': true },
+			});
+		});
+
+		test('rejects context exclusion on hosts without the capability rather than inheriting context', async () => {
+			for (const capability of [undefined, false, 'true']) {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, capability === undefined ? {} : { 'vscode.sideChatWithoutContext': capability });
+				transport.sentMessages.length = 0;
+
+				await assert.rejects(client.createChat(sessionUri, chatUri, {
+					sideChat: { source: sourceUri, turnId: 'turn-1', includeSourceContext: false },
+				}), /can't create a side chat without source context/);
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+		});
+
 		test('sends a requested chat workspace only to a host that advertises it', async () => {
 			const unsupported = createClient();
 			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
@@ -4581,6 +4614,12 @@ suite('AgentHostProtocolClient', () => {
 			code: JsonRpcErrorCodes.InvalidParams,
 			message: 'Agent Host returned a non-file debug log resource: vscode-userdata:/User/settings.json',
 		});
+	});
+
+	test('responds to host liveness pings without requiring a negotiated extension', () => {
+		const { transport } = createClient();
+		transport.fireMessage({ jsonrpc: '2.0', id: 100, method: 'ping', params: { channel: ROOT_STATE_URI } });
+		assert.deepStrictEqual(transport.sentMessages, [{ jsonrpc: '2.0', id: 100, result: null }]);
 	});
 
 	test('ping sends a JSON-RPC request and resolves on response', async () => {
@@ -6972,6 +7011,33 @@ suite('AgentHostProtocolClient', () => {
 			const request = await waitForRequestAtWithin(transport, 'reconnect', 0);
 			return { transport, request };
 		}
+
+		test('re-forwards the latest requested configuration after reconnect', async () => {
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, true);
+			await completeHandshake(transports[0], client.connect());
+
+			const { transport, request } = await beginRecovery(client, transports);
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+			fireConfigurationChange(configurationService, SYNC_SETTING_A);
+			const whileDisconnected = findOptionalRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A);
+			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+			await reconnected;
+
+			assert.deepStrictEqual({
+				initialConnection: findRootConfigValue(transports[0].sentMessages, SYNC_CONFIG_KEY_A),
+				whileDisconnected,
+				reconnected: findRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A),
+			}, {
+				initialConnection: true,
+				whileDisconnected: undefined,
+				reconnected: false,
+			});
+		});
 
 		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {
 			const { client, transports } = createFactoryClient();

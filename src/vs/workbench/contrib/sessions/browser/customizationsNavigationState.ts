@@ -21,7 +21,7 @@ import { ICustomizationHarnessService } from '../../chat/common/customizationHar
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
-import { IFocusedSessionHostService } from './sessionHost.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationItems.js';
 import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';

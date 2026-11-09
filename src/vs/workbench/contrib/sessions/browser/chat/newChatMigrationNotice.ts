@@ -11,7 +11,7 @@ import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeCont
 import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
-import { ISession, isSessionCreated } from '../../common/session.js';
+import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 
 export class NewChatMigrationNotice extends Disposable {
 	readonly element: HTMLElement;

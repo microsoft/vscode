@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { getMainWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
+import { getMainWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 
 /** Whether a host owns what it shows: windows and panes do, while composers and dialogs only draft in them. */

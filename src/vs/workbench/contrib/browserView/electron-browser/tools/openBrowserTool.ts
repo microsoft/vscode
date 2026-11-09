@@ -359,7 +359,7 @@ export class OpenBrowserTool implements IToolImpl {
 			sharedModel = result;
 		}
 
-		const summary = await this.playwrightService.getSummary(sessionId, sharedModel.id);
+		const summary = await this.playwrightService.waitForPageAndGetSummary(sessionId, sharedModel.id, sharedModel.url, OPEN_PAGE_READY_TIMEOUT_MS);
 		return this._pageResult(sharedModel.id, summary, localize('browser.open.sharedResult', "User shared {0}", createBrowserPageLink(sharedModel.id)));
 	}
 

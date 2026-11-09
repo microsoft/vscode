@@ -20,9 +20,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, isStoredWorkspaceFolder, IWorkspacesService, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
-import { ISessionWorkspace } from '../common/session.js';
+import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { WorkspaceHistoryLoadState } from '../common/workspaceSelection.js';
+import { WorkspaceHistoryLoadState } from '../../../services/sessions/common/workspaceSelection.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';

@@ -13,7 +13,6 @@ import tseslint from 'typescript-eslint';
 import stylistic from '@stylistic/eslint-plugin';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
-import pluginImport from 'eslint-plugin-import';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -35,6 +34,16 @@ const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirnam
 	.split(/\r\n|\n/)
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
+
+// The layers of `local/code-layering`: each folder name maps to the layers it may import, besides its own.
+const codeLayers = {
+	'common': [],
+	'node': ['common'],
+	'browser': ['common'],
+	'electron-browser': ['common', 'browser'],
+	'electron-utility': ['common', 'node'],
+	'electron-main': ['common', 'node', 'electron-utility'],
+};
 
 export default defineConfig(
 	// Global ignores
@@ -114,31 +123,7 @@ export default defineConfig(
 			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-no-private-agent-host-meta-import': 'error',
-			'local/code-layering': [
-				'warn',
-				{
-					'common': [],
-					'node': [
-						'common'
-					],
-					'browser': [
-						'common'
-					],
-					'electron-browser': [
-						'common',
-						'browser'
-					],
-					'electron-utility': [
-						'common',
-						'node'
-					],
-					'electron-main': [
-						'common',
-						'node',
-						'electron-utility'
-					]
-				}
-			],
+			'local/code-layering': ['warn', codeLayers],
 			'header/header': [
 				2,
 				'block',
@@ -249,15 +234,7 @@ export default defineConfig(
 			],
 			'jsdoc/no-types': 'warn',
 			'local/code-no-static-self-ref': 'warn',
-			'@typescript-eslint/naming-convention': [
-				'warn',
-				{
-					'selector': 'class',
-					'format': [
-						'PascalCase'
-					]
-				}
-			]
+			'local/code-class-name-pascal-case': 'warn'
 		}
 	},
 	{
@@ -476,6 +453,9 @@ export default defineConfig(
 			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
 			'src/vs/workbench/services/agentHost/**/*.ts',
 			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts',
 			'src/vs/sessions/**/*.ts',
 		],
 		ignores: [
@@ -2565,7 +2545,10 @@ export default defineConfig(
 		// See src/vs/sessions/SESSIONS.md.
 		files: [
 			'src/vs/sessions/**/*.ts',
-			'src/vs/workbench/contrib/sessions/**/*.ts'
+			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts'
 		],
 		ignores: [
 			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
@@ -2586,6 +2569,35 @@ export default defineConfig(
 						{
 							'group': ['**/agentSessions/agentSessionsService', '**/agentSessions/agentSessionsService.js'],
 							'message': 'IAgentSessionsService is provider-internal to Copilot. Only contrib/providers/copilotChatSessions may import it; the rest of the Agents window must stay provider-agnostic. See src/vs/sessions/SESSIONS.md.'
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		// Sessions depends on chat, never the reverse: contrib/chat must not import contrib/sessions.
+		files: [
+			'src/vs/workbench/contrib/chat/**/*.ts'
+		],
+		ignores: [
+			// Existing violations; remove entries as they are fixed (https://github.com/microsoft/vscode/issues/346756)
+			'src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.ts',
+			'src/vs/workbench/contrib/chat/browser/chatTipCatalog.ts',
+			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
+			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'local/code-no-restricted-path-imports': [
+				'error',
+				{
+					'paths': [
+						{
+							'pattern': 'src/vs/workbench/contrib/sessions/**',
+							'message': 'contrib/chat must not import from contrib/sessions: Sessions depends on chat, never the reverse. See https://github.com/microsoft/vscode/issues/346756'
 						}
 					]
 				}
@@ -2647,6 +2659,8 @@ export default defineConfig(
 				{ 'selector': 'typeLike', 'format': ['PascalCase'] },
 				{ 'selector': 'interface', 'format': ['PascalCase'] }
 			],
+			// Covered by the `typeLike` naming convention above
+			'local/code-class-name-pascal-case': 'off',
 			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
@@ -2751,7 +2765,6 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'import': fixupPluginRules(pluginImport),
 			'copilot-local': pluginCopilotLocal,
 		},
 		rules: {
@@ -2773,61 +2786,22 @@ export default defineConfig(
 				'vscode-tas-client',
 				'web-tree-sitter'
 			],
-			'import/no-restricted-paths': [
+			// Copilot's own layers, in addition to VS Code's
+			'local/code-layering': [
+				'warn',
+				{
+					...codeLayers,
+					'vscode': ['common'],
+					'vscode-node': ['common', 'vscode', 'node'],
+					'worker': ['common'],
+					'vscode-worker': ['common', 'vscode', 'worker'],
+				}
+			],
+			// Rules between folders, which the layers can't express
+			'local/code-no-restricted-zone-imports': [
 				'warn',
 				{
 					zones: [
-						{
-							target: '**/common/**',
-							from: [
-								'**/vscode/**',
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode/**',
-							from: [
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/node/**',
-							from: [
-								'**/vscode/**',
-								'**/vscode-node/**',
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode-node/**',
-							from: [
-								'**/worker/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/worker/**',
-							from: [
-								'**/vscode/**',
-								'**/node/**',
-								'**/vscode-node/**',
-								'**/vscode-worker/**'
-							]
-						},
-						{
-							target: '**/vscode-worker/**',
-							from: [
-								'**/node/**',
-								'**/vscode-node/**'
-							]
-						},
 						{
 							target: './extensions/copilot/src/',
 							from: './extensions/copilot/test/'
@@ -3132,7 +3106,8 @@ export default defineConfig(
 			'extensions/copilot/src/lib/node/chatLibMain.ts',
 		],
 		rules: {
-			'import/no-restricted-paths': 'off'
+			'local/code-layering': 'off',
+			'local/code-no-restricted-zone-imports': 'off'
 		}
 	},
 	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions

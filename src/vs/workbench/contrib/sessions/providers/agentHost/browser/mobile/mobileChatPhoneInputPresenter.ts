@@ -25,7 +25,7 @@ import { IChatMode } from '../../../../../chat/common/chatModes.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IFocusedSessionHostService } from '../../../../browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../browser/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';

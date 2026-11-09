@@ -46,7 +46,7 @@ import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../browser/c
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent } from '../../../../chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../common/session.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';

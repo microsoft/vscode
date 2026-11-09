@@ -344,6 +344,11 @@ jobs:
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
 
+      - name: 🧪 Run Agents Window smoke tests through Basic-authenticated proxy from the http.proxy setting
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
+        timeout-minutes: 40
+        run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --basic
+
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20

@@ -442,6 +442,7 @@ extends:
                   VSCODE_TEST_IDS:
                     - smoke-electron
                     - smoke-wsl-kerberos-proxy
+                    - smoke-wsl-basic-proxy
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32.yml@self
@@ -506,6 +507,7 @@ extends:
                     VSCODE_TEST_IDS:
                       - smoke-electron
                       - smoke-wsl-kerberos-proxy
+                      - smoke-wsl-basic-proxy
                     VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
@@ -809,6 +811,7 @@ extends:
                   - smoke-electron
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
         - stage: macOSX64
@@ -912,6 +915,7 @@ extends:
                     - smoke-electron
                     - smoke-agents-pac-proxy
                     - smoke-agents-kerberos-pac-proxy
+                    - smoke-agents-basic-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
       # instead of depending on their stages, so that it runs in parallel.
@@ -1520,32 +1524,6 @@ extends:
                     - vscode_cli_linux_armhf_cli
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
         - stage: APIScan

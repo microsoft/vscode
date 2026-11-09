@@ -296,8 +296,8 @@ export interface ICustomizationItem {
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**
-	 * Who this customization applies to. Drives the primary grouping in the
-	 * management UI. When omitted, the scope is derived from {@link source}.
+	 * Internal display grouping derived from the source or parent configuration.
+	 * When omitted, the normalizer derives it from {@link source}.
 	 */
 	readonly scope?: AICustomizationScope;
 	/**

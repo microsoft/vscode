@@ -929,6 +929,29 @@ suite('ChatSessionsService - side chats', () => {
 		});
 	});
 
+	test('preserves the source-context choice when creating side chats through the loaded session', async () => {
+		const calls: Parameters<NonNullable<IChatSession['createSideChat']>>[] = [];
+		const target = { resource: resource.with({ fragment: 'new-side' }), label: 'Side Chat', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+		const createSideChat: NonNullable<IChatSession['createSideChat']> = async (...args) => {
+			calls.push(args);
+			return target;
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], createSideChat, onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		await service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None, origin.selection);
+		await service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None, undefined, false);
+
+		assert.deepStrictEqual(calls, [
+			[origin.sourceTurnId, CancellationToken.None, origin.selection, undefined],
+			[origin.sourceTurnId, CancellationToken.None, undefined, false],
+		]);
+	});
+
 	test('observes late loading, title hydration, disposal, reloading and provider removal', async () => {
 		const metadata = observableValue<IChatSideChatOrigin | undefined>('origin', { ...origin, sourceTitle: undefined });
 		const provider = store.add(service.registerChatSessionContentProvider(type, {

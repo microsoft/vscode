@@ -14,12 +14,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const LOG_PREFIX = '[BlockedSessionsIndicator]';
 const IGNORED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';

@@ -273,7 +273,7 @@ export function finishCloudSandbox(overrides: Partial<SandboxSetupOptions> = {})
 	const stateFile = path.join(options.root, '.build', 'cloud-sandbox-playwright-deps');
 	const state = createHash('sha256')
 		.update(options.env.GITHUB_ENVIRONMENT_ID!)
-		.update(fs.readFileSync(path.join(options.root, 'node_modules', 'playwright', 'package.json')))
+		.update(fs.readFileSync(path.join(options.root, 'node_modules', '@playwright', 'test', 'package.json')))
 		.digest('hex');
 	const installed = fs.existsSync(stateFile) && fs.readFileSync(stateFile, 'utf8') === state;
 	options.run('pnpm', ['exec', 'playwright', 'install', ...(installed ? [] : ['--with-deps'])]);

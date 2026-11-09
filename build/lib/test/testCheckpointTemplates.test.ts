@@ -204,7 +204,7 @@ suite('Product test checkpoint templates', () => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
-			'smoke-electron', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-wsl-kerberos-proxy', 'smoke-wsl-basic-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const linuxExpected = [
@@ -216,13 +216,13 @@ suite('Product test checkpoint templates', () => {
 		const darwinExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-webkit',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-webkit', 'integration-remote',
-			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-agents-basic-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const allExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
-			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-agents-basic-proxy', 'smoke-wsl-kerberos-proxy', 'smoke-wsl-basic-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
@@ -643,7 +643,7 @@ suite('Product test checkpoint templates', () => {
 		}]);
 	});
 
-	test('macOS Squid setup runs with either PAC proxy smoke test', () => {
+	test('macOS Squid setup runs with any proxy smoke test', () => {
 		const steps = readTemplate(darwinTestFile).steps;
 		const squid = steps.find(step => records(step).some(record => record.displayName === 'Install Squid for network-isolated smoke tests'));
 		assert.deepStrictEqual({
@@ -652,17 +652,19 @@ suite('Product test checkpoint templates', () => {
 				.filter(([key]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-'))
 				.flatMap(([, branch]) => calls(branch).map(call => call.testId))),
 		}, {
-			setup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-pac-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-kerberos-pac-proxy\')) }}'],
-			tests: ['smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy'],
+			setup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-pac-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-kerberos-pac-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-basic-proxy\')) }}'],
+			tests: ['smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-agents-basic-proxy'],
 		});
 	});
 
 	test('the WSL Dev Container setup is skipped together with the smoke tests that use it', () => {
-		const wslKey = '${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'))) }}';
+		const wslKey = '${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-basic-proxy\'))) }}';
 		const wslTestKeys = [
 			wslKey,
 			'${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}',
+			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-basic-proxy\'))) }}',
 			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\')) }}',
+			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-basic-proxy\')) }}',
 		];
 		type SequenceEntry = { displayName?: string; condition?: string } | { testId: string };
 		const sequence = (items: unknown): SequenceEntry[] => (Array.isArray(items) ? items : [items]).flatMap((item: Record<string, unknown>) => {
@@ -681,17 +683,19 @@ suite('Product test checkpoint templates', () => {
 				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_LINUX_X64_COMPILATION_ARTIFACT?: string };
 				return parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT ? [`${parameters.VSCODE_JOB_NAME}: ${parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT}`] : [];
 			}));
-		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\')))';
-		const kerberosGated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'))';
+		// The Basic run is compiled out without this run's Linux server, so its checkpoint only counts with one
+		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-basic-proxy\')) }}, ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT\'], \'true\'))))';
+		const proxyGated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT\'], \'true\')))';
 		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
 			sequence: [
 				{ displayName: 'Restore WSL installer cache', condition: gated },
 				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 				{ testId: 'smoke-electron' },
-				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: kerberosGated },
-				{ displayName: 'Download the Linux x64 compilation artifact', condition: kerberosGated },
-				{ displayName: 'Add the Linux x64 server to the WSL distribution', condition: kerberosGated },
+				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: proxyGated },
+				{ displayName: 'Download the Linux x64 compilation artifact', condition: proxyGated },
+				{ displayName: 'Add the Linux x64 server to the WSL distribution', condition: proxyGated },
 				{ testId: 'smoke-wsl-kerberos-proxy' },
+				{ testId: 'smoke-wsl-basic-proxy' },
 				{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
 			],
 			// Only the product build's smoke job opens an editor window with the server of this run's Linux x64 compile job

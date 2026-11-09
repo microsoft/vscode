@@ -26,17 +26,17 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/services/sessions/common/session.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChangesHeaderChangesetOperationsActionContribution } from '../../../changes/browser/changesActions.js';
-import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import '../../../changes/browser/changesetReviewActions.js';
-import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { bindSessionScopeContextKeys } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
+import { bindSessionScopeContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
 import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Chat window changeset actions', () => {

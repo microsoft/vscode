@@ -213,6 +213,35 @@ suite('OpenBrowserTool', () => {
 		});
 	});
 
+	test('waits for the Playwright page after sharing an existing tab', async () => {
+		let summaryArguments: readonly [string, string, string, number] | undefined;
+		const sharedModel = upcastPartial<IBrowserViewModel>({ id: 'shared-id', url: 'http://localhost:3000/' });
+		const editor = upcastPartial<BrowserEditorInput>({
+			resolve: async () => upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Available, setSharedWithAgent: async () => sharedModel }),
+		});
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async (...args) => {
+					summaryArguments = args;
+					return 'Page summary';
+				}
+			}),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({}),
+			upcastPartial<IChatService>({}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({}),
+		);
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		await tool['_shareExistingPage']('session-id', editor);
+
+		assert.deepStrictEqual(summaryArguments, ['session-id', 'shared-id', 'http://localhost:3000/', 5000]);
+	});
+
 	test('reuses only existing pages on the network a new page would use', async () => {
 		// The lookup only considers real browser editors, whose identity and state are getters.
 		const page = (id: string, network: IBrowserViewNetwork | undefined): BrowserEditorInput => Object.create(BrowserEditorInput.prototype, {

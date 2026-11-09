@@ -43,7 +43,7 @@ import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workb
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { getRemoteAgentHostPickerKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {

@@ -22,7 +22,7 @@ import { GitHubPullRequestCIModel } from '../../browser/github/models/githubPull
 import { GitHubPullRequestModel } from '../../browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/github/types.js';
-import { ISession, IGitHubInfo, SessionStatus } from '../../common/session.js';
+import { ISession, IGitHubInfo, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { BlockedSessionReason, BlockedSessions } from '../../browser/blockedSessions.js';
 

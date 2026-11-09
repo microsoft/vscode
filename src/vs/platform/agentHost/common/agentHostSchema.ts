@@ -13,6 +13,7 @@ import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvi
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
+import { ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -585,6 +586,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 /** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
 export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
+/** Root config key forwarded from the renderer for GitHub's Browser Use plugin. */
+export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
+
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
@@ -958,6 +962,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
 		default: false,
 	}),
+	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.browserUseEnabled.title', "Browser Use"),
+		description: localize('agentHost.config.browserUseEnabled.description', "Whether local Copilot agent sessions offer GitHub's Browser Use plugin."),
+		default: false,
+	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
@@ -1074,6 +1084,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
+	}),
+	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
+		description: localize('agentHost.config.modelRouterEnabled.description', "Whether model routers from ~/.agents/model-routers are offered as Copilot models."),
+		default: false,
 	}),
 	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

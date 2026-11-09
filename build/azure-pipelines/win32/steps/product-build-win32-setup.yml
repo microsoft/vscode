@@ -47,22 +47,10 @@ steps:
     parameters:
       windows: true
 
-  - pwsh: |
-      mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
-    displayName: Prepare node_modules cache key
-
-  - task: Cache@2
-    inputs:
-      key: '"node_modules" | .build/packagelockhash'
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
-    retryCountOnTaskFailure: 2
-
-  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+  - template: ../../common/restore-pnpm-store.yml@self
+    parameters:
+      keyArgs: win32 $(VSCODE_ARCH)
+      os: windows
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -104,7 +92,6 @@ steps:
         FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   # NuGetAuthenticate@1 exposes its access token to all later steps as the
   # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it to
@@ -119,17 +106,11 @@ steps:
     displayName: Verify native optional dependency binaries
 
   - powershell: node build/azure-pipelines/distro/mixin-npm.ts
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
-      exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+  - template: ../../common/prune-pnpm-store.yml@self
+    parameters:
+      os: windows
 
   - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality

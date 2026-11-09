@@ -363,6 +363,50 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('identifies a Connector row by its server name rather than its display label', () => {
+		const connectorEntry = {
+			type: 'connector-item' as const,
+			id: 'copilot-connector:mail:mail-mcp',
+			label: 'Mail',
+			description: 'Connector',
+			connector: {
+				id: 'mail:mail-mcp',
+				connector: { name: 'mail', displayName: 'Mail' },
+				serverName: 'mail-mcp',
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			searchQuery: '',
+			installedEntries: [{ entry: connectorEntry }],
+			galleryServers: [
+				{ id: 'mail-mcp', name: 'mail-mcp', label: 'mail-mcp', installState: McpServerInstallState.Uninstalled },
+				{ id: 'other-mcp', name: 'other-mcp', label: 'Other', installState: McpServerInstallState.Uninstalled },
+			],
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [connectorEntry],
+			}],
+			list: {
+				getParentElement: () => null,
+				reveal: () => calls.push('reveal'),
+				setFocus: () => calls.push('focus'),
+				setSelection: () => calls.push('select'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as Pick<McpListWidget, 'revealAndSelectServer'> & { getAvailableGalleryServers(): IWorkbenchMcpServer[] };
+
+		assert.deepStrictEqual({
+			available: widget.getAvailableGalleryServers().map(server => server.id),
+			revealed: widget.revealAndSelectServer(undefined, 'mail-mcp'),
+			calls,
+		}, {
+			available: ['other-mcp'],
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
 	test('routes only an exactly recorded MCP uninstall through the marketplace', async () => {
 		const resource: ICustomizationMarketplaceResource = {
 			sourceId: 'testSource',

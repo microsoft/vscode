@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,10 +16,10 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../customView/browser/customViewService.js';
-import { ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsNavigation } from '../../../../../workbench/contrib/sessions/browser/sessionNavigation.js';
-import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/contrib/sessions/browser/sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/services/sessions/browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
@@ -124,10 +124,14 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidInvokeChangesetOperation = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
+	readonly onDidAcceptNewSessionRequest = Event.None;
+	readonly onDidEndNewSessionRequest = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly defaultNewSessionSlot: INewSessionDraftSlot = this;
+	readonly id = 'composer';
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -250,6 +254,8 @@ class MockSessionStore implements ISessionsManagementService {
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
+	createNewSessionSlot(): INewSessionDraftSlot & IDisposable { throw new Error('not implemented'); }
+	getNewSessionOwner(): INewSessionDraftSlot | undefined { return undefined; }
 	discardAutomationSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }

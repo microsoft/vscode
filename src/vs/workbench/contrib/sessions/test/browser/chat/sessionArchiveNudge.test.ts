@@ -41,7 +41,7 @@ import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../.
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
 import { GitHubPullRequestModel } from '../../../browser/github/models/githubPullRequestModel.js';

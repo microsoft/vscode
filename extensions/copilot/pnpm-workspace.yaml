@@ -27,6 +27,8 @@ pmOnFail: ignore
 skills:
   dirs: []
 allowBuilds:
+  # Only `.esbuild.mts --watch` uses it: the prebuilt binary is enough, without a build from source.
+  '@parcel/watcher@2.5.6': false
   '@playwright/browser-chromium@1.61.1': true
   '@vscode/vsce-sign@2.1.0': true
   esbuild@0.28.1: true

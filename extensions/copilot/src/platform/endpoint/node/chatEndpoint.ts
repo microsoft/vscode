@@ -33,6 +33,7 @@ import { ICAPIClientService } from '../common/capiClient';
 import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, isKimiK3PlusFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';

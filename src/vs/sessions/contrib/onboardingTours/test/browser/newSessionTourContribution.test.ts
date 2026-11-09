@@ -19,7 +19,7 @@ import { markOnboardingTarget, ONBOARDING_TARGET_PULSE_CLASS } from '../../../..
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionTourContribution } from '../../browser/newSessionTourContribution.js';
 import { NEW_SESSION_TOUR_ID } from '../../browser/tours/newSessionTour.js';

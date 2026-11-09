@@ -9,8 +9,9 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ICanvasReference, ICanvasService, REVEAL_CANVAS_COMMAND_ID } from '../../common/canvas.js';
+import { ICanvasService, REVEAL_CANVAS_COMMAND_ID } from '../../common/canvas.js';
 import { registerCanvasCommands } from '../../electron-browser/canvasCommands.js';
+import { ICanvasReference } from '../../../../common/canvasReference.js';
 
 suite('CanvasCommands', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
