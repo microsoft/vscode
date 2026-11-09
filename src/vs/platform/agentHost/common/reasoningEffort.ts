@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { localize } from '../../../nls.js';
 
 /**
@@ -93,9 +94,31 @@ function isMediumEffortDefaultClaudeModel(modelId: string | undefined): boolean 
 }
 
 /**
+ * SHA-1 hashes of the model ids hashed by `HIDDEN_MODEL_L_HASHES` in the Copilot extension.
+ */
+const HIDDEN_MODEL_L_HASHES = [
+	'899b460deeee12dd4cd90bbaebe5a4171345132a',
+];
+
+/**
+ * Whether a model id names Kimi K3 or newer. Hashed model ids share K3 behavior.
+ * Mirrors the Copilot extension's `isKimiK3PlusFamily`.
+ */
+function isKimiK3PlusModel(modelId: string): boolean {
+	const lowerId = modelId.toLowerCase();
+	const sha = new StringSHA1();
+	sha.update(lowerId);
+	if (HIDDEN_MODEL_L_HASHES.includes(sha.digest())) {
+		return true;
+	}
+	const major = /(?:^|[^a-z\d])kimi-k(?<major>\d+)(?:[.p]\d+)?(?=$|[^a-z\d])/.exec(lowerId)?.groups?.major;
+	return (major !== undefined && Number(major) >= 3) || /(?:^|\/)k3(?:\.\d+)?(?=$|[-:])/.test(lowerId);
+}
+
+/**
  * Resolve the default reasoning effort for a model so the picker never renders an
  * `undefined` selection. Prefers the declared default, then `'medium'` for Claude Opus/Haiku 5.5,
- * `'high'` for other Claude/Kimi K3 models and `'medium'` otherwise, then the first supported level.
+ * `'high'` for other Claude models and Kimi K3 or newer, and `'medium'` otherwise, then the first supported level.
  * Mirrors the Copilot extension's `pickDefaultReasoningEffort`.
  */
 export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[] | undefined, declaredDefault?: string, modelId?: string): string | undefined {
@@ -106,6 +129,6 @@ export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[
 		return declaredDefault;
 	}
 	const lowerId = modelId?.toLowerCase() ?? '';
-	const preferred = !isMediumEffortDefaultClaudeModel(lowerId) && (lowerId.startsWith('claude') || lowerId.includes('kimi-k3')) ? 'high' : 'medium';
+	const preferred = !isMediumEffortDefaultClaudeModel(lowerId) && (lowerId.startsWith('claude') || isKimiK3PlusModel(lowerId)) ? 'high' : 'medium';
 	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
 }

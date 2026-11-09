@@ -40,7 +40,7 @@ import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessi
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService } from '../../common/copilotCLITools';
 import { ICustomSessionTitleService } from '../../common/customSessionTitleService';
-import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../../common/delegationSummaryService';
 import { getCopilotCLISessionDir } from '../cliHelpers';
 import { ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession, ICopilotCLISession } from '../copilotcliSession';

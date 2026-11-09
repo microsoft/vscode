@@ -11,7 +11,7 @@ import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
-import { renderSessionsEmptyState } from '../../browser/parts/sessionsEmptyState.js';
+import { renderSessionsEmptyState } from '../../../workbench/browser/parts/sessions/sessionsEmptyState.js';
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/style.css';

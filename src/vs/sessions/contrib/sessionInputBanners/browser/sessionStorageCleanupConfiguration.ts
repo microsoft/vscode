@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../../workbench/common/configuration.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING } from './sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 
 export const sessionStorageCleanupSuggestionConfigurationMigration: ConfigurationMigration = {
 	key: LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING,

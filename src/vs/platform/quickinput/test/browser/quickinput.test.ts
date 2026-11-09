@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, registerWindow } from '../../../../base/browser/dom.js';
 import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
@@ -20,7 +20,7 @@ import { QuickInputController } from '../../browser/quickInputController.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { mainWindow } from '../../../../base/browser/window.js';
+import { ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { backButton, IQuickInputStyles, QuickPick } from '../../browser/quickInput.js';
 import { IQuickPick, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS, QuickPickFocus } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
@@ -156,6 +156,22 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	teardown(() => {
 		sinon.restore();
+	});
+
+	test('tracks the modifier keys of a window registered before it was created, such as an auxiliary window opened before the first quick input, as of the windows registered after', () => {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryWindow = iframe.contentWindow!;
+		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 3000);
+		store.add(registerWindow(auxiliaryWindow));
+		const created = store.add(instantiationService.createInstance(QuickInputController, Reflect.get(controller, 'options')));
+		const pick = store.add(created.createQuickPick());
+
+		auxiliaryWindow.dispatchEvent(new auxiliaryWindow.KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+		const pressed = pick.keyMods.alt;
+		auxiliaryWindow.dispatchEvent(new auxiliaryWindow.KeyboardEvent('keyup', { key: 'Alt', altKey: false }));
+
+		assert.deepStrictEqual({ pressed, released: pick.keyMods.alt }, { pressed: true, released: false });
 	});
 
 	test('removes its widget from the container when disposed', () => {

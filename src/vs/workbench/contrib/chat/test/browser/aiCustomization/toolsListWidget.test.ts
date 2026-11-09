@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
-import { isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
+import { getPluginToolsGroup, isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
 import { IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 suite('toolsListWidget', () => {
@@ -41,6 +43,24 @@ suite('toolsListWidget', () => {
 			mixedRole: 'switch',
 			mixedChecked: 'mixed',
 		});
+	});
+
+	test('derives plugin tool groups from discovery source', () => {
+		const plugin = (source?: string): PluginCustomization => ({
+			type: CustomizationType.Plugin,
+			id: source ?? 'default',
+			uri: `other-host:/${source ?? 'default'}`,
+			name: source ?? 'default',
+			_meta: source ? withCustomizationDiscoveryMeta(undefined, { source }) : undefined,
+		});
+
+		assert.deepStrictEqual([
+			getPluginToolsGroup(plugin()),
+			getPluginToolsGroup(plugin('user')),
+			getPluginToolsGroup(plugin('repository')),
+			getPluginToolsGroup(plugin('builtin')),
+			getPluginToolsGroup(plugin('future-source')),
+		], ['user', 'user', 'workspace', 'application', 'user']);
 	});
 
 	test('search treats dashes and spaces as equivalent separators with highlights', () => {
