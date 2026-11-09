@@ -244,6 +244,9 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	readonly sentMessages: ProtocolTransportMessage[] = [];
 
+	/** A full socket buffer holds scheduled channel data and controls back. */
+	bufferedAmount: number | undefined;
+
 	send(message: ProtocolTransportMessage): void {
 		this.sentMessages.push(message);
 		this._onDidSend.fire();
@@ -5813,6 +5816,57 @@ suite('AgentHostProtocolClient', () => {
 			}, {
 				title: 'After renewal',
 				sent: ['subscribe', 'subscribe', 'subscribe', 'subscribe', dispatches[0], dispatches[1]],
+			});
+		});
+
+		test('drops credit an expired relay window had not sent, so it cannot reach the restored window', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true });
+			const resource = 'other-agent://tenant/conversations/credited-session';
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits };
+			const snapshot = (title: string, fromSeq: number) => ({
+				jsonrpc: '2.0' as const, method: 'channel/snapshot', params: {
+					channel: resource, snapshot: {
+						resource, fromSeq, state: createSessionState({
+							resource, provider: 'other-agent', title, status: SessionStatus.Idle,
+							createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+						}),
+					},
+				},
+			});
+			const credits = () => transport.sentMessages.filter((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'channel/credit').map(message => message.params);
+			disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+			transport.fireWireMessage(snapshot('Before expiry', 2));
+			await flushMicrotasks();
+			transport.bufferedAmount = Number.MAX_SAFE_INTEGER;
+			client['_windowedChannels'].get(resource)?.flushCredit();
+			const creditsBeforeExpiry = credits();
+
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			transport.bufferedAmount = undefined;
+			const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+			const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+			// The scheduler retries held controls after its drain interval, while the host already serves a new window.
+			await timeout(50);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: restored.id, result: { flowControl } });
+			// A different size than the expired window's snapshot, so a stale credit stands out.
+			const after = snapshot('After identity renewal', 3);
+			transport.fireWireMessage(after);
+			await renewed;
+			await flushMicrotasks();
+			client['_windowedChannels'].get(resource)?.flushCredit();
+			await flushMicrotasks();
+			assert.deepStrictEqual({ creditsBeforeExpiry, credits: credits() }, {
+				creditsBeforeExpiry: [],
+				credits: [{ channel: resource, consumedBytes: JSON.stringify(after).length * 2 }],
 			});
 		});
 

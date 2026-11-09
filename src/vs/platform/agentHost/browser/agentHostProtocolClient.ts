@@ -3985,6 +3985,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			this._windowedChannels.deleteAndDispose(channel);
 			this._windowedStateChannels.delete(channel);
+			// Delayed credit for a discarded window must not reach the host's restored window.
+			this._channelScheduler.value?.clearControls(channel);
 		}
 		for (const pending of this._pendingChannelSubscriptions.values()) {
 			unsent.push(...pending.messages);
