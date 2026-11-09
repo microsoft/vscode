@@ -646,11 +646,19 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		return workspace;
 	}
 
+	private async getTaskFromHandle(workspace: string | IWorkspace | IWorkspaceFolder, value: ITaskHandleDTO): Promise<Task | undefined> {
+		const task = await this._taskService.getTask(workspace, value.id, true, value.type);
+		if (!task && value.type !== undefined) {
+			return this._taskService.getTask(workspace, value.id, true);
+		}
+		return task;
+	}
+
 	public async $getTaskExecution(value: ITaskHandleDTO | ITaskDTO): Promise<ITaskExecutionDTO> {
 		if (TaskHandleDTO.is(value)) {
 			const workspace = this.getWorkspace(value.workspaceFolder);
 			if (workspace) {
-				const task = await this._taskService.getTask(workspace, value.id, true, value.type);
+				const task = await this.getTaskFromHandle(workspace, value);
 				if (task) {
 					return {
 						id: task._id,
@@ -677,7 +685,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			if (TaskHandleDTO.is(value)) {
 				const workspace = this.getWorkspace(value.workspaceFolder);
 				if (workspace) {
-					this._taskService.getTask(workspace, value.id, true, value.type).then((task: Task | undefined) => {
+					this.getTaskFromHandle(workspace, value).then((task: Task | undefined) => {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {

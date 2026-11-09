@@ -19,7 +19,7 @@ import { ContributedTask, ITaskEvent, RunOptions, RuntimeType, TaskEvent, TaskEv
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { MainThreadTask } from '../../browser/mainThreadTask.js';
-import { ExtHostContext, MainContext, MainThreadTaskShape } from '../../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostTaskShape, MainContext, MainThreadTaskShape } from '../../common/extHost.protocol.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { IExtHostConfiguration } from '../../common/extHostConfiguration.js';
 import { IExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
@@ -28,7 +28,7 @@ import { WorkerExtHostTask } from '../../common/extHostTask.js';
 import { IExtHostTerminalService } from '../../common/extHostTerminalService.js';
 import { CustomExecution, Task, TaskScope } from '../../common/extHostTypes.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
-import { ITaskDefinitionDTO, ITaskDTO } from '../../common/shared/tasks.js';
+import { ITaskDefinitionDTO, ITaskDTO, ITaskExecutionDTO, ITaskHandleDTO } from '../../common/shared/tasks.js';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 
 class TestExtHostTask extends WorkerExtHostTask {
@@ -264,4 +264,59 @@ suite('MainThreadTask custom execution startup', () => {
 		h.dispatch(TaskEvent.general(TaskEventKind.End, h.contributed));
 		await h.rpc.sync();
 	});
+});
+
+suite('MainThreadTask task handle lookup', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const handle: ITaskHandleDTO = { id: 'fetched-task', workspaceFolder: 'test-workspace', type: 'shell' };
+	const workspaceTask = new ContributedTask('fetched-task', {
+		kind: TaskSourceKind.Extension, label: 'test', extension: 'test.tasks', scope: InternalTaskScope.Workspace, workspaceFolder: undefined
+	}, 'fetched-task', 'testTask', { type: 'testTask', _key: 'fetched-task' },
+		{ runtime: RuntimeType.CustomExecution }, false, RunOptions.defaults, {
+		name: 'fetched-task', identifier: 'fetched-task', problemMatchers: []
+	});
+
+	const operations: readonly [string, (mainThread: MainThreadTask, value: ITaskHandleDTO) => Promise<ITaskExecutionDTO>][] = [
+		['$getTaskExecution', (mainThread, value) => mainThread.$getTaskExecution(value)],
+		['$executeTask', (mainThread, value) => mainThread.$executeTask(value)]
+	];
+
+	for (const [operation, invoke] of operations) {
+		test(`${operation} retries without the task type when a typed lookup misses`, async () => {
+			const lookups: Parameters<ITaskService['getTask']>[] = [];
+			const taskService = new class extends mock<ITaskService>() {
+				override readonly onDidStateChange: Event<ITaskEvent> = Event.None;
+				override async getTask(...args: Parameters<ITaskService['getTask']>) {
+					lookups.push(args);
+					return args.length === 4 ? undefined : workspaceTask;
+				}
+				override run() {
+					return Promise.resolve(undefined);
+				}
+			};
+			const rpc = new TestRPCProtocol();
+			rpc.set(ExtHostContext.ExtHostTask, new class extends mock<ExtHostTaskShape>() {
+				override $OnDidEndTask() { }
+			});
+			const mainThread = store.add(new MainThreadTask(
+				rpc,
+				taskService,
+				new class extends mock<IWorkspaceContextService>() { },
+				upcastPartial<IConfigurationResolverService>({})
+			));
+
+			const result = await invoke(mainThread, handle);
+
+			assert.deepStrictEqual({
+				lookups,
+				taskName: result.task?.name
+			}, {
+				lookups: [
+					['test-workspace', 'fetched-task', true, 'shell'],
+					['test-workspace', 'fetched-task', true]
+				],
+				taskName: 'fetched-task'
+			});
+		});
+	}
 });
