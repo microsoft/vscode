@@ -34,6 +34,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
@@ -190,6 +191,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			onDidChangeWorkbenchState: workbenchStateChanged.event,
 		}));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
+		instantiation.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));
 		instantiation.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async value => { calls.push(value ?? {}); await openReady; } }));
 		instantiation.stub(IAgentHostEditorActivityService, upcastPartial<IAgentHostEditorActivityService>({
 			recordCopilotHarnessIntroductionShown: async () => { introductionImpressions++; },

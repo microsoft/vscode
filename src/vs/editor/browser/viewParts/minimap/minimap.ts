@@ -213,7 +213,7 @@ class MinimapOptions {
 	}
 }
 
-class MinimapLayout {
+export class MinimapLayout {
 
 	constructor(
 		/**
@@ -280,10 +280,11 @@ class MinimapLayout {
 	}
 
 	public static create(
-		options: MinimapOptions,
+		options: Pick<MinimapOptions, 'pixelRatio' | 'minimapLineHeight' | 'canvasInnerHeight' | 'lineHeight' | 'minimapHeightIsEditorHeight' | 'minimapHeight' | 'paddingTop' | 'paddingBottom' | 'scrollBeyondLastLine'>,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
 		viewportStartLineNumberVerticalOffset: number,
+		viewportStartLineNumberLineHeight: number,
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
@@ -401,7 +402,12 @@ class MinimapLayout {
 			}
 
 			const endLineNumber = Math.min(lineCount, startLineNumber - topPaddingLineCount + minimapLinesFitting - 1);
-			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
+			// When the viewport starts inside a view zone, the top padding or a taller line, the first
+			// visible line does not start at `scrollTop`; clamp so the slider never moves backwards.
+			// A custom line height can round to 0px, and such a line has no partial progress
+			const partialLine = viewportStartLineNumberLineHeight > 0
+				? Math.min(Math.max(0, scrollTop - viewportStartLineNumberVerticalOffset), viewportStartLineNumberLineHeight) / viewportStartLineNumberLineHeight
+				: 0;
 
 			let sliderTopAligned: number;
 			if (scrollTop >= options.paddingTop) {
@@ -587,6 +593,7 @@ interface IMinimapRenderingContext {
 	readonly viewportStartLineNumber: number;
 	readonly viewportEndLineNumber: number;
 	readonly viewportStartLineNumberVerticalOffset: number;
+	readonly viewportStartLineNumberLineHeight: number;
 
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
@@ -979,6 +986,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			viewportStartLineNumber: viewportStartLineNumber,
 			viewportEndLineNumber: viewportEndLineNumber,
 			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
+			viewportStartLineNumberLineHeight: ctx.getLineHeightForLineNumber(viewportStartLineNumber),
 
 			scrollTop: ctx.scrollTop,
 			scrollLeft: ctx.scrollLeft,
@@ -1182,6 +1190,7 @@ class InnerMinimap extends Disposable {
 	private _buffers: MinimapBuffers | null;
 	private _isMouseOverMinimap: boolean = false;
 	private _hideDelayedScheduler: RunOnceScheduler;
+	private _hideSliderAfterScrollScheduler: RunOnceScheduler;
 
 	constructor(
 		theme: EditorTheme,
@@ -1233,6 +1242,7 @@ class InnerMinimap extends Disposable {
 		this._applyLayout();
 
 		this._hideDelayedScheduler = this._register(new RunOnceScheduler(() => this._hideImmediatelyIfMouseIsOutside(), 500));
+		this._hideSliderAfterScrollScheduler = this._register(new RunOnceScheduler(() => this._domNode.toggleClassName('slider-scrolling', false), 500));
 
 		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_OVER, () => {
 			this._isMouseOverMinimap = true;
@@ -1485,6 +1495,10 @@ class InnerMinimap extends Disposable {
 			this._domNode.toggleClassName('active', true);
 			this._hideSoon();
 		}
+		if (this._model.options.showSlider === 'mouseover' && e.scrollTopChanged) {
+			this._domNode.toggleClassName('slider-scrolling', true);
+			this._hideSliderAfterScrollScheduler.schedule();
+		}
 		this._renderDecorations = true;
 		return true;
 	}
@@ -1530,6 +1544,7 @@ class InnerMinimap extends Disposable {
 			renderingCtx.viewportStartLineNumber,
 			renderingCtx.viewportEndLineNumber,
 			renderingCtx.viewportStartLineNumberVerticalOffset,
+			renderingCtx.viewportStartLineNumberLineHeight,
 			renderingCtx.viewportHeight,
 			renderingCtx.viewportContainsWhitespaceGaps,
 			this._model.getLineCount(),
