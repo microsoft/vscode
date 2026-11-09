@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IProgressState } from '@xterm/addon-progress';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
 import { hash } from '../../../../base/common/hash.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -65,6 +67,15 @@ export function getIconColorStyle(colorClass: string, color: Color): string {
 		`.monaco-workbench .${colorClass}.single-terminal-tab:not(.alt-command) > ${iconSelector}` +
 		`{ color: ${color} !important; }`
 	);
+}
+
+export function getTerminalProgressIcon(progressState: IProgressState | undefined): ThemeIcon | undefined {
+	switch (progressState?.state) {
+		case 2: return Codicon.error;
+		case 3: return ThemeIcon.modify(Codicon.loading, 'spin');
+		case 4: return Codicon.alert;
+		default: return undefined;
+	}
 }
 
 export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean): string {

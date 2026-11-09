@@ -487,8 +487,13 @@
 	display: block;
 }
 
-.monaco-action-bar .action-item.single-terminal-tab-container {
+.terminal-view.has-single-terminal-tab > .pane-header > .actions {
+	flex: 1;
 	min-width: 0;
+}
+
+.terminal-view.has-single-terminal-tab > .pane-header > .actions .actions-container {
+	justify-content: flex-end;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab {
@@ -516,7 +521,7 @@
 	margin-right: 4px;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab > .codicon:last-child {
+.monaco-action-bar .action-item .single-terminal-tab > .codicon:not(:first-child) {
 	margin-left: 4px;
 	color: inherit;
 }

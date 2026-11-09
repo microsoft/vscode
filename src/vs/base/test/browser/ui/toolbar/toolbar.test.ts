@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.j
 
 class FixedWidthActionViewItem extends BaseActionViewItem {
 
-	constructor(action: IAction, private readonly width: number, private readonly visible = true) {
+	constructor(action: IAction, private readonly width: number, private readonly visible = true, readonly minimumWidthForOverflow?: number) {
 		super(undefined, action);
 	}
 
@@ -55,6 +55,135 @@ suite('ToolBar', () => {
 	teardown(() => {
 		sinon.restore();
 		container.remove();
+	});
+
+	test('overflows custom action items before their minimum width is lost', () => {
+		const actions = ['custom', 'second', 'third'].map(id => store.add(new Action(id, id)));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => action === actions[0] ? new FixedWidthActionViewItem(action, 200, true, 48) : undefined
+		}));
+		const snapshot = () => ({
+			responsive: toolbar.getElement().classList.contains('responsive-all'),
+			primary: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id),
+			overflow: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index))
+				.flatMap(action => action instanceof ToggleMenuAction ? action.menuActions.map(item => item.id) : [])
+		});
+		container.style.width = '200px';
+		toolbar.setActions(actions);
+		const initial = { ...snapshot(), minimumWidth: toolbar.getItemElement(0)?.style.minWidth };
+		container.style.width = '80px';
+		toolbar.relayout();
+		const narrow = snapshot();
+		container.style.width = '50px';
+		toolbar.relayout();
+		const narrower = snapshot();
+		container.style.width = '200px';
+		toolbar.relayout();
+		const restored = { ...snapshot(), minimumWidth: toolbar.getItemElement(0)?.style.minWidth };
+		toolbar.setActions(actions.slice(1));
+		const replaced = snapshot();
+
+		assert.deepStrictEqual({ initial, narrow, narrower, restored, replaced }, {
+			initial: { responsive: true, primary: ['custom', 'second', 'third'], overflow: [], minimumWidth: '48px' },
+			narrow: { responsive: true, primary: ['second', 'third', ToggleMenuAction.ID], overflow: ['custom'] },
+			narrower: { responsive: true, primary: ['third', ToggleMenuAction.ID], overflow: ['custom', 'second'] },
+			restored: { responsive: true, primary: ['custom', 'second', 'third'], overflow: [], minimumWidth: '48px' },
+			replaced: { responsive: false, primary: ['second', 'third'], overflow: [] }
+		});
+	});
+
+	test('honors custom minimum widths with an existing responsive configuration', () => {
+		let availableWidth = 80;
+		const custom = store.add(new Action('custom', 'Custom'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => action === custom ? new FixedWidthActionViewItem(action, 200, true, 48) : undefined,
+			responsiveBehavior: {
+				enabled: true, kind: 'all', minItems: 0, overflowFrom: 'start',
+				actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth
+			}
+		}));
+		toolbar.setActions([custom], [store.add(new Action('secondary', 'Secondary'))]);
+		const initial = toolbar.getItemElement(0)?.style.minWidth;
+		availableWidth = 60;
+		toolbar.relayout();
+		const collapsed = toolbar.getItemAction(0);
+		const overflow = collapsed instanceof ToggleMenuAction ? collapsed.menuActions.map(action => action.id) : [];
+		availableWidth = 80;
+		toolbar.relayout();
+
+		assert.deepStrictEqual({ initial, overflow, restored: toolbar.getItemElement(0)?.style.minWidth }, {
+			initial: '48px', overflow: ['custom', Separator.ID, 'secondary'], restored: '48px'
+		});
+	});
+
+	test('preserves custom action models and their minimum widths through overflow', async () => {
+		const actions = ['custom', 'second', 'third'].map(id => store.add(new Action(id, id)));
+		let runs = 0;
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => action.id === 'custom'
+				? new FixedWidthActionViewItem(store.add(new Action(action.id, action.label, undefined, true, async () => { runs++; })), 200, true, 48)
+				: undefined
+		}));
+		const snapshot = () => ({
+			primary: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id),
+			overflow: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index))
+				.flatMap(action => action instanceof ToggleMenuAction ? action.menuActions.map(item => item.id) : [])
+		});
+		container.style.width = '200px';
+		toolbar.setActions(actions);
+		container.style.width = '80px';
+		toolbar.relayout();
+		const narrow = snapshot();
+		const overflow = toolbar.getItemAction(toolbar.getItemsLength() - 1);
+		if (overflow instanceof ToggleMenuAction) {
+			await overflow.menuActions.find(action => action.id === 'custom')?.run();
+		}
+		container.style.width = '200px';
+		toolbar.relayout();
+		const restored = { ...snapshot(), minimumWidth: toolbar.getItemElement(0)?.style.minWidth };
+		container.style.width = '80px';
+		toolbar.relayout();
+
+		assert.deepStrictEqual({ narrow, restored, repeated: snapshot(), runs }, {
+			narrow: { primary: ['second', 'third', ToggleMenuAction.ID], overflow: ['custom'] },
+			restored: { primary: ['custom', 'second', 'third'], overflow: [], minimumWidth: '48px' },
+			repeated: { primary: ['second', 'third', ToggleMenuAction.ID], overflow: ['custom'] },
+			runs: 1
+		});
+	});
+
+	test('does not enable responsive overflow when explicitly disabled', () => {
+		const custom = store.add(new Action('custom', 'Custom'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 200, true, 48),
+			responsiveBehavior: { enabled: false, kind: 'all' }
+		}));
+		container.style.width = '24px';
+		toolbar.setActions([custom]);
+		toolbar.relayout();
+
+		assert.deepStrictEqual({
+			responsive: toolbar.getElement().classList.contains('responsive'),
+			primary: toolbar.getItemAction(0)?.id,
+			overflow: toolbar.hasOverflow()
+		}, { responsive: false, primary: 'custom', overflow: false });
+	});
+
+	test('does not infer responsive behavior from unrelated minimum-width properties', () => {
+		const custom = store.add(new Action('custom', 'Custom'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => new class extends FixedWidthActionViewItem {
+				readonly minimumWidth = 48;
+			}(action, 200)
+		}));
+		container.style.width = '24px';
+		toolbar.setActions([custom]);
+
+		assert.deepStrictEqual({
+			responsive: toolbar.getElement().classList.contains('responsive'),
+			primary: toolbar.getItemAction(0)?.id,
+			overflow: toolbar.hasOverflow()
+		}, { responsive: false, primary: 'custom', overflow: false });
 	});
 
 	test('only updates current dropdown contexts after repeated responsive overflow', () => {

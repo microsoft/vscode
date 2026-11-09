@@ -39,7 +39,9 @@ suite('Terminal icon colors', () => {
 		addIcon(statusRow, 'status', '.file-icon.codicon-warning');
 		const singleTab = dom.append(container, dom.$('.single-terminal-tab.action-label.terminal-icon-test'));
 		addIcon(singleTab, 'single tab', '.codicon-rerun-task');
-		addIcon(dom.append(singleTab, dom.$('.single-terminal-tab-label')), 'progress', '.codicon-alert');
+		addIcon(dom.append(singleTab, dom.$('.single-terminal-tab-label')), 'inline icon', '.codicon-beaker');
+		addIcon(singleTab, 'progress', '.single-terminal-tab-progress.codicon-alert');
+		addIcon(singleTab, 'single tab status', '.codicon-bell');
 		const alternateAction = dom.append(container, dom.$('.single-terminal-tab.action-label.alt-command.terminal-icon-test'));
 		addIcon(alternateAction, 'alternate action', '.codicon-split-horizontal');
 
@@ -52,7 +54,9 @@ suite('Terminal icon colors', () => {
 			'action trashcan': 'rgb(0, 0, 255)',
 			'status': 'rgb(0, 0, 255)',
 			'single tab': 'rgb(255, 0, 0)',
+			'inline icon': 'rgb(0, 0, 255)',
 			'progress': 'rgb(0, 0, 255)',
+			'single tab status': 'rgb(0, 0, 255)',
 			'alternate action': 'rgb(0, 0, 255)',
 		});
 	});

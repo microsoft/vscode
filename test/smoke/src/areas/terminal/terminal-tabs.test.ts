@@ -13,6 +13,16 @@ export function setup(options?: { skipSuite: boolean }) {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 
+		const focusHover = async () => {
+			const page = await terminal.getPage();
+			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+			await page.keyboard.press(`${modifier}+k`);
+			await page.keyboard.press(`${modifier}+i`);
+			const hover = page.locator('.monaco-hover:visible');
+			await hover.waitFor({ state: 'visible' });
+			return hover;
+		};
+
 		before(async function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
@@ -37,24 +47,34 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		it('should truncate a long single tab label without overflowing its actions', async function () {
+		[false, true].forEach(sharedContainer => it(`should truncate a long single tab label without overflowing its actions${sharedContainer ? ' in a shared container' : ' with hidden tabs'}`, async function () {
 			const app = this.app as Application;
-			const previousWindowSize = await app.code.driver.resizeWindow({ width: 1024, height: 720 });
-			const name = 'Notification settings progress '.repeat(10).trim();
+			const previousWindowSize = await app.code.driver.resizeWindow({ width: sharedContainer ? 1440 : 1024, height: 720 });
+			const name = 'NotificationSettingsProgress'.repeat(10);
 			// Settings automation reads rendered lines; the long title alone is enough to force truncation.
 			const description = 'Current task <project> &amp; [name] C:\\workspace\\long_name';
 			try {
+				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app, [
 					['terminal.integrated.tabs.description', JSON.stringify(description)],
+					['terminal.integrated.tabs.hideCondition', JSON.stringify(sharedContainer ? 'never' : 'singleTerminal')],
 					['terminal.integrated.enableVisualBell', 'true'],
 					['terminal.integrated.bellDuration', '60000']
 				]);
 				await terminal.createTerminal();
+				const page = await terminal.getPage();
+				if (sharedContainer) {
+					await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
+					await app.workbench.quickaccess.runCommand('workbench.actions.view.problems');
+					await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+					await page.locator('.part.panel .composite-bar .action-label[aria-label^="Problems"]').dragTo(page.locator('.pane-body.integrated-terminal'));
+					await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+					await page.locator('.pane-header .single-terminal-tab').waitFor({ state: 'visible' });
+				}
 				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelRight');
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 				await terminal.assertSingleTab({ name });
 
-				const page = await terminal.getPage();
 				const bell = page.locator('.single-terminal-tab .codicon-bell');
 				// The bell listener is registered after terminal startup.
 				const bellDeadline = Date.now() + 10_000;
@@ -68,53 +88,95 @@ export function setup(options?: { skipSuite: boolean }) {
 					const labelBounds = label.getBoundingClientRect();
 					const actionBounds = action.getBoundingClientRect();
 					const toolbarBounds = action.parentElement!.getBoundingClientRect();
+					const headerBounds = label.closest('.pane-header, .title-actions')!.getBoundingClientRect();
 					return {
 						text: label.textContent?.replace(/\s+/g, ' ').trim(),
 						textTruncated: textLabel.scrollWidth > textLabel.clientWidth,
 						labelOverflows: label.scrollWidth > label.clientWidth,
 						actionOverflows: action.scrollWidth > action.clientWidth,
 						actionWithinToolbar: actionBounds.left >= toolbarBounds.left && actionBounds.right <= toolbarBounds.right,
+						actionsWithinHeader: [...action.parentElement!.children].every(item => {
+							const bounds = item.getBoundingClientRect();
+							return !bounds.width || bounds.left >= headerBounds.left && bounds.right <= headerBounds.right;
+						}),
 						iconsVisible: [...label.querySelectorAll('.codicon')].every(icon => {
 							const bounds = icon.getBoundingClientRect();
 							return bounds.width > 0 && bounds.left >= labelBounds.left && bounds.right <= labelBounds.right;
 						})
 					};
 				});
-				await page.locator('.single-terminal-tab').hover();
-				const hover = page.locator('.monaco-hover:visible');
-				await hover.waitFor({ state: 'visible' });
-				const hoverText = (await hover.textContent())?.replace(/\s+/g, ' ');
-				assert.deepStrictEqual({
-					...layout,
-					hoverIncludesTitle: hoverText?.includes(name),
-					hoverIncludesDescription: hoverText?.includes(description)
-				}, {
+				assert.deepStrictEqual(layout, {
 					text: `${name} - ${description}`,
 					textTruncated: true,
 					labelOverflows: false,
 					actionOverflows: false,
 					actionWithinToolbar: true,
-					iconsVisible: true,
+					actionsWithinHeader: true,
+					iconsVisible: true
+				});
+				await page.locator('.single-terminal-tab').hover();
+				const hover = page.locator('.monaco-hover:visible');
+				await hover.waitFor({ state: 'visible' });
+				const hoverText = (await hover.textContent())?.replace(/\s+/g, ' ');
+				await page.mouse.move(0, 0);
+				await page.keyboard.press('Escape');
+				await hover.waitFor({ state: 'hidden' });
+				await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+				const keyboardHover = await focusHover();
+				const keyboardHoverText = (await keyboardHover.textContent())?.replace(/\s+/g, ' ');
+				const keyboardHoverFocused = await keyboardHover.evaluate(element => element.contains(document.activeElement));
+				await page.keyboard.press('Escape');
+				await keyboardHover.waitFor({ state: 'hidden' });
+				assert.deepStrictEqual({
+					tabsListVisible: await page.locator('.pane-body.integrated-terminal .tabs-container').isVisible(),
+					hoverIncludesTitle: hoverText?.includes(name),
+					hoverIncludesDescription: hoverText?.includes(description),
+					keyboardIncludesTitle: keyboardHoverText?.includes(name),
+					keyboardIncludesDescription: keyboardHoverText?.includes(description),
+					keyboardHoverFocused,
+					terminalRefocused: await page.locator('.xterm-helper-textarea:focus').count() === 1
+				}, {
+					tabsListVisible: sharedContainer,
 					hoverIncludesTitle: true,
-					hoverIncludesDescription: true
+					hoverIncludesDescription: true,
+					keyboardIncludesTitle: true,
+					keyboardIncludesDescription: true,
+					keyboardHoverFocused: true,
+					terminalRefocused: true
 				});
 			} finally {
+				if (sharedContainer) {
+					await app.workbench.quickaccess.runCommand('workbench.action.resetViewLocations');
+				}
 				await app.code.driver.resizeWindow(previousWindowSize);
 				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
 				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app);
 			}
-		});
+		}));
 
-		it('should keep progress icon colors independent of the terminal color', async function () {
+		it('should keep progress icons visible and independently colored with a long title', async function () {
 			const app = this.app as Application;
+			const previousWindowSize = await app.code.driver.resizeWindow({ width: 1024, height: 720 });
 			try {
+				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app, [
-					['terminal.integrated.tabs.description', '"${progress}"']
+					['terminal.integrated.tabs.description', '"${progress}"'],
+					['terminal.integrated.tabs.hideCondition', '"singleTerminal"'],
+					['terminal.integrated.enableVisualBell', 'true'],
+					['terminal.integrated.bellDuration', '60000']
 				]);
 				await terminal.createEmptyTerminal();
+				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelRight');
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, 'NotificationSettingsProgress'.repeat(10));
 
 				const page = await terminal.getPage();
+				const bell = page.locator('.single-terminal-tab .codicon-bell');
+				const bellDeadline = Date.now() + 10_000;
+				do {
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, '\u0007');
+				} while (!await bell.isVisible() && Date.now() < bellDeadline);
+				await bell.waitFor({ state: 'visible', timeout: 1000 });
 				const states = [
 					{ state: 2, icon: 'error' },
 					{ state: 3, icon: 'loading' },
@@ -123,13 +185,36 @@ export function setup(options?: { skipSuite: boolean }) {
 				const readColors = async () => {
 					const colors: { icon: string; terminal: string; progress: string; pickerProgress: string }[] = [];
 					for (const { state, icon } of states) {
-						const progressIcon = page.locator(`.single-terminal-tab-label .codicon-${icon}`);
+						const progressIcon = page.locator(`.single-terminal-tab .codicon-${icon}`);
 						// The progress addon may still be loading when the terminal first produces output.
 						const progressDeadline = Date.now() + 10_000;
 						do {
 							await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\x1b]9;4;${state};0\\x07`);
 						} while (!await progressIcon.isVisible() && Date.now() < progressDeadline);
 						await progressIcon.waitFor({ state: 'visible', timeout: 1000 });
+						const layout = await progressIcon.evaluate((progress: HTMLElement) => {
+							const label = progress.closest<HTMLElement>('.single-terminal-tab')!;
+							const text = label.querySelector<HTMLElement>('.single-terminal-tab-label')!;
+							const bounds = label.getBoundingClientRect();
+							const icons = [...label.querySelectorAll('.codicon')];
+							return {
+								textTruncated: text.scrollWidth > text.clientWidth,
+								progressOutsideText: !progress.closest('.single-terminal-tab-label'),
+								iconCount: icons.length,
+								iconsVisible: icons.every(icon => {
+									const iconBounds = icon.getBoundingClientRect();
+									return iconBounds.width > 0 && iconBounds.left >= bounds.left && iconBounds.right <= bounds.right;
+								}),
+								labelOverflows: label.scrollWidth > label.clientWidth
+							};
+						});
+						assert.deepStrictEqual(layout, {
+							textTruncated: true,
+							progressOutsideText: true,
+							iconCount: 3,
+							iconsVisible: true,
+							labelOverflows: false
+						});
 						const currentColors = await progressIcon.evaluate((progress: HTMLElement) => {
 							const label = progress.closest<HTMLElement>('.single-terminal-tab')!;
 							const terminalIcon = label.querySelector<HTMLElement>(':scope > .codicon:first-child')!;
@@ -167,7 +252,19 @@ export function setup(options?: { skipSuite: boolean }) {
 				})));
 				await page.locator('.single-terminal-tab').hover();
 				await page.locator('.monaco-hover:visible p').first().locator('.codicon-alert').waitFor({ state: 'visible' });
+				await page.mouse.move(0, 0);
+				await page.keyboard.press('Escape');
+				await page.locator('.monaco-hover:visible').waitFor({ state: 'hidden' });
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, '\\x1b]9;4;1;42\\x07');
+				await page.locator('.single-terminal-tab-label').filter({ hasText: '42%' }).waitFor({ state: 'visible' });
+				await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+				const keyboardHover = await focusHover();
+				await keyboardHover.locator('p').first().filter({ hasText: '42%' }).waitFor({ state: 'visible' });
+				await page.keyboard.press('Escape');
+				await keyboardHover.waitFor({ state: 'hidden' });
 			} finally {
+				await app.code.driver.resizeWindow(previousWindowSize);
+				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
 				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app);
 			}

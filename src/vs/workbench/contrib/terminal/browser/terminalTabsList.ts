@@ -241,7 +241,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}
 
 		this._hoverService.showInstantHover({
-			...getInstanceHoverInfo(instance, this._storageService),
+			...getInstanceHoverInfo(instance, this._storageService, this._configurationService.getValue<string>(TerminalSettingId.TerminalTitleSeparator)),
 			target: this.getHTMLElement(),
 			trapFocus: true
 		}, true);
@@ -361,7 +361,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService, this._terminalConfigurationService.config.tabs.separator);
 		template.context.hoverActions = hoverInfo.actions;
 
 		// While editing, the title is shown in the input box next to the icon instead of in the label
