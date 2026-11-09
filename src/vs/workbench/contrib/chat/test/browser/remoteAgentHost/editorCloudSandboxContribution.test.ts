@@ -42,7 +42,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -223,7 +223,7 @@ function catalogueFeed() {
 	return {
 		sockets,
 		options: {
-			chatVisible: false,
+			catalogueVisible: false,
 			connectSessionFeed: async (): Promise<ICloudSandboxSessionFeedConnection> => ({
 				url: 'wss://feed.example.test', subprotocol: 'json.webpubsub.azure.v1', group: 'test',
 				expires_at: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
@@ -242,7 +242,6 @@ function catalogueFeed() {
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly hasFocus?: boolean;
-	readonly chatVisible?: boolean;
 	readonly catalogueVisible?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
@@ -315,7 +314,6 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const reservationRequests: ICloudSandboxReserveSessionRequest[] = [];
 	let taskDispatches = 0;
 	const focusChanged = store.add(new Emitter<boolean>());
-	const viewVisibilityChanged = store.add(new Emitter<{ id: string; visible: boolean }>());
 	const workspaceFoldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 	const repositoryAdded = store.add(new Emitter<ISCMRepository>());
 	const repositoryRemoved = store.add(new Emitter<ISCMRepository>());
@@ -351,7 +349,6 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		completeAuthentication: true,
 		hidden: false,
 		hasFocus: options?.hasFocus ?? true,
-		chatVisible: options?.chatVisible ?? true,
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
 		disposeSessionError: undefined as Error | undefined,
@@ -449,7 +446,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 	}();
 	const catalogueDemand = store.add(new MutableDisposable());
-	if (options?.catalogueVisible ?? options?.chatVisible ?? true) {
+	if (options?.catalogueVisible ?? true) {
 		catalogueDemand.value = chatSessionsService.acquireSessionItems();
 	}
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -474,10 +471,6 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanged.event;
 		override get hasFocus() { return state.hasFocus; }
-	}());
-	instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-		override readonly onDidChangeViewVisibility = viewVisibilityChanged.event;
-		override isViewVisible(id: string) { return id === ChatViewId && state.chatVisible; }
 	}());
 	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly onDidChangeSentiment = sentimentChanged.event;
@@ -711,17 +704,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryRequests, networkCalls, viewVisibilityChanged, workspaceTrust, preparation, allocations, reservationRequests, chatModels,
-		setChatVisible: async (visible: boolean) => {
-			state.chatVisible = visible;
-			viewVisibilityChanged.fire({ id: ChatViewId, visible });
-			if (visible && !catalogueDemand.value) {
-				catalogueDemand.value = chatSessionsService.acquireSessionItems();
-			} else if (!visible) {
-				catalogueDemand.clear();
-			}
-			await contribution.refresh(CancellationToken.None, 'automatic');
-		},
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryRequests, networkCalls, workspaceTrust, preparation, allocations, reservationRequests, chatModels,
 		setCatalogueVisible: async (visible: boolean) => {
 			if (visible && !catalogueDemand.value) {
 				catalogueDemand.value = chatSessionsService.acquireSessionItems();
@@ -878,14 +861,13 @@ suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('defers feed negotiation and listing until the catalogue is presented despite startup callbacks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createHarness(store, { chatVisible: false });
+		const h = createHarness(store, { catalogueVisible: false });
 		await Promise.all(h.initialRefreshes);
 		await h.refresh('automatic');
 		h.accountChanged.fire(h.state.accountKey);
 		h.focusChanged.fire(true);
 		h.connectionsChanged.fire();
 		h.sentimentChanged.fire();
-		h.viewVisibilityChanged.fire({ id: 'unrelated-view', visible: true });
 		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
 		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
 		await h.setEnabled(CloudSandboxEnabledSettingId, false);
@@ -894,9 +876,9 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh('automatic');
 		const before = [...h.networkCalls];
 
-		await h.setChatVisible(true);
-		await h.setChatVisible(false);
-		await h.setChatVisible(true);
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
+		await h.setCatalogueVisible(true);
 		assert.deepStrictEqual({
 			before, after: h.networkCalls,
 			requests: h.discoveryRequests.map(request => ({
@@ -912,9 +894,14 @@ suite('Editor cloud sandbox discovery', () => {
 	}));
 
 	test('visible Chat without a catalogue stays idle and an empty presented catalogue activates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createHarness(store, { chatVisible: true, catalogueVisible: false });
+		const h = createHarness(store, { catalogueVisible: false });
+		const viewVisibilityChanged = store.add(new Emitter<{ id: string; visible: boolean }>());
+		h.instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override readonly onDidChangeViewVisibility = viewVisibilityChanged.event;
+			override isViewVisible(id: string) { return id === ChatViewId; }
+		}());
 		await Promise.all(h.initialRefreshes);
-		h.viewVisibilityChanged.fire({ id: ChatViewId, visible: true });
+		viewVisibilityChanged.fire({ id: ChatViewId, visible: true });
 		await timeout(20 * 60_000);
 		await h.refresh('automatic');
 		const hidden = [...h.networkCalls];
@@ -1009,7 +996,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const started = new DeferredPromise<CancellationToken>();
 		const pending = new DeferredPromise<undefined>();
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			connectSessionFeed: token => {
 				if (!started.isSettled) {
 					void started.complete(token);
@@ -1123,11 +1110,81 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	}));
 
+	for (const status of [SessionStatus.InProgress, SessionStatus.InputNeeded]) {
+		test(`a peer chat retains background monitoring while the default chat is idle (${status})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const feed = catalogueFeed();
+			const h = createHarness(store, {
+				...feed.options,
+				workspaceFolders: [],
+				initializeResult: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			const main = URI.parse('host-chat:/opaque/main');
+			const peer = URI.parse('host-chat:/opaque/peer');
+			h.state.hostSessions[0] = {
+				...h.state.hostSessions[0], status: SessionStatus.Idle,
+				chats: [
+					{ chat: main, kind: 'default', summary: 'Main', status: SessionStatus.Idle },
+					{ chat: peer, kind: 'peer', summary: 'Peer', status },
+				],
+			};
+			h.state.online = true;
+			h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle }] };
+			await h.setCatalogueVisible(true);
+			await h.contribution.activate();
+			await h.whenConnected;
+			await h.setCatalogueVisible(false);
+			await timeout(2 * 60_000);
+			const activeCloses = feed.sockets.map(socket => socket.closes);
+			h.notifications.fire({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(),
+				changes: {
+					chats: [
+						{ resource: main.toString(), title: 'Main', status: SessionStatus.Idle },
+						{ resource: peer.toString(), title: 'Peer', status: SessionStatus.Idle },
+					],
+				},
+			});
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				activeCloses, settledCloses: feed.sockets.map(socket => socket.closes),
+				statuses: h.items().map(item => [item.status, item.children?.map(child => child.status)]),
+			}, {
+				activeCloses: [0], settledCloses: [1],
+				statuses: [[ChatSessionStatus.Completed, [ChatSessionStatus.Completed]]],
+			});
+		}));
+	}
+
+	for (const active of [{ status: SessionStatus.InProgress }, { status: SessionStatus.Idle, isQueued: true }]) {
+		test(`disabling background-only demand schedules suspension before an empty re-enable (${JSON.stringify(active)})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const feed = catalogueFeed();
+			const storageService = store.add(new InMemoryStorageService());
+			const h = createHarness(store, { ...feed.options, storageService });
+			h.contribution.materializeTasks = false;
+			h.state.result = { kind: 'complete', sessions: [{ ...discovered, ...active, updatedAt: new Date(Date.now()).toISOString() }] };
+			await h.setCatalogueVisible(true);
+			await h.setCatalogueVisible(false);
+			await timeout(2 * 60_000);
+			await h.setEnabled(CloudSandboxEnabledSettingId, false);
+			await timeout(60_000);
+			for (const key of storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				storageService.remove(key, StorageScope.PROFILE);
+			}
+			h.state.result = { kind: 'complete', sessions: [] };
+			await h.setEnabled(CloudSandboxEnabledSettingId, true);
+			await h.refresh('automatic');
+			await timeout(2 * 60_000);
+			assert.deepStrictEqual({ network: h.networkCalls, closes: feed.sockets.map(socket => socket.closes), items: h.items() }, {
+				network: ['feed', 'list'], closes: [1], items: [],
+			});
+		}));
+	}
+
 	test('expiry cancels an in-flight catalogue scan without cancelling a later resume or publishing stale rows', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const started = new DeferredPromise<CancellationToken>();
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			listSessions: token => {
 				if (!started.isSettled) {
 					void started.complete(token);
@@ -1172,30 +1229,30 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	}));
 
-	test('first Chat presentation shares in-flight initialization and disposal cancels publication', async () => {
+	test('first catalogue presentation shares in-flight initialization and disposal cancels publication', async () => {
 		const started = new DeferredPromise<void>();
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			listSessions: () => { void started.complete(); return pending.p; },
 		});
-		const shown = h.setChatVisible(true);
+		const shown = h.setCatalogueVisible(true);
 		await started.p;
-		const reshown = h.setChatVisible(true);
+		const reshown = h.setCatalogueVisible(true);
 		h.contribution.dispose();
 		await pending.complete({ kind: 'complete', sessions: [discovered] });
 		await Promise.all([shown, reshown]);
-		await h.setChatVisible(true);
+		await h.setCatalogueVisible(true);
 		assert.deepStrictEqual({ network: h.networkCalls, items: h.items(), controllers: h.controllers.size }, {
 			network: ['feed', 'list'], items: [], controllers: 0,
 		});
 	});
 
-	test('Chat can be shown while the local account lookup is still pending', async () => {
+	test('the catalogue can be shown while the local account lookup is still pending', async () => {
 		const account = new DeferredPromise<string | undefined>();
-		const h = createHarness(store, { chatVisible: false, getAccountKey: () => account.p });
+		const h = createHarness(store, { catalogueVisible: false, getAccountKey: () => account.p });
 		const before = [...h.networkCalls];
-		const shown = h.setChatVisible(true);
+		const shown = h.setCatalogueVisible(true);
 		await account.complete(h.state.accountKey);
 		await shown;
 		assert.deepStrictEqual({ before, network: h.networkCalls }, {
@@ -1208,12 +1265,12 @@ suite('Editor cloud sandbox discovery', () => {
 		const first = createHarness(store, { storageService });
 		await Promise.all(first.initialRefreshes);
 		first.contribution.dispose();
-		const h = createHarness(store, { storageService, chatVisible: false, workspaceFolders: [], repositories: [] });
+		const h = createHarness(store, { storageService, catalogueVisible: false, workspaceFolders: [], repositories: [] });
 		h.contribution.materializeTasks = false;
 		const shown = new DeferredPromise<void>();
 		store.add(Event.once(h.controllers.get(CLOUD_SANDBOX_TASK_SCHEME)!.onDidChangeChatSessionItems)(() => {
 			queueMicrotask(() => {
-				void h.setChatVisible(true).then(() => shown.complete(), error => shown.error(error));
+				void h.setCatalogueVisible(true).then(() => shown.complete(), error => shown.error(error));
 			});
 		}));
 		await shown.p;
@@ -1221,9 +1278,9 @@ suite('Editor cloud sandbox discovery', () => {
 	});
 
 	test('disposal before first presentation removes the demand listener', async () => {
-		const h = createHarness(store, { chatVisible: false });
+		const h = createHarness(store, { catalogueVisible: false });
 		h.contribution.dispose();
-		await h.setChatVisible(true);
+		await h.setCatalogueVisible(true);
 		h.accountChanged.fire(h.state.accountKey);
 		h.focusChanged.fire(true);
 		assert.deepStrictEqual(h.networkCalls, []);
@@ -1233,7 +1290,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const started = new DeferredPromise<CancellationToken>();
 		const pending = new DeferredPromise<undefined>();
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			connectSessionFeed: async token => {
 				if (!started.isSettled) {
 					void started.complete(token);
@@ -1242,7 +1299,7 @@ suite('Editor cloud sandbox discovery', () => {
 				return undefined;
 			},
 		});
-		const shown = h.setChatVisible(true);
+		const shown = h.setCatalogueVisible(true);
 		const token = await started.p;
 		await h.setEnabled(CloudSandboxEnabledSettingId, false);
 		await pending.complete(undefined);
@@ -1256,10 +1313,10 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('keeps task push updates active after Chat is hidden', async () => {
-		const h = createHarness(store, { chatVisible: false });
-		await h.setChatVisible(true);
-		await h.setChatVisible(false);
+	test('keeps task push updates active during the catalogue grace period', async () => {
+		const h = createHarness(store, { catalogueVisible: false });
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
 		h.state.result = { kind: 'incremental', sessions: [{ ...otherDiscovered, repoName: discovered.repoName }], removedTaskIds: [] };
 		await h.contribution.refreshTasks([otherDiscovered.taskId]);
 		assert.deepStrictEqual({
@@ -1273,9 +1330,9 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('remembers Chat demand while disabled and resumes discovery when authentication arrives', async () => {
-		const h = createHarness(store, { chatVisible: false, enabled: false });
-		await h.setChatVisible(true);
+	test('retains catalogue demand while disabled and resumes discovery when authentication arrives', async () => {
+		const h = createHarness(store, { catalogueVisible: false, enabled: false });
+		await h.setCatalogueVisible(true);
 		h.state.accountKey = undefined;
 		await h.setEnabled(CloudSandboxEnabledSettingId, true);
 		await h.refresh('automatic');
@@ -1294,13 +1351,13 @@ suite('Editor cloud sandbox discovery', () => {
 		await Promise.all(first.initialRefreshes);
 		first.contribution.dispose();
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
-		const h = createHarness(store, { storageService, chatVisible: false, listSessions: () => pending.p });
+		const h = createHarness(store, { storageService, catalogueVisible: false, listSessions: () => pending.p });
 		h.contribution.materializeTasks = false;
 		await Promise.all(h.initialRefreshes);
 		const before = { network: [...h.networkCalls], items: h.items().map(item => item.resource.toString()) };
 		const content = store.add(await h.contentProviders.get(CLOUD_SANDBOX_TASK_SCHEME)!.provideChatSessionContent(resource, CancellationToken.None));
 		await pending.complete({ kind: 'complete', sessions: [discovered] });
-		await h.setChatVisible(true);
+		await h.setCatalogueVisible(true);
 		assert.deepStrictEqual({
 			before, network: h.networkCalls, resource: content.sessionResource.toString(),
 			prompts: content.history.filter(item => item.type === 'request').map(item => item.prompt),
@@ -1325,7 +1382,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const chatSessionsService = store.add(instantiationService.createInstance(ChatSessionsService));
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 		const h = createHarness(contributionStore, {
-			storageService, chatVisible: false, chatSessionsService,
+			storageService, catalogueVisible: false, chatSessionsService,
 			listSessions: () => pending.p,
 		});
 		h.contribution.materializeTasks = false;
@@ -1356,7 +1413,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const chatSessionsService = store.add(instantiationService.createInstance(ChatSessionsService));
 		let accountLookups = 0;
 		const h = createHarness(contributionStore, {
-			chatVisible: false, chatSessionsService,
+			catalogueVisible: false, chatSessionsService,
 			getAccountKey: async () => {
 				accountLookups++;
 				throw new CloudSandboxAuthenticationRequiredError();
@@ -1378,7 +1435,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
 		const chatSessionsService = store.add(instantiationService.createInstance(ChatSessionsService));
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
-		const h = createHarness(contributionStore, { chatVisible: false, chatSessionsService, listSessions: () => pending.p });
+		const h = createHarness(contributionStore, { catalogueVisible: false, chatSessionsService, listSessions: () => pending.p });
 		await h.refresh('initial');
 		const before = [...h.networkCalls];
 		const draftResource = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
@@ -1398,7 +1455,7 @@ suite('Editor cloud sandbox discovery', () => {
 			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 			const h = createHarness(store, {
-				chatVisible: false,
+				catalogueVisible: false,
 				listSessions: () => { void started.complete(); return pending.p; },
 				createSession: async () => created,
 				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
@@ -1433,7 +1490,7 @@ suite('Editor cloud sandbox discovery', () => {
 
 	test('first-use account failures retain the creation diagnostics command', async () => {
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			getAccountKey: async () => { throw new CloudSandboxAuthenticationRequiredError(); },
 		});
 		await assert.rejects(h.startDraft('Fix the build'), CloudSandboxStartupError);
@@ -1445,7 +1502,7 @@ suite('Editor cloud sandbox discovery', () => {
 	test('creating a Cloud session without the sidebar preserves the single first-turn dispatch', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
-			chatVisible: false,
+			catalogueVisible: false,
 			createSession: async () => created,
 			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
 		});
@@ -1462,7 +1519,7 @@ suite('Editor cloud sandbox discovery', () => {
 	});
 
 	test('explicit connection demand works without the sidebar or a discovered task', async () => {
-		const h = createHarness(store, { chatVisible: false });
+		const h = createHarness(store, { catalogueVisible: false });
 		h.state.result = { kind: 'complete', sessions: [] };
 		await Promise.all(h.initialRefreshes);
 		const connectedAddress = await h.contribution.connect({ environmentId: discovered.environmentId, sessionId: discovered.sessionId, name: discovered.name });
@@ -2031,7 +2088,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.calls.deletedTasks, []);
 	});
 
-	test('already-visible Chat starts exactly one initial scan across controller registrations', async () => {
+	test('an already-visible catalogue starts exactly one initial scan across controller registrations', async () => {
 		const h = createHarness(store);
 		await Promise.all(h.initialRefreshes);
 		assert.deepStrictEqual({ network: h.networkCalls, items: h.items().map(item => item.label) }, { network: ['feed', 'list'], items: [discovered.name] });

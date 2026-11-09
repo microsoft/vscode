@@ -103,8 +103,20 @@ export class AgentSessionsPicker {
 		const disposables = new DisposableStore();
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
 		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
+		const updateItems = () => {
+			const activeId = picker.activeItems[0]?.id;
+			const items = this.createPickerItems(filter);
+			picker.items = items;
+			for (const item of items) {
+				if (item.type !== 'separator' && item.id === activeId) {
+					picker.activeItems = [item];
+					break;
+				}
+			}
+		};
 
 		picker.anchor = this.anchor;
+		picker.keepScrollPosition = true;
 		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
@@ -151,14 +163,12 @@ export class AgentSessionsPicker {
 				await this.agentSessionsService.model.resolve(session.providerType);
 				this.pickAgentSession();
 			} else {
-				picker.items = this.createPickerItems(filter);
+				updateItems();
 			}
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
-		disposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			picker.items = this.createPickerItems(filter);
-		}));
+		disposables.add(this.agentSessionsService.model.onDidChangeSessions(updateItems));
 		disposables.add(this.chatSessionsService.acquireSessionItems());
 		picker.show();
 	}

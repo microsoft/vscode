@@ -45,7 +45,7 @@ import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { ChatSessionRefreshReason, ChatSessionStatus, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -266,6 +266,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		this._discoveryStarted = this._discoveryRequested;
 		this._updateRegistration();
 		this._register(autorun(reader => {
+			enabled.read(reader);
 			this._editorChatSessionsService.sessionItemsRequested.read(reader);
 			this._chatService.chatModels.read(reader);
 			this._updateMonitoringDemand();
@@ -290,21 +291,22 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}));
 	}
 
-	private _requestDiscovery(): void {
+	private _requestDiscovery(trigger?: 'manual'): Promise<void> {
 		if (this._store.isDisposed) {
-			return;
+			return Promise.resolve();
 		}
 		this._suspendMonitoring.cancel();
-		if (this._discoveryRequested) {
-			this._updateMonitoringDemand();
-			return;
+		if (!this._hasMonitoringDemand()) {
+			this._suspendMonitoring.schedule();
 		}
+		if (this._discoveryRequested && trigger !== 'manual') {
+			return Promise.resolve();
+		}
+		const resuming = this._discoveryStarted && !this._discoveryRequested;
+		const discoveryTrigger = trigger ?? (this._discoveryStarted ? 'feedReconnect' : 'startup');
 		this._discoveryRequested = true;
-		const resuming = this._discoveryStarted;
-		const trigger = resuming ? 'feedReconnect' : 'startup';
 		this._discoveryStarted = true;
-		this._updateMonitoringDemand();
-		void this._discoverAndSeed({ trigger, retry: resuming });
+		return this._discoverAndSeed({ trigger: discoveryTrigger, retry: resuming });
 	}
 
 	private _hasMonitoringDemand(): boolean {
@@ -317,8 +319,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				return true;
 			}
 		}
-		return this._taskList?.items.some(item => item.status === ChatSessionStatus.InProgress
-			|| item.status === ChatSessionStatus.NeedsInput
+		return this._taskList?.items.some(item => item.status !== undefined && isSessionInProgressStatus(item.status)
+			|| item.children?.some(child => child.status !== undefined && isSessionInProgressStatus(child.status))
 			|| this._tasks.get(item.resource.path.slice(1))?.isQueued === true) ?? false;
 	}
 
@@ -329,56 +331,43 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (this._hasMonitoringDemand()) {
 			this._suspendMonitoring.cancel();
 			if (!this._discoveryRequested) {
-				this._requestDiscovery();
+				void this._requestDiscovery();
 			}
 		} else if (this._discoveryRequested && !this._suspendMonitoring.isScheduled()) {
 			this._suspendMonitoring.schedule();
 		}
 	}
 
-	private async _withMonitoringDemand<R>(operation: () => Promise<R>): Promise<R> {
+	private async _withMonitoringDemand<R>(operation: (discovery: Promise<void>) => Promise<R>, trigger?: 'manual'): Promise<R> {
 		this._monitoringOperations++;
-		this._suspendMonitoring.cancel();
 		try {
-			return await operation();
+			return await operation(this._requestDiscovery(trigger));
 		} finally {
 			this._monitoringOperations--;
 			this._updateMonitoringDemand();
 		}
 	}
 
-	protected override async _waitForActivation(sessionType: string): Promise<boolean> {
-		return this._withMonitoringDemand(async () => {
-			this._requestDiscovery();
-			return super._waitForActivation(sessionType);
-		});
+	protected override _waitForActivation(sessionType: string): Promise<boolean> {
+		return this._withMonitoringDemand(() => super._waitForActivation(sessionType));
 	}
 
 	protected override async _openTask(resource: URI, token: CancellationToken) {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return this._withMonitoringDemand(async () => {
-			this._requestDiscovery();
-			return super._openTask(resource, token);
-		});
+		return this._withMonitoringDemand(() => super._openTask(resource, token));
 	}
 
 	protected override async _prepareTaskRequest(resource: URI, token: CancellationToken) {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return this._withMonitoringDemand(async () => {
-			this._requestDiscovery();
-			return super._prepareTaskRequest(resource, token);
-		});
+		return this._withMonitoringDemand(() => super._prepareTaskRequest(resource, token));
 	}
 
-	override async connect(options: ICloudSandboxConnectOptions): Promise<string> {
-		return this._withMonitoringDemand(async () => {
-			this._requestDiscovery();
-			return super.connect(options);
-		});
+	override connect(options: ICloudSandboxConnectOptions): Promise<string> {
+		return this._withMonitoringDemand(() => super.connect(options));
 	}
 
 	private _watchDraftInput(widget: IChatWidget): DisposableStore {
@@ -494,7 +483,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
-					this._requestDiscovery();
+					void this._requestDiscovery();
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
 					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
@@ -639,12 +628,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	async refresh(token: CancellationToken, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		if (!token.isCancellationRequested) {
 			if (reason === 'manual') {
-				await this._withMonitoringDemand(async () => {
-					const resuming = this._discoveryStarted && !this._discoveryRequested;
-					this._discoveryRequested = true;
-					this._discoveryStarted = true;
-					await this._discoverAndSeed({ trigger: 'manual', retry: resuming });
-				});
+				await this._withMonitoringDemand(discovery => discovery, 'manual');
 				return;
 			}
 			if (reason === 'automatic') {
@@ -656,7 +640,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	async getNewChatSessionInputState(): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
-		this._requestDiscovery();
+		void this._requestDiscovery();
 		this._draftModels.value?.load();
 		return this._draftOptionGroups.get();
 	}
@@ -666,19 +650,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	 * transcript, commit the draft to the provisioned environment's session and re-send the turn
 	 * there, where the environment's Agent Host handler runs it.
 	 */
-	private _startSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+	private async _startSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+		if (!isUntitledChatSession(request.sessionResource)) {
+			throw new Error(`Sandbox session ${request.sessionResource.toString()} is served by its environment's session type.`);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		return this._withMonitoringDemand(() => this._doStartSession(request, progress, token));
 	}
 
 	private async _doStartSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
 		const draftResource = request.sessionResource;
-		if (!isUntitledChatSession(draftResource)) {
-			throw new Error(`Sandbox session ${draftResource.toString()} is served by its environment's session type.`);
-		}
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);

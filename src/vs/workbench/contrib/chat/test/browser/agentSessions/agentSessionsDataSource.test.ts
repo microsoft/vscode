@@ -20,7 +20,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickPickFocus } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { QuickPick } from '../../../../../../platform/quickinput/browser/quickInput.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -1485,6 +1486,40 @@ suite('AgentSessionsPicker', () => {
 		assert.deepStrictEqual({ empty, discovered, hidden, reopened, closed: service.sessionItemsRequested.get() }, {
 			empty: { requested: true, items: 0 }, discovered: ['Today', 'Session discovered'], hidden: false,
 			reopened: ['Today', 'Session discovered'], closed: false,
+		});
+	});
+
+	test('session updates preserve picker focus, scroll and the conversation accepted', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		const changed = store.add(new Emitter<void>());
+		const sessions = Array.from({ length: 200 }, (_, index) => createSession({ id: `session-${index}` }));
+		const model = new class extends mock<IAgentSessionsModel>() {
+			override readonly sessions = sessions;
+			override readonly onDidChangeSessions = changed.event;
+		}();
+		instantiation.stub(IChatSessionsService, new MockChatSessionsService());
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+		}());
+		const createQuickPick = sinon.spy(instantiation.get(IQuickInputService), 'createQuickPick');
+		let opened: URI | undefined;
+		const sessionsPicker = instantiation.createInstance(AgentSessionsPicker, undefined, {
+			overrideSessionOpen: async session => { opened = session.resource; },
+		});
+		await sessionsPicker.pickAgentSession();
+		const picker = createQuickPick.firstCall.returnValue;
+		assert.ok(picker instanceof QuickPick);
+		picker.focus(QuickPickFocus.Last);
+		const active = picker.activeItems[0];
+		const scrollTop = picker.scrollTop;
+		assert.ok(scrollTop > 0);
+		const newest = createSession({ id: 'newest' });
+		sessions.unshift({ ...newest, timing: { ...newest.timing, created: newest.timing.created + 10_000 } });
+		changed.fire();
+		const after = { activeId: picker.activeItems[0]?.id, scrollTop: picker.scrollTop };
+		picker.accept();
+		assert.deepStrictEqual({ after, opened: opened?.toString() }, {
+			after: { activeId: active.id, scrollTop }, opened: active.id,
 		});
 	});
 
