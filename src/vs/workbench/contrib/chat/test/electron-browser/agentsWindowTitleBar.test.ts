@@ -160,11 +160,11 @@ suite('Agents Window titlebar copy experiment', () => {
 			await expansionRequests[index].complete(value);
 			await timeout(0);
 		};
-		/** The hovers shown by activating the button, as the button shows its sticky card. */
-		const stickyHovers = () => instantHovers.map(({ options, focus, widget }) => ({
+		/** The hovers shown by activating the button, as the button shows its card with focus in it. */
+		const focusedHovers = () => instantHovers.map(({ options, focus, widget }) => ({
 			isCard: options.content === hoverCard(),
 			target: options.target === container,
-			sticky: options.persistence?.sticky,
+			sticky: !!options.persistence?.sticky,
 			focus,
 			trapFocus: options.trapFocus,
 			disposed: widget.isDisposed,
@@ -178,7 +178,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			container.dispatchEvent(new MouseEvent('click'));
 			await timeout(0);
 		};
-		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, stickyHovers, activateByKeyboard, activateByClick, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
+		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, focusedHovers, activateByKeyboard, activateByClick, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
 	}
 
 	for (const value of [undefined, 'Try Agents']) {
@@ -490,31 +490,31 @@ suite('Agents Window titlebar copy experiment', () => {
 		]);
 	});
 
-	test('richHoverOnClick makes activation toggle a sticky, focused card only for users who see the card, and triggers in every arm', async () => {
+	test('richHoverOnClick makes activation toggle a focused, non-sticky card only for users who see the card, and triggers in every arm', async () => {
 		const results: Record<string, unknown> = {};
 		for (const richHoverOnClick of [false, true]) {
 			for (const [variant, sessionCount] of [['manyWindowsToOne', 1], ['manyWindowsToOne', 2], ['none', 0]] as const) {
 				const h = createHarness(sessionCount, variant, richHoverOnClick);
 				await h.activateByClick();
-				const afterClick = { actionRuns: h.getActionRuns(), stickyHovers: h.stickyHovers() };
+				const afterClick = { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers() };
 				await h.activateByKeyboard();
 				results[`${richHoverOnClick ? 'on' : 'off'}, ${variant}, ${sessionCount} sessions`] = {
 					afterClick,
-					afterKeyboard: { actionRuns: h.getActionRuns(), stickyHovers: h.stickyHovers() },
+					afterKeyboard: { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers() },
 					triggers: h.snapshot().triggers,
 				};
 				h.item.dispose();
 			}
 		}
-		const opensAgentsWindow = (triggers: string[]) => ({ afterClick: { actionRuns: 1, stickyHovers: [] }, afterKeyboard: { actionRuns: 2, stickyHovers: [] }, triggers });
-		const stickyCard = { isCard: true, target: true, sticky: true, focus: true, trapFocus: true };
+		const opensAgentsWindow = (triggers: string[]) => ({ afterClick: { actionRuns: 1, focusedHovers: [] }, afterKeyboard: { actionRuns: 2, focusedHovers: [] }, triggers });
+		const focusedCard = { isCard: true, target: true, sticky: false, focus: true, trapFocus: true };
 		assert.deepStrictEqual(results, {
 			'off, manyWindowsToOne, 1 sessions': opensAgentsWindow([richHoverOnClickTreatmentName]),
 			'off, manyWindowsToOne, 2 sessions': opensAgentsWindow([]),
 			'off, none, 0 sessions': opensAgentsWindow([]),
 			'on, manyWindowsToOne, 1 sessions': {
-				afterClick: { actionRuns: 0, stickyHovers: [{ ...stickyCard, disposed: false }] },
-				afterKeyboard: { actionRuns: 0, stickyHovers: [{ ...stickyCard, disposed: true }] },
+				afterClick: { actionRuns: 0, focusedHovers: [{ ...focusedCard, disposed: false }] },
+				afterKeyboard: { actionRuns: 0, focusedHovers: [{ ...focusedCard, disposed: true }] },
 				triggers: [richHoverOnClickTreatmentName],
 			},
 			'on, manyWindowsToOne, 2 sessions': opensAgentsWindow([]),
@@ -522,23 +522,23 @@ suite('Agents Window titlebar copy experiment', () => {
 		});
 	});
 
-	test('the sticky card closes on Escape, opens the Agents window, and closes when the button stops showing the card', async () => {
+	test('the focused card closes on Escape, opens the Agents window, and closes when the button stops showing the card', async () => {
 		const h = createHarness(1, 'windowComparison', true);
 		const cardButton = () => h.hoverCard()?.querySelector<HTMLElement>('.monaco-button');
 		await h.activateByClick();
 		// The card's button handles Escape itself, so the hover never sees it.
 		cardButton()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27 }));
-		const afterEscape = h.stickyHovers().map(hover => hover.disposed);
+		const afterEscape = h.focusedHovers().map(hover => hover.disposed);
 		await h.activateByClick();
 		cardButton()?.click();
 		await timeout(0);
-		const afterOpen = { actionRuns: h.getActionRuns(), stickyHovers: h.stickyHovers().map(hover => hover.disposed) };
+		const afterOpen = { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers().map(hover => hover.disposed) };
 		await h.activateByClick();
 		h.setSessionCount(2);
-		assert.deepStrictEqual({ afterEscape, afterOpen, stickyHovers: h.stickyHovers().map(hover => hover.disposed), hover: h.hoverState().hover }, {
+		assert.deepStrictEqual({ afterEscape, afterOpen, focusedHovers: h.focusedHovers().map(hover => hover.disposed), hover: h.hoverState().hover }, {
 			afterEscape: [true],
-			afterOpen: { actionRuns: 1, stickyHovers: [true, true] },
-			stickyHovers: [true, true, true],
+			afterOpen: { actionRuns: 1, focusedHovers: [true, true] },
+			focusedHovers: [true, true, true],
 			hover: 'Open in Agents Window (shortcut)',
 		});
 	});

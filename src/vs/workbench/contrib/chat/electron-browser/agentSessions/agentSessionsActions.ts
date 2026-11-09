@@ -403,8 +403,8 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
 	private readonly treatments = this._register(new MutableDisposable());
 	private readonly hoverCard = this._register(new MutableDisposable<AgentsWindowHoverCard>());
-	/** The hover card shown by activating the button, which stays open until it is dismissed. */
-	private readonly stickyHoverCard = this._register(new MutableDisposable<IHoverWidget>());
+	/** The hover card shown by activating the button, with focus in it. */
+	private readonly focusedHoverCard = this._register(new MutableDisposable<IHoverWidget>());
 	private readonly usage: AgentsWindowUsage;
 	private labelElement: HTMLElement | undefined;
 	private hover: IManagedHover | undefined;
@@ -557,7 +557,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 		const design = this.hoverCardDesign;
 		if (!design) {
-			this.stickyHoverCard.clear();
+			this.focusedHoverCard.clear();
 			this.hoverCard.clear();
 			this.hover.update(this.hoverText);
 			return;
@@ -569,12 +569,12 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private getHoverCard(design: AgentsWindowGraphicDesign): AgentsWindowHoverCard {
 		let card = this.hoverCard.value;
 		if (card?.design !== design) {
-			this.stickyHoverCard.clear();
+			this.focusedHoverCard.clear();
 			card = new AgentsWindowHoverCard({
 				design,
 				onOpen: () => {
 					this.hover?.hide();
-					this.stickyHoverCard.clear();
+					this.focusedHoverCard.clear();
 					void this.actionRunner.run(this.action, this._context);
 				},
 			});
@@ -600,7 +600,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			run: (context: unknown) => {
 				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick);
 				if (this.configurationService.getValue<boolean>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick) === true) {
-					this.toggleStickyHoverCard(design);
+					this.toggleFocusedHoverCard(design);
 					return;
 				}
 				return this.action.run(context);
@@ -608,9 +608,9 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		});
 	}
 
-	private toggleStickyHoverCard(design: AgentsWindowGraphicDesign): void {
-		if (this.stickyHoverCard.value && !this.stickyHoverCard.value.isDisposed) {
-			this.stickyHoverCard.clear();
+	private toggleFocusedHoverCard(design: AgentsWindowGraphicDesign): void {
+		if (this.focusedHoverCard.value && !this.focusedHoverCard.value.isDisposed) {
+			this.focusedHoverCard.clear();
 			return;
 		}
 		if (!this.element) {
@@ -619,14 +619,13 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		const card = this.getHoverCard(design);
 		this.hover?.hide();
 		const cardListeners = new DisposableStore();
-		// Shown like the managed hover shows the card, but sticky and with focus in it.
+		// Shown like the managed hover shows the card, but with focus in it.
 		const hover = this.hoverService.showInstantHover({
 			content: card.element,
 			target: this.element,
 			additionalClasses: ['managed-hover-content-owns-padding'],
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true, compact: true, skipFadeInAnimation: true },
-			persistence: { sticky: true },
 			trapFocus: true,
 			onDidHide: () => cardListeners.dispose(),
 		}, true);
@@ -634,8 +633,8 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			cardListeners.dispose();
 			return;
 		}
-		this.stickyHoverCard.value = hover;
-		cardListeners.add(card.onDidEscape(() => this.stickyHoverCard.clear()));
+		this.focusedHoverCard.value = hover;
+		cardListeners.add(card.onDidEscape(() => this.focusedHoverCard.clear()));
 		card.focus();
 	}
 }

@@ -2461,7 +2461,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.titleBar.openInAgentsWindow.richHoverOnClick', "Controls whether clicking the Open in Agents Window button in the title bar opens its hover card instead of the Agents window. The card stays open and takes focus until it is dismissed, and its Open Agents Window button opens the Agents window. Applies only while the button shows a hover card, see {0}.", '`#chat.titleBar.openInAgentsWindow.richHover#`'),
+			markdownDescription: nls.localize('chat.titleBar.openInAgentsWindow.richHoverOnClick', "Controls whether clicking the Open in Agents Window button in the title bar opens its hover card, with focus in it, instead of the Agents window. The card's Open Agents Window button opens the Agents window. Applies only while the button shows a hover card, see {0}.", '`#chat.titleBar.openInAgentsWindow.richHover#`'),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
