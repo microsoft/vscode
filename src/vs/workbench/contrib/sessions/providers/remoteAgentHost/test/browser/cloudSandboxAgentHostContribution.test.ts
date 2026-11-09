@@ -69,6 +69,7 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../services/host/browser/host.js';
+import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
@@ -427,6 +428,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = Event.None;
+		override readonly onDidResume = Event.None;
+	}());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportSessionFeed() { }
