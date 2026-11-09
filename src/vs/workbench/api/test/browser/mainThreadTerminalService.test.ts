@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type * as vscode from 'vscode';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -17,7 +18,7 @@ import { TerminalCapability } from '../../../../platform/terminal/common/capabil
 import { CwdDetectionCapability } from '../../../../platform/terminal/common/capabilities/cwdDetectionCapability.js';
 import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalExitReason, TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 import { TerminalEditorService } from '../../../contrib/terminal/browser/terminalEditorService.js';
@@ -36,8 +37,11 @@ import { ProxyIdentifier } from '../../../services/extensions/common/proxyIdenti
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TestTerminalProfileService, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadTerminalService } from '../../browser/mainThreadTerminalService.js';
-import { ExtHostTerminalServiceShape } from '../../common/extHost.protocol.js';
-import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
+import { ExtHostTerminalServiceShape, MainContext } from '../../common/extHost.protocol.js';
+import { ArgumentProcessor, ExtHostCommands } from '../../common/extHostCommands.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { WorkerExtHostTerminalService } from '../../common/extHostTerminalService.js';
+import { AnyCallRPCProtocol, SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadTerminalService', () => {
 
@@ -304,6 +308,68 @@ suite('MainThreadTerminalService', () => {
 		await service.$show('exited-terminal', false);
 		assert.strictEqual(terminals.instances.length, 0);
 	});
+
+	for (const closeDuringOpen of [true, false]) {
+		test(`a pseudoterminal closing ${closeDuringOpen ? 'during' : 'after'} open resolves its public processId`, async () => {
+			service.dispose();
+			const rpcProtocol = store.add(new TestRPCProtocol());
+			const commands = new class extends mock<ExtHostCommands>() {
+				override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+			};
+			const initData = new class extends mock<IExtHostInitDataService>() {
+				override readonly remote = { authority: undefined, isRemote: false, connectionData: null };
+			};
+			const extHost = store.add(new WorkerExtHostTerminalService(commands, rpcProtocol, initData));
+			service = store.add(instantiationService.createInstance(MainThreadTerminalService, SingleProxyRPCProtocol(extHost)));
+			rpcProtocol.set(MainContext.MainThreadTerminalService, service);
+
+			const output: string[] = [];
+			store.add(terminals.onDidCreateInstance(instance => {
+				store.add(instance);
+				store.add(extHost.getTerminalById(instance.instanceId)!);
+				store.add(instance.onData(data => output.push(data)));
+			}));
+			const closed = Event.toPromise(extHost.onDidCloseTerminal);
+			const writeEmitter = store.add(new Emitter<string>());
+			const closeEmitter = store.add(new Emitter<number>());
+			const pty: vscode.Pseudoterminal = {
+				onDidWrite: writeEmitter.event,
+				onDidClose: closeEmitter.event,
+				open() {
+					writeEmitter.fire('complete\r\n');
+					if (closeDuringOpen) {
+						closeEmitter.fire(0);
+					} else {
+						queueMicrotask(() => closeEmitter.fire(0));
+					}
+				},
+				close() { }
+			};
+			const terminal = extHost.createExtensionTerminal({ name: 'Early exit', pty });
+			const processIds: (number | undefined)[] = [];
+			terminal.processId.then(id => processIds.push(id));
+			await closed;
+			writeEmitter.fire('after close');
+			closeEmitter.fire(1);
+			await rpcProtocol.sync();
+
+			assert.deepStrictEqual({
+				processIds,
+				output: output.join(''),
+				exitStatus: terminal.exitStatus,
+				terminals: extHost.terminals.length,
+				writeListener: writeEmitter.hasListeners(),
+				closeListener: closeEmitter.hasListeners()
+			}, {
+				processIds: [-1],
+				output: 'complete\r\n',
+				exitStatus: { code: 0, reason: TerminalExitReason.Process },
+				terminals: 0,
+				writeListener: false,
+				closeListener: false
+			});
+		});
+	}
 
 	test('a terminal removed from its group still releases its extension identifier', async () => {
 		await service.$createTerminal('detached-terminal', { name: 'Detached', shellPath: '/test-shell' });

@@ -395,13 +395,13 @@ class ExtHostPseudoterminal extends Disposable implements ITerminalChildProcess 
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
 		}) ?? Disposable.None);
 
+		// The pty may close synchronously during open or setDimensions.
+		this._onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
 
 		if (initialDimensions) {
 			this._pty.setDimensions?.(initialDimensions);
 		}
-
-		this._onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
 	}
 }
 
