@@ -1018,6 +1018,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 
 export class DisassemblyViewContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.disassemblyView';
+
 	private readonly _onDidActiveEditorChangeListener: IDisposable;
 	private _onDidChangeModelLanguage: IDisposable | undefined;
 	private _languageSupportsDisassembleRequest: IContextKey<boolean> | undefined;

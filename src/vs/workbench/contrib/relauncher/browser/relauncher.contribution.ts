@@ -12,15 +12,13 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 
 interface IConfiguration extends IWindowsConfiguration {
@@ -53,6 +51,8 @@ interface IConfiguration extends IWindowsConfiguration {
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.settingsChangeRelauncher';
 
 	private static SETTINGS = [
 		TitleBarSetting.TITLE_BAR_STYLE,
@@ -267,6 +267,8 @@ class ChangeObserver<T> {
 
 export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.workspaceChangeExtHostRelauncher';
+
 	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
@@ -346,6 +348,5 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SettingsChangeRelauncher.ID, SettingsChangeRelauncher, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(WorkspaceChangeExtHostRelauncher.ID, WorkspaceChangeExtHostRelauncher, WorkbenchPhase.AfterRestored);

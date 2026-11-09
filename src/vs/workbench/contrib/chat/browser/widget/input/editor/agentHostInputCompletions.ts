@@ -21,9 +21,7 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { getCompletionAction, type IAgentHostCompletionAction } from '../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { Registry } from '../../../../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../../../../common/contributions.js';
-import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../common/contributions.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
@@ -52,6 +50,8 @@ import { getPromptSlashCommandFilterText } from './chatInputCompletionUtils.js';
  * model so the resource becomes part of the outgoing user message.
  */
 export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<IChatWidget, string> {
+
+	static readonly ID = 'workbench.contrib.agentHostInputCompletions';
 
 	private static readonly addReferenceCommand = '_chatAgentHostAddReferenceCmd';
 	private static readonly configActionCommand = '_chatAgentHostConfigActionCmd';
@@ -346,4 +346,4 @@ class AgentHostConfigActionArgument {
 	) { }
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentHostInputCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(AgentHostInputCompletions.ID, AgentHostInputCompletions, WorkbenchPhase.Eventually);

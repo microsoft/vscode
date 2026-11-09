@@ -27,6 +27,8 @@ import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFi
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.workingCopyHistoryTracker';
+
 	private static readonly SETTINGS = {
 		ENABLED: 'workbench.localHistory.enabled',
 		SIZE_LIMIT: 'workbench.localHistory.maxFileSize',

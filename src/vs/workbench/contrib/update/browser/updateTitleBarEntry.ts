@@ -78,6 +78,9 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
  * Displays update status and actions in the title bar.
  */
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.updateTitleBar';
+
 	private readonly context!: IContextKey<boolean>;
 	private readonly tooltip!: UpdateTooltip;
 	private state!: State;

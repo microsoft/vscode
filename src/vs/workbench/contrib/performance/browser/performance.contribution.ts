@@ -14,10 +14,9 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { InputLatencyContrib } from './inputLatencyContrib.js';
 import { PerfviewContrib, PerfviewInput } from './perfviewEditor.js';
 
@@ -136,10 +135,7 @@ registerAction2(class PrintEventProfiling extends Action2 {
 
 // -- input latency
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	InputLatencyContrib,
-	LifecyclePhase.Eventually
-);
+registerWorkbenchContribution2(InputLatencyContrib.ID, InputLatencyContrib, WorkbenchPhase.Eventually);
 
 
 Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({

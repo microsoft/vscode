@@ -11,7 +11,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class AccesibleViewHelpContribution extends Disposable {
-	static ID: 'accesibleViewHelpContribution';
+	static readonly ID = 'workbench.contrib.accessibleViewHelp';
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(115, 'accessible-view-help', accessor => {
@@ -22,7 +22,7 @@ export class AccesibleViewHelpContribution extends Disposable {
 }
 
 export class AccesibleViewContributions extends Disposable {
-	static ID: 'accesibleViewContributions';
+	static readonly ID = 'workbench.contrib.accessibleViews';
 	constructor() {
 		super();
 		AccessibleViewRegistry.getImplementations().forEach(impl => {

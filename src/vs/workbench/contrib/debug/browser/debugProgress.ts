@@ -12,6 +12,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 export class DebugProgressContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.debugProgress';
+
 	private toDispose: IDisposable[] = [];
 
 	constructor(

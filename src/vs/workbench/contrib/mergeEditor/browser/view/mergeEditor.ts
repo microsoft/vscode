@@ -753,6 +753,8 @@ class MergeEditorLayoutStore {
 
 export class MergeEditorOpenHandlerContribution extends Disposable {
 
+	static readonly ID = 'workbench.contrib.mergeEditorOpenHandler';
+
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,

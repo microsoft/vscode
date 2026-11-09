@@ -12,9 +12,7 @@ import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as nls from '../../../../nls.js';
 
@@ -29,6 +27,8 @@ const configureSettingsLabel = nls.localize('status.button.configure', "Configur
  * Currently this is used for folding ranges, for color decorators and for marker decorations.
  */
 export class LimitIndicatorContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.limitIndicator.languageStatus';
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -247,9 +247,6 @@ class LanguageStatusEntry implements IDisposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	LimitIndicatorContribution,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(LimitIndicatorContribution.ID, LimitIndicatorContribution, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(DiagnosticDecorationLimitReporter.ID, DiagnosticDecorationLimitReporter, EditorContributionInstantiation.Lazy);

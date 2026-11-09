@@ -7,7 +7,6 @@ import * as nls from '../../../../nls.js';
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 
@@ -24,7 +23,7 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../servic
 import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind, rerunTaskIcon, RerunForActiveTerminalCommandId, RerunAllRunningTasksCommandId } from '../common/tasks.js';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from './runAutomaticTasks.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
@@ -46,8 +45,7 @@ import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(RunAutomaticTasks.ID, RunAutomaticTasks, WorkbenchPhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -60,6 +58,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.taskStatusBarContributions';
+
 	private _runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
 	private _activeTasksCount: number = 0;
 
@@ -161,7 +162,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+registerWorkbenchContribution2(TaskStatusBarContributions.ID, TaskStatusBarContributions, WorkbenchPhase.AfterRestored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
@@ -353,6 +354,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 class UserTasksGlobalActionContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.userTasksGlobalAction';
+
 	constructor() {
 		super();
 		this.registerActions();
@@ -381,7 +384,7 @@ class UserTasksGlobalActionContribution extends Disposable implements IWorkbench
 		}));
 	}
 }
-workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(UserTasksGlobalActionContribution.ID, UserTasksGlobalActionContribution, WorkbenchPhase.AfterRestored);
 
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });

@@ -217,6 +217,8 @@ interface QuickDiffWorkbenchControllerViewState {
 
 export class QuickDiffWorkbenchController extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.quickDiffWorkbenchController';
+
 	private enabled = false;
 	private readonly quickDiffDecorationCount: IContextKey<number>;
 

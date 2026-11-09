@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { UserDataSyncWorkbenchContribution } from './userDataSync.js';
 import { IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -20,6 +18,8 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { SHOW_SYNC_LOG_COMMAND_ID } from '../../../services/userDataSync/common/userDataSync.js';
 
 class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.userDataSyncReportIssue';
 
 	constructor(
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
@@ -80,7 +80,6 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncTrigger, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncReportIssueContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(UserDataSyncWorkbenchContribution.ID, UserDataSyncWorkbenchContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(UserDataSyncTrigger.ID, UserDataSyncTrigger, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(UserDataSyncReportIssueContribution.ID, UserDataSyncReportIssueContribution, WorkbenchPhase.Eventually);

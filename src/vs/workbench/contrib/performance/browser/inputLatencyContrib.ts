@@ -12,6 +12,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 
 export class InputLatencyContrib extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.inputLatencyContrib';
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,

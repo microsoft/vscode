@@ -9,7 +9,7 @@ import { Extensions, IConfigurationRegistry } from '../../../../platform/configu
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import {
 	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
@@ -21,7 +21,6 @@ import {
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
 import { MergeEditorInput } from './mergeEditorInput.js';
 import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from './view/mergeEditor.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { MergeEditorSerializer } from './mergeEditorSerializer.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { MergeEditorAccessibilityHelpProvider } from './mergeEditorAccessibilityHelp.js';
@@ -98,9 +97,7 @@ registerAction2(MergeEditorCopyContentsToJSON);
 registerAction2(MergeEditorSaveContentsToFolder);
 registerAction2(MergeEditorLoadContentsFromFolder);
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(MergeEditorOpenHandlerContribution.ID, MergeEditorOpenHandlerContribution, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);
 

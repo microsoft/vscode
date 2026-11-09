@@ -5,8 +5,7 @@
 
 import '../../../../platform/update/common/update.config.contribution.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,7 +16,6 @@ import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { OutdatedBuildReminderContribution } from './outdatedBuildReminder.js';
 import { WorkbenchUnattendedRestartParticipants } from './unattendedRestartParticipants.js';
 import { UnattendedRestartExperimentTriggerContribution } from './unattendedRestartExperimentTrigger.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,14 +30,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ReleaseNotesAccessibilityHelp } from './releaseNotesAccessibilityHelp.js';
 
-const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-
-workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
-workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ProductContribution.ID, ProductContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(UpdateContribution.ID, UpdateContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SwitchProductQualityContribution.ID, SwitchProductQualityContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DefaultAccountUpdateContribution.ID, DefaultAccountUpdateContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(UpdateTitleBarContribution.ID, UpdateTitleBarContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PostUpdateWidgetContribution.ID, PostUpdateWidgetContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(WorkbenchUnattendedRestartParticipants.ID, WorkbenchUnattendedRestartParticipants, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UnattendedRestartExperimentTriggerContribution.ID, UnattendedRestartExperimentTriggerContribution, WorkbenchPhase.AfterRestored);
 

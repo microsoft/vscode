@@ -44,6 +44,8 @@ interface ILastKnownVersion {
  */
 export class PostUpdateWidgetContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.postUpdateWidget';
+
 	private static idCounter = 0;
 
 	constructor(

@@ -23,10 +23,9 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ShareProviderCountContext, ShareService } from './shareService.js';
 import { IShareService } from '../common/share.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -45,6 +44,9 @@ const targetMenus = [
 ];
 
 class ShareWorkbenchContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.share.actions';
+
 	private static SHARE_ENABLED_SETTING = 'workbench.experimental.share.enabled';
 
 	private _disposables: DisposableStore | undefined;
@@ -155,8 +157,7 @@ class ShareWorkbenchContribution extends Disposable {
 }
 
 registerSingleton(IShareService, ShareService, InstantiationType.Delayed);
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShareWorkbenchContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(ShareWorkbenchContribution.ID, ShareWorkbenchContribution, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

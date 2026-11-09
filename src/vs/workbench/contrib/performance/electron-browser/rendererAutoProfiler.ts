@@ -19,6 +19,8 @@ import { ITimerService } from '../../../services/timer/browser/timerService.js';
 
 export class RendererProfiling {
 
+	static readonly ID = 'workbench.contrib.rendererProfiling';
+
 	private _observer?: PerformanceObserver;
 
 	constructor(
