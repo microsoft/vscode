@@ -20,6 +20,7 @@ import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtens
 import { IExtensionManifestPropertiesService } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentsWindowExtensionsWidget } from '../../browser/agentsWindowExtensionsWidget.js';
@@ -181,7 +182,11 @@ function renderWidget(ctx: ComponentFixtureContext, options: { readonly extensio
 		},
 	});
 
-	const widget = ctx.disposableStore.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, host));
+	// The editor group of the Agent Customizations editor, which the extension pages that the section shows need.
+	const group = new class extends mock<IEditorGroup>() {
+		override readonly windowId = DOM.getWindow(host).vscodeWindowId;
+	}();
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, host, group));
 	widget.setVisible(true);
 	if (options.searchQuery) {
 		widget.setSearchQuery(options.searchQuery);
