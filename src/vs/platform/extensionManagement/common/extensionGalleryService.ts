@@ -591,6 +591,7 @@ function getDeprecationInfo(galleryExtension: IRawGalleryExtension, logService: 
 	}
 	return {
 		source: 'marketplace',
+		disallowInstall: true,
 		extension,
 		additionalInfo: deprecation.customMessage
 	};
