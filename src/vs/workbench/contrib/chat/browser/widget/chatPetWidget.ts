@@ -1273,7 +1273,6 @@ export class ChatPetWidget extends Disposable {
 	private readonly _hostLayoutDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _hostTransition = observableValue<ChatPetHostTransition | undefined>(this, undefined);
 	private readonly _jumpGame = this._register(new MutableDisposable<ChatPetJumpGame>());
-	private _suspendedJumpGame: ChatPetJumpGameModel | undefined;
 	private readonly _jumpGameExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly _jumpGameFallLayer = this._register(new MutableDisposable<IDisposable>());
 	private readonly _jumpGameRetry = this._register(new MutableDisposable<ChatPetJumpGameRetry>());
@@ -1570,7 +1569,7 @@ export class ChatPetWidget extends Disposable {
 			if (!this._enabled) {
 				return;
 			}
-			this._stopJumpGame('suspend');
+			this._stopJumpGame('restore');
 			this._dismissBounceResult();
 			dom.EventHelper.stop(event, true);
 			this._showContextMenu(event);
@@ -1578,7 +1577,7 @@ export class ChatPetWidget extends Disposable {
 		this._register(autorun(reader => {
 			const currentHost = this._host.read(reader);
 			reader.store.add(currentHost.inputChanged(() => {
-				this._stopJumpGame('suspend');
+				this._stopJumpGame('blur');
 				if (this._enabled) {
 					this._wake();
 				}
@@ -1659,10 +1658,10 @@ export class ChatPetWidget extends Disposable {
 			}
 		}));
 		this._register(this.chatPetService.onDidUnlockAchievement(id => {
-			if (!this._enabled || !this.hostService.hasFocus || this._isDead.get() || this._jumpGameActive.get()) {
+			if (!this._enabled || !this.hostService.hasFocus || this._isDead.get()) {
 				return;
 			}
-			this._dismissJumpGameRetry();
+			this._stopJumpGame('restore');
 			this._showTransientState('achievementUnlocked', false);
 			status(localize('chatPet.achievement.unlockedStatus', "Achievement unlocked: {0}. Activate the VS Code pet to view achievements.", getChatPetAchievement(id).title));
 		}));
@@ -1702,9 +1701,6 @@ export class ChatPetWidget extends Disposable {
 				this._finishThrow();
 			}
 			const serviceEnabled = this.chatPetService.enabled.read(reader);
-			if (!serviceEnabled) {
-				this._suspendedJumpGame = undefined;
-			}
 			const isWindowActive = windowActive.read(reader);
 			const scale = this.chatPetService.scale.read(reader);
 			if (scale !== this._scale) {
@@ -1757,7 +1753,7 @@ export class ChatPetWidget extends Disposable {
 			}
 			const jumpGameActive = this._jumpGameActive.read(reader);
 			if (jumpGameActive && (!enabled || this._busy)) {
-				this._stopJumpGame(serviceEnabled ? 'suspend' : 'immediate');
+				this._stopJumpGame(enabled ? 'blur' : 'immediate');
 			}
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
@@ -1872,7 +1868,7 @@ export class ChatPetWidget extends Disposable {
 		return this._getPlatforms().find(platform => platform.supportsJumpGame && platform.element?.checkVisibility({ checkVisibilityCSS: true }));
 	}
 
-	private _tryStartJumpGame(platform = this._restingPlatform, model = this._suspendedJumpGame, retry = false): boolean {
+	private _tryStartJumpGame(platform = this._restingPlatform, retryModel?: ChatPetJumpGameModel): boolean {
 		if (!platform?.supportsJumpGame || !platform.element || this._busy || !this._enabled || this._jumpGame.value
 			|| this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			return false;
@@ -1882,7 +1878,6 @@ export class ChatPetWidget extends Disposable {
 		if (bounds.width < size * 2 || bounds.height < size + 80 || !platform.element.checkVisibility({ checkVisibilityCSS: true })) {
 			return false;
 		}
-		this._suspendedJumpGame = undefined;
 		this._dismissJumpGameRetry();
 		this._hopController.cancel();
 		// The crouch reuses the jump sprite, but must face the game's aim rather than the last normal hop.
@@ -1905,14 +1900,12 @@ export class ChatPetWidget extends Disposable {
 		this._jumpGameExit.clear();
 		this._jumpGameFacing = this._facingController.direction;
 		this._clearPlatformOccupation();
-		if (retry) {
-			model?.resetToCheckpoint();
-		}
+		retryModel?.resetToCheckpoint();
 		this._jumpGame.value = this.instantiationService.createInstance(ChatPetJumpGame, this._overlay, this._button.element, {
 			bounds: this.movementBounds,
 			platform: platform.element,
 			motionReduced: this._motionReduced,
-			model,
+			model: retryModel,
 			onRender: (airborne, direction, charge) => {
 				if (direction !== 0) {
 					this._setFacingDirection(direction < 0 ? 'left' : 'right');
@@ -1925,7 +1918,7 @@ export class ChatPetWidget extends Disposable {
 					this._renderState(state, false, true, frameIndex);
 				}
 			},
-			onExit: reason => this._stopJumpGame(reason === 'escape' ? 'restore' : reason, reason === 'escape', reason === 'fall'),
+			onExit: reason => this._stopJumpGame(reason === 'cancel' ? 'immediate' : reason),
 		});
 		transaction(tx => {
 			this._idleExpired.set(false, tx);
@@ -1935,38 +1928,28 @@ export class ChatPetWidget extends Disposable {
 		return true;
 	}
 
-	private _tryResumeJumpGame(): boolean {
-		return !!this._suspendedJumpGame && !this._host.get().hasInput.get() && !this._contextMenuVisible
-			&& this._tryStartJumpGame(this._getJumpGamePlatform(), this._suspendedJumpGame);
-	}
-
-	private _stopJumpGame(mode: 'restore' | 'fall' | 'immediate' | 'suspend', restoreFocus = false, offerRetry = false): void {
+	private _stopJumpGame(reason: 'escape' | 'fall' | 'blur' | 'restore' | 'immediate'): void {
 		this._dismissJumpGameRetry();
 		const game = this._jumpGame.value;
-		if (mode === 'suspend') {
-			game?.model.cancelCharge();
-			this._suspendedJumpGame = game?.model ?? this._suspendedJumpGame;
-		} else {
-			this._suspendedJumpGame = undefined;
-		}
-		if (mode === 'immediate' || mode === 'suspend') {
+		if (reason === 'immediate') {
 			this._jumpGameExit.clear();
 			this._jumpGameFallLayer.clear();
 		}
 		if (!game) {
 			return;
 		}
-		this._pendingJumpGameRetry = offerRetry ? game.model : undefined;
+		const shouldFall = reason === 'fall' || reason === 'blur';
+		this._pendingJumpGameRetry = shouldFall ? game.model : undefined;
 		const position = this._button.element.getBoundingClientRect();
 		const facing = this._facingController.direction;
-		if (mode !== 'immediate' && mode !== 'suspend') {
+		if (reason !== 'immediate') {
 			this._jumpGameExit.value = game.fadeOut(this._motionReduced);
 		}
 		this._jumpGame.clear();
-		this._setFacingDirection(mode === 'fall' ? facing : this._jumpGameFacing);
+		this._setFacingDirection(shouldFall ? facing : this._jumpGameFacing);
 		transaction(tx => {
 			this._jumpGameActive.set(false, tx);
-			if (mode === 'fall') {
+			if (shouldFall) {
 				// Drop through the welcome perch that the disappearing game platform replaced.
 				this._fallThroughPlatform = this._restingPlatform?.element;
 				(this.parent.closest('.monaco-workbench') ?? dom.getWindow(this.parent).document.body).appendChild(this._overlay);
@@ -1981,12 +1964,12 @@ export class ChatPetWidget extends Disposable {
 				const overlayBounds = this._overlay.getBoundingClientRect();
 				this._setThrowPosition(position.left - overlayBounds.left, position.top - overlayBounds.top);
 				this._beginFall();
-			} else if (mode !== 'suspend') {
+			} else {
 				this._updateRestingPosition();
 			}
 		});
 		this._wake();
-		if (restoreFocus) {
+		if (reason === 'escape') {
 			this._button.element.focus({ preventScroll: true });
 			status(localize('chatPet.jump.ended', "Blobby's jump game ended"));
 		}
@@ -1999,7 +1982,7 @@ export class ChatPetWidget extends Disposable {
 		}
 		this._pendingJumpGameRetry = undefined;
 		this._jumpGameRetry.value = this.instantiationService.createInstance(ChatPetJumpGameRetry, this._overlay, this._button.element, this.movementBounds, () => {
-			if (!this._tryStartJumpGame(this._getJumpGamePlatform(), model, true)) {
+			if (!this._tryStartJumpGame(this._getJumpGamePlatform(), model)) {
 				this._dismissJumpGameRetry();
 			}
 		}, () => {
@@ -2012,7 +1995,7 @@ export class ChatPetWidget extends Disposable {
 		if (activeElement === this._button.element || activeElement === dom.getWindow(this._button.element).document.body) {
 			this._button.element.focus({ preventScroll: true });
 		}
-		status(localize('chatPet.jump.retryReady', "Blobby has landed. Retry or R returns to the last safe spot in the same game. Reset or Z starts a new game. These options disappear after five seconds. The shortcuts work while Blobby or a recovery button is focused."));
+		status(localize('chatPet.jump.retryReady', "Blobby has landed. Retry or R resumes the same game. Reset or Z starts a new game. Tab to the recovery buttons."));
 	}
 
 	private _dismissJumpGameRetry(): void {
@@ -2028,7 +2011,7 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 
-		this._stopJumpGame('suspend');
+		this._stopJumpGame('immediate');
 		this._fallThroughPlatform = undefined;
 		this._clearPlatformOccupation();
 		this._restingPlatform = undefined;
@@ -2230,7 +2213,6 @@ export class ChatPetWidget extends Disposable {
 			this._transientScheduler.schedule(SPLAT_STATE_DURATION);
 		}
 		this._rememberHostPosition();
-		this._tryResumeJumpGame();
 	}
 
 	private _observeHost(host: IChatPetWidgetHost): void {
@@ -2259,7 +2241,6 @@ export class ChatPetWidget extends Disposable {
 		if (!this._positionInitialized) {
 			this._restoreHorizontalPosition();
 			this._setInitialVerticalPosition();
-			this._tryResumeJumpGame();
 			return;
 		}
 		this._updateSpeechBubblePosition();
@@ -2271,7 +2252,6 @@ export class ChatPetWidget extends Disposable {
 			}
 		} else {
 			this._updateRestingPosition();
-			this._tryResumeJumpGame();
 		}
 	}
 
@@ -2294,7 +2274,6 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		this._updateRestingPosition();
-		this._tryResumeJumpGame();
 	}
 
 	private _updateRestingPosition(): void {
@@ -2875,9 +2854,6 @@ export class ChatPetWidget extends Disposable {
 		if (achievementUnlocked) {
 			return localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.");
 		}
-		if (this._suspendedJumpGame && !this._busy && this._getJumpGamePlatform()) {
-			return localize('chatPet.jump.resume', "Resume Blobby's Jump Game. Activate the pet to continue the paused run.");
-		}
 		if (this._restingPlatform?.supportsJumpGame && !this._busy) {
 			return localize('chatPet.playJumpGame', "Play Blobby's Jump Game. Activate the pet on this perch to play, or drag it to move it.");
 		}
@@ -3406,7 +3382,6 @@ export class ChatPetWidget extends Disposable {
 		if (!this._motionReduced) {
 			this._button.element.classList.add('entering');
 		}
-		this._tryResumeJumpGame();
 	}
 
 	private _restoreHorizontalPosition(): void {
@@ -3447,7 +3422,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _finishDisable(): void {
-		this._stopJumpGame('suspend');
+		this._stopJumpGame('immediate');
 		this._fallThroughPlatform = undefined;
 		this._dragMonitor.stopMonitoring(false);
 		this._commitDragPosition();

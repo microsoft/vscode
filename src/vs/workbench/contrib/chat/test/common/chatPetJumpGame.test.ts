@@ -181,7 +181,7 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
-	test('reset restores the last takeoff position after a fall without a stuck charge', () => {
+	test('retry restores the last takeoff position after a fall without a stuck charge', () => {
 		const model = new ChatPetJumpGameModel(1000, 48, 500);
 		model.hop(1);
 		advance(model, 400);
@@ -286,7 +286,7 @@ suite('ChatPetJumpGame', () => {
 		}, { moving: true, carried: true, grounded: 5, charge: 0.5, hops: 5 });
 	});
 
-	test('reset rewinds moving platforms and progress and supports repeated restores', () => {
+	test('retry rewinds moving platforms and progress and supports repeated restores', () => {
 		const model = climbTo(5);
 		model.setChargeHeld(true);
 		advance(model, 450);
@@ -334,7 +334,7 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
-	test('reset restores a collapsed platform and gives enough time to charge again', () => {
+	test('retry restores a collapsed platform and gives enough time to charge again', () => {
 		const model = climbTo(9);
 		const before = { ...model.player };
 		advance(model, 1600);
@@ -409,7 +409,7 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
-	test('reset returns to a wall checkpoint and keeps the same generated surfaces', () => {
+	test('retry returns to a wall checkpoint and keeps the same generated surfaces', () => {
 		const model = new ChatPetJumpGameModel(600, 48, 300, () => 0.5);
 		model.ensurePlatforms(1500);
 		const wall = model.walls[0];
@@ -459,7 +459,7 @@ suite('ChatPetJumpGame', () => {
 		}, { heights, platformsInside: true, petInside: true });
 	});
 
-	test('reset keeps a moving-platform checkpoint grounded after resizing', () => {
+	test('retry keeps a moving-platform checkpoint grounded after resizing', () => {
 		const model = climbTo(5);
 		const height = model.player.height;
 		chargeJump(model, 900, 1);
