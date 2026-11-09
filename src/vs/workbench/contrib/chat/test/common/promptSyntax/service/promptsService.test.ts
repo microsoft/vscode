@@ -5920,6 +5920,38 @@ suite('PromptsService', () => {
 			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after', sourceUri: URI.file('/plugins/test-plugin/hooks.json') }]);
 		});
 
+		test('refreshes hook inventory when a hooks-only plugin finishes loading', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+			await timeout(0);
+
+			assert.deepStrictEqual(await service.listPromptFiles(PromptsType.hook, CancellationToken.None), []);
+
+			const { plugin, hooks } = createTestPlugin('/plugins/hooks-only', []);
+			const pluginDiscovered = Event.toPromise(service.onDidChangeHooks);
+			testPluginsObservable.set([plugin], undefined);
+			await pluginDiscovered;
+			await service.listPromptFiles(PromptsType.hook, CancellationToken.None);
+
+			const hookUri = URI.file('/plugins/hooks-only/hooks.json');
+			const hooksChanged = Event.toPromise(service.onDidChangeHooks);
+			hooks.set([
+				{ type: HookType.SessionStart, originalId: 'sessionStart', hooks: [{ command: 'echo start' }], uri: hookUri },
+				{ type: HookType.UserPromptSubmit, originalId: 'userPromptSubmitted', hooks: [{ command: 'echo prompt' }], uri: hookUri },
+			], undefined);
+			await hooksChanged;
+
+			const files = await service.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			assert.deepStrictEqual(files.map(file => ({
+				name: file.name,
+				storage: file.storage,
+				pluginUri: file.pluginUri,
+			})), [
+				{ name: 'hooks-only:sessionstart', storage: PromptsStorage.plugin, pluginUri: plugin.uri },
+				{ name: 'hooks-only:userpromptsubmitted', storage: PromptsStorage.plugin, pluginUri: plugin.uri },
+			]);
+		});
+
 		test('returns undefined when workspace is untrusted', async function () {
 			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
