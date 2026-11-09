@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ITaskService } from '../../../contrib/tasks/common/taskService.js';
 import { ContributedTask, ITaskEvent, RunOptions, RuntimeType, TaskEvent, TaskEventKind, TaskScope as InternalTaskScope, TaskSourceKind } from '../../../contrib/tasks/common/tasks.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
@@ -102,7 +103,8 @@ suite('MainThreadTask custom execution startup', () => {
 					await resolution.p;
 					return expression.toObject();
 				})
-			})
+			}),
+			new class extends mock<IWorkspaceTrustManagementService>() { }
 		));
 		rpc.set(MainContext.MainThreadTask, mainThread);
 		const contributed = new ContributedTask(task.name, {
@@ -302,7 +304,10 @@ suite('MainThreadTask task handle lookup', () => {
 				rpc,
 				taskService,
 				new class extends mock<IWorkspaceContextService>() { },
-				upcastPartial<IConfigurationResolverService>({})
+				upcastPartial<IConfigurationResolverService>({}),
+				new class extends mock<IWorkspaceTrustManagementService>() {
+					override isWorkspaceTrusted() { return true; }
+				}
 			));
 
 			const result = await invoke(mainThread, handle);
@@ -317,6 +322,39 @@ suite('MainThreadTask task handle lookup', () => {
 				],
 				taskName: 'fetched-task'
 			});
+		});
+
+		test(`${operation} does not retry when workspace trust is denied`, async () => {
+			const lookups: Parameters<ITaskService['getTask']>[] = [];
+			const taskService = new class extends mock<ITaskService>() {
+				override readonly onDidStateChange: Event<ITaskEvent> = Event.None;
+				override async getTask(...args: Parameters<ITaskService['getTask']>) {
+					lookups.push(args);
+					return undefined;
+				}
+				override run() {
+					return Promise.resolve(undefined);
+				}
+			};
+			const rpc = new TestRPCProtocol();
+			rpc.set(ExtHostContext.ExtHostTask, new class extends mock<ExtHostTaskShape>() {
+				override $OnDidEndTask() { }
+			});
+			const mainThread = store.add(new MainThreadTask(
+				rpc,
+				taskService,
+				new class extends mock<IWorkspaceContextService>() { },
+				upcastPartial<IConfigurationResolverService>({}),
+				new class extends mock<IWorkspaceTrustManagementService>() {
+					override isWorkspaceTrusted() { return false; }
+				}
+			));
+
+			await assert.rejects(() => invoke(mainThread, handle), /Task not found/);
+
+			assert.deepStrictEqual(lookups, [
+				['test-workspace', 'fetched-task', true, 'shell']
+			]);
 		});
 	}
 });

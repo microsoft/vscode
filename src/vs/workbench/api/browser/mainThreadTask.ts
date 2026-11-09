@@ -13,6 +13,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../platform/workspace/common/workspaceTrust.js';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
@@ -464,7 +465,8 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		extHostContext: IExtHostContext,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
@@ -648,7 +650,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 
 	private async getTaskFromHandle(workspace: string | IWorkspace | IWorkspaceFolder, value: ITaskHandleDTO): Promise<Task | undefined> {
 		const task = await this._taskService.getTask(workspace, value.id, true, value.type);
-		if (!task && value.type !== undefined) {
+		if (!task && value.type !== undefined && this._workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return this._taskService.getTask(workspace, value.id, true);
 		}
 		return task;
