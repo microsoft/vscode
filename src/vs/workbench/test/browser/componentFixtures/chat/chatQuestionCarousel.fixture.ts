@@ -55,7 +55,7 @@ function createOptions(overrides: Partial<IChatQuestionCarouselOptions> = {}): I
 }
 
 function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void, host: HTMLElement = context.container): void {
-	const { container, disposableStore } = context;
+	const { disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
