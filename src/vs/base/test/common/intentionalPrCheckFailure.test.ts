@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Intentional PR Check Failure', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
