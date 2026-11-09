@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewPaneContainer } from '../../../common/views.js';
-import { FocusedViewContext, getVisbileViewContextKey } from '../../../common/contextkeys.js';
+import { FocusedViewContext, getEnabledViewContainerContextKey, getVisbileViewContextKey } from '../../../common/contextkeys.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
