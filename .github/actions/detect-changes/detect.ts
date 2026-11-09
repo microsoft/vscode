@@ -125,6 +125,7 @@ const eslintConfigurationPaths = [
 	'.eslint-ignore',
 	'.eslint-allowed-javascript-files',
 	'.eslint-allowed-bracket-notation-files',
+	'.eslint-allowed-register-after-await-files',
 	'.eslint-plugin-local/',
 ];
 
