@@ -5701,7 +5701,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
-		test('starts new relay windows after identity renewal instead of continuing expired counters', async () => {
+		test('starts new relay windows after identity renewal and resends dispatches the expired window did not send', async () => {
 			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true });
 			const resource = 'other-agent://tenant/conversations/windowed-session';
 			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits };
@@ -5715,6 +5715,10 @@ suite('AgentHostProtocolClient', () => {
 					},
 				},
 			});
+			const dispatches = [1, 2].map(clientSeq => ({
+				jsonrpc: '2.0' as const, method: 'dispatchAction',
+				params: { channel: resource, clientSeq, action: { type: ActionType.SessionTitleChanged, title: `Dispatch ${clientSeq}` } },
+			} as const));
 			const credit = async () => {
 				await flushMicrotasks();
 				client['_windowedChannels'].get(resource)?.flushCredit();
@@ -5722,10 +5726,17 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'test'));
 			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
-			transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+			// The window fits exactly one dispatch, so the second waits for credit that never comes before expiry.
+			transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl: { ...flowControl, hostReceive: { ...flowControl.hostReceive, windowBytes: JSON.stringify(dispatches[0]).length * 2 } } } });
 			const before = snapshot('Before expiry', 2);
 			transport.fireWireMessage(before);
 			await credit();
+			for (const message of dispatches) {
+				client.dispatch(resource, message.params.action);
+			}
+			await flushMicrotasks();
+			const sentMethods = () => transport.sentMessages.flatMap(message => hasKey(message, { method: true }) && (message.method === 'dispatchAction' || message.method === 'subscribe') ? [message.method === 'dispatchAction' ? message : message.method] : []);
+			const beforeExpiry = sentMethods();
 
 			transport.fireMessage({
 				jsonrpc: '2.0', method: 'auth/required',
@@ -5745,10 +5756,14 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				offers: [subscribe.params, restored.params],
 				title: subscription.object.verifiedValue?.title,
+				beforeExpiry,
+				sent: sentMethods(),
 				credits: transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/credit').map(message => message.params),
 			}, {
 				offers: [1, 2].map(() => ({ channel: resource, flowControl: { receive: agentHostStateReceiveLimits } })),
 				title: 'After renewal',
+				beforeExpiry: ['subscribe', 'subscribe', dispatches[0]],
+				sent: ['subscribe', 'subscribe', dispatches[0], 'subscribe', 'subscribe', dispatches[1]],
 				credits: [before, after].map(message => ({ channel: resource, consumedBytes: JSON.stringify(message).length * 2 })),
 			});
 		});

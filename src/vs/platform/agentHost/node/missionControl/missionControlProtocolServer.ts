@@ -831,11 +831,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				throw error;
 			}
 			// Failing the request instead of the lane stops a reconnecting client from requesting the same response again.
-			this._publish(group, {
-				jsonrpc: '2.0', id: responseId,
-				error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${error.byteLength} bytes exceeds the ${error.limit}-byte Mission Control relay message limit` },
-			}, generation, lane, onDidPublish);
-			return;
+			// An ID too large for the error response throws again, which closes only this lane.
+			commands = buildPublish({
+				group, generation, nextAckId: () => ++this._ackId, payload: {
+					jsonrpc: '2.0', id: responseId,
+					error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${error.byteLength} bytes exceeds the ${error.limit}-byte Mission Control relay message limit` },
+				},
+			});
 		}
 		const frames = commands.map(frame => ({
 			ackId: frame.ackId,

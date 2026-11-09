@@ -23,7 +23,7 @@ import { MissionControlEnvironment } from '../../node/missionControl/missionCont
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
-import { getProtocolMessageSize, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, parseProtocolMessage, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -1996,6 +1996,23 @@ suite('Mission Control WPS', () => {
 				],
 				clientB: [response(3)],
 			});
+		});
+
+		test('closes only the lane when a response ID alone exceeds the relay message limit', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const other = f.open('client-b');
+			// AHP request IDs are numbers, but a lane answers whatever JSON-RPC ID its client sent.
+			const oversizedId = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', id: 'x'.repeat(DEFAULT_MAX_REASSEMBLY_BYTES), result: null }));
+			assert.throws(() => lane.send(oversizedId), /exceeds 33554432-byte ceiling/);
+			other.send(response(1));
+			f.drain();
+			assert.deepStrictEqual({
+				closed: f.server.isClosed,
+				failures: f.diagnostics.flatMap(event => event.phase === 'relayPublish' && event.outcome === 'failed' ? [event.failure] : []),
+				clientA: f.socket.publishes.filter(frame => frame.group.includes('.client-a.')).map(frame => frame.data.kind),
+				clientB: f.socket.publishes.filter(frame => frame.group.includes('.client-b.')).map(frame => frame.data.data),
+			}, { closed: false, failures: ['messageTooLarge'], clientA: ['closed'], clientB: [response(1)] });
 		});
 
 		test('measures relayed client messages by serialization and advertises relay windows', async () => {
