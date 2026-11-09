@@ -683,7 +683,8 @@ suite('Product test checkpoint templates', () => {
 				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_LINUX_X64_COMPILATION_ARTIFACT?: string };
 				return parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT ? [`${parameters.VSCODE_JOB_NAME}: ${parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT}`] : [];
 			}));
-		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT\'], \'true\')))';
+		// The Basic run is compiled out without this run's Linux server, so its checkpoint only counts with one
+		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-basic-proxy\')) }}, ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT\'], \'true\'))))';
 		const proxyGated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT\'], \'true\')))';
 		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
 			sequence: [

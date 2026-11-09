@@ -199,14 +199,15 @@ steps:
       condition: succeededOrFailed()
 
   # The WSL Dev Container setup only serves the Electron and WSL proxy smoke tests, so it is skipped together with them
-  # when they already passed in this run.
+  # when they already passed in this run. The WSL Basic proxy run needs this run's Linux server, so without one it never
+  # records a checkpoint and does not count.
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'))) }}:
     - task: Cache@2
       displayName: Restore WSL installer cache
       inputs:
         key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
         path: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'))))
       retryCountOnTaskFailure: 2
 
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
@@ -214,7 +215,7 @@ steps:
       timeoutInMinutes: 15
       env:
         WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'))))
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
