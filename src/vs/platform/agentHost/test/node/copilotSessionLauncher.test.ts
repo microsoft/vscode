@@ -373,7 +373,7 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 					};
 				};
 				const session = new class extends mock<CopilotSession>() {
-					override readonly sessionId = 'catalog-readiness';
+					override get sessionId() { return 'catalog-readiness'; }
 					override get rpc() {
 						return new class extends mock<CopilotSession['rpc']>() {
 							override readonly agent = agent;
@@ -1420,9 +1420,9 @@ suite('synthesizeByokSessionConfig', () => {
 				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
-				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, capabilities: { supports: { vision: true } } },
-				{ id: 'gpt', provider: 'acme', capabilities: { supports: { vision: false } } },
-				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
+				{ id: 'claude', provider: 'acme', modelId: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, capabilities: { supports: { vision: true } } },
+				{ id: 'gpt', provider: 'acme', modelId: 'gpt', capabilities: { supports: { vision: false } } },
+				{ id: 'llama', provider: 'globex', modelId: 'llama', name: 'Globex Llama' },
 			],
 		});
 	});
@@ -1439,9 +1439,29 @@ suite('synthesizeByokSessionConfig', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(config.models, [
-			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
-			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google', modelId: 'gemini-2.5-pro' },
+			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google', modelId: 'gemini-2.5-pro' },
 		]);
+	});
+
+	test('keeps canonical GPT-6 and newer model ids separate from grouped routing ids', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'openai', id: 'gpt-6.1-sol', modelIdentifier: 'openai/Work/gpt-6.1-sol' },
+			{ vendor: 'openai', id: 'gpt-7', modelIdentifier: 'openai/Personal/gpt-7' },
+			{ vendor: 'openai', id: 'gpt-10.2', modelIdentifier: 'openai/Future/gpt-10.2' },
+		]));
+		const proxy = countingProxy();
+		try {
+			const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+			assert.deepStrictEqual(config.models, [
+				{ id: 'Work/gpt-6.1-sol', provider: 'openai', modelId: 'gpt-6.1-sol' },
+				{ id: 'Personal/gpt-7', provider: 'openai', modelId: 'gpt-7' },
+				{ id: 'Future/gpt-10.2', provider: 'openai', modelId: 'gpt-10.2' },
+			]);
+		} finally {
+			registration.dispose();
+		}
 	});
 
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
@@ -1495,7 +1515,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
-		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', name: 'Acme Claude' }]);
+		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', modelId: 'claude', name: 'Acme Claude' }]);
 	});
 });
 

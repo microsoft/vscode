@@ -58,6 +58,8 @@ The restricted engine router retains the runtime notification's `sessionId` as `
 
 Copilot user/model text and offered-tools events carry the same `sdkSessionId` from the SDK wrapper that emitted the source event. Their existing resource-derived `conversationId` and scoped `chatSessionId` keep their meanings. Root and child trajectories must not be flattened: children use the root SDK conversation plus `sdkAgentId`. Engine `modelCallId` remains a per-call pairing identity, and `client_sessionid` remains a telemetry-process identity.
 
+Engine snapshots also carry the runtime's `interaction_id`, which the router passes through unchanged. It identifies the interaction (user message) the call serves; a subagent's calls carry the interaction that spawned the subagent. The runtime stamps the same value on its other forwarded events, such as `copilotSdk/response.success`, so `sdkSessionId` plus `interaction_id` joins engine snapshots to those events. The join is per interaction, not per call: the engine `modelCallId` is not the `model_call_id` on `response.success`.
+
 These are string `SystemMetaData` / `FeatureInsight` fields on the existing restricted destinations, under existing account/consent/content-exclusion controls. No host-supplied conversation key, SDK upgrade, new event, or broader population is required. CTS/schema/sharing must separately retain the properties before a curator can consume them; client emission alone does not establish backend availability or request eligibility.
 
 Per-call engine metadata comes from the runtime and passes through the router unchanged when the runtime supplies it. Older runtimes omit these fields; the router does not fill them in:
@@ -68,6 +70,7 @@ Per-call engine metadata comes from the runtime and passes through the router un
 | `responseModel` | Model the provider reported in this call's response. Absent when the response does not identify one; never inferred from `requestModel` or the selected model. |
 | `interactionType` | Bounded call origin captured when the call was dispatched (`conversation-agent`, `conversation-subagent`, `conversation-compaction`, `conversation-sampling`, `conversation-background`, `conversation-user`). Distinct from the `source` text role on `conversation.messageText`. |
 | `parentToolCallId` | Model tool call that spawned the subagent making the call. Absent for root calls and for subagents no model tool call spawned, such as subagents the runtime starts on its own or through the API; their `subagent.started` `toolCallId` only correlates lifecycle events. Not derived from `sdkAgentId`. |
+| `initiatorType` | `user` or `agent`: whether a user or an agent initiated the call, with the same values and meaning as `initiatorType` on the runtime's model response event. Separates the call that starts a user's turn from the agent's follow-up calls in the same conversation. |
 | `runtimeVersion` | Version of the runtime that made the call. |
 
 The router adds `copilotSdkVersion`, the Copilot SDK package bundled with this Agent Host (`IProductService.copilotVersions.sdk`), to engine snapshots, replacing any value in the notification. Editor version (`editor_version`), SDK package version and runtime version stay separate; native Agent Host engine events have no extension version.

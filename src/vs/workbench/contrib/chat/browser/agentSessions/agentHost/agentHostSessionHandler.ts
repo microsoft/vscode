@@ -135,6 +135,7 @@ import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfi
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
+import { isModelRouterModelId, modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -933,11 +934,11 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			}
 			return this._forkSession(request, token, options);
 		};
-		this._createSideChatIfWritable = (turnId, token, selection) => {
+		this._createSideChatIfWritable = (turnId, token, selection, includeSourceContext) => {
 			if (this.isReadOnly.get()) {
 				throw new Error('Session is read-only');
 			}
-			return this._createSideChat(turnId, token, selection);
+			return this._createSideChat(turnId, token, selection, includeSourceContext);
 		};
 		this.renameSession = (title, token) => {
 			if (this.isReadOnly.get()) {
@@ -1351,6 +1352,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private static readonly DRAFT_SYNC_DEBOUNCE_MS = 500;
 	private static readonly ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS = 5;
+	/**
+	 * How long a chat stays loaded after a turn completes while the host still
+	 * has messages queued for it. The host starts the next queued message
+	 * itself, and only a loaded chat observes that turn and runs its client
+	 * tools; the started request then keeps the chat loaded on its own.
+	 */
+	static readonly QUEUED_TURN_HANDOFF_MS = 10_000;
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
 	private readonly _chatURIsBySessionResource = new ResourceMap<string>();
@@ -2107,8 +2115,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.fork === true;
 				},
-				(turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) =>
-					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection),
+				(turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean) =>
+					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection, includeSourceContext),
 				() => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.sideChat === true;
@@ -2961,6 +2969,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// MutableDisposable for per-turn progress tracking (replaced each turn)
 		const turnProgressDisposable = new MutableDisposable<DisposableStore>();
 		disposables.add(turnProgressDisposable);
+		const queuedTurnHandoff = disposables.add(new MutableDisposable<DisposableStore>());
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
@@ -3063,6 +3072,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const activeTurn = e.state.activeTurn;
 			const currentTurnIds = new Set(e.state.turns.map(turn => turn.id));
 			if (!activeTurn) {
+				// Like the host, which starts queued work only after a turn succeeds.
+				if (lastSeenTurnId !== undefined && e.state.turns.at(-1)?.state === TurnState.Complete
+					&& (currentQueuedIds.size > 0 || currentSteeringIds.size > 0)) {
+					this._holdForQueuedTurnHandoff(sessionResource, queuedTurnHandoff);
+				}
 				lastSeenTurnId = undefined;
 				previousQueuedIds = currentQueuedIds;
 				previousTurnIds = currentTurnIds;
@@ -3141,6 +3155,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables.add(chatSub.onDidChange(onChange));
 
 		this._serverTurnWatchers.set(sessionResource, disposables);
+	}
+
+	/** Keeps the chat loaded for {@link QUEUED_TURN_HANDOFF_MS} so it observes the host starting the next queued message. */
+	private _holdForQueuedTurnHandoff(sessionResource: URI, holder: MutableDisposable<DisposableStore>): void {
+		const reference = this._chatService.acquireExistingSession(sessionResource, 'AgentHostSessionHandler#queuedTurnHandoff');
+		if (!reference) {
+			holder.clear();
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(reference);
+		disposableTimeout(() => holder.clear(), AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS, store);
+		holder.value = store;
 	}
 
 	private _watchForMcpAuthentication(backendSession: URI, sessionResource: URI, chatURI: string): void {
@@ -6912,7 +6939,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
 	}
 
-	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext = true): Promise<IChatSessionItem> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -6930,10 +6957,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sourceState?.activeTurn?.id !== turnId && !sourceState?.turns.some(turn => turn.id === turnId)) {
 			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
 		}
+		const draft = !includeSourceContext && sourceState ? emptyDraftFromLastTurn(sourceState) : undefined;
 		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
 		await this._config.connection.createChat(backendSession, chat, {
 			model: lastTurnModelSelection(sourceState),
-			sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) },
+			sideChat: {
+				source: URI.parse(sourceChat),
+				turnId,
+				...(selection ? { selection } : {}),
+				...(!includeSourceContext ? { includeSourceContext: false } : {}),
+			},
 		});
 		const subscription = this._ensureSessionSubscription(sessionUri);
 		const summary = await waitForState(
@@ -6942,6 +6975,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			undefined,
 			token,
 		);
+		if (draft) {
+			this._config.connection.dispatch(summary.resource, { type: ActionType.ChatDraftChanged, draft });
+		}
 		const now = Date.now();
 		return {
 			resource: sessionResource.with({ fragment: getAgentHostChatId(summary.resource) }),
@@ -7856,6 +7892,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: usage => {
+				const routed = readUsageInfoMeta(usage).modelRouted;
+				if (routed) {
+					const routedModel = lookupRawModel(routed.chosenModel);
+					const previousModel = routed.switchedFrom ? lookupRawModel(routed.switchedFrom) : undefined;
+					return {
+						kind: 'autoModeResolution',
+						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
+						router: routed.router,
+						preference: routed.preference,
+						effort: routed.effort,
+						switchedFrom: routed.switchedFrom && (previousModel ? displayName(previousModel) : routed.switchedFrom),
+						defaulted: routed.defaulted,
+						kept: routed.kept,
+					};
+				}
+				if (isModelRouterModelId(fallbackRawModelId)) {
+					return { kind: 'autoModeResolution', router: modelRouterNameFromModelId(fallbackRawModelId) };
+				}
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
 				const isAutoTurn = fallbackRawModelId === AUTO_RAW_MODEL_ID || !!resolution;
 				// Also suppressed while the treatment is unknown; see the field.

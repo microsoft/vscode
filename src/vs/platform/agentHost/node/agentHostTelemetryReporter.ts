@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -187,11 +187,18 @@ export type IAgentHostSubagentKindClassification = {
 export interface IAgentHostFusionTurnTelemetry {
 	autoTier?: string;
 	fusionModel?: string;
+	/** Set when the turn selected a model router; see {@link ModelRouterOutcome}. */
+	modelRouterOutcome?: string;
 }
+
+/** What a model router did for a turn. */
+export type ModelRouterOutcome = 'picked' | 'defaulted' | 'kept' | 'switched' | 'failed';
+const modelRouterOutcomes: ReadonlySet<string> = new Set<ModelRouterOutcome>(['picked', 'defaulted', 'kept', 'switched', 'failed']);
 
 export type IAgentHostFusionTurnClassification = {
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Auto tier selected for the turn, e.g. balance, or hydrafusion or hydrafusion-max for Copilot Fusion High or Max; other for an unrecognized tier. Set only for Copilot turns on Auto. A tier override setting or managed policy can change the tier that runs; fusionModel reports what ran.' };
 	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) the runtime routed the turn with. Absent when the turn did not route through HydraFusion, or was cancelled before routing completed.' };
+	modelRouterOutcome?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How a user-defined model router chose the turn\'s model: picked (the decision model chose a route), defaulted (its first route), kept (stayed on the chat\'s model), switched (moved the chat to another route), or failed (the chat kept its model). Absent when the turn did not select a model router. Router names are never sent.' };
 };
 
 /** Bounds a selected Auto tier to its known values, mapping anything else to `other`. */
@@ -211,9 +218,11 @@ export function toFusionModelTelemetry(fusionModel: string | undefined): string 
 function toFusionTurnTelemetry(report: IAgentHostFusionTurnTelemetry): IAgentHostFusionTurnTelemetry {
 	const autoTier = toAutoTierTelemetry(report.autoTier);
 	const fusionModel = toFusionModelTelemetry(report.fusionModel);
+	const modelRouterOutcome = report.modelRouterOutcome !== undefined && modelRouterOutcomes.has(report.modelRouterOutcome) ? report.modelRouterOutcome : undefined;
 	return {
 		...(autoTier !== undefined ? { autoTier } : {}),
 		...(fusionModel !== undefined ? { fusionModel } : {}),
+		...(modelRouterOutcome !== undefined ? { modelRouterOutcome } : {}),
 	};
 }
 
@@ -1304,7 +1313,7 @@ export function toTelemetryModel(model: string | undefined, modelTelemetryKind: 
 		return undefined;
 	}
 	if (modelTelemetryKind === 'trusted') {
-		return new TelemetryTrustedValue(model);
+		return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model));
 	}
 	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }

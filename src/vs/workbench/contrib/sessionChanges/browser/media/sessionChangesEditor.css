@@ -40,7 +40,16 @@
 	display: flex;
 }
 
-.session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder {
+.session-changes-editor-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 11;
+}
+
+.session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder,
+.session-changes-editor-body.changes-loading .multiDiffEditor .placeholder {
 	display: none;
 }
 
@@ -223,6 +232,11 @@
 .changes-picker-action-rich .changes-picker-separator {
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
+}
+
+/* While the Changes editor does not show the changes its stats are of yet. */
+.changes-picker-action-rich.changes-pending :is(.changes-picker-summary, .changes-picker-separator) {
+	display: none;
 }
 
 .changes-picker-action-rich .action-label > .codicon {

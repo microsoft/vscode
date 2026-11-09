@@ -72,6 +72,8 @@ suite('Sessions - Sessions list tools', () => {
 			onDidReplaceNewDraftSession: Event.None,
 			onDidStartSession: Event.None,
 			onDidDiscardNewSession: Event.None,
+			onDidAcceptNewSessionRequest: Event.None,
+			onDidEndNewSessionRequest: Event.None,
 			onDidMoveChat: Event.None,
 			getSessions: () => harness.managementService.sessions,
 			getInFlightNewSessionRequests: () => [],

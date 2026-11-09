@@ -9,7 +9,7 @@ import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../..
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../../common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
 import { ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
@@ -36,14 +36,15 @@ export function getSessionsTelemetryAgentId(sessionTypeId: string): string {
 /**
  * Removes connection details from a model identifier. Remote agent host models are
  * identified as `{sessionType}:{model}` and that session type embeds the connection
- * authority, so only the provider-local model identifier is kept for them.
+ * authority, so only the provider-local model identifier is kept for them. Model
+ * routers are reported as `modelRouter`.
  */
 export function getSessionsTelemetryModelId(sessionTypeId: string, modelId: string | undefined): string | undefined {
 	if (!modelId || !isRemoteAgentHostSessionType(sessionTypeId)) {
-		return modelId;
+		return normalizeModelRouterTelemetryId(modelId);
 	}
 	const vendorPrefix = `${sessionTypeId}:`;
-	return modelId.startsWith(vendorPrefix) ? modelId.slice(vendorPrefix.length) : undefined;
+	return modelId.startsWith(vendorPrefix) ? normalizeModelRouterTelemetryId(modelId.slice(vendorPrefix.length)) : undefined;
 }
 
 /** Hashes a session identifier while preserving deterministic event correlation. */
