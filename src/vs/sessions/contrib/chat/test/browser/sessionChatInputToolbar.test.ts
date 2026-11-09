@@ -2736,7 +2736,7 @@ suite('SessionChatInputToolbar', () => {
 		const group = toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill')!;
 		const promoted = {
 			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
-			// Artifacts sharing an integration share one pill; the reference keeps its own.
+			// Artifacts sharing an integration share one pill; the reference stays in the References pill, which shows its only entry inline.
 			group: group.querySelector('.chat-pill-label')?.textContent,
 			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
