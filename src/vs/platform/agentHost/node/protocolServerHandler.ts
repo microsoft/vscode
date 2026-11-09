@@ -1309,7 +1309,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _negotiateStateWindow(client: IConnectedClient, channel: string, offer: SubscribeParams['flowControl']): ChannelFlowControl | undefined {
-		if (offer === undefined || client.transport.relayClientId !== undefined || isAhpRootChannel(channel) || classifyChannel(channel)?.kind !== ChannelKind.State) {
+		// Mission Control lanes need windows most: a relay message cannot exceed the relay's reassembly limit.
+		const unsupportedRelay = client.transport.relayClientId !== undefined && client.transport.clientConnectionKind !== AgentHostClientConnectionKind.MissionControl;
+		if (offer === undefined || unsupportedRelay || isAhpRootChannel(channel) || classifyChannel(channel)?.kind !== ChannelKind.State) {
 			return undefined;
 		}
 		try {

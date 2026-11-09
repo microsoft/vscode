@@ -1151,15 +1151,18 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
-		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
-			test(`does not offer state windows on ${connectionKind}`, async () => {
+		for (const [connectionKind, offer] of [
+			[AgentHostClientConnectionKind.WebPubSub, undefined],
+			[AgentHostClientConnectionKind.MissionControl, { receive: agentHostStateReceiveLimits }],
+		] as const) {
+			test(`${offer ? 'offers' : 'does not offer'} state windows on ${connectionKind} and accepts ordinary delivery`, async () => {
 				const { client, transport } = createClient(disposables.add(new TestProtocolTransport(connectionKind)));
 				await connectClient(client, transport);
 				const pending = client.subscribe(URI.parse(channel));
 				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
 				const snapshot = { resource: channel, state, fromSeq: 5 };
 				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
-				assert.deepStrictEqual({ params: request.params, snapshot: await pending }, { params: { channel }, snapshot });
+				assert.deepStrictEqual({ params: request.params, snapshot: await pending }, { params: { channel, ...(offer ? { flowControl: offer } : {}) }, snapshot });
 			});
 		}
 
@@ -5576,7 +5579,10 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
 				for (const [index, snapshot] of snapshots.entries()) {
 					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
-					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
+					assert.deepStrictEqual(subscribe.params, {
+						channel: snapshot.resource,
+						...(connectionKind === AgentHostClientConnectionKind.MissionControl ? { flowControl: { receive: agentHostStateReceiveLimits } } : {}),
+					});
 					if (index === 0) {
 						transport.fireMessage({
 							jsonrpc: '2.0', method: 'auth/required',
@@ -5604,7 +5610,10 @@ suite('AgentHostProtocolClient', () => {
 				}, {
 					sessionTitle: 'After expiry', chatTitle: 'After expiry', state: AgentHostClientState.Connected,
 					watch: watch.params,
-					watchSubscription: { channel: 'ahp-resource-watch:/restored' },
+					watchSubscription: {
+						channel: 'ahp-resource-watch:/restored',
+						...(connectionKind === AgentHostClientConnectionKind.MissionControl ? { flowControl: { receive: agentHostStateReceiveLimits } } : {}),
+					},
 					initializations: 1,
 				});
 			});
@@ -5645,7 +5654,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: restored.id, result: { snapshot: { resource, state, fromSeq: 2 } } });
 				await renewed;
 				assert.deepStrictEqual({ request: restored.params, state: subscription.object.value }, {
-					request: { channel: resource }, state,
+					request: { channel: resource, flowControl: { receive: agentHostStateReceiveLimits } }, state,
 				});
 			});
 		}

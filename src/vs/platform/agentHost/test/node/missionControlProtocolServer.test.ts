@@ -35,9 +35,9 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
-import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
+import { DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_REASSEMBLY_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
-import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { JsonRpcErrorCodes, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 
 const prefix = 'user.owner.env.environment';
@@ -1953,6 +1953,44 @@ suite('Mission Control WPS', () => {
 				before: false, after: false,
 				clientB: [response(1000), response(1001)], clientA: ['message', 'closed'],
 				errors: ['Mission Control ordered publish queue exceeded its limit'],
+			});
+		});
+
+		test('fails an oversized response without closing its lane, and closes only the lane for an oversized notification', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const other = f.open('client-b');
+			let laneClosed = false;
+			store.add(lane.onClose(() => { laneClosed = true; }));
+			const oversized = 'x'.repeat(DEFAULT_MAX_REASSEMBLY_BYTES);
+			const oversizedResponse = response(1, oversized);
+			lane.send(oversizedResponse);
+			lane.send(response(2));
+			const openAfterResponse = !laneClosed;
+			const oversizedNotification = { jsonrpc: '2.0' as const, method: 'action', params: { content: oversized } };
+			assert.throws(() => lane.send(oversizedNotification), /exceeds 33554432-byte ceiling/);
+			other.send(response(3));
+			f.drain();
+			const failures = f.diagnostics.flatMap(event => event.phase === 'relayPublish' && event.outcome === 'failed' ? [{
+				failure: event.failure,
+				...Object.fromEntries(event.detail!.split('; ').map(field => field.split('=')).filter(([key]) => ['serializedBytes', 'limitBytes', 'message', 'method'].includes(key))),
+			}] : []);
+			assert.deepStrictEqual({
+				openAfterResponse, laneClosed, closed: f.server.isClosed, errors: f.errors, failures,
+				clientA: f.socket.publishes.filter(frame => frame.group.includes('.client-a.')).map(frame => frame.data.kind === 'message' ? frame.data.data : frame.data.kind),
+				clientB: f.socket.publishes.filter(frame => frame.group.includes('.client-b.')).map(frame => frame.data.data),
+			}, {
+				openAfterResponse: true, laneClosed: true, closed: false, errors: [],
+				failures: [
+					{ failure: 'messageTooLarge', serializedBytes: String(JSON.stringify(oversizedResponse).length), limitBytes: String(DEFAULT_MAX_REASSEMBLY_BYTES), message: 'response' },
+					{ failure: 'messageTooLarge', serializedBytes: String(JSON.stringify(oversizedNotification).length), limitBytes: String(DEFAULT_MAX_REASSEMBLY_BYTES), method: 'action' },
+				],
+				clientA: [
+					{ jsonrpc: '2.0', id: 1, error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${JSON.stringify(oversizedResponse).length} bytes exceeds the ${DEFAULT_MAX_REASSEMBLY_BYTES}-byte Mission Control relay message limit` } },
+					response(2),
+					'closed',
+				],
+				clientB: [response(3)],
 			});
 		});
 

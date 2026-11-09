@@ -3986,6 +3986,32 @@ suite('ProtocolServerHandler', () => {
 			}, { root: ['snapshot'], ordinary: ['snapshot'], methods: ['action'] });
 		});
 
+		test('accepts offers on Mission Control relay lanes but not on other relay lanes', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const results: Record<string, { result: string[]; snapshots: number }> = {};
+			for (const connectionKind of [AgentHostClientConnectionKind.MissionControl, AgentHostClientConnectionKind.WebPubSub]) {
+				const clientId = `relay-window-${connectionKind}`;
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false, connectionKind));
+				transport.relayAuthenticated = true;
+				server.simulateConnection(transport);
+				const initialized = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+				await initialized;
+				const subscribed = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri, flowControl: { receive: agentHostStateReceiveLimits } }));
+				const response = await subscribed;
+				await timeout(0);
+				results[connectionKind] = {
+					result: hasKey(response, { result: true }) ? Object.keys(response.result as SubscribeResult) : [],
+					snapshots: findNotifications(transport.sent, 'channel/snapshot').length,
+				};
+			}
+			assert.deepStrictEqual(results, {
+				[AgentHostClientConnectionKind.MissionControl]: { result: ['flowControl'], snapshots: 1 },
+				[AgentHostClientConnectionKind.WebPubSub]: { result: ['snapshot'], snapshots: 0 },
+			});
+		});
+
 		test('refreshes the snapshot when an ordinary resubscribe replaces a window with queued actions', async () => {
 			stateManager.createSession({ ...makeSessionSummary(), title: 'Initial '.repeat(128) });
 			const snapshot = stateManager.getSnapshot(sessionUri)!;

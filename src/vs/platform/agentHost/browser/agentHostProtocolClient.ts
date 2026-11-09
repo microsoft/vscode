@@ -1252,7 +1252,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const windowSnapshots = new Map<string, Promise<IStateSnapshot>>();
 		const windowGenerations = new Map(this._windowedStateChannels);
 		const windowed = subscriptions.filter(channel => windowGenerations.has(channel));
-		const requestedWindows = this._isWebPubSubRelay() ? [] : windowed;
+		const requestedWindows = this._offersStateWindows() ? windowed : [];
 		const freshInitialize = this._freshInitializeRequested;
 		this._freshInitializeRequested = false;
 		try {
@@ -2072,7 +2072,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _requestSnapshot(resource: URI, bypassReconnectGate = false): Promise<IStateSnapshot> {
 		const channel = resource.toString();
-		const receive = !isAhpRootChannel(channel) && !this._isWebPubSubRelay() ? agentHostStateReceiveLimits : undefined;
+		const receive = !isAhpRootChannel(channel) && this._offersStateWindows() ? agentHostStateReceiveLimits : undefined;
 		let pending: Promise<IStateSnapshot> | undefined;
 		const result = await this._subscribeWindowedChannel(channel, receive, flowControl => {
 			pending = this._acceptStateChannel(channel, flowControl);
@@ -3931,6 +3931,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _isWebPubSubRelay(): boolean {
 		return this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub
 			|| this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl;
+	}
+
+	/**
+	 * Whether to offer windowed delivery for state channels. Mission Control relays need it: a relay
+	 * message cannot exceed the relay's reassembly limit, which a large chat snapshot can.
+	 */
+	private _offersStateWindows(): boolean {
+		return this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub;
 	}
 
 	private _cancelLivenessTimers(): void {

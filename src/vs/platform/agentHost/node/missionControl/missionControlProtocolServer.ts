@@ -12,9 +12,9 @@ import { hasKey } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { JsonRpcErrorCodes, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
+import { ChunkingPayloadTooLargeError, DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL, type SendToGroupCommand } from '../../common/webPubSub/framing.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { MissionControlControlVerifier } from './missionControlControl.js';
@@ -51,7 +51,7 @@ export interface IMissionControlPublishMeasurements {
 	readonly peakInFlight: number;
 }
 
-export type MissionControlPublishFailure = 'ackTimeout' | 'publishRejected' | 'socketFailure' | 'queueLimit' | 'mirrorBackpressure';
+export type MissionControlPublishFailure = 'ackTimeout' | 'publishRejected' | 'socketFailure' | 'queueLimit' | 'messageTooLarge' | 'mirrorBackpressure';
 
 export type MissionControlPublishDiagnostic = IConnectionDiagnosticEvent & (
 	| { readonly phase: 'relayPublish'; readonly outcome: 'succeeded'; readonly durationMs: number; readonly measurements: IMissionControlPublishMeasurements }
@@ -808,7 +808,28 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	}
 
 	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane, onDidPublish?: () => void): void {
-		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({
+		let commands: SendToGroupCommand[];
+		try {
+			commands = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId });
+		} catch (error) {
+			if (!(error instanceof ChunkingPayloadTooLargeError)) {
+				throw error;
+			}
+			const message = typeof payload === 'object' && payload !== null ? payload as { readonly id?: unknown; readonly method?: unknown; readonly result?: unknown } : {};
+			const id = message.id;
+			const responseId = (typeof id === 'number' || typeof id === 'string') && message.method === undefined && hasKey(message, { result: true }) ? id : undefined;
+			this._reportPublishFailure('messageTooLarge', `serializedBytes=${error.byteLength}; limitBytes=${error.limit}; ${responseId !== undefined ? 'message=response' : `method=${typeof message.method === 'string' ? message.method : 'unknown'}`}`);
+			if (responseId === undefined) {
+				throw error;
+			}
+			// Failing the request instead of the lane stops a reconnecting client from requesting the same response again.
+			this._publish(group, {
+				jsonrpc: '2.0', id: responseId,
+				error: { code: JsonRpcErrorCodes.InternalError, message: `Response of ${error.byteLength} bytes exceeds the ${error.limit}-byte Mission Control relay message limit` },
+			}, generation, lane, onDidPublish);
+			return;
+		}
+		const frames = commands.map(frame => ({
 			ackId: frame.ackId,
 			frame: JSON.stringify(frame),
 			chunkGroup: frame.data.kind === 'chunk' ? frame.data.group_id : undefined,

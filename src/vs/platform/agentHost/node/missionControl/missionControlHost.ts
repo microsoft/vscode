@@ -105,6 +105,7 @@ type MissionControlPublishSummaryEvent = {
 	publishRejectedCount: number;
 	socketFailureCount: number;
 	queueLimitCount: number;
+	messageTooLargeCount: number;
 	mirrorBackpressureCount: number;
 };
 
@@ -130,6 +131,7 @@ export type MissionControlPublishSummaryClassification = {
 	publishRejectedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of WPS acknowledgement rejection failures, excluding acknowledged duplicates.' };
 	socketFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of unexpected socket closures, socket errors or publish write failures.' };
 	queueLimitCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of relay publication admissions rejected by the frame or byte limit.' };
+	messageTooLargeCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of client messages larger than the relay message limit; an oversized response is replaced with an error response, and any other message closes its client lane.' };
 	mirrorBackpressureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of mirror admission attempts paused by backpressure; these are not publication failures.' };
 };
 
@@ -141,7 +143,7 @@ function newPublishTotals() {
 		queueWaitMs: 0, maxQueueWaitMs: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
 		publishDurationMs: 0, maxPublishDurationMs: 0, peakInFlight: 0,
 		peakOutstandingFrames: 0, peakOutstandingBytes: 0,
-		ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 0, mirrorBackpressureCount: 0,
+		ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 0, messageTooLargeCount: 0, mirrorBackpressureCount: 0,
 	};
 }
 
@@ -174,7 +176,7 @@ class MissionControlPublishTelemetry extends Disposable {
 
 	private _hasFailures(): boolean {
 		const totals = this._totals;
-		return totals.ackTimeoutCount + totals.publishRejectedCount + totals.socketFailureCount + totals.queueLimitCount > 0;
+		return totals.ackTimeoutCount + totals.publishRejectedCount + totals.socketFailureCount + totals.queueLimitCount + totals.messageTooLargeCount > 0;
 	}
 
 	record(event: MissionControlPublishDiagnostic): void {
@@ -212,6 +214,7 @@ class MissionControlPublishTelemetry extends Disposable {
 				case 'publishRejected': totals.publishRejectedCount++; break;
 				case 'socketFailure': totals.socketFailureCount++; break;
 				case 'queueLimit': totals.queueLimitCount++; break;
+				case 'messageTooLarge': totals.messageTooLargeCount++; break;
 				case 'mirrorBackpressure': totals.mirrorBackpressureCount++; break;
 			}
 			if (event.failure !== 'mirrorBackpressure') {
@@ -249,7 +252,7 @@ class MissionControlPublishTelemetry extends Disposable {
 			maxPublishDurationMs: totals.maxPublishDurationMs,
 			peakInFlight: totals.peakInFlight, peakOutstandingFrames: totals.peakOutstandingFrames, peakOutstandingBytes: totals.peakOutstandingBytes,
 			ackTimeoutCount: totals.ackTimeoutCount, publishRejectedCount: totals.publishRejectedCount, socketFailureCount: totals.socketFailureCount,
-			queueLimitCount: totals.queueLimitCount, mirrorBackpressureCount: totals.mirrorBackpressureCount,
+			queueLimitCount: totals.queueLimitCount, messageTooLargeCount: totals.messageTooLargeCount, mirrorBackpressureCount: totals.mirrorBackpressureCount,
 		};
 		this._lastEmissionMs = now;
 		this._windowStartedMs = undefined;
