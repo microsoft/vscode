@@ -374,8 +374,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	private _initialAuthenticationResource: string | undefined;
-	/** An expired relay identity, with the window data that never reached the host, to resend once renewal restores the subscriptions. */
-	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string; readonly unsent: readonly ProtocolMessage[] } | undefined;
+	/**
+	 * An expired relay identity on a connection with relay windows. State-channel data is held, after the data the
+	 * discarded windows never sent, and resent in order once renewal restores the subscriptions.
+	 */
+	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string; readonly held: { readonly message: ProtocolMessage; readonly bytes: number }[]; heldBytes: number } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
@@ -2659,8 +2662,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (this._expiredRelayAuthentication === expired && this._transport === transport && !operation.token.isCancellationRequested) {
 				this._expiredRelayAuthentication = undefined;
-				// Resent on the restored subscriptions. A transport loss before this point replays them as pending actions instead.
-				for (const message of expired.unsent) {
+				// Resent in order on the restored subscriptions. A transport loss before this point replays them as pending actions instead.
+				for (const { message } of expired.held) {
 					this._sendMessage(message);
 				}
 				this._onDidReconnect.fire();
@@ -3247,7 +3250,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (msg.method === 'auth/required' && this._isWebPubSubRelay()
 					&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
 					&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
-					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource, unsent: this._discardStateWindows() };
+					const held = this._discardStateWindows().map(message => ({ message, bytes: JSON.stringify(message).length * 2 }));
+					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource, held, heldBytes: held.reduce((bytes, entry) => bytes + entry.bytes, 0) };
 					this._markSubscriptionsAwaitingRestore([]);
 				}
 				this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
@@ -3601,6 +3605,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _sendMessage(message: ProtocolMessage, bypassSubscribeQueue = false): void {
 		if (isJsonRpcNotification(message) && countsAgainstWindow(message.method)) {
+			const expired = this._expiredRelayAuthentication;
+			if (expired?.transport === this._transport && this._offersStateWindows() && !isAhpRootChannel(message.params.channel)) {
+				// Newer state-channel data must not overtake the data the discarded windows never sent.
+				const bytes = JSON.stringify(message).length * 2;
+				if (expired.held.length >= 1024 || expired.heldBytes + bytes > agentHostStateChannelPolicy.maximumBufferedBytes) {
+					const error = new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Relay renewal send queue capacity exceeded');
+					reportAgentHostChannelFailure(this._logService, this._telemetryService, 'client', message.params.channel, error, true);
+					this._transport.dispose();
+					return;
+				}
+				expired.held.push({ message, bytes });
+				expired.heldBytes += bytes;
+				return;
+			}
 			const pending = this._pendingChannelSubscriptions.get(message.params.channel);
 			if (pending?.windowed && !bypassSubscribeQueue) {
 				const bytes = JSON.stringify(message).length * 2;

@@ -5701,7 +5701,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
-		test('starts new relay windows after identity renewal and resends dispatches the expired window did not send', async () => {
+		test('starts new relay windows after identity renewal and resends unsent dispatches before newer ones', async () => {
 			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true });
 			const resource = 'other-agent://tenant/conversations/windowed-session';
 			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits };
@@ -5715,7 +5715,7 @@ suite('AgentHostProtocolClient', () => {
 					},
 				},
 			});
-			const dispatches = [1, 2].map(clientSeq => ({
+			const dispatches = [1, 2, 3].map(clientSeq => ({
 				jsonrpc: '2.0' as const, method: 'dispatchAction',
 				params: { channel: resource, clientSeq, action: { type: ActionType.SessionTitleChanged, title: `Dispatch ${clientSeq}` } },
 			} as const));
@@ -5731,7 +5731,7 @@ suite('AgentHostProtocolClient', () => {
 			const before = snapshot('Before expiry', 2);
 			transport.fireWireMessage(before);
 			await credit();
-			for (const message of dispatches) {
+			for (const message of dispatches.slice(0, 2)) {
 				client.dispatch(resource, message.params.action);
 			}
 			await flushMicrotasks();
@@ -5748,6 +5748,8 @@ suite('AgentHostProtocolClient', () => {
 			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
 			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
 			const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+			// A newer edit while the restored snapshot is pending must not overtake the saved one.
+			client.dispatch(resource, dispatches[2].params.action);
 			transport.fireWireMessage({ jsonrpc: '2.0', id: restored.id, result: { flowControl } });
 			const after = snapshot('After renewal', 3);
 			transport.fireWireMessage(after);
@@ -5763,7 +5765,7 @@ suite('AgentHostProtocolClient', () => {
 				offers: [1, 2].map(() => ({ channel: resource, flowControl: { receive: agentHostStateReceiveLimits } })),
 				title: 'After renewal',
 				beforeExpiry: ['subscribe', 'subscribe', dispatches[0]],
-				sent: ['subscribe', 'subscribe', dispatches[0], 'subscribe', 'subscribe', dispatches[1]],
+				sent: ['subscribe', 'subscribe', dispatches[0], 'subscribe', 'subscribe', dispatches[1], dispatches[2]],
 				credits: [before, after].map(message => ({ channel: resource, consumedBytes: JSON.stringify(message).length * 2 })),
 			});
 		});
