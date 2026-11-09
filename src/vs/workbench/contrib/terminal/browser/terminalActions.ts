@@ -62,7 +62,7 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { LayoutModeContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -393,7 +393,8 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,
-		precondition: sharedWhenClause.terminalAvailable_and_editorActive,
+		// Not in a window with layout modes, which keeps its terminals in a part of its own: the panel is the main window's.
+		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable_and_editorActive, LayoutModeContext.negate()),
 		run: (c, _, args) => {
 			const source = toOptionalUri(args) ?? c.editorService.activeInstance;
 			if (source) {

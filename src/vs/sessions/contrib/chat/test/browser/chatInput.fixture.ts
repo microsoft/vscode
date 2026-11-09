@@ -24,8 +24,8 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
-import '../../browser/media/chatView.css';
-import '../../browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 
 /**
  * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
@@ -34,7 +34,7 @@ import '../../browser/media/chatInput.css';
 function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
-	sessionsPart.classList.add('part', 'sessionspart');
+	sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 	context.container.appendChild(sessionsPart);
 	if (!withBackground) {
 		return { ...context, container: sessionsPart };

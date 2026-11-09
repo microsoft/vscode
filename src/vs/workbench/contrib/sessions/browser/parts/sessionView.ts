@@ -1,0 +1,678 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from '../../../../../nls.js';
+
+import './media/sessionView.css';
+import { $, isAncestorOfActiveElement, size } from '../../../../../base/browser/dom.js';
+import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
+import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
+import { ChatGroupsView } from './chatGroupsView.js';
+import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
+import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
+import { ISessionGridPane, paneShownOfSession } from '../../../../services/sessions/browser/sessionGridPane.js';
+import { ISessionsService } from '../sessionsService.js';
+import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
+import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { applySessionViewThemeColors } from './sessionBarStyles.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
+import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
+import { ISessionGridView } from '../../../../browser/parts/sessions/sessionGridLayout.js';
+import { ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { IPaneViewState, ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+
+/**
+ * Options passed to {@link SessionView.openSession}. Extends the chat view
+ * options so they can be forwarded to the new-chat views the host creates.
+ */
+export interface ISessionViewOptions extends IChatViewOptions { }
+
+/**
+ * A stable single-slot grid leaf for the Sessions Part. `SessionsPart`
+ * delegates `openSession(...)` to this host so it no longer needs to remove/add
+ * grid views as the bound session changes.
+ *
+ * Hosts the full-width {@link SessionHeader} above a {@link ChatGroupsView} that
+ * renders the session's chats as a grid of groups. The header content shares the
+ * chat's centered, width-capped content band.
+ */
+export class SessionView extends Disposable implements ISerializableView, ISessionGridView, ISessionView {
+
+	static readonly TYPE = 'sessions.sessionView';
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
+
+	readonly element: HTMLElement = $('.session-view.modern-ui-editor-tab-group');
+
+	readonly minimumWidth = 200;
+	readonly maximumWidth = Number.POSITIVE_INFINITY;
+	readonly minimumHeight = 200;
+	readonly maximumHeight = Number.POSITIVE_INFINITY;
+
+	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	private readonly _header: SessionHeader;
+	private readonly _groupsView: ChatGroupsView;
+	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
+	private readonly _preparationView = observableValue<AbstractChatView | undefined>(this, undefined);
+	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	/** Created once a standalone view is shown; chat groups host their own Session Activity Bar. */
+	private _standaloneSessionActivityBar: ChatViewSessionActivityBar | undefined;
+	private readonly _centeredContentContainer: HTMLElement;
+	private readonly _contentContainer: HTMLElement;
+
+	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastContentLayout: { readonly view: AbstractChatView | ChatGroupsView; readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
+	private _contentGap = 0;
+
+	private _openSessionDisposables = this._register(new DisposableStore());
+	/** What it binds: the pane of the grid it shows and that pane's session, or (deprecated) a view of a session. */
+	private _bound: { readonly pane: ISessionGridPane | undefined; readonly session: ISession | undefined } | undefined;
+
+	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
+	private readonly _scopedContextKeyService: IContextKeyService;
+	private readonly _scopedInstantiationService: IInstantiationService;
+
+	/** Whether the hosted groups view currently shows a grid (more than one group). */
+	private _isGridLayout = false;
+
+	/** Whether this view currently hosts the active session in the grid. */
+	private _isActive = true;
+
+	/** Whether the owning {@link SessionsPart} is visible in the workbench grid. */
+	private _isPartVisible = true;
+
+	/** Whether this leaf is visible within the part's internal grid. */
+	private _isLeafVisible = true;
+
+	/** The provider's session the pane it shows shows. */
+	private readonly _sessionObs = observableValue<ISession | undefined>(this, undefined);
+	private readonly _chatObs = observableValue<IObservable<IChat | undefined> | undefined>(this, undefined);
+	/** The chat the pane it shows shows: a slot's active tab, a detached pane's chat. */
+	private readonly _paneChat = derived(this, reader => this._chatObs.read(reader)?.read(reader));
+	private readonly _paneObs = observableValue<ISessionGridPane | undefined>(this, undefined);
+	/** The pane of the grid it shows, while it shows one. */
+	readonly pane: IObservable<ISessionGridPane | undefined> = this._paneObs;
+	/** The content of the pane it shows: the provider's session, its chat and the pane's state. */
+	private readonly _contentObs = observableValue<ISessionPaneContent | undefined>(this, undefined);
+	/** The host of what this view shows, nested in the host of its window. */
+	readonly host: ISessionHost;
+	private readonly _isVisibleObs = observableValue(this, true);
+	readonly shownChatCount: IObservable<number>;
+
+	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.preparationProgress?.read(reader)
+		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
+		: noSessionPickerVisibility);
+
+	/** The chat view of the first chat group, while the session shows its chats; undefined while it shows a composer. */
+	readonly primaryChatView: IObservable<AbstractChatView | undefined>;
+
+	/** The top of {@link primaryChatView} within this view: below the session header and the bar of its chat group. */
+	readonly primaryChatViewTop: IObservable<number>;
+
+	private readonly _headerHeight = observableValue<number>(this, 0);
+
+
+	/** The title of the session header. */
+	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
+
+	/**
+	 * The services of its own scope, which what it shows is created with: disposed after it, as what disposes may still
+	 * use them, such as a composer whose input clears as it goes away; see {@link dispose}.
+	 */
+	private readonly _scopedServices = new DisposableStore();
+
+	constructor(
+		private readonly _hostOptions: ISessionViewHostOptions | undefined,
+		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
+		@ISessionHost parentHost: ISessionHost,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+	) {
+		super();
+
+		this.element.setAttribute('role', 'region');
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			this.element.setAttribute('aria-label', session ? localize('sessionPane', "Session: {0}", session.title.read(reader)) : localize('newSessionPane', "New Session"));
+		}));
+
+		// Scoped context key service so toolbars hosted within can react to
+		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
+		const scopedContextKeyService = this._scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
+		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
+		const pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(scopedContextKeyService));
+		this._register(autorun(reader => pickerVisibilityContextKeys.set(this.pickerVisibility.read(reader))));
+
+		// Scoped service exposing this view's session so toolbars and contributed
+		// action view items (e.g. the changes diff stats in the header) can read it.
+		// The host shows the session the grid's view of it is a view of: the one object every host of the session shows.
+		this.host = new SessionHost({
+			kind: SessionHostKind.Pane,
+			parent: parentHost,
+			session: this._sessionObs,
+			chat: this._paneChat,
+			contextKeyService: scopedContextKeyService,
+		});
+		this._register(sessionHostService.registerHost(this.host));
+		this._scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
+
+		// Expose the content cap so aligned chat surfaces do not duplicate it.
+		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
+
+		// The full-width host backs the session while CSS caps its inner content.
+		this._centeredContentContainer = $('.session-view-centered-content');
+		this.element.appendChild(this._centeredContentContainer);
+
+		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
+		this._centeredContentContainer.appendChild(this._header.element);
+
+		this._contentContainer = $('.session-view-content');
+		this.element.appendChild(this._contentContainer);
+
+		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView, _hostOptions, undefined));
+		this.primaryChatView = derived(this, reader => this._standaloneView.read(reader) || this._preparationView.read(reader) ? undefined : this._groupsView.primaryChatView.read(reader));
+		this.primaryChatViewTop = derived(this, reader => this._headerHeight.read(reader) + this._groupsView.primaryChatViewTop.read(reader));
+		this._contentContainer.appendChild(this._groupsView.element);
+		this.shownChatCount = derived(this, reader => {
+			if (!this._isVisibleObs.read(reader)) {
+				return 0;
+			}
+			return this._standaloneView.read(reader) ? 1 : this._groupsView.groupCount.read(reader);
+		});
+
+		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this.element.appendChild(this._floatingToolbar.element);
+
+		this._register(autorun(reader => {
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
+			this._preparationView.read(reader);
+			this._updateStandaloneSessionActivityBar();
+		}));
+
+		this._applyActiveSessionStyles();
+		this._register(this.themeService.onDidColorThemeChange(() => this._applyActiveSessionStyles()));
+
+		// Re-layout children when the header changes visibility/height
+		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
+		this._register(this._header.onDidChangeHeight(() => this._layoutChildren()));
+
+		// When the session shows a grid of chats (more than one group), let the
+		// header span the full width too; with a lone group it stays centered.
+		this._register(autorun(reader => {
+			const isGridLayout = this._groupsView.groupCount.read(reader) > 1;
+			if (this._isGridLayout === isGridLayout) {
+				return;
+			}
+			this._isGridLayout = isGridLayout;
+			this.element.classList.toggle('grid-layout', isGridLayout);
+			this._layoutChildren();
+		}));
+
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			const groupCount = this._groupsView.groupCount.read(reader);
+			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
+			const tabsReplaceHeader = (isSessionCreated(session, reader))
+				&& !showChatAsSessionView
+				&& (groupCount > 1 || (this._contentObs.read(reader)?.state.tabs.shouldShowChatTabs.read(reader) ?? false));
+			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
+			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
+			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
+		}));
+	}
+
+	/**
+	 * Shows `pane`, a pane of the grid: the session it shows, which it binds again as the pane shows another session, such as
+	 * a replacement of it, and the chat and state of the pane, which it follows. The new-session composer while `pane` shows
+	 * no session.
+	 */
+	openPane(pane: ISessionGridPane | undefined, options: ISessionViewOptions): void {
+		const session = pane?.session.get();
+		if (this._bound && this._bound.pane === pane && this._bound.session === session) {
+			return;
+		}
+		// What the pane shows of this session: a session opened over it in the pane changes neither until it is bound.
+		const shown = pane && session ? paneShownOfSession(pane, session) : undefined;
+		this._bind(pane, session, shown?.chat ?? pane?.chat, shown?.state, options);
+	}
+
+	private _bind(pane: ISessionGridPane | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {
+		const bound = this._bound = { pane, session };
+		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs, chat: this._paneChat };
+		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,
+		// or past its pane leaving the grid, closes nothing.
+		const content: ISessionPaneContent | undefined = session && state && {
+			session,
+			chat: derived(reader => chat?.read(reader) ?? session.mainChat.read(reader)),
+			state,
+			close: () => {
+				const pane = this._contentObs.get() === content ? this._sessionsService.getPaneOfHost(this.host) : undefined;
+				if (pane) {
+					this._sessionsService.closePane(pane);
+				}
+			},
+		};
+		transaction(tx => {
+			this._paneObs.set(pane, tx);
+			this._sessionObs.set(session, tx);
+			this._chatObs.set(chat, tx);
+			this._contentObs.set(content, tx);
+		});
+		this._openSessionDisposables.clear();
+
+		this._openSessionDisposables.add(this._handleContextKeys(content));
+
+		this._header.setSession(content);
+		if (session && content && !isSessionCreated(session)) {
+			this._groupsView.setSession(undefined, options);
+			let view = this._standaloneView.get();
+			if (!view || view.kind !== 'newSession') {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+			let restoreComposerFocus = false;
+			const hasPreparationProgress = derived(reader => !!session.preparationProgress?.read(reader));
+			this._openSessionDisposables.add(autorun(reader => {
+				if (this._bound !== bound) {
+					return;
+				}
+				if (isSessionCreated(session, reader)) {
+					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
+					this._showSessionGroups(content, options);
+					if (moveFocus) {
+						this._groupsView.focus();
+					}
+				} else if (session.isNewSessionRequestInProgress?.read(reader) && hasPreparationProgress.read(reader)) {
+					// Keep the composer alive so failure or cancellation restores its prompt and attachments.
+					const moveFocus = isAncestorOfActiveElement(view.element);
+					view.setVisible(false);
+					reader.store.add(toDisposable(() => {
+						const current = this._preparationView.read(undefined);
+						restoreComposerFocus = !!current && isAncestorOfActiveElement(current.element);
+						this._preparationView.set(undefined, undefined);
+					}));
+					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input }));
+					this._preparationView.set(preparationView, undefined);
+					preparationView.setChat(session.mainChat.read(reader), session.sessionId, session);
+					preparationView.setActive(this._isActive);
+					preparationView.setVisible(this._isVisible);
+					this._contentContainer.replaceChildren(preparationView.element);
+					this._layoutChildren();
+					if (moveFocus) {
+						preparationView.focus();
+					}
+				} else {
+					if (view.element.parentElement !== this._contentContainer) {
+						this._contentContainer.replaceChildren(view.element);
+					}
+					view.setActive(this._isActive);
+					view.setVisible(this._isVisible);
+					this._layoutChildren();
+					if (restoreComposerFocus) {
+						view.focus();
+						restoreComposerFocus = false;
+					}
+				}
+			}));
+		} else if (content) {
+			this._showSessionGroups(content, options);
+		} else {
+			this._groupsView.setSession(undefined, options);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+		}
+		this._floatingToolbar.setSession(content?.session);
+		this._layoutChildren();
+	}
+
+	private _showSessionGroups(content: ISessionPaneContent, options: ISessionViewOptions): void {
+		this._standaloneView.set(undefined, undefined);
+		this._contentContainer.replaceChildren(this._groupsView.element);
+		this._groupsView.setSession(content, options);
+		this._layoutChildren();
+	}
+
+	private get _visibleStandaloneView(): AbstractChatView | undefined {
+		return this._preparationView.get() ?? this._standaloneView.get();
+	}
+
+	private _handleContextKeys(content: ISessionPaneContent | undefined): IDisposable {
+		// A single autorun re-applies every session-derived context key on the
+		// scoped service whenever the session's observable properties change.
+		// Passing `undefined` resets the keys to their defaults.
+		return autorun(reader => {
+			setHostSessionContextKeys(content?.session, content?.chat.read(reader), content?.state, this._scopedContextKeyService, reader, this._changesStatsCache);
+		});
+	}
+
+	layout(width: number, height: number, top: number, left: number): void {
+		this.layoutContainer(width, height, top, left);
+		this.layoutContents();
+	}
+
+	layoutContainer(width: number, height: number, top: number, left: number): void {
+		size(this.element, width, height);
+		this._centeredContentContainer.style.width = `${width}px`;
+		this._lastLayout = { width, height, top, left };
+	}
+
+	layoutContents(gap = 0): void {
+		this._contentGap = gap;
+		this._layoutChildren();
+	}
+
+	private _layoutChildren(): void {
+		if (!this._lastLayout) {
+			return;
+		}
+
+		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
+		const { width, height, top, left } = this._lastLayout;
+		const view = this._visibleStandaloneView ?? this._groupsView;
+		const gap = view === this._groupsView ? this._contentGap : 0;
+		this.element.classList.toggle('independent-chat-groups', view === this._groupsView && this._isGridLayout && gap > 0);
+		if (!this._isVisible || width === 0 || height === 0) {
+			this._lastContentLayout = undefined;
+			return;
+		}
+
+		const barHeight = this._header.visible ? this._header.height : 0;
+		this._headerHeight.set(barHeight, undefined);
+		const contentHeight = Math.max(0, height - barHeight);
+		const contentTop = top + barHeight;
+		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
+		const previous = this._lastContentLayout;
+		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
+			return;
+		}
+		this._lastContentLayout = { view, width, height: contentHeight, top: contentTop, left, gap };
+
+		// Cap the host's height to the header so the chat groups grid sits below it.
+		size(this._centeredContentContainer, width, barHeight);
+
+		// Lay out the chat groups grid at full width so its scrollbar reaches the
+		// right edge; the chat rows and input center themselves via CSS.
+		if (view === this._groupsView) {
+			view.layout(width, contentHeight, contentTop, left, gap);
+		} else {
+			// To the left of the column the Session Activity Bar takes at the right edge.
+			view.layout(Math.max(0, width - columnWidth), contentHeight, contentTop, left);
+		}
+	}
+
+	toJSON(): object {
+		return { type: SessionView.TYPE };
+	}
+
+	focus(): void {
+		const standaloneView = this._visibleStandaloneView;
+		standaloneView ? standaloneView.focus() : this._groupsView.focus();
+	}
+
+	focusWorkspacePicker(): void {
+		this._visibleStandaloneView?.focusWorkspacePicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
+	focusEnvironmentPicker(): void {
+		this._visibleStandaloneView?.focusEnvironmentPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._visibleStandaloneView?.focusBranchPicker();
+	}
+
+	focusWorktreePicker(): void {
+		this._visibleStandaloneView?.focusWorktreePicker();
+	}
+
+	focusSyncAction(): void {
+		this._visibleStandaloneView?.focusSyncAction();
+	}
+
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
+	}
+
+	/**
+	 * Starts an inline rename of the session title in the header. Returns
+	 * `false` when the header cannot host it (e.g. this view is hidden or the
+	 * chat tabs row replaces the header) so callers can fall back to another
+	 * rename affordance.
+	 */
+	startTitleEditing(): boolean {
+		return this._isVisible && this._header.startTitleEditing();
+	}
+
+	startFocusedChatTitleEditing(): boolean {
+		return this._isVisible && this._groupsView.startFocusedChatTitleEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._isVisible && this._groupsView.startChatTitleEditing(chatResource);
+	}
+
+	getFocusedChat(): IChat | undefined {
+		return this._groupsView.getFocusedChat();
+	}
+
+	getActiveChat(): IChat | undefined {
+		return this._groupsView.getActiveChat();
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._visibleStandaloneView?.reopenChat(resource) ?? this._groupsView.reopenChat(resource);
+	}
+
+	toggleActiveChatPin(): void {
+		this._groupsView.toggleActiveChatPin();
+	}
+
+	closeChatGroup(chatResource: URI): Promise<boolean> {
+		return this._groupsView.closeChatGroup(chatResource);
+	}
+
+	/** The provider's session it shows. */
+	getSession(): ISession | undefined {
+		return this._sessionObs.get();
+	}
+
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		const standaloneView = this._visibleStandaloneView;
+		return standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
+	}
+
+	applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return this._standaloneView.get()?.applyDraft(draft, folderUri, options, token) ?? Promise.resolve('notReady');
+	}
+
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		const standaloneView = this._visibleStandaloneView;
+		return standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
+	}
+
+	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
+	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
+	}
+
+	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */
+	splitChatToSide(resource: URI): void {
+		this._groupsView.splitChatToSide(resource);
+	}
+
+	focusAdjacentChatGroup(direction: 'previous' | 'next'): void {
+		this._groupsView.focusAdjacentGroup(direction);
+	}
+
+	splitActiveChat(direction: 'right' | 'bottom'): void {
+		this._groupsView.splitActiveChat(direction);
+	}
+
+	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
+		this._groupsView.moveActiveChatToAdjacentGroup(direction);
+	}
+
+	prefillInput(text: string): void {
+		const standaloneView = this._visibleStandaloneView;
+		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		const standaloneView = this._visibleStandaloneView;
+		standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
+	}
+
+	submitInput(): Promise<boolean> {
+		return this._visibleStandaloneView?.submitInput() ?? this._groupsView.submitInput();
+	}
+
+	/**
+	 * Attaches the given resources as context to the active chat group's input.
+	 */
+	attach(uris: URI[]): void {
+		const standaloneView = this._visibleStandaloneView;
+		standaloneView ? standaloneView.attach(uris) : this._groupsView.attach(uris);
+	}
+
+	/**
+	 * Updates the view's maximized context key so toolbars hosted within can react.
+	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
+	 */
+	setMaximized(maximized: boolean): void {
+		this._sessionIsMaximizedKey.set(maximized);
+	}
+
+	/**
+	 * Updates whether this view currently hosts the active session in the grid.
+	 * Forwarded to the inner chat view so it can adjust its visual styling
+	 * (e.g. dim the list background for inactive sessions).
+	 */
+	setActive(active: boolean): void {
+		if (this._isActive === active) {
+			return;
+		}
+		this._isActive = active;
+		this._applyActiveSessionStyles();
+		this._groupsView.setSessionActive(active);
+		this._visibleStandaloneView?.setActive(active);
+		this._updateStandaloneSessionActivityBar();
+	}
+
+	private _updateStandaloneSessionActivityBar(): void {
+		const standaloneView = this._visibleStandaloneView;
+		if (standaloneView && !this._standaloneSessionActivityBar && (this._hostOptions?.showActivityBar ?? true)) {
+			// Every standalone view reserves room for the strip, active or not, so activating it does not shift its content.
+			const activityBar = this._standaloneSessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+			this._register(runOnChange(activityBar.reservedWidth, () => {
+				this._lastContentLayout = undefined;
+				this._layoutChildren();
+			}));
+			this._lastContentLayout = undefined;
+		}
+		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
+		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
+	}
+
+	/**
+	 * Grid hook invoked by the part's internal split view when this leaf is
+	 * hidden or shown (e.g. when a sibling session is maximized).
+	 */
+	setVisible(visible: boolean): void {
+		if (this._isLeafVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isLeafVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Called by the owning {@link SessionsPart} when the part itself is hidden or
+	 * shown in the workbench grid. Combined with this leaf's own visibility to
+	 * form the view's effective visibility.
+	 */
+	setPartVisible(visible: boolean): void {
+		if (this._isPartVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isPartVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Whether this view is actually shown. Unrelated to {@link setActive}:
+	 * inactive sessions shown side by side are still visible.
+	 */
+	private get _isVisible(): boolean {
+		return this._isPartVisible && this._isLeafVisible;
+	}
+
+	private _updateVisibility(wasVisible: boolean): void {
+		const visible = this._isVisible;
+		if (visible === wasVisible) {
+			return;
+		}
+		this._lastContentLayout = undefined;
+		this._isVisibleObs.set(visible, undefined);
+		this._groupsView.setSessionVisible(visible, this._isPartVisible);
+		this._visibleStandaloneView?.setVisible(visible);
+		this._updateStandaloneSessionActivityBar();
+		if (visible) {
+			// Catch up on the layout passes that were skipped while hidden.
+			this._layoutChildren();
+		}
+	}
+
+	private _applyActiveSessionStyles(): void {
+		this.element.classList.toggle('modern-ui-editor-tab-group-active', this._isActive);
+		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
+	}
+
+	override dispose(): void {
+		this._lastLayout = undefined;
+		this._lastContentLayout = undefined;
+		this._isVisibleObs.set(false, undefined);
+		super.dispose();
+		this._scopedServices.dispose();
+	}
+}

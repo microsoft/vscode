@@ -42,6 +42,8 @@ export interface IIconLabelValueOptions {
 	readonly separator?: string;
 	readonly domId?: string;
 	iconPath?: URI | ThemeIcon;
+	/** The CSS color of its icon, such as of a theme icon with a color of its own. */
+	iconColor?: string;
 	supportIcons?: boolean;
 }
 
@@ -151,6 +153,10 @@ export class IconLabel extends Disposable {
 				labelClasses.push('strikethrough');
 			}
 
+			if (options.iconColor) {
+				labelClasses.push('colored-icon');
+			}
+
 			if (options.disabledCommand) {
 				containerClasses.push('disabled');
 			}
@@ -178,6 +184,7 @@ export class IconLabel extends Disposable {
 				iconNode.className = `monaco-icon-label-iconpath ${iconClass}`;
 				iconNode.style.backgroundImage = '';
 			} else {
+				iconNode.className = 'monaco-icon-label-iconpath';
 				iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
 			}
 			iconNode.style.backgroundRepeat = 'no-repeat';
@@ -189,6 +196,11 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.classNames = labelClasses;
+		if (options?.iconColor) {
+			this.domNode.element.style.setProperty('--monaco-icon-label-icon-color', options.iconColor);
+		} else {
+			this.domNode.element.style.removeProperty('--monaco-icon-label-icon-color');
+		}
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
 		this.labelContainer.classList.value = '';
 		this.labelContainer.classList.add(...containerClasses);

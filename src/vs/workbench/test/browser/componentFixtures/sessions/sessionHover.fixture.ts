@@ -13,20 +13,14 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-// eslint-disable-next-line local/code-import-patterns
-import { getSessionApplication } from '../../../../../sessions/common/sessionApplication.js';
+import { getSessionApplication } from '../../../../services/sessions/common/sessionApplication.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-// eslint-disable-next-line local/code-import-patterns
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sessions/browser/sessionHoverContent.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvider } from '../../../../../sessions/services/sessions/common/sessionsProvider.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../contrib/sessions/common/github/types.js';
+import { getSessionSummaryHoverData } from '../../../../contrib/sessions/browser/sessionHoverContent.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../contrib/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 

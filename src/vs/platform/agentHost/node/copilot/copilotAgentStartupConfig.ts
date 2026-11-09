@@ -11,9 +11,6 @@ export class CopilotAgentStartupConfig {
 	constructor(
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly hydraFusion: boolean,
-		readonly hydraFusionV2: boolean,
-		readonly hydraFusionMultiRoot: boolean,
 		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
@@ -30,9 +27,11 @@ export class CopilotAgentStartupConfig {
 		readonly localModel = false,
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
-		readonly dynamicAutoTiers = false,
 		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly computerUse = false,
+		readonly policyHelper: string | undefined = undefined,
+		/** `chat.copilot.modelRouter.enabled`: routers ask a decision model, which needs the runtime's DECISIONS_API flag. */
+		readonly decisionsApi = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {
@@ -46,7 +45,7 @@ export class CopilotAgentStartupConfig {
 	describeChangesFrom(other: CopilotAgentStartupConfig): string {
 		const values = new Map(Object.entries(this));
 		return this.changedKeysFrom(other)
-			.map(key => key === 'managedSettingsPermissions' ? key : `${key}=${String(values.get(key))}`)
+			.map(key => key === 'managedSettingsPermissions' || key === 'policyHelper' ? key : `${key}=${String(values.get(key))}`)
 			.join(', ');
 	}
 

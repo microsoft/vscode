@@ -42,6 +42,14 @@ The experimental setting `chat.titleBar.openInAgentsWindow.richHover` (`experime
 
 `AgentHostSessionHandler` listens for a local `chat/turnStarted` rejection before dispatch, including while subscription updates are buffered, and reports the reason through the normal failed-request UI. The prompt and error remain in the live transcript, including across history refreshes, without restoring text over a newer composer draft. Rejected requests are not added to the host's accepted turn history.
 
+## Subagent file references
+
+`RunSubagentTool` forwards file references as standalone `codeblockUri` response parts, with their subagent invocation ID, rather than opening a shared Markdown fence. The annotation pass keeps this metadata on an independent render part; the Markdown and list renderers use it to create file pills and route each to its owning subagent. Standalone references do not interrupt parent Markdown. Inline code-block annotations remain boundaries when merging streamed Markdown.
+
+Undo stops remain model boundaries. Rendering merges parent Markdown across nested tool calls and edit groups without changing undo slices; copy/accessibility text places nested tool descriptions and standalone references after parent Markdown so they cannot interrupt code fences.
+
+Older histories can contain fence-only scaffolding adjacent to structured subagent metadata. The model and annotation pass share its detection for copy/accessibility text and rendering. Nonempty Markdown and literal request examples are retained; request code blocks never interpret file annotation strings as metadata.
+
 ## Markdown file images
 
 Response Markdown targets are resolved by the owning session content provider before rendering. Agent Host paths retain their connection identity in `vscode-agent-host:` URIs; relative image paths use the session or chat's advertised working directory. Recorded cloud history preserves this identity without requiring a live connection.

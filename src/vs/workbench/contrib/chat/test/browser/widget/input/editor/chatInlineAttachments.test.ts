@@ -4,35 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { ICodeEditor, IMouseTarget, MouseTargetType } from '../../../../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorAutoIndentStrategy } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
+import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CodeDataTransfers } from '../../../../../../../../platform/dnd/browser/dnd.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IExtensionService } from '../../../../../../../services/extensions/common/extensions.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
+import { ChatDragAndDrop } from '../../../../../browser/widget/chatDragAndDrop.js';
 import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
@@ -42,8 +49,10 @@ import { IParsedChatRequest } from '../../../../../common/requestParser/chatPars
 suite('ChatInlineAttachments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	interface ITestInput {
-		readonly editor: ITestCodeEditor;
+		readonly editor: ICodeEditor;
 		readonly attachments: ChatAttachmentModel;
 		readonly controller: ChatInlineAttachments;
 		readonly instantiationService: TestInstantiationService;
@@ -60,7 +69,7 @@ suite('ChatInlineAttachments', () => {
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
 	 */
-	function createInput(text: string, showsPills = true): ITestInput {
+	function createInput(text: string, showsPills = true, renderEditor = false): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
@@ -72,9 +81,25 @@ suite('ChatInlineAttachments', () => {
 		});
 		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { });
 		instantiationService.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { });
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			resolveSessionResourceIdentity: () => undefined,
+		}));
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override readonly extensions = [];
+		});
 
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
-		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+		let editor: ICodeEditor;
+		if (renderEditor) {
+			const container = dom.append(document.body, dom.$('.interactive-session'));
+			disposables.add(toDisposable(() => container.remove()));
+			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, dom.append(container, dom.$('div')), {
+				dimension: { width: 600, height: 200 },
+			}, { contributions: [], isSimpleWidget: true }));
+			editor.setModel(model);
+		} else {
+			editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+		}
 		const attachments = disposables.add(instantiationService.createInstance(ChatAttachmentModel));
 		const onDidChangeParsedInput = disposables.add(new Emitter<void>());
 		const onDidChangeReferences = disposables.add(new Emitter<void>());
@@ -96,6 +121,14 @@ suite('ChatInlineAttachments', () => {
 			}
 			override refreshParsedInput(): void { }
 		};
+		const dnd = renderEditor ? disposables.add(instantiationService.createInstance(ChatDragAndDrop, () => widget, {
+			get attachments() { return attachments.attachments; },
+			addAttachments: entries => attachments.addContext(...entries),
+		}, { overlayBackground: 'editor.background', listForeground: 'editor.foreground', listBackground: 'editor.background' })) : undefined;
+		if (dnd) {
+			const container = editor.getContainerDomNode().parentElement!;
+			dnd.addOverlay(container, container, editor.getContainerDomNode());
+		}
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
 			widget: showsPills ? widget : undefined,
 			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
@@ -103,6 +136,7 @@ suite('ChatInlineAttachments', () => {
 				return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
 			},
 			removeAttachments: (removed: readonly IChatRequestVariableEntry[]) => attachments.delete(...removed.map(attachment => attachment.id)),
+			resetDragState: () => dnd?.resetDragState(),
 		}));
 
 		return {
@@ -127,6 +161,257 @@ suite('ChatInlineAttachments', () => {
 	function settle(): Promise<void> {
 		return timeout(0);
 	}
+
+	function dispatchDrag(element: HTMLElement, type: string, dataTransfer: DataTransfer): DragEvent {
+		const event = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer });
+		element.dispatchEvent(event);
+		return event;
+	}
+
+	function dropTarget(position: Position): IMouseTarget {
+		return upcastPartial<IMouseTarget>({ type: MouseTargetType.CONTENT_TEXT, position });
+	}
+
+	for (const endEvent of [dom.EventType.DROP, dom.EventType.DRAG_END]) {
+		test(`external drag feedback and enter/leave tracking recover after an internal pill ${endEvent}`, async () => {
+			const input = createInput('text ', true, true);
+			input.editor.setPosition(new Position(1, 6));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			const editor = input.editor.getContainerDomNode();
+			const outer = editor.parentElement!;
+			const pill = editor.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+			const overlay = outer.querySelector<HTMLElement>('.chat-dnd-overlay')!;
+			const internal = new DataTransfer();
+			const external = new DataTransfer();
+			external.setData(CodeDataTransfers.EDITORS, JSON.stringify([{ resource: URI.file('/external.ts') }]));
+			sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 1)));
+
+			dispatchDrag(outer, dom.EventType.DRAG_ENTER, external);
+			dispatchDrag(outer, dom.EventType.DRAG_OVER, external);
+			const before = overlay.classList.contains('visible');
+			dispatchDrag(outer, dom.EventType.DRAG_LEAVE, external);
+
+			dispatchDrag(pill, dom.EventType.DRAG_START, internal);
+			dispatchDrag(outer, dom.EventType.DRAG_ENTER, internal);
+			dispatchDrag(outer, dom.EventType.DRAG_OVER, internal);
+			dispatchDrag(editor, dom.EventType.DRAG_ENTER, internal);
+			dispatchDrag(outer, dom.EventType.DRAG_LEAVE, internal);
+			dispatchDrag(endEvent === dom.EventType.DROP ? editor : pill, endEvent, internal);
+			await settle();
+
+			dispatchDrag(outer, dom.EventType.DRAG_ENTER, external);
+			dispatchDrag(outer, dom.EventType.DRAG_OVER, external);
+			const after = overlay.classList.contains('visible');
+			dispatchDrag(outer, dom.EventType.DRAG_LEAVE, external);
+			const afterLeaving = overlay.classList.contains('visible');
+			dispatchDrag(outer, dom.EventType.DRAG_ENTER, external);
+			dispatchDrag(outer, dom.EventType.DRAG_OVER, external);
+			const afterReentering = overlay.classList.contains('visible');
+			dispatchDrag(outer, dom.EventType.DRAG_LEAVE, external);
+
+			assert.deepStrictEqual({ before, after, afterLeaving, afterReentering, afterLeavingAgain: overlay.classList.contains('visible') }, {
+				before: true, after: true, afterLeaving: false, afterReentering: true, afterLeavingAgain: false,
+			});
+		});
+	}
+
+	test('dragging moves only the picked-up pill with its metadata and a pill-only preview, and supports undo and redo', async () => {
+		const input = createInput('first \nsecond ', true, true);
+		input.editor.setPosition(new Position(1, 7));
+		const image: IChatRequestVariableEntry = { kind: 'image', id: 'image', name: 'photo.png', value: new Uint8Array([1, 2, 3]) };
+		input.attachments.addContext(file('a.ts'), image);
+		await settle();
+		const added = input.state();
+		const model = input.editor.getModel()!;
+		input.editor.setSelection(model.getFullModelRange(), 'keyboard');
+
+		const container = input.editor.getContainerDomNode();
+		const pill = container.querySelectorAll<HTMLElement>('.chat-inline-attachment')[1];
+		const widget = pill.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+		const resourceDrag = sinon.spy();
+		store.add(dom.addDisposableListener(widget, dom.EventType.DRAG_START, resourceDrag));
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData('text/uri-list', 'file:///photo.png');
+		const setDragImage = sinon.spy(dataTransfer, 'setDragImage');
+		sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(2, 8)));
+		dispatchDrag(widget, dom.EventType.DRAG_START, dataTransfer);
+		const dragOver = dispatchDrag(container, dom.EventType.DRAG_OVER, dataTransfer);
+		const marker = model.getAllDecorations().filter(decoration => decoration.options.description === 'chat-inline-attachment-drop-target').map(decoration => decoration.range.toString());
+		const duringMove: string[][] = [];
+		const listener = store.add(input.editor.onDidChangeModelContent(() => {
+			duringMove.push(input.controller.getPillReferences().map(reference => `${reference.id} ${Range.lift(reference.range)}`));
+		}));
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		listener.dispose();
+		await settle();
+		const moved = input.state();
+		const activeAfterMove = input.isActive();
+		const keepsImage = input.attachments.attachments.find(attachment => attachment.id === image.id) === image;
+		const markersAfterDrop = model.getAllDecorations().filter(decoration => decoration.options.description === 'chat-inline-attachment-drop-target').length;
+		model.undo();
+		await settle();
+		const undone = input.state();
+		model.redo();
+		await settle();
+
+		assert.deepStrictEqual({
+			added, moved, undone, redone: input.state(), activeAfterMove, keepsImage, duringMove, marker, markersAfterDrop,
+			previewIsOnlyPill: setDragImage.calledOnce && setDragImage.firstCall.args[0] === pill,
+			resourceDrag: resourceDrag.callCount,
+			transferTypes: dataTransfer.types,
+			acceptsDrop: dragOver.defaultPrevented,
+		}, {
+			added: { prompt: 'first #attachment:a.ts #attachment:photo.png\nsecond ', attachments: ['file:a.ts', 'image'] },
+			moved: { prompt: 'first #attachment:a.ts \nsecond #attachment:photo.png', attachments: ['file:a.ts', 'image'] },
+			undone: added,
+			redone: moved,
+			activeAfterMove: false,
+			keepsImage: true,
+			duringMove: [['file:a.ts [1,7 -> 1,8]', 'image [2,8 -> 2,9]']],
+			marker: ['[2,8 -> 2,8]'],
+			markersAfterDrop: 0,
+			previewIsOnlyPill: true,
+			resourceDrag: 0,
+			transferTypes: ['application/vnd.code.chat-inline-attachment'],
+			acceptsDrop: true,
+		});
+	});
+
+	test('holds the drag preview at its bottom-left corner regardless of where the pill was grabbed', async () => {
+		const input = createInput('', true, true);
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		input.editor.render(true);
+		const pill = input.editor.getContainerDomNode().querySelector<HTMLElement>('.chat-inline-attachment')!;
+		const widget = pill.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+		const rect = pill.getBoundingClientRect();
+		assert.ok(rect.width > 0 && rect.height > 0);
+		const dataTransfer = new DataTransfer();
+		const setDragImage = sinon.spy(dataTransfer, 'setDragImage');
+
+		for (const fraction of [0.25, 0.75]) {
+			widget.dispatchEvent(new DragEvent(dom.EventType.DRAG_START, {
+				bubbles: true, cancelable: true, dataTransfer,
+				clientX: rect.left + rect.width * fraction,
+				clientY: rect.top + rect.height * fraction,
+			}));
+			dispatchDrag(widget, dom.EventType.DRAG_END, dataTransfer);
+		}
+
+		assert.deepStrictEqual(setDragImage.args.map(([, x, y]) => ({ x, y })), [
+			{ x: 0, y: rect.height },
+			{ x: 0, y: rect.height },
+		]);
+	});
+
+	test('dragging backwards across another pill keeps their identities through undo and redo', async () => {
+		const input = createInput('\n', true, true);
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		input.editor.setPosition(new Position(2, 1));
+		input.attachments.addContext(file('b.ts'));
+		await settle();
+		const before = input.state();
+		const container = input.editor.getContainerDomNode();
+		const pill = container.querySelectorAll<HTMLElement>('.chat-attached-context-attachment')[1];
+		const dataTransfer = new DataTransfer();
+		sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 1)));
+		dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		await settle();
+		const moved = input.state();
+		input.editor.getModel()!.undo();
+		await settle();
+		const undone = input.state();
+		input.editor.getModel()!.redo();
+		await settle();
+
+		assert.deepStrictEqual({ moved, undone, redone: input.state() }, {
+			moved: { prompt: '#attachment:b.ts #attachment:a.ts\n ', attachments: ['file:a.ts', 'file:b.ts'] },
+			undone: before,
+			redone: moved,
+		});
+	});
+
+	test('cancelled, out-of-input and same-position drops leave the pill and undo history unchanged', async () => {
+		const input = createInput('text ', true, true);
+		input.editor.setPosition(new Position(1, 6));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		const before = input.state();
+		const model = input.editor.getModel()!;
+		const version = model.getAlternativeVersionId();
+		const container = input.editor.getContainerDomNode();
+		const pill = container.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+		const hitTest = sinon.stub(input.editor, 'getTargetAtClientPoint');
+		const dataTransfer = new DataTransfer();
+
+		hitTest.returns(dropTarget(new Position(1, 1)));
+		dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(container, dom.EventType.DRAG_OVER, dataTransfer);
+		dispatchDrag(pill, dom.EventType.DRAG_END, dataTransfer);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+
+		hitTest.returns(null);
+		dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+
+		for (const column of [6, 7]) {
+			hitTest.returns(dropTarget(new Position(1, column)));
+			dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+			dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		}
+		await settle();
+
+		assert.deepStrictEqual({
+			state: input.state(),
+			version: model.getAlternativeVersionId(),
+			markers: model.getAllDecorations().filter(decoration => decoration.options.description === 'chat-inline-attachment-drop-target').length,
+		}, { state: before, version, markers: 0 });
+	});
+
+	test('a pill cannot move to another input or start moving from a read-only input', async () => {
+		const input = createInput('source ', true, true);
+		const other = createInput('destination ', true, true);
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		const before = input.state();
+		const container = input.editor.getContainerDomNode();
+		const pill = container.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+		const dataTransfer = new DataTransfer();
+		sinon.stub(other.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 1)));
+		dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(other.editor.getContainerDomNode(), dom.EventType.DROP, dataTransfer);
+		dispatchDrag(pill, dom.EventType.DRAG_END, dataTransfer);
+		input.editor.updateOptions({ readOnly: true });
+		const dragStart = dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		await settle();
+
+		assert.deepStrictEqual({ source: input.state(), other: other.state(), cancelled: dragStart.defaultPrevented }, {
+			source: before,
+			other: { prompt: 'destination ', attachments: [] },
+			cancelled: true,
+		});
+	});
+
+	test('changing the input during a drag cancels the move', async () => {
+		const input = createInput('text ', true, true);
+		input.editor.setPosition(new Position(1, 6));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		const container = input.editor.getContainerDomNode();
+		const pill = container.querySelector<HTMLElement>('.chat-attached-context-attachment')!;
+		const dataTransfer = new DataTransfer();
+		sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 1)));
+		dispatchDrag(pill, dom.EventType.DRAG_START, dataTransfer);
+		input.editor.executeEdits('test', [{ range: new Range(1, 1, 1, 1), text: 'new ' }]);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		await settle();
+
+		assert.deepStrictEqual(input.state(), { prompt: 'new text #attachment:a.ts ', attachments: ['file:a.ts'] });
+	});
 
 	test('moving a line moves the pills on it, and undo moves them back', async () => {
 		const input = createInput('summarize\nreview ');

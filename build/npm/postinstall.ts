@@ -7,13 +7,13 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { workspaceMembers, separateRoots, distroRoots } from './dirs.ts';
-import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
+import { separateRoots, distroRoots } from './dirs.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
 import { getNativeBuildEnv, nativeBuildKeys } from './pnpm/nativeBuildEnv.ts';
 import { getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 const pnpm = getPnpmCommand();
 
 function log(dir: string, message: string) {
@@ -24,17 +24,19 @@ function log(dir: string, message: string) {
 	}
 }
 
+/**
+ * Runs `command` and throws if it fails. It throws instead of exiting, so that the postinstall
+ * waits for the installs that run next to it (see `main`) before it reports the failure.
+ */
 function run(command: string, args: string[], opts: child_process.SpawnSyncOptions) {
 	log(opts.cwd as string || '.', '$ ' + command + ' ' + args.join(' '));
 
 	const result = child_process.spawnSync(command, args, opts);
 
 	if (result.error) {
-		console.error(`ERR Failed to spawn process: ${result.error}`);
-		process.exit(1);
+		throw new Error(`Failed to spawn ${command}: ${result.error}`);
 	} else if (result.status !== 0) {
-		console.error(`ERR Process exited with code: ${result.status}`);
-		process.exit(result.status);
+		throw new Error(`${command} exited with ${result.status !== null ? `code ${result.status}` : `signal ${result.signal}`}`);
 	}
 }
 
@@ -80,9 +82,6 @@ async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<vo
 		const storeDir = '/root/vscode/.build/pnpm-store-container';
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
-		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0', '--reset', '-p', 'yes'], syncOpts);
-		}
 		run('sudo', [
 			'docker', 'run',
 			'-e', 'GITHUB_TOKEN',
@@ -153,29 +152,6 @@ function getRemoteEnv(): NodeJS.ProcessEnv {
 	return env;
 }
 
-/**
- * Removes the prebuilt `@parcel/watcher-<platform>` packages so that `@parcel/watcher` loads the
- * binary built from source. With the hoisted layout they can be in the install root's
- * `node_modules` or in a workspace member's own `node_modules`.
- */
-function removeParcelWatcherPrebuilds(dir: string) {
-	for (const parcelModuleFolder of [
-		path.join(root, dir, 'node_modules', '@parcel'),
-		path.join(root, dir, 'node_modules', '@parcel', 'watcher', 'node_modules', '@parcel'),
-	]) {
-		if (!fs.existsSync(parcelModuleFolder)) {
-			continue;
-		}
-		for (const moduleName of fs.readdirSync(parcelModuleFolder)) {
-			if (moduleName.startsWith('watcher-')) {
-				const modulePath = path.join(parcelModuleFolder, moduleName);
-				fs.rmSync(modulePath, { recursive: true, force: true });
-				log(dir || '.', `Removed @parcel/watcher prebuilt module ${modulePath}`);
-			}
-		}
-	}
-}
-
 function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): 'existing' | 'junction' | 'symlink' | 'hard link' {
 	if (fs.existsSync(linkPath)) {
 		return 'existing';
@@ -230,33 +206,22 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 async function main() {
 	await ensureElectronTypes();
 
-	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
-		finishCloudSandbox();
-		log('.', 'All dependencies up to date, skipping postinstall.');
-		child_process.execSync('git config pull.rebase merges');
-		child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
-		return;
-	}
-
-	const _state = computeState();
-
-	// The workspace members were installed by the `pnpm install` that runs this script.
-	for (const dir of workspaceMembers) {
-		removeParcelWatcherPrebuilds(dir);
+	// Older branches, such as release branches, skip their install scripts when
+	// node_modules/.postinstall-state matches their inputs. Remove it on every install here, so
+	// that switching back to such a branch doesn't skip an install that it needs.
+	for (const file of ['.postinstall-state', '.postinstall-state-contents']) {
+		fs.rmSync(path.join(root, 'node_modules', file), { force: true });
 	}
 
 	const nativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
 	for (const dir of [...separateRoots, ...distroRoots]) {
-		const install = (env: NodeJS.ProcessEnv) => async () => {
-			await pnpmInstallAsync(dir, env);
-			removeParcelWatcherPrebuilds(dir);
-		};
+		const install = (env: NodeJS.ProcessEnv) => () => pnpmInstallAsync(dir, env);
 
 		if (dir === 'build') {
-			// build/.pnpmfile.mjs sets the native module build variables: build/.npmrc, the running
-			// Node.js version and the host architecture.
+			// build/.pnpmfile.mjs sets the native module build variables: the `nativeBuild` field of
+			// build/package.json, the running Node.js version and the host architecture.
 			const env: NodeJS.ProcessEnv = { ...process.env };
 			if (process.env['CC']) { env['CC'] = 'gcc'; }
 			if (process.env['CXX']) { env['CXX'] = 'g++'; }
@@ -264,22 +229,44 @@ async function main() {
 			if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
 			nativeTasks.push(install(env));
 		} else if (dir === 'remote') {
-			// remote/.pnpmfile.mjs sets the native module build variables of remote/.npmrc.
+			// remote/.pnpmfile.mjs sets the native module build variables of remote/package.json.
 			nativeTasks.push(install(getRemoteEnv()));
+		} else if (dir === 'extensions') {
+			// extensions/.pnpmfile.mjs sets the native module build variables of the root package.json (Electron).
+			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === 'extensions/copilot') {
-			// No .npmrc or pnpmfile: builds native modules for Electron with the workspace's variables.
+			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
 			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === '.build/distro/npm/remote') {
-			// Distro roots have no .npmrc or pnpmfile: build for the remote server like remote/.
-			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote'), { forceProcessConfigOnDarwin: true }))));
+			// Distro roots have no `nativeBuild` field or pnpmfile: build for the remote server like remote/.
+			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote')))));
 		} else {
 			parallelTasks.push(install(clearNativeBuildEnv({ ...process.env })));
 		}
 	}
 
-	// Native roots (build, remote) run sequentially to avoid node-gyp conflicts
-	for (const task of nativeTasks) {
-		await task();
+	// The native roots install in parallel: each has its own node_modules, and their native modules
+	// build with the headers that the preinstall installed before any of them, so their builds don't
+	// download headers into node-gyp's shared cache at the same time. Set
+	// VSCODE_SEQUENTIAL_NATIVE_INSTALLS to install them one at a time instead. Every install
+	// finishes before a failure is reported.
+	let nativeResults: PromiseSettledResult<void>[];
+	if (process.env['VSCODE_SEQUENTIAL_NATIVE_INSTALLS']) {
+		log('.', `Running ${nativeTasks.length} native pnpm installs one at a time (VSCODE_SEQUENTIAL_NATIVE_INSTALLS)...`);
+		nativeResults = [];
+		for (const task of nativeTasks) {
+			nativeResults.push(...await Promise.allSettled([task()]));
+		}
+	} else {
+		log('.', `Running ${nativeTasks.length} native pnpm installs in parallel...`);
+		nativeResults = await Promise.allSettled(nativeTasks.map(task => task()));
+	}
+	const nativeFailures = nativeResults.filter(result => result.status === 'rejected');
+	for (const failure of nativeFailures.slice(1)) {
+		console.error(failure.reason);
+	}
+	if (nativeFailures.length > 0) {
+		throw nativeFailures[0].reason;
 	}
 
 	// JS-only roots run in parallel
@@ -291,9 +278,6 @@ async function main() {
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 
 	finishCloudSandbox();
-
-	fs.writeFileSync(stateFile, JSON.stringify(_state));
-	fs.writeFileSync(stateContentsFile, JSON.stringify(computeContents()));
 
 	// Symlink .claude/ files to their canonical locations to test Claude agent harness
 	const claudeDir = path.join(root, '.claude');

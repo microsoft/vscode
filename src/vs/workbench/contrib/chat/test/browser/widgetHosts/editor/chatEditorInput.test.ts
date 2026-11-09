@@ -898,20 +898,35 @@ suite('ChatEditorInput', () => {
 		});
 	});
 
-	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean): ChatEditorInput {
+	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean, sessionsService: IChatSessionsService = new MockChatSessionsService()): ChatEditorInput {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.set(IAccountPolicyGateService, settledPolicyGate);
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
 		instantiationService.set(IConfigurationService, new TestConfigurationService());
-		instantiationService.set(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.set(IChatSessionsService, sessionsService);
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
 		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
+
+	test('reuses an existing editor when a controller declares its previous session identity', () => {
+		const store = disposables.add(new DisposableStore());
+		const sessions = new MockChatSessionsService();
+		const previous = URI.parse('remote-environment-copilot:/session');
+		const current = URI.parse('cloud-sandbox-task:/task');
+		store.add(sessions.registerChatSessionItemController(current.scheme, {
+			items: [], onDidChangeChatSessionItems: Event.None, refresh: async () => { },
+			getPreviousSessionResource: resource => isEqual(resource, current) ? previous : undefined,
+		}));
+		const oldInput = createInputForCopy(store, previous, true, sessions);
+		const currentInput = createInputForCopy(store, current, true, sessions);
+		const unrelated = createInputForCopy(store, current.with({ path: '/other-task' }), true, sessions);
+		assert.deepStrictEqual([oldInput.matches(currentInput), currentInput.matches(oldInput), oldInput.matches(unrelated)], [true, true, false]);
+	});
 
 	test('serialized title is restored for an unresolved non-local session and not copied', () => {
 		const store = disposables.add(new DisposableStore());
@@ -1028,6 +1043,7 @@ suite('ChatEditor chat open diagnostics', () => {
 			group: { id: options.groupId ?? 1 },
 			layoutService: { isRestored: () => options.restored ?? true },
 			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
+			provisionalSessionService: { prepareSessionConfig: async () => { } },
 		});
 	}
 

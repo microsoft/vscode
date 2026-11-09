@@ -17,6 +17,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -27,9 +28,14 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
@@ -66,7 +72,9 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import '../../../../files/browser/fileActions.contribution.js';
 import '../../../browser/widget/media/chat.css';
 
 class TestChatListWidget extends ChatListWidget {
@@ -246,7 +254,6 @@ suite('ChatListWidget', () => {
 		const fileService = upcastPartial<IFileService>({
 			hasProvider: () => true,
 		});
-
 		assert.deepStrictEqual({
 			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
 			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
@@ -257,6 +264,108 @@ suite('ChatListWidget', () => {
 			http: false,
 		});
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		for (const gesture of isMacintosh ? ['contextmenu', 'Shift+F10'] : ['contextmenu', 'ContextMenu', 'Shift+F10']) {
+			for (const { resource, linkType } of [
+				{ resource: URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), linkType: undefined },
+				{ resource: URI.parse('vscode-remote://host/workspace/my%20file.ts?provider=value'), linkType: 'file' },
+				{ resource: toAgentHostUri(URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), 'remote-host'), linkType: 'skill' },
+			]) {
+				test(`composes ${resource.scheme} file and transcript actions via ${gesture} (sessions=${isSessionsWindow})`, async () => {
+					let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+					const contextMenuService = upcastPartial<IContextMenuService>({
+						showContextMenu: delegate => { menuDelegate = delegate; },
+					});
+					const editorResolverService = upcastPartial<IEditorResolverService>({
+						getEditors: () => [{ id: 'test.editor', label: 'Test Editor', priority: { editor: RegisteredEditorPriority.option, diff: RegisteredEditorPriority.option, merge: RegisteredEditorPriority.option } }],
+					});
+					const { instantiationService, model, widget, container } = createWidget({}, undefined, isSessionsWindow, contextMenuService, editorResolverService);
+					sinon.stub(instantiationService.get(IFileService), 'hasProvider').callsFake(uri => uri.scheme === resource.scheme);
+					const invocations: { id: string; resource?: string; linkTarget?: string }[] = [];
+					instantiationService.stub(ICommandService, {
+						executeCommand: async (id, arg) => {
+							invocations.push(URI.isUri(arg) ? { id, resource: arg.toString() } : isChatContextMenuActionContext(arg) ? { id, linkTarget: arg.linkTarget } : { id });
+						},
+					});
+					const menuService = store.add(instantiationService.createInstance(MenuService));
+					sinon.stub(instantiationService.get(IMenuService), 'getMenuActions').callsFake((...args) => menuService.getMenuActions(...args));
+					const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+					sinon.stub(instantiationService.get(IContextKeyService), 'createOverlay').callsFake(overlay => contextKeyService.createOverlay(overlay));
+					const target = resource.with({ query: linkType ? `${resource.query}&vscodeLinkType=${linkType}` : resource.query, fragment: 'L42,7' }).toString();
+					const request = model.addRequest({
+						text: 'Show source',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 11), new Range(1, 1, 1, 12), 'Show source')],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Source](<${target}>)`) });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(300, 500);
+					await waitForStableLayout(widget);
+					const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+					if (gesture === 'contextmenu') {
+						link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+					} else {
+						widget.focusLastItem();
+						link.focus();
+						for (const type of ['keydown', 'keyup']) {
+							link.dispatchEvent(new mainWindow.KeyboardEvent(type, { key: gesture === 'ContextMenu' ? 'ContextMenu' : 'F10', keyCode: gesture === 'ContextMenu' ? 93 : 121, shiftKey: gesture === 'Shift+F10', bubbles: true, cancelable: true }));
+						}
+					}
+					const menu = menuDelegate as IContextMenuMenuDelegate | undefined;
+					assert.ok(menu);
+					const actionContext = menu.getActionsContext?.();
+					const actions = menu.getActions?.() ?? [];
+					const reveal = actions.find(action => action.id === REVEAL_IN_EXPLORER_COMMAND_ID);
+					const copy = actions.find(action => action.id === 'workbench.action.chat.copyLink');
+					assert.ok(reveal && copy);
+					await reveal.run(actionContext);
+					await copy.run(actionContext);
+					assert.deepStrictEqual({
+						actions: actions.filter(action => action === reveal || action === copy).map(action => action.id),
+						invocations,
+						openWith: menu.contextKeyService?.getContextKeyValue(ChatContextKeys.contextMenuHasAvailableEditors.key),
+						text: link.textContent,
+						href: link.getAttribute('data-href'),
+					}, {
+						actions: [REVEAL_IN_EXPLORER_COMMAND_ID, 'workbench.action.chat.copyLink'],
+						invocations: [{ id: REVEAL_IN_EXPLORER_COMMAND_ID, resource: resource.toString() }, { id: 'workbench.action.chat.copyLink', linkTarget: target }],
+						openWith: true,
+						text: 'Source',
+						href: target,
+					});
+				});
+			}
+		}
+	}
+
+	for (const target of ['https://example.com', 'https:////example.com', `${AGENT_HOST_SCHEME}://unavailable/file.ts`]) {
+		test(`keeps the transcript menu without filesystem actions for ${target}`, async () => {
+			let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+			const contextMenuService = upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => { menuDelegate = delegate; },
+			});
+			const { instantiationService, model, widget, container } = createWidget({}, undefined, false, contextMenuService);
+			const getMenuActions = sinon.spy(instantiationService.get(IMenuService), 'getMenuActions');
+			const request = model.addRequest({
+				text: 'Show link',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Show link')],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Link](<${target}>)`) });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+			link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			menuDelegate?.getActions?.();
+			const context = menuDelegate?.getActionsContext?.();
+			assert.deepStrictEqual({
+				menus: getMenuActions.args.map(([id]) => id),
+				linkTarget: isChatContextMenuActionContext(context) ? context.linkTarget : undefined,
+			}, { menus: [MenuId.ChatContext], linkTarget: target });
+		});
+	}
 
 	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
@@ -2598,7 +2707,7 @@ suite('ChatListWidget', () => {
 			session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			session.style.setProperty('--vscode-strokeThickness', '1px');
 			session.style.setProperty('--vscode-chat-list-background', '#202020');
-			for (const size of [2, 4, 6, 8, 12, 16, 24, 40]) {
+			for (const size of [2, 4, 6, 8, 12, 16, 24, 32, 40]) {
 				session.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
 			}
 			session.classList.toggle('chat-floating-persistent-content', floating);
@@ -2938,12 +3047,14 @@ suite('ChatListWidget', () => {
 			widget.layout(300, 240);
 			await waitForStableLayout(widget);
 			const bounds = progress.getBoundingClientRect();
+			const backgroundStyle = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
 			assert.deepStrictEqual({
 				text: progress.querySelector('.progress-step')?.textContent,
 				pinned: progress.parentElement === sticky,
 				visible: bounds.height > 0 && bounds.top >= container.getBoundingClientRect().top && bounds.bottom + 2 === sticky.getBoundingClientRect().bottom,
 				contained: bounds.left >= container.getBoundingClientRect().left && bounds.right <= container.getBoundingClientRect().right,
-				background: dom.getWindow(sticky).getComputedStyle(sticky).backgroundColor,
+				background: backgroundStyle.backgroundColor,
+				backgroundVisible: backgroundStyle.content !== 'none' && parseFloat(backgroundStyle.width) > 0 && parseFloat(backgroundStyle.height) > 0,
 				copies: session.querySelectorAll('.chat-working-progress').length,
 			}, {
 				text: message,
@@ -2951,6 +3062,7 @@ suite('ChatListWidget', () => {
 				visible: true,
 				contained: true,
 				background: 'rgb(32, 32, 32)',
+				backgroundVisible: true,
 				copies: 1,
 			});
 		});

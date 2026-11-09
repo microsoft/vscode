@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, clearNode, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { hashAsync } from '../../../../base/common/hash.js';
@@ -16,13 +17,14 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { openInboxLink } from './inboxLinks.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { collectInboxEvidence, IInboxEvidence, IInboxEvidenceImage } from '../common/inboxEvidence.js';
-import { IInboxNotificationItem } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem } from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 
 export function createInboxEvidenceSection(container: HTMLElement, title: string, count: number, store: DisposableStore, onLayout: () => void): HTMLElement {
 	const section = container.appendChild($('section.inbox-evidence-section'));
@@ -47,6 +49,7 @@ export class InboxEvidenceWidget extends Disposable {
 	private signature: string | undefined;
 	private accessibleContent = '';
 	private readonly focusTargets = new Map<string, HTMLElement>();
+	private readonly hoverDelegate = this._register(createInstantHoverDelegate());
 
 	constructor(
 		session: ISession,
@@ -110,8 +113,8 @@ export class InboxEvidenceWidget extends Disposable {
 		return section;
 	}
 
-	private button(parent: HTMLElement, label: string, key: string, action: () => Promise<unknown>, store = this.renderStore): void {
-		const button = store.add(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true }));
+	private button(parent: HTMLElement, label: string, key: string, action: () => Promise<unknown>, store = this.renderStore, title?: string): void {
+		const button = store.add(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true, title, hoverDelegate: this.hoverDelegate }));
 		button.label = label;
 		button.element.dataset.evidenceKey = key;
 		this.focusTargets.set(key, button.element);
@@ -159,7 +162,8 @@ export class InboxEvidenceWidget extends Disposable {
 				const row = list.appendChild($('li'));
 				const label = artifact.isArtifact ? artifact.label : localize('inbox.evidence.reference', "Reference: {0}", artifact.label);
 				if (uri) {
-					this.button(row, label, `artifact:${artifact.id}`, () => this.openerService.open(uri));
+					const key = `artifact:${artifact.id}`;
+					this.button(row, label, key, () => openInboxLink(this.openerService, uri), this.renderStore, uri.toString(true));
 				} else {
 					row.textContent = label;
 				}

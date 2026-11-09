@@ -12,6 +12,7 @@ import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -19,7 +20,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
+import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -59,7 +60,6 @@ import type { IChatPillEntry, IChatPillSection } from '../../../../../browser/ch
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../../browser/sessionChatPillOptions.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../browser/sessionSubagentsPill.js';
 import { SessionBackgroundShellsControl } from '../../../browser/sessionBackgroundShellsControl.js';
-import type { IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
@@ -70,6 +70,7 @@ import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfir
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -95,7 +96,7 @@ import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/c
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -125,6 +126,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
@@ -142,6 +144,7 @@ import { ITerminalChatService, ITerminalConfigurationService, ITerminalService }
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import '../../../../../browser/media/style.css';
+import type { IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -924,6 +927,40 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('formatChatRequestTimestamp', () => {
+		test('keeps regional timestamps consistent across request and response hovers and accessible labels', () => {
+			const timestamp = Date.now() - 60 * 60 * 1000;
+			const text = safeIntl.DateTimeFormat(regionalLocale, { hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const fullText = safeIntl.DateTimeFormat(regionalLocale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const dateTime = new Date(timestamp).toISOString();
+			const requestContainer = document.createElement('div');
+			const responseContainer = document.createElement('div');
+
+			const request = renderChatRequestTimestamp(requestContainer, timestamp);
+			const response = renderChatResponseDetails(responseContainer, 'Test model', timestamp, 83_000, true);
+			const stats = formatResponseTokenStats([{ model: 'Test model', inputTokens: 40, cachedTokens: 0, outputTokens: 12 }], timestamp);
+
+			assert.deepStrictEqual({
+				request: {
+					text: request?.element.textContent,
+					dateTime: request?.element.getAttribute('datetime'),
+					label: request?.element.ariaLabel,
+					hover: request?.hoverText,
+				},
+				response: {
+					text: response?.textContent,
+					dateTime: response?.getAttribute('datetime'),
+					label: responseContainer.ariaLabel,
+				},
+				hover: stats?.markdown.value,
+				hoverFallback: stats?.markdownNotSupportedFallback,
+			}, {
+				request: { text, dateTime, label: `Sent ${fullText}`, hover: fullText },
+				response: { text, dateTime, label: `Completed ${fullText}, Elapsed time 1m 23s, Test model` },
+				hover: `**Response details**\n\nCompleted: ${fullText}\n\nModel: Test model\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				hoverFallback: `Response details. Completed: ${fullText}. Model: Test model. Input tokens: 40. Output tokens: 12`,
+			});
+		});
+
 		test('formats valid persisted timestamps and rejects legacy placeholders', () => {
 			const timestamp = Date.UTC(2026, 6, 8, 23, 18, 41);
 			const formatted = formatChatRequestTimestamp(timestamp);
@@ -931,12 +968,12 @@ suite('ChatListRenderer', () => {
 				hasText: !!formatted?.text,
 				hasFullText: !!formatted?.fullText,
 				dateTime: formatted?.dateTime,
-				invalid: formatChatRequestTimestamp(-1),
+				invalid: [undefined, 0, -1, NaN, Infinity, -Infinity].map(formatChatRequestTimestamp),
 			}, {
 				hasText: true,
 				hasFullText: true,
 				dateTime: '2026-07-08T23:18:41.000Z',
-				invalid: undefined,
+				invalid: [undefined, undefined, undefined, undefined, undefined, undefined],
 			});
 		});
 
@@ -2360,6 +2397,54 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress does not measure unchanged subagent activity during streaming', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const subagent = createSubagentTool('background-agent', data);
+		await subagent.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, subagent);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return true;
+		});
+		await timeout(1);
+		const progress = sticky.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		for (let i = 0; i < 40; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			await timeout(1);
+		}
+		const unchangedMeasurements = measurements;
+		const streamingLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		data.isActive = false;
+		subagent.notifyToolSpecificDataChanged();
+		await timeout(1);
+		const settledLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const sameComponent = sticky.querySelector('.chat-working-progress') === progress;
+		request.response!.complete();
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			unchangedMeasurements,
+			streamingLabel,
+			settledLabel,
+			sameComponent,
+			measuredChangedStatus: measurements > 0,
+			completedCopies: sticky.querySelectorAll('.chat-working-progress').length,
+		}, {
+			unchangedMeasurements: 0,
+			streamingLabel: '1 subagent running',
+			settledLabel: 'Working',
+			sameComponent: true,
+			measuredChangedStatus: true,
+			completedCopies: 0,
+		});
+	}));
+
 	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
 		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
 		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
@@ -2758,6 +2843,34 @@ suite('ChatListRenderer', () => {
 				expanded, staysExpanded, editingDisclosure: !!template.value.querySelector('details'),
 			}, { expanded: 'true', staysExpanded: true, editingDisclosure: false });
 		});
+	});
+
+	suite('inline request attachments', () => {
+		for (const restored of [false, true]) {
+			test(`shows an image above the request as well as its pill in the text (restored=${restored})`, () => {
+				const { configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				request.response?.complete();
+				// History keeps the prompt sent to the model, which links to the image where it was, and its own copy of the image, as an agent host does.
+				const image: IChatRequestVariableEntry = { kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png', references: [{ kind: 'reference', reference: URI.file(restored ? '/history/shot.png' : '/downloads/shot.png') }] };
+				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
+				const text = restored ? '[shot.png](file:///downloads/shot.png) breaks [a.ts](file:///src/a.ts)' : '#attachment:shot.png breaks #attachment:a.ts';
+				const parts = restored ? [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] : [
+					new ChatRequestDynamicVariablePart(new OffsetRange(0, 20), new Range(1, 1, 1, 21), '#attachment:shot.png', image.id, undefined, image.value, undefined, undefined, false, false, undefined, true),
+					new ChatRequestTextPart(new OffsetRange(20, 28), new Range(1, 21, 1, 29), ' breaks '),
+					new ChatRequestDynamicVariablePart(new OffsetRange(28, 44), new Range(1, 29, 1, 45), '#attachment:a.ts', file.id, undefined, file.value, undefined, undefined, true, false, undefined, true),
+				];
+				model.addRequest({ text, parts }, { variables: [image, file] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+
+				const kinds = (selector: string) => Array.from(template.value.querySelectorAll(selector), attachment => attachment.classList.contains('image-attachment') ? 'image' : 'file');
+				assert.deepStrictEqual({
+					above: kinds(':scope > .chat-request-attachment-cards .chat-attached-context-attachment'),
+					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
+					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
+				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
 	});
 
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {
@@ -6338,7 +6451,7 @@ suite('ChatListRenderer', () => {
 			await timeout(0);
 			const suppressed = renderInputRequests === false;
 			assert.deepStrictEqual({
-				markdown: template.value.querySelector('.chat-question-title strong')?.textContent,
+				markdown: template.value.querySelector('.chat-question-message strong')?.textContent,
 				details: template.value.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
 				controls: template.value.querySelectorAll('.chat-question-carousel-container').length,
 				answered: !!question.isUsed,
@@ -9824,6 +9937,242 @@ suite('ChatListRenderer', () => {
 		}, { pillCounts: ['+7', '-3'], chainDiff: { added: 7, removed: 3 }, counts: ['+7', '-3'] });
 	});
 
+	test('structured concurrent subagent edit streams render one attributed pill per file', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]) });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will delegate.') });
+		const agents = ['agent/one &"two', 'agent-two'].map(id => new ChatToolInvocation(
+			{ invocationMessage: 'Editing files', toolSpecificData: { kind: 'subagent', description: id, isActive: true } },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			id, undefined, {},
+		));
+		for (const agent of agents) {
+			model.acceptResponseProgress(request, agent);
+		}
+		for (let file = 0; file < 2; file++) {
+			for (const agent of agents) {
+				model.acceptResponseProgress(request, new ChatToolInvocation(
+					{ invocationMessage: 'Editing file' },
+					{ id: 'edit', displayName: 'Edit', modelDescription: 'Edit file', source: ToolDataSource.Internal },
+					`${agent.toolCallId}-${file}`, agent.toolCallId, {},
+				));
+				if (file === 0) {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
+				}
+				model.acceptResponseProgress(request, { kind: 'codeblockUri', uri: URI.file(`/workspace/${agents.indexOf(agent)}-${file}.ts`), isEdit: true, subAgentInvocationId: agent.toolCallId });
+			}
+		}
+		for (const _agent of agents) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The edits succeeded.') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const parts = template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+		for (const part of parts) {
+			part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			files: parts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+			editors: template.value.querySelectorAll('.monaco-editor').length,
+			leakedMarkers: template.value.textContent?.includes('vscode_codeblock_uri'),
+		}, { files: [['0-0.ts', '0-1.ts'], ['1-0.ts', '1-1.ts']], editors: 0, leakedMarkers: false });
+		const value: unknown = revive(JSON.parse(JSON.stringify(model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		const restored = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]),
+			initialData: { value, serializer: new ChatSessionOperationLog() },
+		});
+		restored.renderer.renderElement(restored.node, 0, restored.template);
+		const restoredParts = restored.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+		for (const part of restoredParts) {
+			part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			files: restoredParts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+			editors: restored.template.value.querySelectorAll('.monaco-editor').length,
+			copyMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(restored.request.response!.response.toString()),
+			parentProse: restored.request.response!.response.toString().includes('The edits succeeded.'),
+		}, { files: [['0-0.ts', '0-1.ts'], ['1-0.ts', '1-1.ts']], editors: 0, copyMarkers: false, parentProse: true });
+	}));
+
+	test('standalone child edits preserve parent code across automatic undo stops and reload', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		const options = { chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]) };
+		const live = createPersistentProgressRenderer(options);
+		const agent = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating', toolSpecificData: { kind: 'subagent', description: 'Child', isActive: true } },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'agent', undefined, {},
+		);
+		live.model.acceptResponseProgress(live.request, agent);
+		live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('```ts\nconst value = ') });
+		live.model.acceptResponseProgress(live.request, new ChatToolInvocation(
+			{ invocationMessage: 'Editing child' },
+			{ id: 'edit', displayName: 'Edit', modelDescription: 'Edit file', source: ToolDataSource.Internal },
+			'child-edit', agent.toolCallId, {},
+		));
+		live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, isStandalone: true, subAgentInvocationId: agent.toolCallId });
+		live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('42;\n```') });
+		const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			await timeout(50);
+			setup.template.value.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+			await timeout(50);
+			return {
+				code: setup.instantiationService.get(ICodeEditorService).listCodeEditors()
+					.filter(editor => setup.template.value.contains(editor.getDomNode()))
+					.map(editor => editor.getValue({ preserveBOM: false, lineEnding: '\n' })),
+				files: [...setup.template.value.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent),
+				copyCode: setup.request.response!.response.toString().includes('```ts\nconst value = 42;\n```'),
+				copyChild: setup.request.response!.response.toString().includes('Editing child'),
+			};
+		};
+		assert.deepStrictEqual(await snapshot(live), { code: ['const value = 42;'], files: ['child.ts'], copyCode: true, copyChild: true });
+		live.request.response?.complete();
+		const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		live.disposables.dispose();
+		const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+		assert.deepStrictEqual(await snapshot(restored), { code: ['const value = 42;'], files: ['child.ts'], copyCode: true, copyChild: true });
+	}));
+
+	for (const agentCount of [1, 2]) {
+		for (const editCount of [1, 3]) {
+			for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+				test(`structured subagent edits survive streaming and reload (${agentCount} agents, ${editCount} edits, ${collapsedTools})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+					const options = { chatMode: ChatModeKind.Agent, collapsedTools, editingSession: new MockChatEditingSession([]), rendererOptions: { renderTextEditsAsSummary: () => true } };
+					const live = createPersistentProgressRenderer(options);
+					const agents = ['agent/one &"two', 'agent-two'].slice(0, agentCount).map(id => new ChatToolInvocation(
+						{ invocationMessage: 'Editing files', toolSpecificData: { kind: 'subagent', description: id, hasStarted: true, isActive: true } },
+						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+						id, undefined, {},
+					));
+					for (const agent of agents) {
+						live.model.acceptResponseProgress(live.request, agent);
+					}
+					const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+						setup.renderer.renderElement(setup.node, 0, setup.template);
+						await timeout(50);
+						const parts = setup.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+						for (const part of parts) {
+							const header = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content');
+							if (header?.getAttribute('aria-expanded') === 'false') {
+								header.click();
+							}
+						}
+						await timeout(0);
+						return {
+							files: parts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+							editors: setup.template.value.querySelectorAll('.monaco-editor').length,
+							errors: setup.template.value.querySelectorAll('.chat-notification-widget').length,
+							markers: setup.template.value.textContent?.includes('vscode_codeblock_uri'),
+						};
+					};
+					const expectedFiles: string[][] = agents.map(() => []);
+					for (let file = 0; file < editCount; file++) {
+						for (const [index, agent] of agents.entries()) {
+							const uri = URI.file(`/workspace/${index}-${file}.ts`);
+							live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri, isEdit: true, subAgentInvocationId: agent.toolCallId, isStandalone: true });
+							live.model.acceptResponseProgress(live.request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: `export const value = ${file};` }], done: true });
+							expectedFiles[index].push(`${index}-${file}.ts`);
+							assert.deepStrictEqual(await snapshot(live), { files: expectedFiles, editors: 0, errors: 0, markers: false });
+						}
+					}
+					live.request.response?.complete();
+					assert.deepStrictEqual(await snapshot(live), { files: expectedFiles, editors: 0, errors: 0, markers: false });
+					const copyText = live.request.response!.response.toString();
+					const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+					assert.ok(isSerializableSessionData(value));
+					live.disposables.dispose();
+					const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+					assert.deepStrictEqual({
+						rendering: await snapshot(restored),
+						copyRoundTrip: restored.request.response!.response.toString() === copyText,
+						copyFiles: expectedFiles.flat().every(file => copyText.includes(file)),
+						copyMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(copyText),
+					}, { rendering: { files: expectedFiles, editors: 0, errors: 0, markers: false }, copyRoundTrip: true, copyFiles: true, copyMarkers: false });
+					const accessibility = new ChatAccessibilityProvider(undefined, upcastPartial<IAccessibleViewService>({ getOpenAriaHint: () => '' }), restored.instantiationService);
+					const ariaLabel = accessibility.getAriaLabel(restored.response);
+					const openEditor = sinon.stub(restored.instantiationService.get(IEditorService), 'openEditor').resolves(undefined);
+					restored.disposables.add(toDisposable(() => openEditor.restore()));
+					restored.template.value.querySelector<HTMLElement>('.chat-codeblock-pill-widget')?.click();
+					await timeout(0);
+					assert.deepStrictEqual({
+						accessibleFiles: expectedFiles.flat().every(file => ariaLabel.includes(file)),
+						accessibleMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(ariaLabel),
+						openedResource: openEditor.firstCall?.firstArg.resource?.toString(),
+					}, { accessibleFiles: true, accessibleMarkers: false, openedResource: 'file:///workspace/0-0.ts' });
+				}));
+			}
+		}
+	}
+
+	for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+		test(`standalone subagent read references retain attribution during streaming and reload (${collapsedTools})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+			const options = { chatMode: ChatModeKind.Agent, collapsedTools };
+			const live = createPersistentProgressRenderer(options);
+			const agent = new ChatToolInvocation(
+				{ invocationMessage: 'Read files', toolSpecificData: { kind: 'subagent', description: 'Read files', hasStarted: true, isActive: true } },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'reader', undefined, {},
+			);
+			live.model.acceptResponseProgress(live.request, agent);
+			live.model.acceptResponseProgress(live.request, { kind: 'thinking', id: 'parent', value: 'Parent reasoning continues.' });
+			live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri: URI.file('/workspace/read.ts'), subAgentInvocationId: agent.toolCallId, isStandalone: true });
+			const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+				setup.renderer.renderElement(setup.node, 0, setup.template);
+				await timeout(50);
+				const subagent = setup.template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+				assert.ok(subagent instanceof ChatSubagentContentPart);
+				const header = subagent.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content');
+				if (header?.getAttribute('aria-expanded') === 'false') {
+					header.click();
+				}
+				return {
+					childText: [...subagent.domNode.querySelectorAll('.chat-markdown-part')].map(part => part.textContent?.trim()),
+					editors: setup.template.value.querySelectorAll('.monaco-editor').length,
+				};
+			};
+			const streaming = await snapshot(live);
+			const thinking = live.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+			assert.ok(thinking instanceof ChatThinkingContentPart && thinking.getIsActive());
+			live.request.response?.complete();
+			const completed = await snapshot(live);
+			const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+			assert.ok(isSerializableSessionData(value));
+			live.disposables.dispose();
+			const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+			const expected = { childText: ['read.ts'], editors: 0 };
+			assert.deepStrictEqual({ streaming, completed, restored: await snapshot(restored) }, { streaming: expected, completed: expected, restored: expected });
+		}));
+	}
+
+	test('literal request marker examples remain readable after JSON session reload', async () => {
+		const marker = '<vscode_codeblock_uri isEdit subAgentInvocationId="example">file:///example.ts</vscode_codeblock_uri>';
+		const requestText = `\`\`\`html\n${marker}\n\`\`\``;
+		const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+			const element = setup.viewModel.getItems().find(isRequestVM)!;
+			setup.renderer.renderElement({ ...setup.node, element }, 0, setup.template);
+			await timeout(0);
+			return {
+				editors: [...setup.renderer.editorsInUse()].map(editor => editor.editor.getValue()),
+				errors: setup.template.value.querySelectorAll('.chat-notification-widget').length,
+				request: setup.request.message.text,
+			};
+		};
+		const live = createPersistentProgressRenderer({ requestText });
+		const before = await snapshot(live);
+		const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		live.disposables.dispose();
+		const restored = createPersistentProgressRenderer({ initialData: { value, serializer: new ChatSessionOperationLog() } });
+		assert.deepStrictEqual({ before, after: await snapshot(restored) }, {
+			before: { editors: [marker], errors: 0, request: requestText },
+			after: { editors: [marker], errors: 0, request: requestText },
+		});
+	});
+
 	test('re-streamed subagent edit markdown replaces its previous revision instead of adding to it', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 		const diff = {
 			originalURI: URI.file('/snapshots/before/tests.ts'), modifiedURI: URI.file('/workspace/tests.ts'),
@@ -10311,6 +10660,40 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		for (const arrayChunks of [false, true]) {
+			test(`untimed BYOK thinking stays in one block without a duration (${persistentProgress}, arrayChunks=${arrayChunks})`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress, progressVerbosity: ChatProgressVerbosity.Compact });
+				const blockCounts: number[] = [];
+				for (const value of ['Consider', ' the', ' request.']) {
+					model.acceptResponseProgress(request, { kind: 'thinking', id: '', value: arrayChunks ? [value] : value });
+					renderer.renderElement(node, 0, template);
+					blockCounts.push(template.value.querySelectorAll('.chat-thinking-box').length);
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const thinkingParts = [...new Set(template.renderedParts)].filter(part => part instanceof ChatThinkingContentPart);
+				await Promise.all(thinkingParts.map(part => part.getPendingCollapseAnimation()));
+				for (const part of thinkingParts) {
+					part.expandContent();
+				}
+
+				assert.deepStrictEqual({
+					blockCounts,
+					blocks: template.value.querySelectorAll('.chat-thinking-box').length,
+					headers: Array.from(template.value.querySelectorAll<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button'), button => ({ title: button.textContent, ariaLabel: button.ariaLabel })),
+					completeText: template.value.querySelector('.chat-thinking-box')?.textContent?.includes('Consider the request.'),
+				}, {
+					blockCounts: [1, 1, 1],
+					blocks: 1,
+					headers: [{ title: 'Finished thinking', ariaLabel: 'Finished thinking' }],
+					completeText: true,
+				});
+			});
+		}
+	}
+
 	for (const value of ['Reasoning without a heading', ['First reasoning piece', 'Second reasoning piece']]) {
 		test(`late reasoning timing refreshes a finalized header and ARIA label (${typeof value})`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
@@ -10339,7 +10722,42 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	test('late reasoning timing refreshes an earlier run inside a finalized conversation group', async () => {
+	test('late Copilot reasoning timing refreshes the generated title without another duration row', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+		model.acceptResponseProgress(request, {
+			kind: 'thinking', id: 'late-timing', value: 'Reviewed search results.',
+			generatedTitle: 'Reviewed search results', reasoningTimingSource: 'provider',
+		}, false, true);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+		renderer.renderElement(node, 0, template);
+		await Promise.all(template.renderedParts?.flatMap(part => part instanceof ChatThinkingContentPart ? [part.getPendingCollapseAnimation()] : []) ?? []);
+		const section = template.value.querySelector('.chat-thinking-box');
+		const button = section?.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+		const before = button?.textContent;
+
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'late-timing', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 2500 });
+		renderer.renderElement(node, 0, template);
+		button?.click();
+		request.response?.complete();
+
+		assert.deepStrictEqual({
+			before,
+			title: button?.textContent,
+			ariaLabel: button?.ariaLabel,
+			durationRows: section?.querySelectorAll('.chat-thinking-run-duration').length,
+			preservesSection: template.value.querySelector('.chat-thinking-box') === section,
+			modelTitles: request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' ? [part.generatedTitle] : []),
+		}, {
+			before: 'Reviewed search results',
+			title: 'Reviewed search results - 3s',
+			ariaLabel: 'Reviewed search results - 3s',
+			durationRows: 0,
+			preservesSection: true,
+			modelTitles: ['Reviewed search results'],
+		});
+	});
+
+	test('late reasoning timing never adds inline durations to a finalized conversation group', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Conversation });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: 'First run', reasoningTimingSource: 'provider' }, false, true);
 		const tool = new ChatToolInvocation(
@@ -10363,12 +10781,16 @@ suite('ChatListRenderer', () => {
 		const after = labels();
 		request.response?.complete();
 
-		assert.deepStrictEqual({ before, after }, { before: ['Thought for 12s'], after: ['Thought for 5s', 'Thought for 12s'] });
+		assert.deepStrictEqual({
+			before,
+			after,
+			durations: request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' ? [part.reasoningDurationMs] : []),
+		}, { before: [], after: [], durations: [5000, 12_000] });
 	});
 
 	for (const progressVerbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation]) {
 		for (const boundary of ['markdown', 'tool'] as const) {
-			test(`reasoning run durations survive reload independently (${progressVerbosity}, ${boundary})`, async () => {
+			test(`reasoning timing survives reload without inline duration rows (${progressVerbosity}, ${boundary})`, async () => {
 				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity });
 				setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
 				const diagnostics: string[] = [];
@@ -10387,8 +10809,9 @@ suite('ChatListRenderer', () => {
 						sections: thinkingParts.map(part => ({ active: part.getIsActive(), activeTiming: part.hasActiveReasoningTiming(), connected: part.domNode.isConnected, text: part.domNode.textContent })),
 					}));
 					return {
-						labels: Array.from(current.template.value.querySelectorAll('.chat-used-context-label .monaco-button, .chat-thinking-run-duration'), label => label.textContent?.trim())
+						labels: Array.from(current.template.value.querySelectorAll('.chat-used-context-label .monaco-button'), label => label.textContent?.trim())
 							.filter(label => label?.startsWith('Thought for ')),
+						inlineDurationRows: current.template.value.querySelectorAll('.chat-thinking-run-duration').length,
 						runs: current.request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' && part.value
 							? [{ value: part.value, duration: part.reasoningDurationMs }] : []),
 					};
@@ -10420,7 +10843,8 @@ suite('ChatListRenderer', () => {
 				const restored = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity, initialData: { value, serializer: new ChatSessionOperationLog() } });
 				restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
 				const expected = {
-					labels: ['Thought for 5s', 'Thought for 12s'],
+					labels: progressVerbosity === ChatProgressVerbosity.Conversation && boundary === 'tool' ? [] : ['Thought for 5s', 'Thought for 12s'],
+					inlineDurationRows: 0,
 					runs: [{ value: 'First run', duration: 5000 }, { value: 'Second run', duration: 12_000 }],
 				};
 				assert.deepStrictEqual({ before, after: await snapshot(restored) }, { before: expected, after: expected }, diagnostics.join('\n'));
@@ -14266,6 +14690,7 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				await timeout(2500);
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-array', value: '', reasoningDurationMs: 2500 });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
 				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
@@ -14970,13 +15395,13 @@ suite('ChatListRenderer', () => {
 
 		/** Routes Explain to a side chat provider that records each question and answers when `response` completes. */
 		function stubSideChat(context: ReturnType<typeof createConfirmationRenderer>, supported: boolean) {
-			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined }[] = [];
+			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined; includeSourceContext: boolean | undefined }[] = [];
 			const response = new DeferredPromise<void>();
 			const sideChatService = context.disposables.add(new ChatSideChatService());
 			context.disposables.add(sideChatService.registerProvider({
 				canAskInSideChat: () => supported,
 				askInSideChat: (sessionResource, query, selection, options) => {
-					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId });
+					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId, includeSourceContext: options?.includeSourceContext });
 					return response.p;
 				},
 				observeSideChatOrigin: () => constObservable(undefined),
@@ -15042,9 +15467,10 @@ suite('ChatListRenderer', () => {
 						labels: sideChatSupported ? ['Allow Once', 'Skip', 'Explain'] : ['Allow Once', 'Skip'],
 						asked: sideChatSupported ? [{
 							sessionResource: context.model.sessionResource.toString(),
-							query: 'Explain what this terminal command will do.',
-							selection: { text: command },
+							query: `Explain what this terminal command will do. Do not run it.\n\n\`${command}\``,
+							selection: undefined,
 							sourceTurnId: context.request.id,
+							includeSourceContext: false,
 						}] : [],
 						disabledWhileAsking: sideChatSupported ? true : undefined,
 						disabledAfterAsking: sideChatSupported ? false : undefined,
@@ -15075,10 +15501,10 @@ suite('ChatListRenderer', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				explained: sideChat.asked.map(call => call.selection?.text),
+				explained: sideChat.asked.map(call => call.query),
 				state: tool.state.get().type,
 			}, {
-				explained: ['cd packages/server && npm ci'],
+				explained: ['Explain what this terminal command will do. Do not run it.\n\n`cd packages/server && npm ci`'],
 				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			});
 		});

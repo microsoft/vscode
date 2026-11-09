@@ -30,7 +30,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -57,35 +58,37 @@ import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderC
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { openOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
+import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -437,8 +440,9 @@ class FakeRunner extends mock<IAutomationRunner>() {
 }
 
 class FakeSessionsService extends mock<ISessionsService>() {
-	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-	override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+	readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+	override readonly slotPanes = testGridPanes(this.gridShown);
+	readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
 	error: Error | undefined;
@@ -785,7 +789,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
 		const container = document.createElement('div');
@@ -796,7 +800,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshToolbar({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>) {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -1000,6 +1004,7 @@ suite('AutomationsCardsWidget', () => {
 	test('local follow-up progress overrides stale history but completion waits for authoritative history', async () => {
 		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
 		assert.ok(accessibleView);
 		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
@@ -1151,7 +1156,7 @@ suite('AutomationsCardsWidget', () => {
 		widget.focus();
 		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).map(action => action.id);
 		assert.deepStrictEqual({
 			calls: automationService.refreshCalls, errors: refreshErrors,
@@ -1164,7 +1169,7 @@ suite('AutomationsCardsWidget', () => {
 		const { instantiationService, contextKeyService } = setup();
 		const enabled = ChatAutomationsEnabledContext.bindTo(contextKeyService);
 		enabled.set(true);
-		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).some(action => action.id === 'sessions.automations.refresh' && action.enabled);
 		const initiallyVisible = hasRefresh();
 		enabled.set(false);
@@ -2685,13 +2690,13 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
 		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
-		const unavailableMessage = partialState?.textContent;
+		const unavailableMessage = partialState?.querySelector('.automations-cards-partial-state-message')?.textContent;
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
 			loadingDisplay,
 			unavailableMessage,
-			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent,
+			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')?.textContent,
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			appearsAfterCards: partialState?.previousElementSibling?.classList.contains('automations-cards-grid'),
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
@@ -2734,6 +2739,60 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	for (const hasSavedAutomations of [false, true]) {
+		test(`opens Manage Remotes from disconnected providers ${hasSavedAutomations ? 'with' : 'without'} saved automations`, async () => {
+			const { automationService, widget, configurationService, commandService } = setup();
+			const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
+			const setSetting = async (setting: string, value: boolean) => {
+				await configurationService.setUserConfiguration(setting, value);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([setting]),
+					change: { keys: [setting], overrides: [] },
+					affectsConfiguration: key => key === setting,
+				});
+			};
+			for (const setting of settings) {
+				await setSetting(setting, true);
+			}
+			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
+			automationService.setUnavailableProviders([
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
+			]);
+			automationService.setCatalogueState('unavailable');
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state' : '.automations-cards-unavailable';
+			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes-link`)!;
+			const link = container.querySelector<HTMLAnchorElement>('a')!;
+			const initial = { display: container.style.display, label: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+			link.click();
+			dispatchKeydown(link, { key: 'Enter', keyCode: 13 });
+			dispatchKeydown(link, { key: ' ', keyCode: 32 });
+			await Promise.resolve();
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			const singleRemote = container.style.display;
+			const disabledSettings = [];
+			for (const setting of settings) {
+				await setSetting(setting, false);
+				disabledSettings.push(container.style.display);
+				await setSetting(setting, true);
+			}
+			const restored = container.style.display;
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'unsupported' }]);
+			const unsupported = container.style.display;
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setCatalogueState('ready');
+			assert.deepStrictEqual({
+				initial, singleRemote, disabledSettings, restored, unsupported, ready: container.style.display,
+				sameLink: container.querySelector('a') === link,
+				commands: commandService.calls.map(call => call.commandId),
+			}, {
+				initial: { display: '', label: 'Manage Remotes', role: 'button', tabIndex: 0 },
+				singleRemote: '', disabledSettings: ['none', 'none', 'none'], restored: '', unsupported: 'none', ready: 'none',
+				sameLink: true,
+				commands: [OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID],
+			});
+		});
+
 		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
 			const { automationService, widget } = setup();
 			const automations = hasSavedAutomations ? [automation()] : [];
@@ -2781,6 +2840,21 @@ suite('AutomationsCardsWidget', () => {
 			});
 		});
 	}
+
+	test('reports Manage Remotes command failures', async () => {
+		const { automationService, widget, configurationService, commandService, refreshErrors } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		automationService.setCatalogueState('unavailable');
+		const failure = new Error('Remote Environments could not be opened');
+		const stubbedCommand = stub(commandService, 'executeCommand').rejects(failure);
+		disposables.add(toDisposable(() => stubbedCommand.restore()));
+		widget.element.querySelector<HTMLAnchorElement>('.automations-cards-unavailable .automations-manage-remotes-link a')!.click();
+		await Promise.resolve();
+		assert.deepStrictEqual(refreshErrors, [String(failure)]);
+	});
 
 	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
@@ -3252,7 +3326,7 @@ suite('AutomationsCardsWidget', () => {
 			showCalls: 1,
 			existing: item,
 			runCalls: 1,
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 		});
 	});
 
@@ -3278,7 +3352,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3301,7 +3375,7 @@ suite('AutomationsCardsWidget', () => {
 				menuOpen: actions?.classList.contains('menu-open'),
 			},
 		}, {
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 			shouldForwardArgs: true,
 			argument: current,
 			anchor: moreActionsButton,
@@ -3330,7 +3404,7 @@ suite('AutomationsCardsWidget', () => {
 		const menu = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			const actions = instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+				AgentsWindowMenus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
 			delegate.onHide?.(false);
 			return actions.find(action => action.id === id);
@@ -3374,10 +3448,10 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run()]);
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
-		assert.strictEqual(delegate.menuId, Menus.AutomationCardContext);
+		assert.strictEqual(delegate.menuId, AgentsWindowMenus.AutomationCardContext);
 		assert.strictEqual(delegate.menuActionOptions?.arg, source);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3577,7 +3651,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const duplicateActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3604,7 +3678,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3628,7 +3702,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3649,7 +3723,7 @@ suite('AutomationsCardsWidget', () => {
 		const getMenuActions = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
@@ -3689,7 +3763,7 @@ suite('AutomationsCardsWidget', () => {
 		const getFirstAction = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions)[0];
@@ -3826,7 +3900,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([source]);
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3921,7 +3995,7 @@ suite('AutomationsCardsWidget', () => {
 			moreActionsRole: 'button',
 			moreActionsHasPopup: 'menu',
 			moreActionsUsesVerticalIcon: true,
-			keyboardMenuIds: [Menus.AutomationCardContext, Menus.AutomationCardContext],
+			keyboardMenuIds: [AgentsWindowMenus.AutomationCardContext, AgentsWindowMenus.AutomationCardContext],
 		});
 	});
 
@@ -4795,6 +4869,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const describesBuiltInTemplates = () => {
@@ -4822,6 +4897,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help explains prompt-only automation creation', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4830,9 +4906,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
+	test('accessibility help explains the disconnected remote management link', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+		assert.ok(provider.provideContent().includes('Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
+	});
+
 	test('accessibility help explains showing run sessions in the Sessions list', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4846,6 +4932,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help explains the unified Trigger picker and local weekdays', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4872,6 +4959,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
 		const { automationService, instantiationService, sessionsManagementService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const content = () => {

@@ -100,6 +100,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
 	readonly reveal?: UriComponents | 'new';
+	/** The remote authority of the editor window whose own agent host, on that remote machine, owns the revealed session. */
+	readonly revealRemoteAuthority?: string;
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
@@ -311,6 +313,12 @@ export interface ICommonNativeHostService {
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
+
+	/**
+	 * Does what a double-click on the title bar of the window does: on macOS as the system settings say, such as to zoom
+	 * or minimize the window, else maximizes or restores it. For a title area the window does not drag itself.
+	 */
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 

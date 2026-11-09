@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import fse from 'fs-extra';
+import fs from 'fs';
 import path from 'path';
 import { resolvePackageDirectory } from '../esbuild-common.mts';
 import { run } from '../esbuild-webview-common.mts';
@@ -12,18 +12,18 @@ const outDir = path.join(import.meta.dirname, 'notebook-out');
 
 function postBuild(outDir: string) {
 	const katexDir = resolvePackageDirectory(import.meta.dirname, 'katex');
-	fse.copySync(
+	fs.copyFileSync(
 		path.join(katexDir, 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));
 
 	const fontsDir = path.join(katexDir, 'dist', 'fonts');
 	const fontsOutDir = path.join(outDir, 'fonts/');
 
-	fse.mkdirSync(fontsOutDir, { recursive: true });
+	fs.mkdirSync(fontsOutDir, { recursive: true });
 
-	for (const file of fse.readdirSync(fontsDir)) {
+	for (const file of fs.readdirSync(fontsDir)) {
 		if (file.endsWith('.woff2')) {
-			fse.copyFileSync(path.join(fontsDir, file), path.join(fontsOutDir, file));
+			fs.copyFileSync(path.join(fontsDir, file), path.join(fontsOutDir, file));
 		}
 	}
 }

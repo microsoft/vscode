@@ -23,11 +23,15 @@ class TrackedDatabase extends DatabaseSync {
 }
 
 class DatabaseWithoutAuthorizer extends TrackedDatabase {
-	readonly setAuthorizer = undefined;
+	constructor(path: string) {
+		super(path);
+		// Simulate a Node runtime without `DatabaseSync.prototype.setAuthorizer`.
+		Object.defineProperty(this, 'setAuthorizer', { value: undefined });
+	}
 }
 
 class DatabaseWithFailingAuthorizer extends TrackedDatabase {
-	setAuthorizer(): never {
+	override setAuthorizer(): never {
 		throw new Error('Authorizer installation failed');
 	}
 }

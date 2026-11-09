@@ -33,37 +33,75 @@ suite('MarkdownString', () => {
 	});
 
 	test('appendLink', function () {
-
-		function assertLink(target: string, label: string, title: string | undefined, expected: string) {
-			const mds = new MarkdownString();
-			mds.appendLink(target, label, title);
-			assert.strictEqual(mds.value, expected);
+		function link(target: string, label: string, title?: string) {
+			return new MarkdownString().appendLink(target, label, title).value;
 		}
 
-		assertLink(
-			'https://example.com\\()![](file:///Users/jrieken/Code/_samples/devfest/foo/img.png)', 'hello', undefined,
-			'[hello](https://example.com\\(\\)![](file:///Users/jrieken/Code/_samples/devfest/foo/img.png\\))'
-		);
-		assertLink(
-			'https://example.com', 'hello', 'title',
-			'[hello](https://example.com "title")'
-		);
-		assertLink(
-			'foo)', 'hello]', undefined,
-			'[hello\\]](foo\\))'
-		);
-		assertLink(
-			'foo\\)', 'hello]', undefined,
-			'[hello\\]](foo\\))'
-		);
-		assertLink(
-			'fo)o', 'hell]o', undefined,
-			'[hell\\]o](fo\\)o)'
-		);
-		assertLink(
-			'foo)', 'hello]', 'title"',
-			'[hello\\]](foo\\) "title\\"")'
-		);
+		assert.deepStrictEqual([
+			link('https://example.com\\()![](file:///Users/jrieken/Code/_samples/devfest/foo/img.png)', 'hello'),
+			link('https://example.com', 'hello', 'title'),
+			link('foo)', 'hello]'),
+			link('foo\\)', 'hello]'),
+			link('fo)o', 'hell]o'),
+			link('foo)', 'hello]', 'title"'),
+		], [
+			'[hello](https://example.com\\\\\\(\\)![]\\(file:///Users/jrieken/Code/_samples/devfest/foo/img.png\\))',
+			'[hello](https://example.com "title")',
+			'[hello\\]](foo\\))',
+			'[hello\\]](foo\\\\\\))',
+			'[hell\\]o](fo\\)o)',
+			'[hello\\]](foo\\) "title&#34;")',
+		]);
+	});
+
+	test('appendLink uses target and title literally', function () {
+		function link(target: string, title?: string) {
+			return new MarkdownString().appendLink(target, 'x', title).value;
+		}
+
+		assert.deepStrictEqual([
+			link('a\\\\)b'),
+			link('a\\'),
+			link('a<b>c'),
+			link('a b\tc\u00a0d\ne\u2028f\u0000g'),
+			link('a', 't\\\\"u'),
+			link('a', 't\\'),
+			link('a', 'b\n\nc\r\nd(e)'),
+			link('a', 'x&#41;&amp;y'),
+		], [
+			'[x](a\\\\\\\\\\)b)',
+			'[x](a\\\\)',
+			'[x](a\\<b\\>c)',
+			'[x](a%20b%09c%C2%A0d%0Ae%E2%80%A8f%00g)',
+			'[x](a "t&#92;&#92;&#34;u")',
+			'[x](a "t&#92;")',
+			'[x](a "b  c d&#40;e&#41;")',
+			'[x](a "x&#38;#41;&#38;amp;y")',
+		]);
+	});
+
+	test('appendLink label: delimiters are escaped after an even number of backslashes', function () {
+		function link(label: string) {
+			return new MarkdownString().appendLink('a', label).value;
+		}
+
+		assert.deepStrictEqual([
+			link('x\\]y'),
+			link('x\\\\]y'),
+			link('x\\'),
+		], [
+			'[x\\]y](a)',
+			'[x\\\\\\]y](a)',
+			'[x\\\\](a)',
+		]);
+	});
+
+	test('appendLink escapes long backslash runs in linear time', function () {
+		const backslashes = '\\'.repeat(200_000);
+		const start = Date.now();
+		const value = new MarkdownString().appendLink(`${backslashes}a`, `${backslashes}b`, `${backslashes}c`).value;
+		assert.ok(Date.now() - start < 1000, 'escaping must not be quadratic');
+		assert.strictEqual(value, `[${backslashes}b](${backslashes}${backslashes}a "${'&#92;'.repeat(200_000)}c")`);
 	});
 
 	test('lift', () => {

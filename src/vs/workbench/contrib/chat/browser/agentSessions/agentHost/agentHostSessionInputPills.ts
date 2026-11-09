@@ -23,6 +23,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -30,6 +31,7 @@ import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resol
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -46,6 +48,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -55,9 +58,10 @@ import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillCo
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
-import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
+import { reportSessionArtifactOpen } from '../../../../../common/sessionArtifactOpenTelemetry.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -80,6 +84,7 @@ import { GitHubCommitResolver } from '../../../../github/browser/githubCommitRes
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { ChatPillHoverCache } from '../../../../../browser/chatPillHover.js';
+import { type IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
 	[SessionArtifactType.PullRequest, Codicon.gitPullRequest],
@@ -571,6 +576,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IChatEditingService chatEditingService: IChatEditingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -762,7 +768,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const authority = getAgentHostResourceAuthority(currentResolution);
 			return files
 				.map(file => {
-					const diff = agentHostChangesetFileToEntryDiff(file, authority);
+					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connection, authority);
 					if (diff && file.nonce !== undefined) {
 						this._fileChangeNonces.set(diff, file.nonce);
 					}
@@ -920,6 +926,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.pullRequestTitles,
 				currentMetadata.pullRequestArtifacts,
 				this._getRemoveArtifactAction(currentResolution, reader),
+				currentResolution,
 			);
 		});
 		const pullRequestIcon = derived(this, reader => {
@@ -938,6 +945,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.issueTitles,
 				currentMetadata.issueArtifacts,
 				this._getRemoveArtifactAction(currentResolution, reader),
+				currentResolution,
 			);
 		});
 		const issueIcon = derived(this, reader => computeAggregateIssueIcon(metadata.read(reader).issueUrls.map(link => {
@@ -1104,6 +1112,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		titles?: ReadonlyMap<string, string>,
 		artifacts?: ReadonlyMap<string, ISessionArtifact>,
 		removeArtifact?: (artifact: ISessionArtifact) => Promise<void>,
+		resolution?: IAgentHostSessionResolution,
 	) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
@@ -1113,6 +1122,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const number = githubReferenceNumber(resource, kind);
 			const title = titles?.get(linkKey(link));
 			const artifact = artifacts?.get(linkKey(link));
+			const openReference = () => this._openRecorded(resolution, artifact, () => this._openExternal(resource));
 			const label = referenceLabel(link, kind, title);
 			const target = parseGitHubReferenceTarget(resource, kind);
 			const pullRequestDetails = kind === 'pullRequest' && target
@@ -1141,7 +1151,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					checksStatus: pullRequestDetails.checksStatus,
 					density,
 					onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
-					onDidClickReference: () => this._openExternal(resource),
+					onDidClickReference: openReference,
 					onDidClickBaseBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.baseRef),
 					onDidClickHeadBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.headRef),
 				})
@@ -1153,7 +1163,7 @@ export class AgentHostSessionInputPills extends Disposable {
 						issue,
 						density,
 						onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
-						onDidClickReference: () => this._openExternal(resource),
+						onDidClickReference: openReference,
 					})
 					: undefined;
 			const stateDescription = pullRequestDetails
@@ -1186,7 +1196,7 @@ export class AgentHostSessionInputPills extends Disposable {
 						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true))
 					: resource.toString(true),
 				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
-				open: () => this._openExternal(resource),
+				open: openReference,
 			};
 			return target ? {
 				...entry,
@@ -1260,7 +1270,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				} : {}),
 				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
-				open: () => this._openResource(resource),
+				open: () => this._openRecorded(resolution, artifact, () => this._openResource(resource)),
 			};
 		}
 
@@ -1278,7 +1288,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				commit,
 				density,
 				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${commitTarget.owner}/${commitTarget.repo}`)),
-				onDidClickReference: () => this._openExternal(link),
+				onDidClickReference: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 			}) : undefined;
 			const copyAction = artifact.type === SessionArtifactType.Commit
 				? withChatPillHoverLabel(toAction({
@@ -1317,7 +1327,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				fallbackLabel: label,
 				enrich: !artifact.isArtifact,
 				onDidClickRepository: resource => this._openExternal(resource),
-				onDidClickReference: () => this._openExternal(link),
+				onDidClickReference: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 				onDidClickBranch: branch => { void this._clipboardService.writeText(branch); },
 			}) : undefined;
 			const gitHubPresentation = gitHubDetails
@@ -1346,7 +1356,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...gitHubHover,
 				...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
 				...(gitHubDetails && !gitHubHover ? { ariaDescription: resourceLocation.ariaDescription } : {}),
-				open: () => this._openExternal(link),
+				open: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 			};
 			return artifact.type === SessionArtifactType.Commit
 				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover, commitTarget ? 'preview' : 'content') }
@@ -1511,10 +1521,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					break;
 				}
 				const currentFile = state.files.find(file => {
-					const candidate = agentHostChangesetFileToEntryDiff(file, authority);
+					const candidate = agentHostChangesetFileToEntryDiff(file, connection, authority);
 					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
 				});
-				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, authority);
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connection, authority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;
@@ -1592,6 +1602,16 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private _openExternal(resource: URI): void {
 		void this._openerService.open(resource, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true });
+	}
+
+	/** Opens an item and, when it is a recorded artifact or reference of an agent host session, reports the open. */
+	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
+		open();
+		if (resolution && artifact) {
+			// Only VS Code agent hosts emit agentHost.toolInvoked; other hosts' session resources are opaque and may contain user content.
+			const backendSessionId = isNativeAgentHost(resolution.connection.initializeResult.get()) ? AgentSession.id(resolution.backendSession) : undefined;
+			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId, kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
+		}
 	}
 
 	private _openResource(resource: URI): void {

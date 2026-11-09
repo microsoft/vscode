@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
+import path from 'path';
 import { load } from 'js-yaml';
 
 /**
@@ -90,4 +91,20 @@ export function readPnpmLockfileImporters(lockPath: string): Map<string, PnpmLoc
 		result.set(importerId, [...entries.values()]);
 	}
 	return result;
+}
+
+/**
+ * Returns the ids (`name@version`) of the packages that pnpm skipped when it installed the install
+ * root `installRoot`, from `skipped` in its `node_modules/.modules.yaml`: optional packages that it
+ * considers unsupported on this platform, also when the lockfile records no `os` for them (for
+ * example `windows-foreground-love@0.6.1`), and optional packages whose build failed. Empty when the
+ * root isn't installed.
+ */
+export function readPnpmSkippedPackages(installRoot: string): Set<string> {
+	const modulesFile = path.join(installRoot, 'node_modules', '.modules.yaml');
+	if (!fs.existsSync(modulesFile)) {
+		return new Set();
+	}
+	const modules = load(fs.readFileSync(modulesFile, 'utf8')) as { readonly skipped?: readonly string[] } | undefined;
+	return new Set(modules?.skipped ?? []);
 }

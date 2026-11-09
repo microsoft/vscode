@@ -32,6 +32,10 @@ export interface IToolCallMeta {
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
 	readonly 'vscode.sandboxPathGrant'?: ISandboxPathGrant;
+	/** Why Assisted permissions left this confirmation to the user without a judge verdict to show, when it excluded or failed to review it. */
+	readonly 'vscode.assistedApprovalNotice'?: string;
+	/** The host accepts optional feedback about this Assisted permissions prompt with the user's decision. */
+	readonly 'vscode.assistedApprovalFeedbackAccepted'?: true;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -78,6 +82,8 @@ const toolCallMetaKeys = [
 	'vscode.toolInputContract',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'vscode.sandboxPathGrant',
+	'vscode.assistedApprovalNotice',
+	'vscode.assistedApprovalFeedbackAccepted',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -196,6 +202,9 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
 	if (isSandboxPathGrant(meta['vscode.sandboxPathGrant'])) { result['vscode.sandboxPathGrant'] = meta['vscode.sandboxPathGrant']; }
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
+	if (typeof assistedApprovalNotice === 'string' && assistedApprovalNotice.trim()) { result['vscode.assistedApprovalNotice'] = assistedApprovalNotice; }
+	if (meta['vscode.assistedApprovalFeedbackAccepted'] === true) { result['vscode.assistedApprovalFeedbackAccepted'] = true; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }

@@ -43,6 +43,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 import { ChatTerminalToolExplanation } from './chatTerminalToolExplanation.js';
+import { renderToolConfirmationFeedback } from './toolConfirmationFeedback.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -230,6 +231,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				icon: Codicon.terminal,
 				message: elements.root,
 				footerBanner: riskBadge?.domNode,
+				additionalContent: state.confirmationMessages.feedback ? renderToolConfirmationFeedback(this._store, toolInvocation, state.confirmationMessages.feedback) : undefined,
 				buttons: this._createButtons(buildMoreActions())
 			},
 		));

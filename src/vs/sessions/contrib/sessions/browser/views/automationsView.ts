@@ -28,6 +28,9 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -59,24 +62,26 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
-import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../common/contextkeys.js';
-import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from './sessionsList.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
@@ -403,6 +408,9 @@ class AutomationCardsSection extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -419,7 +427,9 @@ class AutomationCardsSection extends Disposable {
 		this.partialErrorIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
 		this.partialErrorIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
-		this.partialStateMessage = DOM.append(this.partialStateContainer, $('div.automations-cards-partial-state-message'));
+		const partialStateContent = DOM.append(this.partialStateContainer, $('.automations-cards-partial-state-content'));
+		this.partialStateMessage = DOM.append(partialStateContent, $('div.automations-cards-partial-state-message'));
+		this.renderManageRemotesLink(partialStateContent);
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -798,7 +808,7 @@ class AutomationCardsSection extends Disposable {
 			actions.classList.add('menu-open');
 			moreActionsButton.element.setAttribute('aria-expanded', 'true');
 			this.contextMenuService.showContextMenu({
-				menuId: Menus.AutomationCardContext,
+				menuId: AgentsWindowMenus.AutomationCardContext,
 				menuActionOptions: { shouldForwardArgs: true, arg: currentAutomation },
 				getAnchor: () => moreActionsButton.element,
 				contextKeyService: cardContextKeyService,
@@ -1146,7 +1156,36 @@ class AutomationCardsSection extends Disposable {
 		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
 		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
+		this.renderManageRemotesLink(this.unavailableContainer);
 		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
+	}
+
+	private renderManageRemotesLink(parent: HTMLElement): void {
+		const container = DOM.append(parent, $('span.automations-manage-remotes-link'));
+		this._register(this.instantiationService.createInstance(Link, container, {
+			label: localize('automationsManageRemotes', "Manage Remotes"),
+			href: `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}`,
+		}, {
+			opener: () => {
+				void this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID).catch(error => {
+					this.logService.error('[Automations] Failed to open Remote Environments.', error);
+					this.notificationService.error(error);
+				});
+			},
+		}));
+		const configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
+		this._register(autorun(reader => {
+			configurationChanged.read(reader);
+			const visible = this.automationService.catalogueState.read(reader) === 'unavailable'
+				&& this.automationService.unavailableProviders.read(reader).some(provider => provider.unavailableReasonCode === 'disconnected')
+				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			if (!visible && container.contains(DOM.getActiveElement())) {
+				this.focusRoot.focus();
+			}
+			container.style.display = visible ? '' : 'none';
+		}));
 	}
 
 	private renderErrorState(): IButton {
@@ -2622,7 +2661,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 		this._register(customViewService.registerCustomView({
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(AutomationsCustomView),
-			actions: { style: 'buttonBar', menuId: Menus.CustomViewAutomations },
+			actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
 		}, {
 			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
 		}));
@@ -2637,19 +2676,19 @@ export class AutomationsCustomViewContribution extends Disposable {
 		}));
 
 		// Header actions share one control treatment while preserving primary/secondary hierarchy.
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, undefined, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
 		}));
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
 		}));
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -2892,7 +2931,7 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 			title: localize2('refreshAutomations', "Refresh"),
 			icon: Codicon.refresh,
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -2907,7 +2946,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -2942,7 +2981,7 @@ registerAction2(class ImportAutomationAction extends Action2 {
 			id: 'sessions.automations.import',
 			title: localize2('importAutomation', "Import Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -2999,7 +3038,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 			id: 'sessions.automations.duplicate',
 			title: localize2('duplicateAutomation', "Duplicate..."),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: '3_copy', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()) }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: '3_copy', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()) }],
 		});
 	}
 
@@ -3069,7 +3108,7 @@ registerAction2(class ExportAutomationAction extends Action2 {
 			id: 'sessions.automations.export',
 			title: localize2('exportAutomation', "Export..."),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: '3_copy', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()) }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: '3_copy', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()) }],
 		});
 	}
 
@@ -3129,7 +3168,7 @@ registerAction2(class OpenAutomationOnGitHubAction extends Action2 {
 			title: localize2('openAutomationOnGitHub', "Open on GitHub"),
 			icon: Codicon.linkExternal,
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext) }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext) }],
 		});
 	}
 
@@ -3159,7 +3198,7 @@ registerAction2(class DeleteAutomationAction extends Action2 {
 			id: 'sessions.automations.delete',
 			title: localize2('deleteAutomationContextMenu', "Delete..."),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext),
-			menu: [{ id: Menus.AutomationCardContext, group: '4_manage', order: 1, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: '4_manage', order: 1, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -3180,7 +3219,7 @@ registerAction2(class DisableAutomationAction extends Action2 {
 			id: 'sessions.automations.disable',
 			title: localize2('disableAutomationContextMenu', "Disable"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext) }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext) }],
 		});
 	}
 
@@ -3195,7 +3234,7 @@ registerAction2(class EnableAutomationAction extends Action2 {
 			id: 'sessions.automations.enable',
 			title: localize2('enableAutomationContextMenu', "Enable"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()) }],
+			menu: [{ id: AgentsWindowMenus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()) }],
 		});
 	}
 

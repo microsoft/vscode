@@ -178,6 +178,10 @@ export interface IChatWidgetFixtureOptions {
 	readonly realTerminalOutput?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly editingSession?: IChatEditingSession;
+	/** Shows attachments as pills inline with the request text, see `chat.inlineAttachments.enabled`. */
+	readonly inlineAttachments?: boolean;
+	/** Mirrors the `chat.fontSize` and `chat.fontFamily` settings, which `ChatWidget` applies to its container. */
+	readonly chatFont?: { readonly size?: number; readonly family?: string };
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -406,6 +410,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
+	}
+	if (options.inlineAttachments !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, options.inlineAttachments);
 	}
 	if (options.stickyScroll !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, options.stickyScroll);
@@ -686,6 +693,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
+	if (options.chatFont?.size) {
+		session.style.fontSize = `${options.chatFont.size}px`;
+	}
+	if (options.chatFont?.family) {
+		session.style.setProperty('--vscode-chat-font-family', options.chatFont.family);
+	}
 	if (options.persistentContentHeight) {
 		// Same switch `ChatWidget.render` flips.
 		session.classList.add(chatFloatingPersistentContentClass);
@@ -2516,6 +2529,50 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
+/**
+ * A request whose pasted image and file are shown as pills inline with its
+ * text, see `chat.inlineAttachments.enabled`, optionally in a custom chat font.
+ */
+async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
+	const canvas = dom.$<HTMLCanvasElement>('canvas');
+	canvas.width = 48;
+	canvas.height = 32;
+	const canvasContext = canvas.getContext('2d');
+	if (!canvasContext) {
+		throw new Error('Could not draw the pasted image');
+	}
+	canvasContext.fillStyle = '#f3f3f3';
+	canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+	canvasContext.fillStyle = '#3794ff';
+	canvasContext.fillRect(6, 6, 24, 4);
+	canvasContext.fillRect(6, 14, 36, 4);
+	canvasContext.fillRect(6, 22, 18, 4);
+	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Why does #file:index.ts look different from Pasted Image?',
+			variables: [
+				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
+				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
+			],
+			assistant: [{ kind: 'markdown', text: 'Both pills should center their label vertically.' }],
+		}],
+		height: 200,
+		listHeight: 200,
+		inputVisible: false,
+		inlineAttachments: true,
+		chatFont,
+	});
+
+	const request = context.container.querySelector<HTMLElement>('.interactive-request');
+	if (!request) {
+		throw new Error('The request did not render');
+	}
+	await waitForFixtureDomCondition(request, () => request.querySelectorAll('.chat-request-inline-attachment').length === 2 && !!request.querySelector('.chat-request-inline-attachment img.chat-attached-context-pill-image'), context.disposableStore);
+	await request.querySelector<HTMLImageElement>('.chat-request-inline-attachment img.chat-attached-context-pill-image')!.decode();
+}
+
 async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
 	const targetWindow = dom.getWindow(context.container);
 
@@ -2978,6 +3035,14 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		render: renderDisabledPetResizeObserverProbe,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
+	InlineAttachmentPills: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderInlineAttachmentPills(ctx),
+	}),
+	InlineAttachmentPillsLargeFont: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderInlineAttachmentPills(ctx, { size: 16 }),
+	}),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),

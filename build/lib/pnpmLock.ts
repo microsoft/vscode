@@ -6,7 +6,7 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { workspaceMembers, separateRoots, standaloneRoots, distroRoots } from '../npm/dirs.ts';
+import { workspaceMembers, separateRoots, separateRootMembers, standaloneRoots, distroRoots } from '../npm/dirs.ts';
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..');
 
@@ -316,6 +316,11 @@ export function getLockfileFolder(folder: string): string | undefined {
 	const normalized = folder.split(path.sep).join('/').replace(/\/+$/, '').replace(/^\.(?:\/|$)/, '');
 	if (workspaceMembers.includes(normalized)) {
 		return '';
+	}
+	for (const [installRoot, members] of Object.entries(separateRootMembers)) {
+		if (members.includes(normalized)) {
+			return installRoot;
+		}
 	}
 	if ([...separateRoots, ...standaloneRoots, ...distroRoots].includes(normalized)) {
 		return normalized;

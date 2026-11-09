@@ -14,11 +14,12 @@ import { IAccessibleViewService } from '../../../../../platform/accessibility/br
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasDefinition } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getCanvasDefinitionInstanceId, ICanvasDefinition } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IInboxCanvasHost, IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
+import { ICanvas } from '../../../../../workbench/common/canvasReference.js';
 
 suite('Inbox extension canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
