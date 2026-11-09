@@ -1,6 +1,6 @@
 ---
 name: sweeper-query
-description: Answer natural-language questions about the VS Code Sweeper's published issue index (index-<name>.json for microsoft/vscode and the enrolled family repos) — which issues are agent-ready to implement or plan, what the sweeper proposed for an assignee or area, whether a report is a known duplicate, the highest-value open bugs in a lane — and, for one issue, the review's full record (evidence with file citations, fix brief, proposed comment). Use when the user asks about sweeper verdicts, agent-ready issues, duplicates, value ranking, needs-info asks, what the sweeper found on a given issue, or anything else "the sweeper knows". Read-only; discovery only.
+description: Answer natural-language questions about the VS Code Sweeper's published issue index (index-<name>.json for microsoft/vscode and the enrolled family repos) — which issues are agent-ready to implement or plan, what the sweeper proposed for an assignee or area, whether the sweeper knows a report as a duplicate, the highest-value open bugs in a lane — and, for one issue, the review's full record (evidence with file citations, fix brief, proposed comment). Use ONLY when the request explicitly names the sweeper — "sweeper", "vscodesweeper", "sweeper-query", a sweeper verdict, record, brief or index, an agent-ready issue — or asks what "the sweeper" found, proposed or knows. Do NOT use for general questions about issues, duplicates, priorities or ranking that do not mention the sweeper. Read-only; discovery only.
 ---
 
 # Query the sweeper's index
