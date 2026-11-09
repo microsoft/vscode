@@ -53,7 +53,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent, type SystemNotificationResponsePart } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, readWorkingDirectoryKey, withSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, readWorkingDirectoryKey, withSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ModelSelection, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -99,6 +99,7 @@ import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget } from './agentHostSavedChatService.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { persistSideChatSourceContext } from './chatContributions/sideChat/sideChatContext.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
 import { GIT_BLOB_SCHEME } from './gitDiffContent.js';
@@ -167,6 +168,9 @@ import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_D
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
+import { isModelRouterModelId } from '../common/modelRouter.js';
+import { ReasoningEffortConfigKey } from '../common/reasoningEffort.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -914,6 +918,30 @@ export interface IAgentServiceCore {
 	readonly callbackBinder: IAgentServiceCallbackBinder;
 }
 
+/**
+ * For a chat whose provider can't report its model: the model it runs on when `model` is a model
+ * router, from its newest turn that ran on a model: the router's pick or one chosen directly.
+ * Other selections are returned unchanged.
+ */
+function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
+	if (!isModelRouterModelId(model?.id)) {
+		return model;
+	}
+	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return { id: routed.chosenModel, ...(routed.effort ? { config: { [ReasoningEffortConfigKey]: routed.effort } } : {}) };
+		}
+		// A turn with usage reached its model; one whose model change failed never did.
+		const chosen = turns[i].message.model;
+		if (chosen && !isModelRouterModelId(chosen.id) && turns[i].usage) {
+			return chosen;
+		}
+	}
+	return undefined;
+}
+
 function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource: URI): ToolResultTerminalContent | undefined {
 	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
 	for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
@@ -1115,6 +1143,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatWatchOwners = new ResourceMap<string>();
 	/** External histories waiting for their chat's turn to end; delivered when its current owner goes idle (Block 4: the owner is read then). */
 	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
+	/** Chats a provider reloaded on import whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
+	private readonly _pendingChatReloads = new Map<string, IAgent>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -1508,6 +1538,12 @@ export class AgentService extends Disposable implements IAgentService {
 						});
 					}
 				}
+				for (const [key, provider] of this._pendingChatReloads) {
+					if (this._chatOwnership.getChatOwner(key) === session) {
+						this._pendingChatReloads.delete(key);
+						this._queueReloadedChatTurns(provider, URI.parse(key));
+					}
+				}
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -1520,6 +1556,13 @@ export class AgentService extends Disposable implements IAgentService {
 				const owner = this._chatOwnership.getChatOwner(chat);
 				if (owner === undefined || owner === session) {
 					this._pendingChatNotices.delete(chat);
+				}
+			}
+			// A removed session restores from storage, with the turns a reload would have brought.
+			for (const chat of [...this._pendingChatReloads.keys()]) {
+				const owner = this._chatOwnership.getChatOwner(chat);
+				if (owner === undefined || owner === session) {
+					this._pendingChatReloads.delete(chat);
 				}
 			}
 		}));
@@ -2457,6 +2500,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
+		// A session the host already has loaded may lack turns another client ran since it was loaded.
+		const loaded = !!this._stateManager.getSessionState(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
 		// A provider backing can be admitted under another address, such as `ahp-session:` for an unseen Copilot session.
@@ -2464,8 +2509,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider?.importChat) {
 			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
-			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), { ...options, ...(loaded ? { reloadIfStale: true } : {}) });
 			if (imported) {
+				if (imported.reloaded) {
+					await this._replaceReloadedChatTurns(provider, chat);
+				}
 				await this._offerImportedChatSelection(runtimeSession, chat, imported);
 			}
 		}
@@ -2473,6 +2521,47 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
 		return runtimeSession;
+	}
+
+	/**
+	 * Replaces the turns of a loaded chat that its provider reloaded from storage. They are replaced rather than merged:
+	 * turns that ran live have host-generated ids, while turns rebuilt from storage take the provider's ids. When a turn
+	 * runs meanwhile, the replacement waits for it to end and then reads the provider's turns again, which include it.
+	 */
+	private async _replaceReloadedChatTurns(provider: IAgent, chat: URI): Promise<void> {
+		const chatKey = chat.toString();
+		const owner = this._chatOwnership.getChatOwner(chatKey);
+		const previous = this._stateManager.getChatState(chatKey);
+		if (owner === undefined || !previous || this._store.isDisposed) {
+			return;
+		}
+		const session = URI.parse(owner);
+		if (this._providerService.getProviderForChat(session, chat) !== provider) {
+			return;
+		}
+		if (!previous.activeTurn) {
+			const storage = URI.parse(this._chatStorageResource(session, chat));
+			const turns = await this._interleaveLocalTurns(owner, chatKey, await this._getChatMessages(provider, chat, session, this._chatOwnership.isDefaultChat(owner, chatKey), storage));
+			if (this._stateManager.refreshChatHistory(chatKey, previous.turns, turns)) {
+				return;
+			}
+			const current = this._stateManager.getChatState(chatKey);
+			if (!current || this._store.isDisposed || (current.turns === previous.turns && !current.activeTurn)) {
+				return;
+			}
+			if (!current.activeTurn) {
+				this._queueReloadedChatTurns(provider, chat);
+				return;
+			}
+		}
+		this._logService.trace(`[AgentService] Replacing the turns of reloaded chat ${chatKey} once its running turn ends`);
+		this._pendingChatReloads.set(chatKey, provider);
+	}
+
+	private _queueReloadedChatTurns(provider: IAgent, chat: URI): void {
+		void this._chatHistoryRefreshes.queue(chat.toString(), () => this._replaceReloadedChatTurns(provider, chat)).catch(error => {
+			this._logService.warn('[AgentService] Failed to replace the turns of a reloaded chat', error);
+		});
 	}
 
 	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
@@ -2668,7 +2757,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 
-		const model = session.activeTurn
+		const requestedModel = session.activeTurn
 			? session.activeTurn.message.model
 			: session.draft
 				? session.draft.model
@@ -2677,6 +2766,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// The calling chat's own effective config: a chat's values are its complete config, and a chat on another
 		// agent never hands on the session's values, which belong to the session's agent.
 		const owner = this._stateManager.getChatOwner(source.toString()) ?? source.toString();
+		// A router isn't a model: a chat it creates runs on the model the caller is running now.
+		const ownerUri = URI.parse(owner);
+		const model = isModelRouterModelId(requestedModel?.id)
+			? this._providerService.getProvider(chatProvider)?.chats.getModel?.(source, this._chatContext(ownerUri, source, this._chatStorageResource(ownerUri, source))) ?? withRoutedModel(session, requestedModel)
+			: requestedModel;
 		const sourceConfig = getNonMergeSessionConfigValues(chatProvider !== session.provider
 			? this._stateManager.getChatConfig(source.toString())?.values ?? {}
 			: this._configurationService.getChatConfigValues({ session: owner, chat: source.toString() }) ?? session.config?.values);
@@ -6355,6 +6449,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _createSession(config: IAgentServiceCreateSessionConfig | undefined, origin?: SessionOrigin): Promise<URI> {
+		// A model router is chosen per turn when it is sent; a session starts on the provider's default.
+		if (config && isModelRouterModelId(config.model?.id)) {
+			config = { ...config, model: undefined };
+		}
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -6975,6 +7073,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		if (isModelRouterModelId(options?.model?.id)) {
+			options = { ...options, model: undefined };
+		}
 		const reservations = new DisposableStore();
 		const { workspace, ...requestOptions } = options ?? {};
 		// The requested workspace is host-owned: it resolves into the chat's working directories and never reaches providers.
@@ -7757,6 +7858,10 @@ export class AgentService extends Disposable implements IAgentService {
 						createResult?.inheritedTurnId,
 						createOptions?.workingDirectories?.map(directory => directory.toString()),
 					);
+					if (sideChat) {
+						// Overwrite any context choice copied by the provider's fork.
+						await persistSideChatSourceContext(this._peerChatStore, session, chat, sideChat.includeSourceContext !== false);
+					}
 					if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
 						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? this._sessionFoldersOfChatWithoutOwn(sessionKey));
 					}
@@ -7939,7 +8044,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(selection ? { selection } : {}),
 			},
 			sourceChat: sourceChatKey,
-			shouldFork: sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
+			shouldFork: sideChat.includeSourceContext !== false && sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
 			...(selection ? { selection } : {}),
 			...(anchorTurnId ? { anchorTurnId } : {}),
 		};

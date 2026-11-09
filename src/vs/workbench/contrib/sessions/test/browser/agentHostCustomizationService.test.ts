@@ -19,10 +19,10 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IAgentHostActiveClientService } from '../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { AgentHostCustomizationService } from '../../browser/agentHostCustomizationService.js';
-import { IChat, ISession } from '../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
-import { focusedSessionHostServiceOf } from './sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, TestShown } from './sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from '../../../chat/test/browser/agentSessions/agentHostSkillDiscoveryTestUtils.js';
 
@@ -31,7 +31,7 @@ suite('AgentHostCustomizationService', () => {
 
 	test('agents window exposes Codex workspace skills and validation failures from session discovery', async () => {
 		const sessionResource = URI.parse('agent-host-codex:///session-1');
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ISession>() {
 			override readonly resource = sessionResource;
 			override readonly providerId = 'agenthost-test';
 			override readonly sessionId = 'agenthost-test:session-1';
@@ -59,7 +59,7 @@ suite('AgentHostCustomizationService', () => {
 				override readonly automationSession = constObservable<ISession | undefined>(undefined);
 				override getSession(): ISession { return session; }
 			}(),
-			focusedSessionHostServiceOf(observableValue<IActiveSession | undefined>('activeSession', session)),
+			focusedSessionHostServiceOf(observableValue<TestShown | undefined>('activeSession', { session, chat: undefined })),
 			new class extends mock<ISessionsProvidersService>() {
 				constructor(private readonly _provider: ISessionsProvider) { super(); }
 				override getProvider<T extends ISessionsProvider>(): T { return this._provider as T; }
@@ -146,12 +146,11 @@ suite('AgentHostCustomizationService', () => {
 		const activeChat = new class extends mock<IChat>() {
 			override readonly resource = sessionResource.with({ fragment: 'peer' });
 		}();
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ISession>() {
 			override readonly resource = sessionResource;
 			override readonly providerId = 'agenthost-test';
 			override readonly sessionId = 'agenthost-test:session-1';
 			override readonly mainChat = constObservable<IChat>(mainChat);
-			override readonly activeChat = constObservable<IChat>(activeChat);
 		}();
 		const backendChat = URI.parse('vendor-chat://opaque.example/threads/peer');
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
@@ -180,7 +179,7 @@ suite('AgentHostCustomizationService', () => {
 					return { session, chat: mainChat };
 				}
 			}(),
-			focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)),
+			focusedSessionHostServiceOf(constObservable<TestShown | undefined>({ session, chat: activeChat })),
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider<T extends ISessionsProvider>(): T {
 					return provider as unknown as T;
@@ -193,6 +192,70 @@ suite('AgentHostCustomizationService', () => {
 		));
 
 		assert.strictEqual(service.getBackendChatResource(sessionResource)?.toString(), backendChat.toString());
+	});
+
+	test('synthesizes the agent of the mode of the chat the caller names, not of the focused host or the session, when the provider discovers none', () => {
+		const sessionResource = URI.parse('agent-host-copilot:///session-1');
+		const chatOf = (resource: URI, mode: string) => new class extends mock<IChat>() {
+			override readonly resource = resource;
+			override readonly mode = constObservable({ id: `file:///agents/${mode}.agent.md`, kind: 'agent' });
+		}();
+		const chatA = chatOf(sessionResource, 'a');
+		const chatB = chatOf(sessionResource.with({ fragment: 'b' }), 'b');
+		const chatC = chatOf(sessionResource.with({ fragment: 'c' }), 'c');
+		// The provider's session, whose own mode is its main chat's. The focused window shows chat C; another window shows B.
+		const session = new class extends mock<ISession>() {
+			override readonly resource = sessionResource;
+			override readonly providerId = 'agenthost-test';
+			override readonly sessionId = 'agenthost-test:session-1';
+			override readonly mainChat = constObservable<IChat>(chatA);
+			override readonly chats = constObservable<readonly IChat[]>([chatA, chatB, chatC]);
+			override readonly mode = chatA.mode;
+		}();
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = session.providerId;
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeCustomizations = Event.None;
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return [];
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const service = store.add(new AgentHostCustomizationService(
+			new class extends mock<ISessionsManagementService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override readonly automationSession = constObservable<ISession | undefined>(undefined);
+				override getSession(resource: URI): ISession | undefined {
+					return isEqual(resource, sessionResource) ? session : undefined;
+				}
+				override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+					const chat = [chatA, chatB, chatC].find(candidate => isEqual(candidate.resource, resource));
+					return chat && { session, chat };
+				}
+			}(),
+			focusedSessionHostServiceOf(constObservable<TestShown | undefined>({ session, chat: chatC })),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T {
+					return provider as unknown as T;
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new TestNotificationService(),
+		));
+
+		assert.deepStrictEqual([chatB, chatC, chatA].map(chat => service.getCustomAgents(chat.resource).map(agent => agent.uri)), [
+			['file:///agents/b.agent.md'],
+			['file:///agents/c.agent.md'],
+			['file:///agents/a.agent.md'],
+		]);
 	});
 
 	test('reports client-bundled MCP servers from the active client', () => {

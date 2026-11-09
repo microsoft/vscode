@@ -36,7 +36,7 @@ import { getChatWindowOfHost, openPickedSessionInChatWindow, SHOW_SESSIONS_PICKE
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getWindowHost, ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -448,7 +448,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		const session = this._windowHost.session.get();
-		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		return provider && isAgentHostProvider(provider) && provider.remoteAddress
 			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
 			: localize('noWorkspace', "No workspace");

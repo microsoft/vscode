@@ -30,7 +30,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -60,12 +61,12 @@ import { openOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
-import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
+import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
@@ -82,10 +83,12 @@ import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/a
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -437,8 +440,9 @@ class FakeRunner extends mock<IAutomationRunner>() {
 }
 
 class FakeSessionsService extends mock<ISessionsService>() {
-	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-	readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+	readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+	override readonly slotPanes = testGridPanes(this.gridShown);
+	readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
 	error: Error | undefined;
@@ -2686,13 +2690,13 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
 		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
-		const unavailableMessage = partialState?.textContent;
+		const unavailableMessage = partialState?.querySelector('.automations-cards-partial-state-message')?.textContent;
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
 			loadingDisplay,
 			unavailableMessage,
-			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent,
+			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')?.textContent,
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			appearsAfterCards: partialState?.previousElementSibling?.classList.contains('automations-cards-grid'),
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
@@ -2735,6 +2739,60 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	for (const hasSavedAutomations of [false, true]) {
+		test(`opens Manage Remotes from disconnected providers ${hasSavedAutomations ? 'with' : 'without'} saved automations`, async () => {
+			const { automationService, widget, configurationService, commandService } = setup();
+			const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
+			const setSetting = async (setting: string, value: boolean) => {
+				await configurationService.setUserConfiguration(setting, value);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([setting]),
+					change: { keys: [setting], overrides: [] },
+					affectsConfiguration: key => key === setting,
+				});
+			};
+			for (const setting of settings) {
+				await setSetting(setting, true);
+			}
+			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
+			automationService.setUnavailableProviders([
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
+			]);
+			automationService.setCatalogueState('unavailable');
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state' : '.automations-cards-unavailable';
+			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes-link`)!;
+			const link = container.querySelector<HTMLAnchorElement>('a')!;
+			const initial = { display: container.style.display, label: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+			link.click();
+			dispatchKeydown(link, { key: 'Enter', keyCode: 13 });
+			dispatchKeydown(link, { key: ' ', keyCode: 32 });
+			await Promise.resolve();
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			const singleRemote = container.style.display;
+			const disabledSettings = [];
+			for (const setting of settings) {
+				await setSetting(setting, false);
+				disabledSettings.push(container.style.display);
+				await setSetting(setting, true);
+			}
+			const restored = container.style.display;
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'unsupported' }]);
+			const unsupported = container.style.display;
+			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setCatalogueState('ready');
+			assert.deepStrictEqual({
+				initial, singleRemote, disabledSettings, restored, unsupported, ready: container.style.display,
+				sameLink: container.querySelector('a') === link,
+				commands: commandService.calls.map(call => call.commandId),
+			}, {
+				initial: { display: '', label: 'Manage Remotes', role: 'button', tabIndex: 0 },
+				singleRemote: '', disabledSettings: ['none', 'none', 'none'], restored: '', unsupported: 'none', ready: 'none',
+				sameLink: true,
+				commands: [OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID],
+			});
+		});
+
 		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
 			const { automationService, widget } = setup();
 			const automations = hasSavedAutomations ? [automation()] : [];
@@ -2782,6 +2840,21 @@ suite('AutomationsCardsWidget', () => {
 			});
 		});
 	}
+
+	test('reports Manage Remotes command failures', async () => {
+		const { automationService, widget, configurationService, commandService, refreshErrors } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		automationService.setCatalogueState('unavailable');
+		const failure = new Error('Remote Environments could not be opened');
+		const stubbedCommand = stub(commandService, 'executeCommand').rejects(failure);
+		disposables.add(toDisposable(() => stubbedCommand.restore()));
+		widget.element.querySelector<HTMLAnchorElement>('.automations-cards-unavailable .automations-manage-remotes-link a')!.click();
+		await Promise.resolve();
+		assert.deepStrictEqual(refreshErrors, [String(failure)]);
+	});
 
 	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
@@ -4831,6 +4904,15 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
+	test('accessibility help explains the disconnected remote management link', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+		assert.ok(provider.provideContent().includes('Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

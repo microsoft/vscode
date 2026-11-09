@@ -21,11 +21,11 @@ import { ChatWindowNotifier } from '../../../../../workbench/contrib/chat/browse
 import { setChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
@@ -52,9 +52,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 class TestSessionsService extends mock<ISessionsService>() {
 
 	readonly opened: URI[] = [];
-	readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
-	override readonly visibleSessionPanes = this.visibleSessions;
+	readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+	readonly gridShown = observableValue<readonly ITestSessionWithChat[]>('visibleSessions', []);
+	override readonly slotPanes = testGridPanes(this.gridShown);
+	override readonly panes = testGridPanes(this.gridShown);
 
 	override async openSession(sessionResource: URI): Promise<void> {
 		this.opened.push(sessionResource);
@@ -274,8 +275,8 @@ suite('SessionsWindowNotifier', () => {
 		const waiting = createSession('waiting', SessionStatus.InProgress);
 		const management = new TestSessionsManagementService([waiting.session]);
 		const sessions = new TestSessionsService();
-		sessions.activeSession.set(active.session as IActiveSession, undefined);
-		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		sessions.activeSession.set(active.session as ITestSessionWithChat, undefined);
+		sessions.gridShown.set([active.session as ITestSessionWithChat, waiting.session as ITestSessionWithChat], undefined);
 		const host = new TestHostService();
 		host.hasFocus = true;
 		const chat = new TestChatService();
@@ -319,9 +320,9 @@ suite('SessionsWindowNotifier', () => {
 		const parent = upcastPartial<ISession>({ resource: base.session.resource, sessionId: 'parent', status: base.status, chats: constObservable(chats.map(chat => upcastPartial<IChat>(chat))) });
 		const management = store.add(new TestSessionsManagementService([parent]));
 		const sessions = new TestSessionsService();
-		const panes = chats.map(chat => upcastPartial<IActiveSession>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(upcastPartial<IChat>(chat)) }));
+		const panes = chats.map(chat => upcastPartial<ITestSessionWithChat>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(upcastPartial<IChat>(chat)) }));
 		sessions.activeSession.set(panes[0], undefined);
-		sessions.visibleSessionPanes.set(panes, undefined);
+		sessions.gridShown.set(panes, undefined);
 		const comparison = upcastPartial<ISessionComparison>({
 			id: 'comparison', sessionResource: parent.resource,
 			participants: chats.map(chat => upcastPartial<ISessionComparison['participants'][number]>({ sessionResource: parent.resource, chatResource: chat.resource })),
@@ -396,10 +397,10 @@ suite('SessionsWindowNotifier', () => {
 			}
 			const notified = host.toasts.map(toast => ({ body: toast.body, dedupeKey: toast.dedupeKey }));
 			host.hasFocus = true;
-			const panes = [attempt, peer].map(chat => upcastPartial<IActiveSession>({
+			const panes = [attempt, peer].map(chat => upcastPartial<ITestSessionWithChat>({
 				sessionId: parent.sessionId, resource: parent.resource, activeChat: constObservable(chat),
 			}));
-			sessions.visibleSessionPanes.set(panes, undefined);
+			sessions.gridShown.set(panes, undefined);
 			sessions.activeSession.set(panes[0], undefined);
 			peerStatus.set(SessionStatus.NeedsInput, undefined);
 			await flushNotifications();
@@ -455,8 +456,8 @@ suite('SessionsWindowNotifier', () => {
 		const waiting = createSession('ordinary-waiting', SessionStatus.InProgress);
 		const management = new TestSessionsManagementService([waiting.session]);
 		const sessions = new TestSessionsService();
-		sessions.activeSession.set(active.session as IActiveSession, undefined);
-		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		sessions.activeSession.set(active.session as ITestSessionWithChat, undefined);
+		sessions.gridShown.set([active.session as ITestSessionWithChat, waiting.session as ITestSessionWithChat], undefined);
 		const host = new TestHostService();
 		host.hasFocus = true;
 		const chat = new TestChatService();
@@ -488,8 +489,8 @@ suite('SessionsWindowNotifier', () => {
 		const waiting = createSession('archived-waiting', SessionStatus.InProgress);
 		const management = new TestSessionsManagementService([waiting.session]);
 		const sessions = new TestSessionsService();
-		sessions.activeSession.set(active.session as IActiveSession, undefined);
-		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		sessions.activeSession.set(active.session as ITestSessionWithChat, undefined);
+		sessions.gridShown.set([active.session as ITestSessionWithChat, waiting.session as ITestSessionWithChat], undefined);
 		const host = new TestHostService();
 		host.hasFocus = true;
 		const chat = new TestChatService();
@@ -607,9 +608,9 @@ suite('SessionsWindowNotifier', () => {
 		});
 		const b = upcastPartial<ISessionComparison>({ id: 'b', sessionResource: parent.resource, participants: [] });
 		const sessions = new TestSessionsService();
-		const activePane = upcastPartial<IActiveSession>({ resource: active.session.resource, sessionId: 'active', activeChat: constObservable(activeChat) });
+		const activePane = upcastPartial<ITestSessionWithChat>({ resource: active.session.resource, sessionId: 'active', activeChat: constObservable(activeChat) });
 		sessions.activeSession.set(activePane, undefined);
-		sessions.visibleSessionPanes.set([activePane, upcastPartial<IActiveSession>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(waitingChat) })], undefined);
+		sessions.gridShown.set([activePane, upcastPartial<ITestSessionWithChat>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(waitingChat) })], undefined);
 		const host = new TestHostService();
 		host.hasFocus = true;
 		store.add(new TestSessionsWindowNotifier(

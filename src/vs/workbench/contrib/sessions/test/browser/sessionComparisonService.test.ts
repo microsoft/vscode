@@ -21,7 +21,7 @@ import { IChatModelReference, IChatService, IChatUsage } from '../../../chat/com
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { getChatNotificationResource } from '../../../chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
@@ -638,7 +638,54 @@ suite('SessionComparisonService', () => {
 			restoredParticipants: comparison.participants.map(participant => participant.sessionResource?.toString()),
 			canRetryJudge: false,
 		});
-		await assert.rejects(service.startComparison({ ...options, judgeHarness: startOptions().judgeHarness }), /Folderless comparisons/);
+	});
+
+	test('folderless comparisons judge responses and synthesize into a new quick chat', async () => {
+		const { service, sessionsManagementService, groupsService, storageService } = createServices();
+		const status = observableValue('status', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('one', status));
+		sessionsManagementService.enqueue(stubSession('two', status));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		const comparison = await service.startComparison({ ...startOptions(), workspace: undefined });
+		const beforeCompletion = sessionsManagementService.createCalls.length;
+		status.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+		service.setSynthesisPlan(comparison.id, { instructions: 'Keep the answer concise.' });
+		await service.synthesize(comparison.id);
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.deepStrictEqual({
+			beforeCompletion,
+			requests: sessionsManagementService.createCalls.map(call => ({
+				workspace: call.folderUri,
+				model: call.createOptions?.modelId,
+				isolation: call.createOptions?.isolationMode,
+				branch: call.createOptions?.branch,
+			})),
+			judgeReadsResponses: sessionsManagementService.createCalls[2].options.query.includes('Read every attempt\'s response using `get_session_context`'),
+			synthesisAnswersTask: sessionsManagementService.createCalls[3].options.query.includes('into a new answer to the original task'),
+			synthesisInstructions: sessionsManagementService.createCalls[3].options.query.includes('Keep the answer concise.'),
+			evaluatorsReadAllPages: sessionsManagementService.createCalls.slice(2).map(call => call.options.query.includes('follow `nextResponseOffset` until `truncated` is false')),
+			grouped: groupsService.groupedSessionIds,
+			restoredWorkspace: restored?.workspace,
+			restoredRoles: restored?.participants.map(participant => participant.role),
+			restoredWinner: restored?.verdict?.recommendedParticipantId,
+		}, {
+			beforeCompletion: 2,
+			requests: ['model-one', 'model-two', 'judge-model', 'synthesis-model'].map(model => ({
+				workspace: undefined, model, isolation: undefined, branch: undefined,
+			})),
+			judgeReadsResponses: true,
+			synthesisAnswersTask: true,
+			synthesisInstructions: true,
+			evaluatorsReadAllPages: [true, true],
+			grouped: ['one', 'two', 'judge', 'synthesis'],
+			restoredWorkspace: undefined,
+			restoredRoles: [SessionComparisonParticipantRole.Attempt, SessionComparisonParticipantRole.Attempt, SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis],
+			restoredWinner: 'attempt-one',
+		});
 	});
 
 	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {

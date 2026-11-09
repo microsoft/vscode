@@ -28,28 +28,31 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 
 
 /** A host of `kind` that shows the active chat of `session`. */
-function hostOf(kind: SessionHostKind, session: IObservable<IActiveSession | undefined>, parent?: ISessionHost): ISessionHost {
+function hostOf(kind: SessionHostKind, session: IObservable<ITestSessionWithChat | undefined>, parent?: ISessionHost): ISessionHost {
 	return upcastPartial<ISessionHost>({ kind, parent, session, chat: derived(reader => session.read(reader)?.activeChat.read(reader)) });
 }
 
 /** The host of a pane that shows `session`: of the main window's grid, or a chat editor of a chat window. */
-function gridPaneHost(session: IActiveSession, chatWindow?: boolean): ISessionHost {
+function gridPaneHost(session: ITestSessionWithChat, chatWindow?: boolean): ISessionHost {
 	return hostOf(SessionHostKind.Pane, constObservable(session), hostOf(chatWindow ? SessionHostKind.ChatWindow : SessionHostKind.MainWindow, constObservable(session)));
 }
 suite('Session Sync Changes', () => {
@@ -60,7 +63,7 @@ suite('Session Sync Changes', () => {
 		return upcastPartial<ISessionWorkspace>({
 			isVirtualWorkspace: options?.isVirtualWorkspace,
 			folders: [upcastPartial<ISessionFolder>({
-				gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges, outgoingChanges, upstreamBranchName, workTreeUri: options?.workTreeUri }),
+				gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges, outgoingChanges, upstreamBranchName, workTreeUri: options?.workTreeUri, gitHubInfo: constObservable(undefined) }),
 			})],
 		});
 	}
@@ -79,6 +82,8 @@ suite('Session Sync Changes', () => {
 		const invocations: Parameters<ISessionChangeset['invokeOperation']>[] = [];
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+			isDefault: constObservable(true),
+			changes: constObservable([]),
 			isEnabled: enabled,
 			operations,
 			invokeOperation: async (...args) => {
@@ -93,7 +98,7 @@ suite('Session Sync Changes', () => {
 			changesets,
 			workspace,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: id,
 			resource: URI.parse(`test-session:/${id}`),
 			workspace,
@@ -103,12 +108,13 @@ suite('Session Sync Changes', () => {
 		return { session, operation, operations, enabled, changeset, changesets, invocations, workspace, worktreePending };
 	}
 
-	function setup(sessions: readonly IActiveSession[]) {
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', sessions);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', sessions[0]);
+	function setup(sessions: readonly ITestSessionWithChat[]) {
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', sessions);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', sessions[0]);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = visibleSessions;
-			override readonly visibleSessionPanes = visibleSessions;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
+			override readonly panes = testGridPanes(visibleSessions);
 			readonly activeSession = activeSession;
 		}();
 		let factory: IActionViewItemFactory | undefined;
@@ -136,7 +142,7 @@ suite('Session Sync Changes', () => {
 		return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig).filter(isIMenuItem).filter(item => item.command.id === commandId);
 	}
 
-	function getVisibleEntries(session: IActiveSession, aiEnabled = true) {
+	function getVisibleEntries(session: ITestSessionWithChat, aiEnabled = true) {
 		const context = new Context(1, null);
 		context.setValue(SessionIdContext.key, session.sessionId);
 		context.setValue(SessionActiveChatResourceContext.key, session.activeChat.get().resource.toString());
@@ -181,8 +187,8 @@ suite('Session Sync Changes', () => {
 		const parent = createSession('parent');
 		const first = createSession('first-child');
 		const second = createSession('second-child');
-		const childPane = (session: IActiveSession): IActiveSession => ({
-			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, scopedChatResource: session.activeChat.get().resource,
+		const childPane = (session: ITestSessionWithChat): ITestSessionWithChat => ({
+			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, detachedChat: session.activeChat.get().resource,
 		});
 		const children = [childPane(first.session), childPane(second.session)];
 		second.operations.set([{ ...second.operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
@@ -342,6 +348,16 @@ suite('Session Sync Changes', () => {
 		});
 	});
 
+	test('syncs the chat a composer\'s toolbar passes with its session, a provider session that carries no active chat', async () => {
+		const data = createSession('composer');
+		const { invoke } = setup([]);
+		const session = upcastPartial<ISession>({ sessionId: data.session.sessionId, resource: data.session.resource, workspace: data.workspace, worktreePending: data.worktreePending });
+
+		await invoke({ session, chat: data.session.activeChat.get() });
+
+		assert.deepStrictEqual(data.invocations, [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]]);
+	});
+
 	test('invokes the active session uncommitted changeset without command arguments or a resource target', async () => {
 		const first = createSession('first');
 		const second = createSession('second');
@@ -415,7 +431,7 @@ suite('Session Sync Changes', () => {
 		const second = createSession('second');
 		second.operations.set([{ ...second.operation, description: undefined }], undefined);
 		const { invoke, getFactory, activeSession } = setup([first.session, second.session]);
-		const session = observableValue<IActiveSession | undefined>('session', second.session);
+		const session = observableValue<ITestSessionWithChat | undefined>('session', second.session);
 		const activation = new DeferredPromise<void>();
 		const commandArguments: unknown[][] = [];
 		const commandService = new class extends mock<ICommandService>() {
@@ -443,7 +459,7 @@ suite('Session Sync Changes', () => {
 		const item = store.add(new MutableDisposable<SessionSyncChangesActionViewItem>());
 		const actionRunner = store.add(new ActionRunner());
 		const renderMenu = () => {
-			const action = menu.getActions({ get arg() { return { session: session.get() }; } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+			const action = menu.getActions({ get arg() { return { session: session.get(), chat: session.get()?.activeChat.get() }; } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
 			assert.ok(action instanceof MenuItemAction);
 			const viewItem = getFactory()(action, {}, scopedInstantiationService, 0)!;
 			assert.ok(viewItem instanceof SessionSyncChangesActionViewItem);
@@ -496,7 +512,7 @@ suite('Session Sync Changes', () => {
 			first: [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]],
 			second: [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]],
 			menuAction: { label: 'Sync Changes', tooltip: '', enabled: true },
-			commandArguments: [[{ session: second.session }], [{ session: first.session }]],
+			commandArguments: [[{ session: second.session, chat: second.session.activeChat.get() }], [{ session: first.session, chat: first.session.activeChat.get() }]],
 		});
 	});
 
@@ -554,7 +570,7 @@ suite('Session Sync Changes', () => {
 	});
 
 	/** Removes the focused action of a sync button in the host `hostOf` makes for a session, and reports where focus went. */
-	function focusAfterRemovingAction(hostOfSession: (session: IActiveSession) => ISessionHost, removeAction: (data: ReturnType<typeof createSession>) => void) {
+	function focusAfterRemovingAction(hostOfSession: (session: ITestSessionWithChat) => ISessionHost, removeAction: (data: ReturnType<typeof createSession>) => void) {
 		const data = createSession('first');
 		const action = store.add(new Action(commandId, 'Sync Changes'));
 		const widget = document.createElement('div');
@@ -563,8 +579,8 @@ suite('Session Sync Changes', () => {
 		input.setAttribute('role', 'textbox');
 		const focused: string[] = [];
 		const sessionsPartService = new class extends mock<ISessionsPartService>() {
-			override focusSessionView(session: ISession) {
-				focused.push(`grid pane of ${session.sessionId}`);
+			override focusViewOfHost(host: ISessionHost) {
+				focused.push(`grid pane of ${host.session.get()?.sessionId}`);
 				input.focus();
 			}
 		}();
@@ -592,6 +608,38 @@ suite('Session Sync Changes', () => {
 			assert.deepStrictEqual({ inputFocused: result.inputFocused, focused: result.focused }, { inputFocused: true, focused: ['grid pane of first'] });
 		});
 	}
+
+	test('in a pane of a real grid, whose host shows the provider\'s session object, returns keyboard focus to that pane\'s view when the focused action is removed', () => {
+		// Regressed in B8 (the host's session became the provider's object while the part found views by the grid's view of
+		// the session), fixed in D13a: the part focuses the view of the button's own host.
+		const { part, content } = createSessionsPartTestHarness(store);
+		const data = createSession('first');
+		const base = createTestActiveSession('first');
+		const chat: IChat = { ...base.mainChat.get(), changesets: data.changesets, workspace: data.workspace };
+		const session: ISession = { ...base, workspace: data.workspace, worktreePending: data.worktreePending, chats: constObservable([chat]), mainChat: constObservable(chat) };
+		const grid = store.add(new VisibleSessions(candidate => candidate.mainChat.get(), () => [], () => [], () => { }, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		}));
+		grid.restoreGrid([{ session, sticky: false }], 0);
+		content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		part.layout(800, 600, 0, 0);
+		const view = content.getViewOfPane(grid.panes.get()[0])!;
+		const action = store.add(new Action(commandId, 'Sync Changes'));
+		const sessionsPartService = upcastPartial<ISessionsPartService>({ focusViewOfHost: host => content.focusViewOfHost(host) });
+		const chatWidgetService = upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined });
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, view.host, sessionsPartService, store.add(new SessionInputPickerVisibility()), new MockKeybindingService(), chatWidgetService));
+		const container = document.createElement('div');
+		document.body.append(container);
+		store.add(toDisposable(() => container.remove()));
+		item.render(container);
+		item.focus();
+		const shown = { hostSession: view.host.session.get() === session, buttonFocused: container.contains(document.activeElement) };
+
+		data.operations.set([], undefined);
+		item.dispose();
+
+		assert.deepStrictEqual({ shown, viewFocused: view.element.contains(document.activeElement) }, { shown: { hostSession: true, buttonFocused: true }, viewFocused: true });
+	});
 
 	test('in a chat editor whose session the main window\'s grid also shows, returns keyboard focus to the editor\'s chat input, not the grid', () => {
 		const result = focusAfterRemovingAction(session => gridPaneHost(session, true), data => data.operations.set([], undefined));

@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { ComposerInputSnapshot, readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 
 suite('New chat draft state', () => {
 
@@ -38,6 +38,23 @@ suite('New chat draft state', () => {
 				{ id: 'a', range: new Range(1, 26, 1, 46), data: '/a/index.ts' },
 			],
 			withoutReferences: { inputText: 'hello', attachments: [], references: undefined },
+		});
+	});
+
+	test('a composer input snapshot ends only the attempt of the completion that ends it, never a newer one', () => {
+		const snapshot = new ComposerInputSnapshot();
+		snapshot.set({ inputText: 'first', attachments: [] });
+		const rejected = snapshot.beginSendAttempt({ inputText: 'first', attachments: [] });
+		snapshot.set({ inputText: '', attachments: [] });
+		const retried = snapshot.beginSendAttempt({ inputText: 'second', attachments: [] });
+		// The rejected send's completion arrives late, after the retry started.
+		snapshot.endSendAttempt(rejected);
+		const afterLateCompletion = snapshot.get();
+		snapshot.endSendAttempt(retried);
+
+		assert.deepStrictEqual({ afterLateCompletion, afterRetry: snapshot.get() }, {
+			afterLateCompletion: { input: { inputText: '', attachments: [] }, attempt: { id: retried, input: { inputText: 'second', attachments: [] } } },
+			afterRetry: { input: { inputText: '', attachments: [] } },
 		});
 	});
 });

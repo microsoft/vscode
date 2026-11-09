@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel } from '../../browser/sessionConversationGroups.js';
-import { ChatOriginKind, IChat, IChatOrigin, isSideChatOf, SessionStatus } from '../../common/session.js';
+import { ChatOriginKind, IChat, IChatOrigin, isSideChatOf, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 function createChat(id: string, origin?: IChatOrigin): IChat {
 	return new class extends mock<IChat>() {

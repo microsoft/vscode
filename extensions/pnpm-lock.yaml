@@ -602,6 +602,9 @@ importers:
       '@vscode/codicons':
         specifier: ^0.0.36
         version: 0.0.36
+      '@vscode/hubrpc':
+        specifier: 0.0.2-54
+        version: 0.0.2-54(zod@4.4.3)
       playwright:
         specifier: ^1.61.1
         version: 1.61.1

@@ -28,8 +28,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.29-preview.10
-        version: 1.0.29-preview.10
+        specifier: 1.0.30-preview.0
+        version: 1.0.30-preview.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -88,8 +88,8 @@ importers:
         specifier: ^1.7.0
         version: 1.7.0
       '@vscode/proxy-agent':
-        specifier: ^0.45.0
-        version: 0.45.0
+        specifier: ^0.46.0
+        version: 0.46.0
       '@vscode/ripgrep-universal':
         specifier: ^1.18.0
         version: 1.18.0
@@ -245,8 +245,8 @@ importers:
         specifier: 0.163.0
         version: 0.163.0
       '@playwright/cli':
-        specifier: ^0.1.9
-        version: 0.1.9
+        specifier: ^0.1.22
+        version: 0.1.22
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -259,9 +259,6 @@ importers:
       '@types/cookie':
         specifier: ^0.3.3
         version: 0.3.3
-      '@types/estree':
-        specifier: ^1.0.9
-        version: 1.0.9
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -313,9 +310,6 @@ importers:
       '@types/yazl':
         specifier: ^2.4.2
         version: 2.4.2
-      '@typescript-eslint/utils':
-        specifier: 8.66.0
-        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
       '@typescript/native':
         specifier: npm:typescript@7.1.0-dev.20261105.1
         version: typescript@7.1.0-dev.20261105.1
@@ -324,7 +318,7 @@ importers:
         version: 0.2.1-161
       '@vscode/component-explorer-cli':
         specifier: ^0.2.1-163
-        version: 0.2.1-163(typanion@3.14.0)
+        version: 0.2.1-163(playwright@1.61.1)(typanion@3.14.0)
       '@vscode/gulp-electron':
         specifier: ^1.43.0
         version: 1.43.1
@@ -346,12 +340,6 @@ importers:
       '@vscode/test-web':
         specifier: ^0.0.81
         version: 0.0.81(kerberos@2.1.1)
-      '@vscode/v8-heap-parser':
-        specifier: ^0.1.0
-        version: 0.1.0
-      '@vscode/vscode-perf':
-        specifier: ^0.0.19
-        version: 0.0.19
       '@webgpu/types':
         specifier: ^0.1.66
         version: 0.1.66
@@ -394,9 +382,6 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
-      eslint-visitor-keys:
-        specifier: ^5.0.1
-        version: 5.0.1
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
@@ -454,21 +439,6 @@ importers:
       innosetup:
         specifier: ^6.4.1
         version: 6.4.1
-      istanbul-lib-coverage:
-        specifier: ^3.2.0
-        version: 3.2.2
-      istanbul-lib-instrument:
-        specifier: ^6.0.1
-        version: 6.0.3
-      istanbul-lib-report:
-        specifier: ^3.0.0
-        version: 3.0.1
-      istanbul-lib-source-maps:
-        specifier: ^4.0.1
-        version: 4.0.1
-      istanbul-reports:
-        specifier: ^3.1.5
-        version: 3.1.6
       js-yaml:
         specifier: ^4.2.0
         version: 4.3.2
@@ -478,9 +448,6 @@ importers:
       lazy.js:
         specifier: ^0.4.2
         version: 0.4.3
-      mime:
-        specifier: ^1.4.1
-        version: 1.6.0
       minimatch:
         specifier: ^3.1.5
         version: 3.1.5
@@ -502,6 +469,9 @@ importers:
       path-browserify:
         specifier: ^1.0.1
         version: 1.0.1
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       rcedit:
         specifier: ^1.1.0
         version: 1.1.0
@@ -517,9 +487,6 @@ importers:
       sinon-test:
         specifier: ^3.1.3
         version: 3.1.3(sinon@12.0.1)
-      source-map:
-        specifier: 0.6.1
-        version: 0.6.1
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -547,25 +514,63 @@ importers:
       xml2js:
         specifier: ^0.5.0
         version: 0.5.0
-      yaserver:
-        specifier: ^0.4.0
-        version: 0.4.0
     optionalDependencies:
       windows-foreground-love:
         specifier: 0.6.1
         version: 0.6.1
+
+  .eslint-plugin-local:
+    devDependencies:
+      '@types/estree':
+        specifier: ^1.0.9
+        version: 1.0.9
+      '@types/minimatch':
+        specifier: ^3.0.3
+        version: 3.0.3
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
+      '@typescript-eslint/utils':
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
+      eslint:
+        specifier: 10.8.0
+        version: 10.8.0
+      eslint-visitor-keys:
+        specifier: ^5.0.1
+        version: 5.0.1
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      typescript-eslint:
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
 
   .vscode/extensions/vscode-pr-pinger:
     dependencies:
       '@octokit/graphql':
         specifier: ^5.0.1
         version: 5.0.6
+    devDependencies:
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-import-aid:
     dependencies:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
+    devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-test-provider:
     dependencies:
@@ -581,6 +586,9 @@ importers:
       istanbul-to-vscode:
         specifier: ^2.0.1
         version: 2.0.1
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.6
@@ -589,14 +597,56 @@ importers:
         specifier: 24.x
         version: 24.12.4
 
+  scripts:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/test-electron':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@vscode/test-web':
+        specifier: ^0.0.81
+        version: 0.0.81(kerberos@2.1.1)
+      '@vscode/vscode-perf':
+        specifier: ^0.0.19
+        version: 0.0.19
+      ansi-colors:
+        specifier: ^3.2.3
+        version: 3.2.3
+      fancy-log:
+        specifier: ^1.3.3
+        version: 1.3.3
+      kerberos:
+        specifier: 2.1.1
+        version: 2.1.1
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
+      open:
+        specifier: ^10.1.2
+        version: 10.1.2
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
+
   src/vs/sessions/test/e2e:
-    dependencies:
+    devDependencies:
       '@playwright/cli':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: ^0.1.22
+        version: 0.1.22
 
   test/automation:
     dependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/v8-heap-parser':
+        specifier: ^0.1.0
+        version: 0.1.0
       axe-core:
         specifier: ^4.10.2
         version: 4.11.1
@@ -622,6 +672,9 @@ importers:
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+      playwright-core:
+        specifier: 1.61.0-alpha-2026-06-04
+        version: 1.61.0-alpha-2026-06-04
 
   test/componentFixtures/playwright:
     devDependencies:
@@ -637,6 +690,12 @@ importers:
 
   test/integration/browser:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -646,6 +705,9 @@ importers:
       '@types/tmp':
         specifier: 0.1.0
         version: 0.1.0
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       rimraf:
         specifier: ^2.6.1
         version: 2.7.1
@@ -661,15 +723,21 @@ importers:
 
   test/monaco:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       '@types/chai':
         specifier: ^4.2.14
         version: 4.2.14
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
       axe-playwright:
         specifier: ^2.1.0
-        version: 2.1.0
+        version: 2.1.0(playwright@1.61.1)
       chai:
         specifier: ^4.2.0
         version: 4.2.0
@@ -679,6 +747,12 @@ importers:
       file-loader:
         specifier: ^6.2.0
         version: 6.2.0(webpack@5.105.4)
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       style-loader:
         specifier: ^3.3.2
         version: 3.3.4(webpack@5.105.4)
@@ -691,44 +765,140 @@ importers:
       webpack-cli:
         specifier: ^5.1.4
         version: 5.1.4(webpack@5.105.4)
+      yaserver:
+        specifier: ^0.4.0
+        version: 0.4.0
 
   test/scenario:
     dependencies:
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       minimist:
         specifier: ^1.2.8
         version: 1.2.8
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
 
   test/smoke:
     dependencies:
+      '@microsoft/dev-tunnels-contracts':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@microsoft/dev-tunnels-management':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       axios:
         specifier: ^1.20.0
         version: 1.20.0
       graceful-fs:
         specifier: ^4.2.11
         version: 4.2.11
+      kerberos:
+        specifier: 2.1.1
+        version: 2.1.1
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       node-fetch:
         specifier: ^2.6.7
         version: 2.6.7
+      ssh2:
+        specifier: ^1.16.0
+        version: 1.17.0
       tree-kill:
         specifier: 1.2.2
         version: 1.2.2
       vscode-jsonrpc:
         specifier: ^8.2.1
         version: 8.2.1
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/kerberos':
+        specifier: ^1.1.2
+        version: 1.1.2
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       '@types/node-fetch':
         specifier: ^2.5.10
         version: 2.5.10
+      '@types/ssh2':
+        specifier: ^1.15.4
+        version: 1.15.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@vscode/test-electron':
+        specifier: ^2.4.0
+        version: 2.4.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+
+  test/unit:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/v8-heap-parser':
+        specifier: ^0.1.0
+        version: 0.1.0
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
+      istanbul-lib-coverage:
+        specifier: ^3.2.0
+        version: 3.2.2
+      istanbul-lib-instrument:
+        specifier: ^6.0.1
+        version: 6.0.3
+      istanbul-lib-report:
+        specifier: ^3.0.0
+        version: 3.0.1
+      istanbul-lib-source-maps:
+        specifier: ^4.0.1
+        version: 4.0.1
+      istanbul-reports:
+        specifier: ^3.1.5
+        version: 3.1.6
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      mocha-junit-reporter:
+        specifier: ^2.2.1
+        version: 2.2.1(mocha@10.8.2)
+      yaserver:
+        specifier: ^0.4.0
+        version: 0.4.0
 
 packages:
 
@@ -1002,52 +1172,52 @@ packages:
     resolution: {integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.10':
-    resolution: {integrity: sha512-q8EdLlBKeZm8r5/EvFugQVCpY+M5I6wrwEqxzVRWVdxMEP0Qkvt1QpndXw4DN9+QjOjBZwMC4WgsMhZn4iEXig==}
+  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
+    resolution: {integrity: sha512-mk2Eo2CAqWNx1MfXe86PRAXIZn1jPQ+Nn9wWKLv1caUrZx6MgDAZje3RsjzBFt1z6cPRdNvGuR+5qx5ed4fm7g==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.29-preview.10':
-    resolution: {integrity: sha512-+jTGIQvx4WIoi1HdOwKz5vmPXhD+Mb88sth6WJPrM+ns8BHOpDCY1EkKO7WydDCiqNtkrpnlsrFMicv8VrByqg==}
+  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
+    resolution: {integrity: sha512-Hp8HUQBln7cA/GUOjSnAn7fNI0oUh3eqXj27Jk2ejYf7bf7CNDduZviXMPZVDFU4L/0APEA32SH7UzzuouB1Yw==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.29-preview.10':
-    resolution: {integrity: sha512-dId1li6q3FH0Afy+cxpFKWxGZZIKLlpJQVGeC7FPGGZeIdSa5DBovGdH12m90T2oISubfc3yCvhwUA+UYddL/A==}
+  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
+    resolution: {integrity: sha512-Gbg8nKJOVJeXKPgv0rzv0cB6I8ZHeTBbFqEWRT/WrxwiS2a4vubsIWK5gHAMx+cOVUyl8Cmc0yLfAzuQcOfnEA==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.29-preview.10':
-    resolution: {integrity: sha512-I3XP6Rzdorkiwx8izdfta9jDtFQYEn3cJD0yMxlhROte9jZBBteYZ8oJv9TDxy9OUE1Ob45nepHqAhQVPBDENA==}
+  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
+    resolution: {integrity: sha512-43aFjCby/R6acOEbLLnvysUvKX9POTsDbY4kZAcaSrHkiVrnVOLNiEgbvVchXjbZBVsLlFP94EN/ibheCzRHeA==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.10':
-    resolution: {integrity: sha512-cDpBNFi34MawRtukpNm3nZy78uCTk6w3AZbUk2vaStWZTcVtznD+ZJ3xS4PNmfa0PngdKynWYW3hFNXD+pzn1w==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
+    resolution: {integrity: sha512-TKVl1Ts80+rKmG2keG035fZt9BPtRkuVIMjq2Z/l7cpt00J33qQRkI0qms4eiuId+jZxes0gX7zQHT85IVftxA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.10':
-    resolution: {integrity: sha512-C2HDB4xRDPINEBMfcCHeuxam/0Dgk+IumoF6kDvCahonHtC+P5ff4iWgR3Vv5tI13o8hPJB+O1bU/aGbGYNZkg==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
+    resolution: {integrity: sha512-KwgkOL7BSasVTJwg297uTpYAhcMsS4DGj+Ty3DiRkW7F576ONW4pJOaJz8/4+EpNKYmhFYaFsNoHIaFQ76posQ==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.29-preview.10':
-    resolution: {integrity: sha512-3r3G246fuDVqVscHiC6SYzGD5n3QQwKmkRVIGBd7uvbycT02lQZFF551nNA5+Soyzsq802eMOW+yp8RN4AiP5w==}
+  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
+    resolution: {integrity: sha512-AlF+jOYYSkm/Mls4EE5myJ0qUQxVBHEtBFvdPkZ+uqdY3R4mHO1ReeJWsX5dFlsY85kUVF6zS1CuhtXokfgyHQ==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.29-preview.10':
-    resolution: {integrity: sha512-JlL0C1s9Lua2d7KVCd7Q4RVD0bhr1nczMP0KQPUMc3ZS94tJYZZdRcPuIWlJjbnvu/o1y+g1Frgm4d6zrGWM8w==}
+  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
+    resolution: {integrity: sha512-9Jij2EEH2r6gk0ekKhHq/SQzZgDGe3W3VY3+SKs6KmUq6ZG6vzfj9sEN2QDA/ywqqJf7RMesGKTD0A0Y5xTIKw==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.29-preview.10':
-    resolution: {integrity: sha512-ug29ZLmbIKNXxoonq9m3YKkU5utyKS4teQfYJ/vxFqt0JvCf7Spj/SS25MarLjSjLgRs3N0UgsQeW2qsXsyykQ==}
+  '@github/copilot-sdk@1.0.30-preview.0':
+    resolution: {integrity: sha512-V2A//9ikl8yygwqb8zffH/Jmmqg2Ra8nOsgjui3VIxp8pSSh/ljpsOF7iH5RKXlCDx/b2YtF+jWa3zRQAHIECg==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@gulp-sourcemaps/identity-map@2.0.1':
@@ -1448,13 +1618,8 @@ packages:
     resolution: {integrity: sha512-t3/zE0i9gik5R/NpRs7G2Xo/6NPeABW6ReplGdtkeWeAkaV764CgFgoKjJo21D2xgjnvDvRYubqBUu4xl0VCqA==}
     engines: {node: '>=18'}
 
-  '@playwright/cli@0.1.1':
-    resolution: {integrity: sha512-9k11ZfDwAfMVDDIuEVW1Wvs8SoDNXIY1dNQ+9C9/SS8ZmElkcxesu5eoL7vNa96ntibUGaq1TM2qQoqvdl/I9g==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@playwright/cli@0.1.9':
-    resolution: {integrity: sha512-WLpY7rb214LZpjrjFJ5iM+SeuwGdlgBupIlhlYgDOxVuMH/o9hG+4CkQMWEeBuQIxtuVWScQW3Lez7ck/oOq/A==}
+  '@playwright/cli@0.1.22':
+    resolution: {integrity: sha512-6WMkQNM4VEzqMkdr/l60X9Cr7i+tI/arK87IWz2K7pB6j8I2ZJ8KN+1JfhJDLnK+SXnab6Op8xGt4adcGLsyfA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -1857,8 +2022,8 @@ packages:
     resolution: {integrity: sha512-l6N5iJnPoAQpRVm1TPP7fOHO9TrT2W/cbn/SwFT0yfXwoE8veq9waFwblxcmfqJCzUNSEYouMWhuMhnc67kkPA==}
     engines: {node: '>=22'}
 
-  '@vscode/proxy-agent@0.45.0':
-    resolution: {integrity: sha512-rSR81pniNECvd3Zr1sq0VqYL7H+02dT723sEexpoweWi9mMklwLoapHTkwK6nAtxhjXNagRkT7l2GWuripXD7Q==}
+  '@vscode/proxy-agent@0.46.0':
+    resolution: {integrity: sha512-d0xcQk+gYcZtkdKz3FL4XLdVEA1VPa2XsHvRFtChx5rSPHY0OGajwhrbhZw2gp0+KhUvyD6dRNvDyge6FUVSrg==}
     engines: {node: '>=22.15.0'}
 
   '@vscode/ripgrep-universal@1.18.0':
@@ -5294,16 +5459,6 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
-  playwright-core@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-YiXup3pnpQUCBMSIW5zx8CErwRx4K6O5Kojkw2BzJui8MazoMUDU6E3xGsb1kzFviEAE09LFQ+y1a0RhIJQ5SA==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright-core@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-cAEm1N5jh0WMr9/EG4nPDbR326paHfMFa2FyHibhIfDGTswbKv8sYvaa9S0UXkgITdv4h6lQfcsD9Dl73lFZsg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   playwright-core@1.61.0-alpha-2026-06-04:
     resolution: {integrity: sha512-OCdgxfcyRfuc79OcWc0Y019YoVvTqZWvtEYZxyXtwO+CpAln5s8hQH1bmgqOJd5vccKO6yOzfYYz0Vs2Zr8eIg==}
     engines: {node: '>=18'}
@@ -5314,19 +5469,19 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-6SCMMMJaDRsSqiKVLmb2nhtLES7iTYawTWWrQK6UdIGNzXi8lka4sLKRec3L4DnTWwddAvCuRn8035dhNiHzbg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-Uykk/hbDlIaw4aZZZHMni6I0Y9eBtC7+UzH3QwTh9pJEEuYVq14y7F3bcHNCNCI0sLkY0oEiWK+2VeOtB6vUDQ==}
-    engines: {node: '>=18'}
+  playwright-core@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-pNwaXirhXMRLaRQs4NQ18EpTdtDoFwyPH9FOaaDC7YXG4hpwE2xmwCic/1srbuExVQC7zT9LJSJpDBAru+Vo9A==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-/5XDUMxpOd/9AojJtWDFIRV3EJZNQ0AwvK69wgt3CPzy8wTgiBG9pX45VfxtqtvIRGwfWzMhrvawNKreG69Snw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   plist@3.1.0:
@@ -7200,44 +7355,44 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.10':
+  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.29-preview.10':
+  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.29-preview.10':
+  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.29-preview.10':
+  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.10':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.10':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.29-preview.10':
+  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.29-preview.10':
+  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
     optional: true
 
-  '@github/copilot-sdk@1.0.29-preview.10':
+  '@github/copilot-sdk@1.0.30-preview.0':
     dependencies:
       koffi: 3.2.1
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.29-preview.10
-      '@github/copilot-sdk-darwin-x64': 1.0.29-preview.10
-      '@github/copilot-sdk-linux-arm64': 1.0.29-preview.10
-      '@github/copilot-sdk-linux-x64': 1.0.29-preview.10
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.29-preview.10
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.29-preview.10
-      '@github/copilot-sdk-win32-arm64': 1.0.29-preview.10
-      '@github/copilot-sdk-win32-x64': 1.0.29-preview.10
+      '@github/copilot-sdk-darwin-arm64': 1.0.30-preview.0
+      '@github/copilot-sdk-darwin-x64': 1.0.30-preview.0
+      '@github/copilot-sdk-linux-arm64': 1.0.30-preview.0
+      '@github/copilot-sdk-linux-x64': 1.0.30-preview.0
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.30-preview.0
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.30-preview.0
+      '@github/copilot-sdk-win32-arm64': 1.0.30-preview.0
+      '@github/copilot-sdk-win32-x64': 1.0.30-preview.0
 
   '@gulp-sourcemaps/identity-map@2.0.1':
     dependencies:
@@ -7673,14 +7828,10 @@ snapshots:
     dependencies:
       playwright-core: 1.61.1
 
-  '@playwright/cli@0.1.1':
+  '@playwright/cli@0.1.22':
     dependencies:
-      minimist: 1.2.8
-      playwright: 1.59.0-alpha-1771104257000
-
-  '@playwright/cli@0.1.9':
-    dependencies:
-      playwright: 1.60.0-alpha-1777077614000
+      playwright: 1.64.0-alpha-1790635538000
+      playwright-core: 1.64.0-alpha-1790635538000
 
   '@playwright/test@1.61.1':
     dependencies:
@@ -7994,12 +8145,13 @@ snapshots:
 
   '@vscode/codicons@0.0.46-49': {}
 
-  '@vscode/component-explorer-cli@0.2.1-163(typanion@3.14.0)':
+  '@vscode/component-explorer-cli@0.2.1-163(playwright@1.61.1)(typanion@3.14.0)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       express: 5.2.1
       istanbul-lib-coverage: 3.2.2
+      playwright: 1.61.1
       v8-to-istanbul: 9.3.0
       vite-plugin-istanbul: 7.2.1
       zod: 4.4.3
@@ -8128,7 +8280,7 @@ snapshots:
       bindings: 1.5.0
       node-addon-api: 8.9.2
 
-  '@vscode/proxy-agent@0.45.0':
+  '@vscode/proxy-agent@0.46.0':
     dependencies:
       '@tootallnate/once': 3.0.1
       agent-base: 7.1.4
@@ -8695,13 +8847,14 @@ snapshots:
       axe-core: 4.10.3
       mustache: 4.2.0
 
-  axe-playwright@2.1.0:
+  axe-playwright@2.1.0(playwright@1.61.1):
     dependencies:
       '@types/junit-report-builder': 3.0.2
       axe-core: 4.10.3
       axe-html-reporter: 2.2.11(axe-core@4.10.3)
       junit-report-builder: 5.1.1
       picocolors: 1.1.1
+      playwright: 1.61.1
 
   axios@1.20.0:
     dependencies:
@@ -11998,31 +12151,21 @@ snapshots:
     dependencies:
       find-up: 4.1.0
 
-  playwright-core@1.59.0-alpha-1771104257000: {}
-
-  playwright-core@1.60.0-alpha-1777077614000: {}
-
   playwright-core@1.61.0-alpha-2026-06-04: {}
 
   playwright-core@1.61.1: {}
 
-  playwright@1.59.0-alpha-1771104257000:
-    dependencies:
-      playwright-core: 1.59.0-alpha-1771104257000
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.60.0-alpha-1777077614000:
-    dependencies:
-      playwright-core: 1.60.0-alpha-1777077614000
-    optionalDependencies:
-      fsevents: 2.3.2
+  playwright-core@1.64.0-alpha-1790635538000: {}
 
   playwright@1.61.1:
     dependencies:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  playwright@1.64.0-alpha-1790635538000:
+    dependencies:
+      playwright-core: 1.64.0-alpha-1790635538000
 
   plist@3.1.0:
     dependencies:

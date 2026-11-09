@@ -12,9 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../../common/session.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionBrowsersControl } from '../../../browser/chat/sessionBrowsersControl.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 interface IControlSpec {
 	readonly browsers?: readonly {
@@ -50,7 +50,7 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: mainChat.resource };
 	}();
 	const chats = observableValue<readonly IChat[]>('chats', spec.withoutSubagent ? [mainChat] : [mainChat, subagent]);
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ITestSessionWithChat>() {
 		override readonly resource = URI.parse('session:main');
 		override readonly chats = chats;
 	}();

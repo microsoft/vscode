@@ -12,7 +12,7 @@ import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../co
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
-import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
@@ -415,7 +415,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
-			aliases
+			(argumentTyped === undefined ? aliases : [typed])
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
 					options
@@ -424,9 +424,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 						.forEach(option => {
 							// Add a trailing space after the command (and sub command/option if present).
 							// This is so user can continue to type additional arguments after the command and option.
-							const insertText = argumentTyped === undefined
-								? `/${alias}${option.name ? ' ' + option.name : ''} `
-								: `${option.name} `;
+							const insertText = `/${alias}${option.name ? ' ' + option.name : ''} `;
 							const description = option.description ?? command.description;
 							const argumentHint = option.argumentHint;
 							const retriggerSuggestions = !option.name
@@ -445,9 +443,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 								rangeEnd: rangeEnd,
 								attachment: {
 									type: MessageAttachmentKind.Simple,
-									label: argumentTyped === undefined
-										? `${alias}${option.name ? ' ' + option.name : ''}`
-										: option.name,
+									label: `${alias}${option.name ? ' ' + option.name : ''}`,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
 										...(command.kind === 'skill' ? { isSkill: true } : {}),
@@ -559,7 +555,7 @@ function extractSlashCommandArgument(text: string, offset: number): { command: s
 	return {
 		command: match.groups.command,
 		typed: text.slice(range.start, offset),
-		rangeStart: range.start,
+		rangeStart: 0,
 		rangeEnd: range.end,
 	};
 }

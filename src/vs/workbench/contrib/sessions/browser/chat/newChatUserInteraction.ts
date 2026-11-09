@@ -16,7 +16,7 @@ import { getChatSessionTelemetryContext } from '../../../chat/common/chatService
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 export interface INewChatUserInteractionSource {
@@ -89,9 +89,9 @@ export class NewChatUserInteraction extends Disposable {
 		this._register(this._managementService.onDidReplaceNewDraftSession(replace));
 		this._register(autorun(reader => {
 			const sessionId = this._session.read(reader)?.sessionId;
-			const session = this._sessionsService.visibleSessions.read(reader).find(candidate => candidate?.sessionId === sessionId);
-			session?.activeChat.read(reader);
-			session?.isNewSessionRequestInProgress?.read(reader);
+			const pane = this._sessionsService.slotPanes.read(reader).find(candidate => candidate.session.read(reader)?.sessionId === sessionId);
+			pane?.chat.read(reader);
+			pane?.session.read(reader)?.isNewSessionRequestInProgress?.read(reader);
 			this._scheduleVisibilityCheck();
 		}));
 		const observeWidget = (widget: IChatWidget) => {
@@ -171,12 +171,13 @@ export class NewChatUserInteraction extends Disposable {
 			if (!this.timer.isActive) {
 				return;
 			}
-			const session = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === this._session.get()?.sessionId);
+			const pane = this._sessionsService.slotPanes.get().find(candidate => candidate.session.get()?.sessionId === this._session.get()?.sessionId);
+			const session = pane?.session.get();
 			const expectedChat = this._response?.session.sessionResource ?? this._chatResource;
 			const preparing = this._newSession && !this._response && session?.isNewSessionRequestInProgress?.get();
 			if (!this._getResponseWidget() && (!session || (!preparing
 				&& !(this._sourceAvailable && this._source.visible.get())
-				&& !isEqual(session.activeChat.get().resource, expectedChat)))) {
+				&& !isEqual(pane?.chat.get()?.resource, expectedChat)))) {
 				this.cancel('hidden');
 			} else {
 				this.timer.checkResponse();

@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';
@@ -28,10 +28,10 @@ suite('Sessions chat layout configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('registers a session-shared-default experimental window enum with descriptions', () => {
+	test('registers a chat-default experimental window enum with descriptions', () => {
 		const property = registeredProperties[SESSIONS_LAYOUT_SCOPE_SETTING];
 		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
-			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'startup' }, enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
+			key: 'sessions.experimental.layoutScope', type: 'string', default: 'chat', scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'startup' }, enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
 		});
 	});
 

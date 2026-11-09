@@ -24,8 +24,8 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
-import { ISessionHostService } from '../../../browser/sessionHost.js';
-import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../common/session.js';
+import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 
@@ -35,6 +35,48 @@ suite('SessionWorktreeCleanupService', () => {
 	function managedWorktree(worktree = '/repo.worktrees/unlinked'): IManagedSessionWorktree {
 		return { providerId: 'test', repository: URI.file('/repo').toString(), worktree: URI.file(worktree).toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } };
 	}
+
+	test('excludes remote linked and unlinked worktrees before measuring or publishing inventory', async () => {
+		const local = createSession('local', oldDate());
+		const original = createSession('remote', oldDate());
+		const workspace = original.workspace.get()!;
+		const remote: ISession = {
+			...original,
+			workspace: constObservable({
+				...workspace,
+				folders: workspace.folders.map(folder => ({
+					...folder,
+					gitRepository: {
+						...folder.gitRepository!,
+						workTreeUri: folder.gitRepository!.workTreeUri!.with({ scheme: 'vscode-agent-host', authority: 'remote' }),
+					},
+				})),
+			}),
+		};
+		const unlinked = managedWorktree();
+		const remoteUnlinked = {
+			...managedWorktree('/repo.worktrees/remote'),
+			worktree: URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/repo.worktrees/remote' }).toString(),
+		};
+		const measured: string[] = [];
+		const published: string[][] = [];
+		const service = disposables.add(createService([local, remote], true, session => {
+			measured.push(session.sessionId);
+			return 1;
+		}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			listManagedWorktrees: async () => [unlinked, remoteUnlinked],
+		}));
+		const rows = await service.getWorktrees(0, worktrees => published.push(worktrees.map(getWorktreeCleanupId)));
+		assert.deepStrictEqual({
+			rows: rows.map(getWorktreeCleanupId),
+			measured,
+			publishedRemote: published.some(ids => ids.includes('remote') || ids.includes(getWorktreeCleanupId({ unlinkedWorktree: remoteUnlinked, sizeBytes: undefined, worktreeCount: 1 }))),
+		}, {
+			rows: ['local', `managed:test:${unlinked.worktree}`],
+			measured: ['local'],
+			publishedRemote: false,
+		});
+	});
 
 	test('includes unlinked managed worktrees without measuring them or duplicating session paths', async () => {
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);

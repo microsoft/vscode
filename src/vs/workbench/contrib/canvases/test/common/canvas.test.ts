@@ -10,7 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Verbosity } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, canPresentCanvasInGroup, ICanvas, ICanvasContextService } from '../../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService } from '../../common/canvas.js';
+import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('CanvasInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

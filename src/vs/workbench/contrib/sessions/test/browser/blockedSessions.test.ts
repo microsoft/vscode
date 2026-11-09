@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -22,7 +22,7 @@ import { GitHubPullRequestCIModel } from '../../browser/github/models/githubPull
 import { GitHubPullRequestModel } from '../../browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/github/types.js';
-import { ISession, IGitHubInfo, SessionStatus } from '../../common/session.js';
+import { ISession, IGitHubInfo, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { BlockedSessionReason, BlockedSessions } from '../../browser/blockedSessions.js';
 
@@ -36,11 +36,14 @@ suite('BlockedSessions', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const provider: ISessionsProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable(sessionId: string) {
 				return sessions.find(session => session.sessionId === sessionId)!.agentMergeState;
 			}
 		};
 		const providers = new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 				return providerId === provider.id ? provider as T : undefined;
 			}
