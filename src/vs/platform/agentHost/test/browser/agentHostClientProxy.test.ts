@@ -166,10 +166,10 @@ suite('AgentHostClientProxy', () => {
 		}
 
 		const results = {
-			systemProxy: await lookUpBasic(['http://proxy.corp:8080', 'https://proxy.corp', 'http://intranet.corp:8080'], {
-				resolveProxy: () => 'PROXY proxy.corp:8080; DIRECT',
+			systemProxy: await lookUpBasic(['http://proxy.corp:8080', 'https://secure.corp', 'http://secure.corp', 'http://proxy.corp:3128', 'http://intranet.corp:8080'], {
+				resolveProxy: () => 'PROXY proxy.corp:8080; HTTPS secure.corp; DIRECT',
 			}),
-			configuredProxy: await lookUpBasic(['http://configured.corp', 'http://proxy.corp:8080'], {
+			configuredProxy: await lookUpBasic(['http://configured.corp:3128', 'http://configured.corp', 'http://proxy.corp:8080'], {
 				settings: { 'http.proxy': 'http://user:pass@configured.corp:3128' },
 				resolveProxy: () => 'PROXY proxy.corp:8080',
 			}),
@@ -181,23 +181,39 @@ suite('AgentHostClientProxy', () => {
 				settings: { 'http.useLocalProxyConfiguration': false },
 				resolveProxy: () => 'PROXY proxy.corp:8080',
 			}),
+			resolvedBeforeConfiguredProxy: await (async () => {
+				const { proxy, configurationService } = createProxy({ resolveProxy: () => 'PROXY pac.corp:8080' });
+				await proxy.resolveProxy('https://github.example/api');
+				const before = (await proxy.lookupBasicCredentials('http://pac.corp:8080', undefined, 1))?.password;
+				await configurationService.setUserConfiguration('http.proxy', 'http://user:pass@configured.corp:3128');
+				const after = (await proxy.lookupBasicCredentials('http://pac.corp:8080', undefined, 1))?.password;
+				return { before, after };
+			})(),
 		};
 
 		assert.deepStrictEqual(results, {
 			systemProxy: {
-				credentials: { 'http://proxy.corp:8080': 'secret:proxy.corp', 'https://proxy.corp': 'secret:proxy.corp', 'http://intranet.corp:8080': undefined },
+				credentials: {
+					'http://proxy.corp:8080': 'secret:proxy.corp',
+					'https://secure.corp': 'secret:secure.corp',
+					'http://secure.corp': undefined,
+					'http://proxy.corp:3128': undefined,
+					'http://intranet.corp:8080': undefined,
+				},
 				authInfos: [
 					{ isProxy: true, scheme: 'basic', host: 'proxy.corp', port: 8080, realm: 'Corp', attempt: 1 },
-					{ isProxy: true, scheme: 'basic', host: 'proxy.corp', port: 443, realm: '', attempt: 2 },
+					{ isProxy: true, scheme: 'basic', host: 'secure.corp', port: 443, realm: '', attempt: 2 },
 				],
 			},
 			configuredProxy: {
-				credentials: { 'http://configured.corp': 'secret:configured.corp', 'http://proxy.corp:8080': undefined },
-				authInfos: [{ isProxy: true, scheme: 'basic', host: 'configured.corp', port: 80, realm: 'Corp', attempt: 1 }],
+				credentials: { 'http://configured.corp:3128': 'secret:configured.corp', 'http://configured.corp': undefined, 'http://proxy.corp:8080': undefined },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'configured.corp', port: 3128, realm: 'Corp', attempt: 1 }],
 			},
 			// Unlike Kerberos tickets, a configured principal does not release Basic credentials for other proxies.
 			configuredPrincipal: { credentials: { 'http://other.corp:8080': undefined }, authInfos: [] },
 			useLocalProxyConfigurationOff: { credentials: { 'http://proxy.corp:8080': undefined }, authInfos: [] },
+			// The native lookup would return the credentials of `http.proxy` for the proxy resolved before.
+			resolvedBeforeConfiguredProxy: { before: 'secret:pac.corp', after: undefined },
 		});
 	});
 

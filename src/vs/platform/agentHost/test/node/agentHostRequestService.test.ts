@@ -457,18 +457,22 @@ suite('AgentHostProxyResolver', () => {
 			_getProxyResolver(): { readonly params: ProxyAgentParams };
 		})._getProxyResolver().params;
 
-		const authorized = await lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', {});
+		const authorized = await lookupProxyAuthorization!('http://proxy.example:8080/', 'Basic realm="Corp"', {});
+		const secure = await lookupProxyAuthorization!('https://user:pass@proxy.example/', 'Basic', {});
 		const state = {};
 		const declined = [
-			await lookupProxyAuthorization!('http://other.example', 'Basic', state),
-			await lookupProxyAuthorization!('http://other.example', 'Basic', state),
+			await lookupProxyAuthorization!('http://other.example/', 'Basic', state),
+			await lookupProxyAuthorization!('http://other.example/', 'Basic', state),
 		];
 
-		assert.deepStrictEqual({ authorized, declined, lookups }, {
+		assert.deepStrictEqual({ authorized, secure, declined, lookups }, {
 			authorized: 'Basic dXNlcjpzZWNyZXQ=',
+			secure: 'Basic dXNlcjpzZWNyZXQ=',
 			declined: [undefined, undefined],
+			// The default port of an HTTPS proxy needs its scheme, and the credentials in a proxy URL stay with the host.
 			lookups: [
 				['http://proxy.example:8080', 'Corp', 1],
+				['https://proxy.example', undefined, 1],
 				['http://other.example', undefined, 1],
 				['http://other.example', undefined, 2],
 			],

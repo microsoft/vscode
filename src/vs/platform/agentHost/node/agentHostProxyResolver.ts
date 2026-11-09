@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type ResolvedProxyInfo } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type LookupProxyAuthorization, type ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -363,11 +363,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// renderer, whose IRequestService.resolveProxy hits the Electron
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
-				lookupProxyAuthorization: createProxyAuthorizationLookup({
-					log: proxyLog,
-					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
-					lookupKerberosAuthorization: url => this._lookupMachineOrClientKerberosAuthorization(url, this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)),
-				}),
+				lookupProxyAuthorization: this._createProxyAuthorizationLookup(proxyLog),
 				getProxyURL: () => this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
 				getProxySupport: () => 'override',
 				getNoProxyConfig: () => this.getConfigurationValue<string[]>(AgentHostProxyConfigKey.NoProxy) || [],
@@ -419,7 +415,28 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return undefined;
 	}
 
-	private async _hostLookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+	/**
+	 * `@vscode/proxy-agent` passes `lookupAuthorization` the proxy's hostname and explicit port only, so a lookup per
+	 * proxy URL keeps its scheme, which decides the default port, for the clients sharing this network. Its caches are
+	 * keyed by proxy URL already.
+	 */
+	private _createProxyAuthorizationLookup(log: ProxyLog): LookupProxyAuthorization {
+		const lookups = new Map<string, LookupProxyAuthorization>();
+		return (proxyURL, proxyAuthenticate, state) => {
+			let lookup = lookups.get(proxyURL);
+			if (!lookup) {
+				lookup = createProxyAuthorizationLookup({
+					log,
+					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo, proxyURL),
+					lookupKerberosAuthorization: url => this._lookupMachineOrClientKerberosAuthorization(url, this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)),
+				});
+				lookups.set(proxyURL, lookup);
+			}
+			return lookup(proxyURL, proxyAuthenticate, state);
+		};
+	}
+
+	private async _hostLookupAuthorization(authInfo: AuthInfo, proxyUrl: string): Promise<Credentials | undefined> {
 		for (const connection of this._connections.values()) {
 			try {
 				return await connection.lookupAuthorization(authInfo);
@@ -430,12 +447,16 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		if (authInfo.scheme.toLowerCase() !== 'basic') {
 			return undefined;
 		}
-		// `@vscode/proxy-agent` passes the hostname of the proxy URL, which keeps the brackets of an IPv6 address, and
-		// port 0 for the default port.
-		const proxyUrl = `http://${authInfo.host}${authInfo.port ? `:${authInfo.port}` : ''}`;
+		let proxyOrigin: string;
+		try {
+			// Without any credentials in the proxy URL.
+			proxyOrigin = new URL(proxyUrl).origin;
+		} catch {
+			return undefined;
+		}
 		for (const client of this._sharedNetworkClients.values()) {
 			try {
-				const credentials = await client.lookupBasicCredentials(proxyUrl, authInfo.realm || undefined, authInfo.attempt);
+				const credentials = await client.lookupBasicCredentials(proxyOrigin, authInfo.realm || undefined, authInfo.attempt);
 				if (credentials) {
 					return credentials;
 				}

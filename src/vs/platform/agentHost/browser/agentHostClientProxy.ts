@@ -16,6 +16,12 @@ import { AgentHostSystemProxyEnabledSettingId } from '../common/agentService.js'
 /** Settings that change how this client resolves proxies for the agent host. */
 const clientProxySettings = ['http.useLocalProxyConfiguration', 'http.proxy', 'http.noProxy', 'http.proxySupport'];
 
+/** A proxy's hostname, as a URL formats it, and its port, defaulted for its scheme. */
+interface IProxyEndpoint {
+	readonly hostname: string;
+	readonly port: number;
+}
+
 /**
  * Serves an agent host that shares this client's network, such as one in WSL or a local container, the way a remote
  * extension host with `useHostProxy` uses the local proxy configuration: proxies resolve through this client unless
@@ -24,8 +30,8 @@ const clientProxySettings = ['http.useLocalProxyConfiguration', 'http.proxy', 'h
  */
 export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
-	/** Hosts of the proxies this client resolved for the agent host or for GitHub Copilot. */
-	private readonly _resolvedProxyHosts = new Set<string>();
+	/** The proxies this client resolved for the agent host or for GitHub Copilot, by endpoint. */
+	private readonly _resolvedProxies = new Map<string, IProxyEndpoint>();
 	/** The lookups and hosts of the proxies this client declined, to log each once. */
 	private readonly _declinedLookups = new Set<string>();
 
@@ -50,9 +56,7 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 			return undefined;
 		}
 		const proxy = await this._requestService.resolveProxy(url);
-		for (const host of getResolvedProxyHosts(proxy)) {
-			this._resolvedProxyHosts.add(host);
-		}
+		this._rememberProxies(getResolvedProxies(proxy));
 		return proxy;
 	}
 
@@ -66,30 +70,30 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	/**
 	 * Unlike Kerberos tickets, Basic credentials are reusable secrets that the native lookup returns for any proxy, such
-	 * as the ones in `http.proxy`, so they only go to proxies this client points the agent host at.
+	 * as the ones in `http.proxy`, so they only go to the endpoints of proxies this client points the agent host at.
 	 */
 	async lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
 		if (this._configurationService.getValue<boolean>('http.useLocalProxyConfiguration') === false) {
 			return undefined;
 		}
-		if (!await this._isResolvedProxy(proxyUrl)) {
+		const proxy = getProxyEndpoint(proxyUrl);
+		if (!proxy || !await this._isResolvedProxy(proxy, true)) {
 			this._logDeclined('Basic credentials', proxyUrl);
 			return undefined;
 		}
-		const { protocol, hostname, port } = new URL(proxyUrl);
 		return this._requestService.lookupAuthorization({
 			isProxy: true,
 			scheme: 'basic',
-			host: hostname,
+			host: proxy.hostname,
 			// Like Electron, with the default port, which keys the credentials its login dialog stores.
-			port: Number(port) || (protocol === 'https:' ? 443 : 80),
+			port: proxy.port,
 			realm: realm ?? '',
 			attempt,
 		});
 	}
 
 	private _logDeclined(lookup: string, proxyUrl: string): void {
-		const host = getUrlHost(proxyUrl) ?? 'an invalid URL';
+		const host = getProxyEndpoint(proxyUrl)?.hostname ?? 'an invalid URL';
 		const key = `${lookup} ${host}`;
 		if (!this._declinedLookups.has(key)) {
 			this._declinedLookups.add(key);
@@ -103,41 +107,57 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	 * request service issuing the tickets reads it, so remote settings cannot widen access.
 	 */
 	private async _isAgentHostProxy(proxyUrl: string): Promise<boolean> {
-		return !!this._getLocalValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim() || this._isResolvedProxy(proxyUrl);
+		if (this._getLocalValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim()) {
+			return true;
+		}
+		const proxy = getProxyEndpoint(proxyUrl);
+		return !!proxy && this._isResolvedProxy(proxy, false);
 	}
 
 	/**
-	 * Whether `proxyUrl` is a proxy this client points the agent host at: its `http.proxy` setting, the proxies it
+	 * Whether `proxy` is a proxy this client points the agent host at: its `http.proxy` setting, the proxies it
 	 * resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
 	 * resolved. `http.proxy` is read as the native request service reads it, so remote settings cannot widen access.
+	 *
+	 * With `matchEndpoint`, the port must match too, and while `http.proxy` is set, only it qualifies: the native lookup
+	 * returns its credentials for any proxy on the first attempt, including one resolved before it was set.
 	 */
-	private async _isResolvedProxy(proxyUrl: string): Promise<boolean> {
-		const host = getUrlHost(proxyUrl);
-		return !!host && (this._resolvedProxyHosts.has(host) || (await this._resolveCopilotProxyHosts()).includes(host));
+	private async _isResolvedProxy(proxy: IProxyEndpoint, matchEndpoint: boolean): Promise<boolean> {
+		const matches = (candidate: IProxyEndpoint) => candidate.hostname === proxy.hostname && (!matchEndpoint || candidate.port === proxy.port);
+		const resolvedProxies = matchEndpoint && this._getConfiguredProxy() ? [] : [...this._resolvedProxies.values()];
+		return resolvedProxies.some(matches) || (await this._resolveCopilotProxies()).some(matches);
 	}
 
-	private async _resolveCopilotProxyHosts(): Promise<string[]> {
-		// The agent host receives the client's `http.proxy` setting under the same key.
-		const configuredProxy = this._getLocalValue<string>(AgentHostProxyConfigKey.Proxy)?.trim();
+	private async _resolveCopilotProxies(): Promise<IProxyEndpoint[]> {
+		const configuredProxy = this._getConfiguredProxy();
 		if (configuredProxy) {
-			const host = getUrlHost(configuredProxy);
-			return host ? [host] : [];
+			const proxy = getProxyEndpoint(configuredProxy);
+			return proxy ? [proxy] : [];
 		}
 		if (this._configurationService.getValue<boolean>(AgentHostSystemProxyEnabledSettingId) === false) {
 			return [];
 		}
 		const apiUrl = this._defaultAccountService.currentDefaultAccount?.entitlementsData?.endpoints?.api || GITHUB_DOT_COM_COPILOT_API_BASE_URI;
 		try {
-			const hosts = getResolvedProxyHosts(await this._requestService.resolveProxy(apiUrl));
+			const proxies = getResolvedProxies(await this._requestService.resolveProxy(apiUrl));
 			// Remembered like the proxies resolved for the agent host, so that later lookups for them resolve nothing.
-			for (const host of hosts) {
-				this._resolvedProxyHosts.add(host);
-			}
-			return hosts;
+			this._rememberProxies(proxies);
+			return proxies;
 		} catch (error) {
 			this._logService.debug('[AgentHostClientProxy] Failed to resolve the GitHub Copilot proxy', error);
 			return [];
 		}
+	}
+
+	private _rememberProxies(proxies: readonly IProxyEndpoint[]): void {
+		for (const proxy of proxies) {
+			this._resolvedProxies.set(`${proxy.hostname} ${proxy.port}`, proxy);
+		}
+	}
+
+	/** The agent host receives the client's `http.proxy` setting under the same key. */
+	private _getConfiguredProxy(): string | undefined {
+		return this._getLocalValue<string>(AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
 	}
 
 	/** The local user or default value, the layers the native request service reads for Kerberos tickets. */
@@ -147,20 +167,20 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	}
 }
 
-function getUrlHost(url: string): string | undefined {
+function getProxyEndpoint(url: string): IProxyEndpoint | undefined {
 	try {
-		const { hostname } = new URL(url);
-		return hostname ? hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase() : undefined;
+		const { protocol, hostname, port } = new URL(url);
+		return hostname ? { hostname, port: Number(port) || (protocol === 'https:' ? 443 : 80) } : undefined;
 	} catch {
 		return undefined;
 	}
 }
 
-/** Hosts of the HTTP proxies in a PAC-style result such as `PROXY proxy:8080; DIRECT`. */
-function getResolvedProxyHosts(resolvedProxy: string | undefined): string[] {
+/** The HTTP proxies in a PAC-style result such as `PROXY proxy:8080; DIRECT`. */
+function getResolvedProxies(resolvedProxy: string | undefined): IProxyEndpoint[] {
 	return (resolvedProxy ?? '').split(';').flatMap(entry => {
-		const address = /^\s*(?:PROXY|HTTPS?)\s+(?<address>\S+)\s*$/i.exec(entry)?.groups?.address;
-		const host = address && getUrlHost(`http://${address}`);
-		return host ? [host] : [];
+		const groups = /^\s*(?<type>PROXY|HTTPS?)\s+(?<address>\S+)\s*$/i.exec(entry)?.groups;
+		const proxy = groups && getProxyEndpoint(`${groups.type.toUpperCase() === 'HTTPS' ? 'https' : 'http'}://${groups.address}`);
+		return proxy ? [proxy] : [];
 	});
 }
