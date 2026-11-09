@@ -300,19 +300,25 @@ jobs:
           pnpm -C extensions/markdown-language-features run test-markdown-editor-clipboard
 
       # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
-      # before the compilation checks start. --continue-on-error reports both when both fail.
+      # before the compilation checks start. They run one after the other, so each step's duration is
+      # its own, and ESLint runs even when hygiene fails, so that a run reports both.
       # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
-      - name: Hygiene & ESLint
+      - name: Hygiene
         id: hygiene
-        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
+        run: pnpm run hygiene --changed-since "$PR_BASE_SHA"
+
+      - name: ESLint
+        id: eslint
+        if: ${{ !cancelled() && (steps.hygiene.outcome == 'success' || steps.hygiene.outcome == 'failure') }}
+        run: pnpm run eslint --changed-since "$PR_BASE_SHA"
 
       # Compares oxlint with ESLint: it runs the rules of eslint.config.js (see oxlint.config.ts) on the same files and
       # reports in the same format. It doesn't fail the job while the comparison runs.
       - name: oxlint (comparison)
         id: oxlint
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && (steps.hygiene.outcome == 'success' || steps.hygiene.outcome == 'failure') }}
         continue-on-error: true
-        run: pnpm run oxlint --changed-since $PR_BASE_SHA
+        run: pnpm run oxlint --changed-since "$PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
@@ -336,7 +342,7 @@ jobs:
       # Tells Cancel Run that a check of the change failed, rather than the setup of the job, which a rerun fixes.
       - name: Report failed checks
         id: failed-checks
-        if: ${{ failure() && (steps.typecheck-build.outcome == 'failure' || steps.markdown-editor.outcome == 'failure' || steps.hygiene.outcome == 'failure' || steps.compile.outcome == 'failure' || steps.codex-sync.outcome == 'failure' || steps.cyclic-dependencies.outcome == 'failure') }}
+        if: ${{ failure() && (steps.typecheck-build.outcome == 'failure' || steps.markdown-editor.outcome == 'failure' || steps.hygiene.outcome == 'failure' || steps.eslint.outcome == 'failure' || steps.compile.outcome == 'failure' || steps.codex-sync.outcome == 'failure' || steps.cyclic-dependencies.outcome == 'failure') }}
         run: echo "failed=true" >> "$GITHUB_OUTPUT"
 
   monaco-editor:
