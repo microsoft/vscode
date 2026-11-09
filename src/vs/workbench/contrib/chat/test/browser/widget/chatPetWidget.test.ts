@@ -11,6 +11,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
+import { deepClone } from '../../../../../../base/common/objects.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -671,6 +672,7 @@ suite('ChatPetWidget', () => {
 			const input = mainWindow.document.createElement('textarea');
 			root.appendChild(input);
 			button.click();
+			const initialPlatforms = deepClone(widget.jumpGame!.model.platforms);
 			dispatchJumpGameKey(button, 32);
 			const focusedBefore = mainWindow.document.activeElement === button;
 			if (interaction === 'tab') {
@@ -694,6 +696,8 @@ suite('ChatPetWidget', () => {
 				recoveryDuringLanding: false,
 				buttons: ['Retry Blobby\'s Jump from Before the Fall (R)', 'Reset Blobby\'s Jump Game to the Start (Z)'],
 			});
+			root.querySelector<HTMLElement>('.chat-pet-jump-retry .monaco-button')!.click();
+			assert.deepStrictEqual(widget.jumpGame?.model.platforms, initialPlatforms);
 		});
 	}
 

@@ -195,6 +195,7 @@ export class ChatPetJumpGameModel {
 		if (!Number.isFinite(height)) {
 			throw new RangeError('The jump game generation height must be finite.');
 		}
+		const platformCount = this._platforms.length;
 		let previous = this._platforms[this._platforms.length - 1];
 		while (previous.height < height) {
 			const id = previous.id + 1;
@@ -232,6 +233,10 @@ export class ChatPetJumpGameModel {
 				previous.left += Math.sin(this.steps * STEP * previous.movement.speed) * previous.movement.amplitude;
 			}
 			this._platforms.push(previous);
+		}
+		// Keep Retry from regenerating a course created before the first jump.
+		if (this._player.platform !== undefined && this._platforms.length !== platformCount) {
+			this.checkpoint = this.createCheckpoint();
 		}
 	}
 

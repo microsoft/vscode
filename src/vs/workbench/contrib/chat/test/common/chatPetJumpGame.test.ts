@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 
@@ -21,6 +22,13 @@ suite('ChatPetJumpGame', () => {
 		model.hop(direction);
 		advance(model, milliseconds);
 		model.setChargeHeld(false);
+	}
+
+	function createRandom(seed = 42): () => number {
+		return () => {
+			seed = (seed * 1664525 + 1013904223) >>> 0;
+			return seed / 0x100000000;
+		};
 	}
 
 	function climbTo(platformId: number, size = 48): ChatPetJumpGameModel {
@@ -181,6 +189,30 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
+	for (const height of [600, 1800]) {
+		test(`retry before the first jump preserves the generated course (height: ${height})`, () => {
+			const model = new ChatPetJumpGameModel(1000, 48, 500, createRandom());
+			model.ensurePlatforms(600);
+			model.ensurePlatforms(height);
+			const before = deepClone({ player: model.player, platforms: model.platforms, walls: model.walls });
+			advance(model, 450);
+			model.resetToCheckpoint();
+			model.ensurePlatforms(height);
+			assert.deepStrictEqual({ player: model.player, platforms: model.platforms, walls: model.walls }, before);
+		});
+	}
+
+	test('generating platforms in flight preserves the grounded retry point', () => {
+		const model = new ChatPetJumpGameModel(1000, 48, 500, createRandom());
+		model.ensurePlatforms(600);
+		const before = deepClone({ player: model.player, platforms: model.platforms, walls: model.walls });
+		model.hop(1);
+		advance(model, 100);
+		model.ensurePlatforms(1800);
+		model.resetToCheckpoint();
+		assert.deepStrictEqual({ player: model.player, platforms: model.platforms, walls: model.walls }, before);
+	});
+
 	test('retry restores the last takeoff position after a fall without a stuck charge', () => {
 		const model = new ChatPetJumpGameModel(1000, 48, 500);
 		model.hop(1);
@@ -202,11 +234,7 @@ suite('ChatPetJumpGame', () => {
 	test('generated platforms stay in bounds with a reachable charged-jump path across sizes', () => {
 		for (const size of [24, 48, 96]) {
 			for (const width of [size * 2, size * 5, size * 20]) {
-				let seed = 42;
-				const model = new ChatPetJumpGameModel(width, size, width / 2, () => {
-					seed = (seed * 1664525 + 1013904223) >>> 0;
-					return seed / 0x100000000;
-				});
+				const model = new ChatPetJumpGameModel(width, size, width / 2, createRandom());
 				model.ensurePlatforms(size * 200);
 				const platforms = model.platforms;
 				for (let i = 1; i < platforms.length; i++) {
