@@ -995,6 +995,23 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(deleteEvent!.resource.fsPath, folderResource.fsPath);
 	});
 
+	for (const operation of ['move', 'copy'] as const) {
+		for (const targetScheme of [Schemas.file, testSchema]) {
+			for (const directory of [false, true]) {
+				test(`${operation} - missing source preserves existing ${directory ? 'folder' : 'file'} (${targetScheme})`, async () => {
+					const source = URI.file(join(testDir, 'missing'));
+					const target = URI.file(join(testDir, directory ? 'deep' : 'index.html')).with({ scheme: targetScheme });
+					const targetFile = directory ? join(target.fsPath, 'conway.js') : target.fsPath;
+					const contents = readFileSync(targetFile);
+
+					await assert.rejects(service[operation](source, target, true));
+
+					assert.deepStrictEqual(readFileSync(targetFile), contents);
+				});
+			}
+		}
+	}
+
 	test('copy', async () => {
 		await doTestCopy();
 	});
