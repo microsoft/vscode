@@ -2,6 +2,8 @@ parameters:
   - name: OS
     type: string # linux, darwin, win32
 
+# Runs every Copilot test in the Copilot Tests job of a platform stage. The
+# Copilot stage (../product-copilot.yml) only typechecks and lints.
 steps:
   - script: git lfs install --local
     condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
@@ -62,8 +64,35 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Compile copilot
 
-  # Run Copilot integration tests
+  # Run Copilot tests
   - ${{ if eq(parameters.OS, 'linux') }}:
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-unit
+        testStep:
+          script: pnpm run test:unit
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot unit tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-simulation
+        testStep:
+          script: pnpm run simulate-ci
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot simulation tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-prompt
+        testStep:
+          script: pnpm run test:prompt
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot prompt tests
+          timeoutInMinutes: 15
+
     - template: ../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: copilot-extension
@@ -100,6 +129,33 @@ steps:
   - ${{ if eq(parameters.OS, 'darwin') }}:
     - template: ../common/run-test-with-checkpoint.yml@self
       parameters:
+        testId: copilot-unit
+        testStep:
+          script: pnpm run test:unit
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot unit tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-simulation
+        testStep:
+          script: pnpm run simulate-ci
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot simulation tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-prompt
+        testStep:
+          script: pnpm run test:prompt
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot prompt tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
         testId: copilot-extension
         testStep:
           script: pnpm run test:extension
@@ -133,6 +189,33 @@ steps:
 
   # The Windows test tasks use the same checkpoints with PowerShell commands.
   - ${{ if eq(parameters.OS, 'win32') }}:
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-unit
+        testStep:
+          powershell: pnpm run test:unit
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot unit tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-simulation
+        testStep:
+          powershell: pnpm run simulate-ci
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot simulation tests
+          timeoutInMinutes: 15
+
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-prompt
+        testStep:
+          powershell: pnpm run test:prompt
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot prompt tests
+          timeoutInMinutes: 15
+
     - template: ../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: copilot-extension

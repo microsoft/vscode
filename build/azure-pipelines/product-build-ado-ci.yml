@@ -365,10 +365,17 @@ extends:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-chromium
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
                   - copilot
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
@@ -436,10 +443,17 @@ extends:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-chromium
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
                   - copilot
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
@@ -507,10 +521,16 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
                   - copilot
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
