@@ -12,6 +12,7 @@ import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
 import { AsyncIterableObject, DeferredPromise } from '../../../../base/common/async.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
+import { safeStringify } from '../../../../base/common/objects.js';
 
 function cmdLine(value: string): TerminalShellExecutionCommandLine {
 	return Object.freeze({
@@ -298,13 +299,13 @@ suite('InternalTerminalShellIntegration', () => {
 			unread.push('last');
 
 			try {
-				// Compare backing nodes too, so stale links to consumed chunks cannot hide behind iteration.
-				deepStrictEqual({ consumed: [await iterator.next(), await iterator.next()], queue: iterator._data }, {
+				// Serialize backing nodes to check stale links without recursing through cycles.
+				deepStrictEqual({ consumed: [await iterator.next(), await iterator.next()], queue: safeStringify(iterator._data) }, {
 					consumed: [
 						{ done: false, value: 'first' },
 						{ done: false, value: 'second' },
 					],
-					queue: unread,
+					queue: safeStringify(unread),
 				});
 			} finally {
 				await endExecutionAwaitObject(testCommandLine);
