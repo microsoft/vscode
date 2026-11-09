@@ -12,6 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { copilotEntraAuthenticationMeta } from '../../../../../../platform/agentHost/common/meta/agentHostCopilotAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -35,16 +37,18 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		expiresAfter: 1500, authorizationServer: URI.parse('https://example.com'),
 	};
 
-	function fixture(options?: { editor?: boolean; transform?: boolean; smokeTest?: boolean; testToken?: string; lookup?: () => Promise<readonly AuthenticationSession[]> }) {
+	function fixture(options?: { editor?: boolean; transform?: boolean; smokeTest?: boolean; testToken?: string; providerId?: string; lookup?: () => Promise<readonly AuthenticationSession[]> }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const extensions = new DeferredPromise<boolean>();
 		const sessionChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const queries: Parameters<IAuthenticationService['getSessions']>[] = [];
 		const state = {
 			registered: true,
 			sessions: [session],
 			sessionError: false,
 			extensionWaits: 0,
 			lookups: 0,
+			queries,
 		};
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null });
@@ -65,9 +69,10 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 			override isAuthenticationProviderRegistered(): boolean { return state.registered; }
 			override async getOrActivateProviderIdForServer(): Promise<string | undefined> {
 				state.lookups++;
-				return state.registered ? 'test' : undefined;
+				return state.registered ? options?.providerId ?? 'test' : undefined;
 			}
-			override async getSessions(): Promise<readonly AuthenticationSession[]> {
+			override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>): Promise<readonly AuthenticationSession[]> {
+				state.queries.push(args);
 				if (options?.lookup) {
 					return options.lookup();
 				}
@@ -98,6 +103,36 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 				_meta: authenticationAccountMeta({ providerId: 'test', accountId: 'account', authorizationServer: 'https://example.com/' }),
 			}],
 			ongoing: requests,
+		});
+	});
+
+	test('preserves the advertised bridge context during initial Microsoft acquisition', async () => {
+		const { resolver, instantiationService, extensions, state } = fixture({ providerId: 'microsoft' });
+		await extensions.complete(true);
+		const microsoft = { ...session, scopes: ['User.Read'], authorizationServer: URI.parse(copilotEntraAuthorizationServer) };
+		state.sessions = [microsoft];
+		instantiationService.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: microsoft.id, accountName: microsoft.account.label, enterprise: false,
+				authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			},
+		});
+		const root = {
+			_meta: copilotEntraAuthenticationMeta(),
+			agents: [{
+				provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
+				protectedResources: [{ resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] }],
+			}],
+		};
+		const requests = await resolver.resolve(root.agents, root);
+		assert.deepStrictEqual({
+			tokens: requests.map(request => request.token),
+			registrations: state.queries.map(([, , options]) => options?.clientId),
+			accounts: state.queries.map(([, , options]) => options?.account?.id),
+		}, {
+			tokens: [microsoft.accessToken],
+			registrations: [copilotEntraClientId, copilotEntraClientId],
+			accounts: [undefined, microsoft.account.id],
 		});
 	});
 

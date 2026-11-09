@@ -6583,16 +6583,19 @@ suite('AgentHostProtocolClient', () => {
 		test('advertised authentication gates all protected requests until every credential is acknowledged', async () => {
 			const credentials = new DeferredPromise<readonly AuthenticateParams[]>();
 			const resolving = new DeferredPromise<void>();
+			const rootMeta = { 'example.authentication': true };
+			let resolvedMeta: Record<string, unknown> | undefined;
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
-				resolveAdvertisedAuthentication: async agents => {
+				resolveAdvertisedAuthentication: async (agents, root) => {
 					assert.deepStrictEqual(agents, [advertisedAgent]);
+					resolvedMeta = root?._meta;
 					resolving.complete();
 					return credentials.p;
 				},
 			});
 			const transport = transports[0];
 			const connecting = client.connect();
-			await initializeAdvertised(transport);
+			await initializeAdvertised(transport, rootMeta);
 			await resolving.p;
 			const subscribing = client.subscribe(URI.parse('ahp-session:/ordinary-session'));
 			const stateBeforeCredentials = client.connectionState;
@@ -6610,11 +6613,12 @@ suite('AgentHostProtocolClient', () => {
 			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
 			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot: { resource: 'ahp-session:/ordinary-session', fromSeq: 0, state: {} } } });
 			await subscribing;
-			assert.deepStrictEqual({ stateBeforeCredentials, stateAfterOneCredential, subscribedBeforeAuthentication, state: client.connectionState }, {
+			assert.deepStrictEqual({ stateBeforeCredentials, stateAfterOneCredential, subscribedBeforeAuthentication, state: client.connectionState, resolvedMeta }, {
 				stateBeforeCredentials: AgentHostClientState.Connecting,
 				stateAfterOneCredential: AgentHostClientState.Connecting,
 				subscribedBeforeAuthentication: false,
 				state: AgentHostClientState.Connected,
+				resolvedMeta: rootMeta,
 			});
 		});
 

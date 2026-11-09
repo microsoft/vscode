@@ -282,7 +282,7 @@ export interface IAgentHostProtocolClientOptions {
 	/** Resolves required authentication before initialization or transport recovery becomes ready. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
-	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[], rootState?: RootState) => Promise<readonly AuthenticateParams[]>;
 	/** Serves client trust roots on demand only for remotes sharing the client's network. */
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	/** Serves proxy resolution and proxy Kerberos tickets only for remotes sharing the client's network. */
@@ -1451,7 +1451,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					return !cached || isExpired(cached.expiresAt, Date.now());
 				}),
 			})).filter(agent => agent.protectedResources?.length);
-			const authentications = missingAgents.length > 0 ? await this._raceClose(this._resolveAdvertisedAuthentication(missingAgents), transport) : [];
+			const authentications = missingAgents.length > 0 ? await this._raceClose(this._resolveAdvertisedAuthentication(missingAgents, rootState instanceof Error ? undefined : rootState), transport) : [];
 			if (this._transport !== transport || (state.kind === AgentHostClientState.Reconnecting && !state.reconnect.transportConnected)) {
 				throw transportLostError(this._address);
 			}

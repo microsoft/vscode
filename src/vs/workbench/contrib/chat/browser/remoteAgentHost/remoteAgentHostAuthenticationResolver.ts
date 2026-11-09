@@ -7,7 +7,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../../base/common/date.js';
 import { IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAdvertisedAuthentication, type IAgentHostAuthenticationSessionRemoval } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import type { AuthenticateParams } from '../../../../../platform/agentHost/common/agent.js';
-import type { AgentInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import type { AgentInfo, RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -60,7 +60,7 @@ export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertis
 				}
 			}));
 		}
-		return { resolve: agents => this._resolve(address, agents), dispose: () => store.dispose() };
+		return { resolve: (agents, root) => this._resolve(address, agents, root), dispose: () => store.dispose() };
 	}
 
 	takePendingSessionRemovals(address: string): readonly IAgentHostAuthenticationSessionRemoval[] {
@@ -73,7 +73,7 @@ export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertis
 		return removals;
 	}
 
-	private async _resolve(address: string, agents: readonly AgentInfo[]): Promise<readonly AuthenticateParams[]> {
+	private async _resolve(address: string, agents: readonly AgentInfo[], root?: RootState): Promise<readonly AuthenticateParams[]> {
 		if (!this._environmentService.isSessionsWindow || this._customizations.get(address)?.authenticate) {
 			return [];
 		}
@@ -97,7 +97,7 @@ export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertis
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const requests: { readonly request: AuthenticateParams; readonly expiresAt: number | undefined }[] = [];
 		for (const resource of resources.values()) {
-			const request = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthentication, resource, '[RemoteAgentHost]');
+			const request = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthentication, resource, '[RemoteAgentHost]', root);
 			if (request) {
 				requests.push({ request, expiresAt: getExpirationTime(request.expiresIn) });
 			}

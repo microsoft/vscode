@@ -6,7 +6,7 @@
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { AuthenticateParams } from './agent.js';
-import type { AgentInfo } from './state/sessionState.js';
+import type { AgentInfo, RootState } from './state/sessionState.js';
 
 export const IAgentHostAdvertisedAuthenticationResolver = createDecorator<IAgentHostAdvertisedAuthenticationResolver>('agentHostAdvertisedAuthenticationResolver');
 
@@ -20,7 +20,7 @@ export interface IAgentHostAdvertisedAuthenticationResolver {
 }
 
 export interface IAgentHostAdvertisedAuthentication extends IDisposable {
-	resolve(agents: readonly AgentInfo[]): Promise<readonly AuthenticateParams[]>;
+	resolve(agents: readonly AgentInfo[], rootState?: RootState): Promise<readonly AuthenticateParams[]>;
 }
 
 /** Session identity and granted scopes suffice to reconcile a removal without retaining its token. */
