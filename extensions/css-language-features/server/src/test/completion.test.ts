@@ -58,6 +58,16 @@ suite('Completions', () => {
 		}
 	}
 
+	test('CSS justify-content stretch completion is unique', async function () {
+		for (const value of ['', 'str', 'stretch']) {
+			await assertCompletions(`.foo { justify-content: ${value}|; }`, {
+				items: [
+					{ label: 'stretch', resultText: '.foo { justify-content: stretch; }' }
+				]
+			}, 'untitled:Untitled-1');
+		}
+	});
+
 	test('CSS url() Path completion', async function () {
 		const testUri = URI.file(path.resolve(import.meta.dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
 		const folders = [{ name: 'x', uri: URI.file(path.resolve(import.meta.dirname, '../../test')).toString(true) }];
