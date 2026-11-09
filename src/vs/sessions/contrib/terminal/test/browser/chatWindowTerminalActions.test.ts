@@ -32,7 +32,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { MoveTerminalEditorToPanelWhen } from '../../../../../workbench/contrib/terminal/browser/terminalMenus.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID } from '../../browser/chatWindowTerminalActions.js';
 import { IChatWindowTerminalsService } from '../../browser/chatWindowTerminals.js';

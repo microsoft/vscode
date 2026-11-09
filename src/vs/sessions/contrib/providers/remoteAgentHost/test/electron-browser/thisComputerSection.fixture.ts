@@ -16,7 +16,7 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ThisComputerSection } from '../../electron-browser/thisComputerSection.js';
+import { ThisComputerSection } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/thisComputerSection.js';
 
 interface IThisComputerFixtureState {
 	readonly method: 'off' | 'devTunnel' | 'githubEnvironment';

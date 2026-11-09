@@ -301,7 +301,7 @@ suite('TabbedModelPicker', () => {
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			comparisonModels: options.comparisonModels,
-			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
+			pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: options.manageSettingsUrl, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
@@ -1030,6 +1030,51 @@ suite('TabbedModelPicker', () => {
 		}, {
 			checked: ['First'],
 			comparisonSelections: ['copilot/First'],
+		});
+	});
+
+	test('comparison offers Fusion and its tiers without standalone HydraFusion or single-model selection', async () => {
+		const fusion = createFusionModel();
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { popup, selections, values } = createPicker({
+			models: [fusion, createHydraFusionModel(), createHydraFusionMaxModel(), ...models],
+			selectedModelId: 'copilot/hydrafusion',
+			comparison,
+		});
+		element(popup, '[aria-label="Compare Models"]').click();
+		const rows = listRows(popup);
+		element(popup, '.chat-model-picker-model').click();
+		openDetails(popup, copilotFusionName);
+		const tiers = [...popup.querySelectorAll<HTMLElement>('.chat-model-card [role="radio"]')].map(tier => tier.textContent);
+		element(popup, '.chat-model-card [role="radio"]:last-child').click();
+		await timeout(0);
+		goBack(popup);
+
+		assert.deepStrictEqual({
+			fusionVisible: rows.includes(copilotFusionName),
+			standaloneHydraFusion: rows.some(label => label === 'HydraFusion' || label === 'HydraFusion Max'),
+			tiers,
+			configuration: values.get(fusion.identifier),
+			checked: selectedModels(popup),
+			selections,
+		}, {
+			fusionVisible: true,
+			standaloneHydraFusion: false,
+			tiers: ['Standard', 'High', 'Max'],
+			configuration: { tier: 'hydrafusion-max' },
+			checked: [copilotFusionName],
+			selections: [],
 		});
 	});
 
@@ -2279,7 +2324,9 @@ suite('TabbedModelPicker', () => {
 			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
 			icon: !!welcome.querySelector(`.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(Codicon.workspaceUntrusted)}`),
 			text: Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent),
-			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'), action => action.dataset.id),
+			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'))
+				.filter(action => action.style.display !== 'none')
+				.map(action => action.dataset.id),
 			trustRequests,
 		}, {
 			tabs: ['Copilot'],

@@ -327,6 +327,13 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      # Defender for Linux can block the scan of a job's outputs for the length
+      # of a background scan of the agent, and without a timeout the scan runs
+      # until the job limit. On a timeout, 1ES logs an error and the publish
+      # still runs. This is the default for the jobs that don't set their own
+      # cap; 2 min matches those jobs until the Defender issue is fixed.
+      antimalwareScan:
+        scanTimeoutInMinutes: '2'
       sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
@@ -1513,32 +1520,6 @@ extends:
                     - vscode_cli_linux_armhf_cli
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
         - stage: APIScan

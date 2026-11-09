@@ -1093,7 +1093,7 @@ export function synthesizeSkillToolCall(
 	const name = skill?.name ?? (mcpOrigin && originUri
 		? getMcpSkillName(mcpOrigin.serverName, basename(dirname(originUri)) || originUri.authority)
 		: isMcpSkill ? undefined : data.name);
-	const fileUri = !isMcpSkill && data.path?.trim() ? URI.file(data.path) : undefined;
+	const fileUri = !isMcpSkill && data.source !== 'sdk' && data.path?.trim() ? URI.file(data.path) : undefined;
 	const uri = skill?.uri ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);
 	const skillLabel = name ? (uri ? `[${escapeMarkdownLinkLabel(name)}](${uri})` : escapeMarkdownSyntaxTokens(name)) : undefined;
 	const invocationMessage = md(skillLabel ? localize('toolInvoke.skill', "Read skill {0}", skillLabel) : localize('toolInvoke.skillGeneric', "Read skill"));

@@ -54,7 +54,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -128,6 +128,7 @@ class MockProtocolTransport implements IProtocolTransport {
 	onDidRelayAuthenticationExpire?: IProtocolTransport['onDidRelayAuthenticationExpire'];
 
 	isDisposed = false;
+	respondToPings = true;
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
 	private readonly _onDidSend = new Emitter<ProtocolMessage>();
@@ -140,6 +141,9 @@ class MockProtocolTransport implements IProtocolTransport {
 	send(message: ProtocolMessage): void {
 		this.sent.push(message);
 		this._onDidSend.fire(message);
+		if (this.respondToPings && isJsonRpcRequest(message) && message.method === 'ping') {
+			this.simulateMessage({ jsonrpc: '2.0', id: message.id, result: null });
+		}
 	}
 
 	simulateMessage(msg: ProtocolMessage): void {
@@ -648,7 +652,7 @@ suite('ProtocolServerHandler', () => {
 			agentService,
 			stateManager,
 			server,
-			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString() },
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString(), loadEstimator: { hasHighLoad: () => false } },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
 			agentHostTelemetryService,
@@ -791,6 +795,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.createChatWorkspace': true,
+				'vscode.sideChatWithoutContext': true,
 				'vscode.createSessionImport': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
@@ -1839,6 +1844,48 @@ suite('ProtocolServerHandler', () => {
 			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
 	});
+
+	for (const { enabled, passive } of [{ enabled: true, passive: false }, { enabled: false, passive: false }, { enabled: true, passive: true }]) {
+		test(`relay chat state files with extension methods ${enabled ? 'enabled' : 'disabled'} on ${passive ? 'passive' : 'active'} connections`, async () => {
+			const relay = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { allowExtensionMethods: enabled, relayRootMeta: {} },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'state-file-relay', passive));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'state-file-relay' }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const session = 'copilotcli:/session-1';
+			const chat = buildChatUri(session, 'peer-1');
+			agentService.chatOwners.set(chat, session);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/getAgentHostSessionStateFile', { session, chat }));
+
+			assert.deepStrictEqual({
+				supported: supportsAgentHostChatStateFile(initialized.result as InitializeResult),
+				response: await response,
+				calls: agentService.getSessionStateFileCalls,
+			}, {
+				supported: enabled && !passive,
+				response: enabled && !passive
+					? { jsonrpc: '2.0', id: 2, result: { resource: 'file:///state/sdk-session/events.jsonl' } }
+					: {
+						jsonrpc: '2.0', id: 2, error: {
+							code: passive ? JsonRpcErrorCodes.InvalidRequest : JsonRpcErrorCodes.MethodNotFound,
+							message: passive
+								? 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.'
+								: 'Method not found: vscode/getAgentHostSessionStateFile',
+						}
+					},
+				calls: enabled && !passive ? [{ session, chat }] : [],
+			});
+		});
+	}
 
 	test('advertises host wire-log resources without enabling host-management methods', async () => {
 		const localServer = disposables.add(new MockProtocolServer());
@@ -3571,6 +3618,104 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.result, null);
 	});
 
+	test('host watchdog stays quiet while the client sends its idle pings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const transport = connectClient('pinging-client');
+		for (let i = 0; i < 12; i++) {
+			await timeout(5_000);
+			transport.simulateMessage(request(100 + i, 'ping', { channel: ROOT_STATE_URI }));
+		}
+		assert.deepStrictEqual({
+			connected: clientConnections.isClientConnected('pinging-client'),
+			hostPings: transport.sent.filter(message => isJsonRpcRequest(message) && message.method === 'ping'),
+		}, { connected: true, hostPings: [] });
+	}));
+
+	for (const errorResponse of [false, true]) {
+		test(`host watchdog accepts ${errorResponse ? 'unsupported-method errors' : 'responses'} from idle clients`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport = connectClient('responsive-client');
+			transport.respondToPings = false;
+			disposables.add(transport.onDidSend(message => {
+				if (isJsonRpcRequest(message) && message.method === 'ping') {
+					transport.simulateMessage(errorResponse
+						? { jsonrpc: '2.0', id: message.id, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Unknown method' } }
+						: { jsonrpc: '2.0', id: message.id, result: null });
+				}
+			}));
+			await timeout(45_000);
+			assert.deepStrictEqual({
+				connected: clientConnections.isClientConnected('responsive-client'),
+				hostPingCount: transport.sent.filter(message => isJsonRpcRequest(message) && message.method === 'ping').length,
+			}, { connected: true, hostPingCount: 4 });
+		}));
+	}
+
+	test('host watchdog detects a silent client despite outgoing updates and starts tool disconnect grace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'silent-client', tools: [{ name: 'runTask' }] },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, chatTurnStarted('turn-1', 'run it', '2025-01-01T00:00:00.000Z'));
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tool-1',
+			toolName: 'runTask', displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'silent-client' },
+		});
+		const transport = connectClient('silent-client', [sessionUri]);
+		transport.respondToPings = false;
+		const toolStatus = () => {
+			const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+			return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
+		};
+		for (let i = 0; i < 5; i++) {
+			await timeout(5_000);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: `Update ${i}` });
+		}
+		await timeout(4_999);
+		const beforeTimeout = clientConnections.isClientConnected('silent-client');
+		await timeout(1);
+		const atTimeout = {
+			connected: clientConnections.isClientConnected('silent-client'),
+			transportDisposed: transport.isDisposed, toolStatus: toolStatus(),
+		};
+		await timeout(29_999);
+		const beforeGraceDeadline = toolStatus();
+		await timeout(1);
+		assert.deepStrictEqual({
+			beforeTimeout, atTimeout, beforeGraceDeadline,
+			atGraceDeadline: { toolStatus: toolStatus(), activeClients: stateManager.getSessionState(sessionUri)?.activeClients },
+		}, {
+			beforeTimeout: true,
+			atTimeout: { connected: false, transportDisposed: true, toolStatus: ToolCallStatus.Streaming },
+			beforeGraceDeadline: ToolCallStatus.Streaming,
+			atGraceDeadline: { toolStatus: ToolCallStatus.Completed, activeClients: [] },
+		});
+	}));
+
+	test('host watchdog expiring one transport does not disconnect another transport for the same client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const stale = connectClient('overlapping-client');
+		stale.respondToPings = false;
+		const live = connectClient('overlapping-client');
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			staleDisposed: stale.isDisposed, liveDisposed: live.isDisposed,
+			counts: clientConnections.getConnectionCounts('overlapping-client'),
+		}, {
+			staleDisposed: true, liveDisposed: false,
+			counts: { connectedClientCount: 1, connectedTransportCount: 1, clientTransportCount: 1 },
+		});
+	}));
+
+	test('host watchdog does not probe or expire local MessagePort connections', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const transport = connectClient('local-client', undefined, undefined, undefined, AgentHostTransportKind.MessagePort);
+		transport.respondToPings = false;
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			connected: clientConnections.isClientConnected('local-client'),
+			hostPings: transport.sent.filter(message => isJsonRpcRequest(message) && message.method === 'ping'),
+		}, { connected: true, hostPings: [] });
+	}));
+
 	for (const operation of ['install', 'rotate', 'remove', 'refresh'] as const) {
 		test(`sandbox certificate ${operation} validates requests and forwards opaque chat identities`, async () => {
 			const calls: { chat: string; scopeId: string }[] = [];
@@ -5033,7 +5178,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('only listener configuration can delegate execution to a local credential source', async () => {
 			const resolutions: { owner: string; resource: string }[] = [];
-			const f = await fixture(undefined, async (principal, resource) => {
+			const f = await fixture(undefined, (principal, resource) => {
 				resolutions.push({ owner: principal.userId, resource });
 				return {
 					principal,
@@ -5050,7 +5195,7 @@ suite('ProtocolServerHandler', () => {
 			}));
 			await f.scopedHandler.whenIdle();
 			assert.deepStrictEqual({
-				resolutions,
+				resolutions: resolutions[0],
 				executionToken: agentService.createSessionConfigs[0]?.credentials?.getCredential({ resource })?.token,
 				sourceForwarded: agentService.createSessionConfigs[0]?.credentials === scope,
 				desktop: f.authentication.getAuthToken({ resource }),
@@ -5058,7 +5203,7 @@ suite('ProtocolServerHandler', () => {
 				changedTokens: f.changedTokens,
 				tokenPublished: JSON.stringify(transport.sent).includes('delegated-desktop-token'),
 			}, {
-				resolutions: [{ owner: '123', resource }],
+				resolutions: { owner: '123', resource },
 				executionToken: 'delegated-desktop-token',
 				sourceForwarded: true,
 				desktop: 'desktop-token',
@@ -5067,6 +5212,39 @@ suite('ProtocolServerHandler', () => {
 				tokenPublished: false,
 			});
 		});
+
+		for (const local of [false, true]) {
+			test(`a live changeset operation ${local ? 'uses host repository credentials' : 'does not inherit host repository credentials'} without client repository authentication`, async () => {
+				const repository = `${resource}/repos`;
+				const f = await fixture(undefined, (principal, target) => local && target === repository ? {
+					principal,
+					getCredential: request => request.resource === repository
+						? { resource: repository, token: 'host-repository-token', revision: 1, expiresAt: undefined }
+						: undefined,
+				} : undefined);
+				const transport = f.connect('changeset-client');
+				const scope = await f.authenticate(transport, 'client-token');
+				const tokens: (string | undefined)[] = [];
+				agentService.invokeChangesetOperation = async (_params, source) => {
+					tokens.push(source?.getCredential({ resource: repository })?.token);
+					return {};
+				};
+				transport.simulateMessage(request(3, 'invokeChangesetOperation', { channel: sessionUri, operationId: 'test' }));
+				await f.scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 3);
+				transport.relayAuthenticated = false;
+				assert.throws(() => scope.getCredential({ resource: repository }), { code: AHP_AUTH_REQUIRED });
+				assert.deepStrictEqual({
+					tokens,
+					authenticatedResources: f.authentications.map(authentication => authentication.params.resource),
+					succeeded: !!response && hasKey(response, { result: true }),
+				}, {
+					tokens: [local ? 'host-repository-token' : undefined],
+					authenticatedResources: [resource],
+					succeeded: true,
+				});
+			});
+		}
 
 		test('forwards the exact connection source to session creation, dispatch, changesets and listener extensions', async () => {
 			const extensionSources: (IAgentHostCredentialSource | undefined)[] = [];
@@ -9569,6 +9747,50 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('createChat retains side-chat provenance when source context is excluded', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const response = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.SideChat, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-active' },
+				_meta: { 'vscode.sideChatWithoutContext': true },
+			}));
+			await response;
+
+			assert.deepStrictEqual(agentService.createdChats, [{
+				session: sessionUri,
+				chat: peerChat,
+				options: { sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', includeSourceContext: false } },
+			}]);
+		});
+
+		for (const context of [{ value: 'true', sideChat: true }, { value: {}, sideChat: true }, { value: true, sideChat: false }]) {
+			test(`createChat rejects invalid side-chat context metadata ${JSON.stringify(context)}`, async () => {
+				stateManager.createSession(makeSessionSummary());
+				const transport = connectClient('client-cc');
+				const response = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'createChat', {
+					channel: sessionUri,
+					chat: peerChat,
+					...(context.sideChat ? { source: { kind: ChatSourceKind.SideChat, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-active' } } : {}),
+					_meta: { 'vscode.sideChatWithoutContext': context.value },
+				}));
+				const result = await response;
+
+				assert.deepStrictEqual({
+					error: hasKey(result, { error: true }) ? result.error : undefined,
+					created: agentService.createdChats,
+				}, {
+					error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createChat side-chat context metadata' },
+					created: [],
+				});
+			});
+		}
+
 		test('createChat for an unknown session fails with SESSION_NOT_FOUND', async () => {
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -11069,6 +11291,25 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('disconnect grace expires at 30 seconds even without a pending tool call', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'old-client', tools: [{ name: 'runTask' }] },
+			});
+			const transport = connectClient('old-client', [sessionUri]);
+			transport.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 29_999));
+			const beforeDeadline = stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId);
+			await new Promise(resolve => setTimeout(resolve, 1));
+			assert.deepStrictEqual({
+				beforeDeadline,
+				atDeadline: stateManager.getSessionState(sessionUri)?.activeClients,
+			}, { beforeDeadline: ['old-client'], atDeadline: [] });
+		});
+	});
+
 	test('client disconnect fails owned streaming tool calls after grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
@@ -11449,14 +11690,15 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
-			// 31s after the FIRST call: both must have failed.
-			await new Promise(r => setTimeout(r, 11_000));
-
-			const parts = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts ?? [];
-			const statuses = parts
-				.filter(p => p.kind === ResponsePartKind.ToolCall)
-				.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall.status : undefined);
-			assert.deepStrictEqual(statuses, [ToolCallStatus.Completed, ToolCallStatus.Completed]);
+			const statuses = () => (stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts ?? [])
+				.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [part.toolCall.status] : []);
+			await new Promise(r => setTimeout(r, 9_999));
+			const beforeDeadline = statuses();
+			await new Promise(r => setTimeout(r, 1));
+			assert.deepStrictEqual({ beforeDeadline, atDeadline: statuses() }, {
+				beforeDeadline: [ToolCallStatus.Streaming, ToolCallStatus.Streaming],
+				atDeadline: [ToolCallStatus.Completed, ToolCallStatus.Completed],
+			});
 		});
 	});
 

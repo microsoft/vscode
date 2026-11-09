@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError, TunnelGatewayServerType } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -25,12 +25,12 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { RemoteWorkspaceHandoffResult } from '../../../../../common/remoteWorkspaceHandoff.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { parseRemoteMachine, RemoteWorkspaceHandoffService } from '../../browser/remoteWorkspaceHandoffService.js';
-import { resolveRemoteAgentHostEntryAuthority } from '../../../../../browser/openInVSCodeUtils.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 
 suite('RemoteWorkspaceHandoffService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +51,8 @@ suite('RemoteWorkspaceHandoffService', () => {
 		/** Holds SSH config, WSL and tunnel lookups until it settles. */
 		readonly lookupGate?: Promise<void>;
 		readonly dismissedTunnels?: readonly string[];
+		/** The agent host type each tunnel gateway selected, by tunnel address. */
+		readonly selectedServerTypes?: Readonly<Record<string, TunnelGatewayServerType | 'unknown'>>;
 	} = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -83,6 +85,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 				return options.listTunnels ? options.listTunnels(discovery?.authProvider) : [];
 			},
 			cacheTunnel: (info, authProvider) => { calls.push(`cacheTunnel:${info.tunnelId}:${authProvider}`); },
+			getSelectedServerType: address => options.selectedServerTypes?.[address],
 			signIn: options.signIn && (async authProvider => {
 				calls.push(`signIn:${authProvider}`);
 				await options.signIn?.(authProvider);
@@ -382,16 +385,50 @@ suite('RemoteWorkspaceHandoffService', () => {
 		const wsl: IRemoteAgentHostEntry = { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } };
 		const connected: IRemoteAgentHostEntry = { name: 'Debian', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Debian', distro: 'Debian' } };
 		const harness = createHarness({ entries: [ssh, wsl, connected] });
-		await harness.service.resolveFolder({ remoteAuthority: 'ssh-remote+myhost', path: '/project' }, CancellationToken.None);
-		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Ubuntu', path: '/project' }, CancellationToken.None);
-		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Debian', path: '/project' }, CancellationToken.None);
+		const hosts = [
+			await harness.service.resolveHost('ssh-remote+myhost', CancellationToken.None),
+			await harness.service.resolveHost('wsl+Ubuntu', CancellationToken.None),
+			await harness.service.resolveHost('wsl+Debian', CancellationToken.None),
+		];
 		harness.addProvider('ssh:myhost', async status => status.set(RemoteAgentHostConnectionStatus.connected, undefined));
 		harness.addProvider('wsl:Ubuntu', async () => { throw new Error('WSL is not running'); });
 		harness.addProvider('wsl:Debian', () => assert.fail('A connected host must not reconnect'), RemoteAgentHostConnectionStatus.connected);
-		await timeout(0);
-		assert.deepStrictEqual({ calls: harness.calls, errors: harness.errors }, {
+		assert.deepStrictEqual({
+			hosts: await Promise.all(hosts.map(async host => ({ authority: host.connectionAuthority, connected: await host.connected }))),
+			calls: harness.calls,
+			errors: harness.errors,
+		}, {
+			hosts: [
+				{ authority: agentHostAuthority('ssh:myhost'), connected: true },
+				{ authority: agentHostAuthority('wsl:Ubuntu'), connected: false },
+				{ authority: agentHostAuthority('wsl:Debian'), connected: true },
+			],
 			calls: ['show:ssh:myhost', 'connect:ssh:myhost', 'show:wsl:Ubuntu', 'connect:wsl:Ubuntu', 'show:wsl:Debian'],
 			errors: ['Failed to connect to wsl:Ubuntu: WSL is not running'],
 		});
+	});
+
+	test('shares the editor windows\' agent host only with tunnels whose gateway did not select an editor\'s agent host', async () => {
+		const tunnelEntry = (label: string): IRemoteAgentHostEntry => ({ name: label, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: `${label}-id`, clusterId: 'usw2', label } });
+		const ssh: IRemoteAgentHostEntry = { name: 'myhost', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com' } };
+		const [standalone, editor, protocolV5, unselected] = ['standalone', 'editor', 'v5', 'unselected'].map(tunnelEntry);
+		const harness = createHarness({
+			entries: [ssh, standalone, editor, protocolV5, unselected],
+			selectedServerTypes: { [getEntryAddress(standalone)]: 'standalone', [getEntryAddress(editor)]: 'editor', [getEntryAddress(protocolV5)]: 'unknown' },
+		});
+		const hosts = [];
+		for (const remoteAuthority of ['ssh-remote+myhost', 'tunnel+standalone', 'tunnel+editor', 'tunnel+v5', 'tunnel+unselected']) {
+			hosts.push(await harness.service.resolveHost(remoteAuthority, CancellationToken.None));
+		}
+		for (const entry of [ssh, standalone, editor, protocolV5, unselected]) {
+			harness.addProvider(getEntryAddress(entry), () => assert.fail('A connected host must not reconnect'), RemoteAgentHostConnectionStatus.connected);
+		}
+		assert.deepStrictEqual(await Promise.all(hosts.map(async host => ({ connected: await host.connected, shares: host.sharesEditorWindowAgentHost?.() }))), [
+			{ connected: true, shares: false },
+			{ connected: true, shares: true },
+			{ connected: true, shares: false },
+			{ connected: true, shares: true },
+			{ connected: true, shares: true },
+		]);
 	});
 });

@@ -25,7 +25,7 @@ function readRepositoryFile(relativePath: string): Buffer {
  * install roots' `package.json` (see {@link getNativeBuildTargets}). A cached node_modules folder
  * only works with the configuration that built it.
  */
-const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'extensions/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
 
 /**
  * Returns the `nativeBuild` field of the root and `remote` `package.json`: the runtime and version
@@ -99,6 +99,39 @@ export function computeNodeModulesBaseCacheKey(args: readonly string[], readFile
 
 	for (const arg of args) {
 		shasum.update(arg);
+	}
+
+	return shasum.digest('hex');
+}
+
+/**
+ * Computes the key of the pnpm stores that a job can start from: the cache salt, the pnpm version,
+ * which decides the layout of the store, and the given arguments (the platform of the job). A store
+ * holds the files of every package that it ever installed, so a job can start from the store of
+ * other dependencies and download only the packages that it is missing.
+ */
+export function computePnpmStoreBaseCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
+	const shasum = crypto.createHash('sha256');
+
+	shasum.update(readFile('build/.cachesalt'));
+	shasum.update(JSON.stringify(JSON.parse(readFile('package.json').toString()).packageManager));
+
+	for (const arg of args) {
+		shasum.update(arg);
+	}
+
+	return shasum.digest('hex');
+}
+
+/**
+ * Computes the pnpm store cache key from the `pnpm-lock.yaml` of every install root: the packages
+ * that the store holds after installing them. Use it after {@link computePnpmStoreBaseCacheKey}.
+ */
+export function computePnpmStoreCacheKey(readFile: ReadRepositoryFile = readRepositoryFile): string {
+	const shasum = crypto.createHash('sha256');
+
+	for (const dir of ['', ...separateRoots, ...distroRoots]) {
+		shasum.update(readFile(path.posix.join(dir, 'pnpm-lock.yaml')));
 	}
 
 	return shasum.digest('hex');
