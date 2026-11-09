@@ -38,7 +38,7 @@ import { TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
 import { ITaskSummary, ITaskSystemInfo, TaskExecuteKind, VerifiedTask } from '../../common/taskSystem.js';
-import { CustomTask, IConfigurationProperties, InMemoryTask, PresentationOptions, RunOptions, RuntimeType, TaskEvent, TaskEventKind } from '../../common/tasks.js';
+import { CustomTask, DependsOrder, IConfigurationProperties, InMemoryTask, PresentationOptions, RunOptions, RuntimeType, TaskEvent, TaskEventKind } from '../../common/tasks.js';
 
 suite('TerminalTaskSystem process executable', () => {
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Exercise the real resolution and launch-config pipeline without exposing test-only APIs. */
@@ -150,13 +150,13 @@ suite('TerminalTaskSystem process executable', () => {
 				}
 			};
 		};
-		const createTask = (command: string, cwd = 'C:\\work', env?: { [key: string]: string }) => new CustomTask('test', {
+		const createTask = (command: string, cwd = 'C:\\work', env?: { [key: string]: string }, label = 'test') => new CustomTask(label, {
 			kind: 'workspace', label: 'workspace',
 			config: { workspaceFolder, file: '.vscode/tasks.json', index: 0, element: {} }
-		}, 'test', options.runtime === RuntimeType.Shell ? 'shell' : 'process', {
+		}, label, options.runtime === RuntimeType.Shell ? 'shell' : 'process', {
 			runtime: options.runtime ?? RuntimeType.Process, name: command, args: options.args ?? ['argument'],
 			options: { cwd, env }, presentation: PresentationOptions.defaults
-		}, false, RunOptions.defaults, options.configurationProperties ?? {});
+		}, false, RunOptions.defaults, { identifier: label, ...options.configurationProperties });
 		return {
 			system,
 			createTask,
@@ -210,7 +210,7 @@ suite('TerminalTaskSystem process executable', () => {
 
 		test(`${variable} rejects an empty executable before creating a terminal`, async () => {
 			const system = createSystem(new Map([[variable, '']]));
-			await assertRejectsWithMessage(system.execute('${' + variable + '}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${' + variable + '}'), /^The command for process task 'test' resolved to an empty string\.$/);
 			assert.deepStrictEqual(system.state, { taskEnded: true, terminalCreated: false });
 		});
 	}
@@ -235,12 +235,27 @@ suite('TerminalTaskSystem process executable', () => {
 		const fixture = createSystem(new Map([['input:tool', '']]));
 		const task = fixture.createTask('${input:tool}');
 		const result = fixture.system.run(task, { resolve: async () => task });
-		await assertRejectsWithMessage(result.promise, /process task command resolved to an empty string/i);
+		await assertRejectsWithMessage(result.promise, /^The command for process task 'test' resolved to an empty string\.$/);
 		await timeout(0);
 		assert.deepStrictEqual({ ...fixture.state, endedTasks: fixture.endedTasks, lastTask: fixture.system.lastTask }, {
 			taskEnded: true, terminalCreated: false, endedTasks: ['test'], lastTask: undefined
 		});
 	});
+
+	test('identifies the failing process dependency in an empty-command error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createSystem(new Map([['input:tool', '']]));
+		const dependencies = [
+			fixture.createTask('C:\\tools\\prepare.exe', undefined, undefined, 'Prepare dependencies'),
+			fixture.createTask('${input:tool}', undefined, undefined, 'Compile application')
+		];
+		const task = new InMemoryTask('parent', { kind: 'inMemory', label: 'test' }, 'Build application', 'composite', RunOptions.defaults, {
+			dependsOrder: DependsOrder.sequence,
+			dependsOn: dependencies.map(task => ({ uri: workspaceFolder.uri, task: task._label }))
+		});
+		const result = fixture.system.run(task, { resolve: async (_folder, identifier) => dependencies.find(task => task._label === identifier) });
+		await assertRejectsWithMessage(result.promise.finally(() => timeout(100)), /^The command for process task 'Compile application' resolved to an empty string\.$/);
+		assert.deepStrictEqual(fixture.endedTasks, ['Prepare dependencies', 'Compile application', 'Build application']);
+	}));
 
 	test('resolves command, cwd and mixed-case PATH before executable lookup', async () => {
 		const { execute, lookupCalls } = createSystem(new Map([
@@ -573,7 +588,7 @@ suite('TerminalTaskSystem process executable', () => {
 			const initialCalls = fixture.resolutionCalls;
 			const result = fixture.system.rerun();
 			assert.ok(result);
-			await assertRejectsWithMessage(result.promise, /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(result.promise, /^The command for process task 'test' resolved to an empty string\.$/);
 			await timeout(0);
 			assert.deepStrictEqual({
 				rerunning: fixture.system['_isRerun'],
@@ -608,7 +623,7 @@ suite('TerminalTaskSystem process executable', () => {
 		});
 		const attempts = [];
 		for (let i = 0; i < 2; i++) {
-			await assertRejectsWithMessage(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${input:tool}'), /^The command for process task 'test' resolved to an empty string\.$/);
 			attempts.push({ ...system.state, ...system.lifecycle });
 		}
 		assert.deepStrictEqual(attempts, [{
@@ -627,7 +642,7 @@ suite('TerminalTaskSystem process executable', () => {
 		const initialListeners = system.taskListeners;
 		const attempts = [];
 		for (let i = 0; i < 2; i++) {
-			await assertRejectsWithMessage(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${input:tool}'), /^The command for process task 'test' resolved to an empty string\.$/);
 			attempts.push({
 				extraListeners: system.taskListeners - initialListeners,
 				activeTasks: system.lifecycle.activeTasks,

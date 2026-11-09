@@ -76,7 +76,7 @@ suite('Task service rerun errors', () => {
 					await service.rerun(1);
 				}
 				await rerunCalled.p;
-				const error = new Error('The process task command resolved to an empty string.');
+				const error = new Error(`The command for process task '${task._label}' resolved to an empty string.`);
 				if (rejects) {
 					await execution.error(error);
 				} else {

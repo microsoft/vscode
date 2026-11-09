@@ -888,7 +888,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		try {
 			// Resolve before allocating a terminal or activating a problem collector.
 			if (task.command.runtime === RuntimeType.Process && !CommandString.value(await this._resolveVariable(resolver, task.command.name))) {
-				throw new Error(nls.localize('task.emptyProcessCommand', "The process task command resolved to an empty string."));
+				throw new Error(nls.localize('task.emptyProcessCommand', "The command for process task '{0}' resolved to an empty string.", task._label));
 			}
 			problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			launchConfigs = await this._resolveShellLaunchConfig(task, resolver, workspaceFolder);
