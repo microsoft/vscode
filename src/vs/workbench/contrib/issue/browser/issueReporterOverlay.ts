@@ -32,6 +32,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
 import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IssueReporterAttachment, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
@@ -184,6 +185,7 @@ export class IssueReporterOverlay {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -1610,6 +1612,12 @@ export class IssueReporterOverlay {
 	private submit(): void {
 		if (!this.canSubmit()) {
 			return;
+		}
+		if (!resolveIssueReporterTarget(this.data, product)?.external) {
+			this.telemetryService.publicLog2<{}, {
+				owner: 'Giuspepe';
+				comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
+			}>('issueReporter.previewClicked');
 		}
 		this.didAttemptSubmit = true;
 		const hasIssueSource = this.selectedIssueSource !== undefined;

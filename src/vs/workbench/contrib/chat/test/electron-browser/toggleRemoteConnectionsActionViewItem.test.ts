@@ -40,7 +40,7 @@ import { getRemoteTunnelAccessState } from '../../electron-browser/remoteConnect
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY, TunnelHostContribution } from '../../electron-browser/tunnelHost.contribution.js';
 import { IRemoteTunnelStartOptions, promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionListItemKind, ActionListWidget, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -217,7 +217,8 @@ suite('RemoteConnectionsActionViewItem', () => {
 		instantiation.stub(IActionWidgetService, actionWidget);
 		instantiation.stub(IKeybindingService, new MockKeybindingService());
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
-		instantiation.stub(ITelemetryService, NullTelemetryService);
+		const telemetry = new TestTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(INotificationService, notifications);
 		instantiation.stub(IActionViewItemService, new NullActionViewItemService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
@@ -244,7 +245,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		store.add(instantiation.createInstance(TunnelHostContribution));
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
-		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
+		// Unlike `Action`, which discards its callback's result, menu actions return the command's toggle result.
+		const action = store.add(new class extends Action {
+			override run(): Promise<void> {
+				return run();
+			}
+		}('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true));
 		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, { getManagementAction: () => options.managementAction }));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -262,7 +268,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu };
+		const selectMethodEvents = () => telemetry.events.filter(event => event.name === 'remoteConnections.selectMethod').map(event => event.data);
+
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu, selectMethodEvents };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -658,14 +666,15 @@ suite('RemoteConnectionsActionViewItem', () => {
 	});
 
 	test('reports an enable failure and leaves Off selected', async () => {
-		const { openMenu, closeMenu, sharing, notifications } = fixture('githubEnvironment');
+		const { openMenu, closeMenu, sharing, notifications, selectMethodEvents } = fixture('githubEnvironment');
 		const error = new Error('Unable to enable sharing');
 		stub(sharing, 'setEnabled').rejects(error);
 		const notify = stub(notifications, 'error');
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
-		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked) }, {
+		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
 			errors: [[error]], checked: [true, false, false],
+			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
 		});
 	});
 
@@ -678,6 +687,40 @@ suite('RemoteConnectionsActionViewItem', () => {
 			checked: openMenu().map(action => action.checked),
 			preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, { checked: [true, false, false], preference: 'devTunnel' });
+	});
+
+	test('logs each connection method choice with its outcome and the resulting method', async () => {
+		const { openMenu, closeMenu, selectMethodEvents } = fixture();
+		await timeout(0);
+		for (const id of ['remoteConnections.devTunnel', 'remoteConnections.devTunnel', 'remoteConnections.off', 'remoteConnections.off']) {
+			await openMenu().find(action => action.id === id)!.run();
+			closeMenu();
+		}
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ source: 'titleBar', method: 'devTunnel', previousMethod: 'off', activeMethod: 'devTunnel', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'devTunnel', previousMethod: 'devTunnel', activeMethod: 'devTunnel', result: 'unchanged', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'off', previousMethod: 'devTunnel', activeMethod: 'off', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'off', previousMethod: 'off', activeMethod: 'off', result: 'unchanged', gitHubEnvironments: 'enabled' },
+		]);
+	});
+
+	test('logs canceled, failed, and unavailable connection method choices from the chat input', async () => {
+		const { openMenu, closeMenu, executeCommand, update, notifications, availability, selectMethodEvents } = fixture('githubEnvironment', { isChatInput: true });
+		stub(notifications, 'error');
+		executeCommand.resolves(undefined);
+		await openMenu().find(action => action.id === 'remoteConnections.devTunnel')!.run();
+		closeMenu();
+		update.rejects(new Error('Unable to save connection method'));
+		const staleAction = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
+		await staleAction.run();
+		closeMenu();
+		availability.set(false, undefined);
+		await staleAction.run();
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ source: 'chatInput', method: 'devTunnel', previousMethod: 'off', activeMethod: 'off', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' },
+			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'unavailable', gitHubEnvironments: 'unavailable' },
+		]);
 	});
 
 	test('clicking the single button opens the picker without changing sharing', async () => {

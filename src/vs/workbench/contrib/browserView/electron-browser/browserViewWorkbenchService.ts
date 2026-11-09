@@ -425,8 +425,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 
 		if (placement === 'sideGroup') {
+			// Beside the active group, or beside the group it hands editors off to, such as while a chat is active.
 			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			const group = this.editorGroupsService.addGroup(handOffFromSelfTitledEditor(this.editorGroupsService.activeGroup, this.editorGroupsService), direction);
 			// Lock the group so that other (non-browser) editors are not opened
 			// into it. Browser tabs still open here because we target it directly.
 			group.lock(true);

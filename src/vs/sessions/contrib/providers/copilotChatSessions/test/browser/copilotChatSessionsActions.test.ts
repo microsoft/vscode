@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { WorkbenchContributionsRegistry } from '../../../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { LifecyclePhase } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ModelPickerToolbarsContribution } from '../../../../chat/browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../chat/browser/sharedChatInputComposer.contribution.js';
 import '../../browser/copilotChatSessionsActions.js';

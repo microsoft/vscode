@@ -19,6 +19,7 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz
           artifactName: vscode_web_linux_standalone_archive-unsigned
           displayName: Publish web archive
+          condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
           sbomPackageName: "VS Code Linux x64 Web (Standalone)"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -85,7 +86,7 @@ jobs:
         displayName: Setup system services
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/npm/preinstall.ts
+      - script: pnpm run preinstall
         displayName: Install Electron headers
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -205,3 +206,14 @@ jobs:
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
             node build/azure-pipelines/upload-nlsmetadata.ts
         displayName: Upload NLS Metadata
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          WEB_ARCHIVE_PUBLISHED vscode_web_linux_standalone_archive-unsigned
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

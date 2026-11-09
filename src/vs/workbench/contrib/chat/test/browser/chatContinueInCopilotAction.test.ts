@@ -18,6 +18,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -37,6 +39,8 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -70,7 +74,7 @@ suite('Continue in Copilot policy recovery', () => {
 						response: upcastPartial<IChatResponseModel['response']>({ getMarkdown: () => 'Original answer' }),
 					}),
 				});
-				const model = upcastPartial<IChatModel>({ sessionResource: source, title: 'Local conversation title', getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
+				const model = upcastPartial<IChatModel>({ sessionResource: source, title: 'Local conversation title', getRequests: () => scenario === 'empty' ? [] : [request], hasRequests: scenario !== 'empty', requestInProgress: constObservable(scenario === 'in-progress') });
 				const attachment = { kind: 'file' as const, id: 'file', name: 'example.txt', value: URI.file('/workspace/example.txt') };
 				const widget = upcastPartial<IChatWidget>({
 					visible: true,
@@ -91,19 +95,36 @@ suite('Continue in Copilot policy recovery', () => {
 				const preparation: string[] = [];
 				const telemetry: { event: string; data: object | undefined }[] = [];
 				const importEvents: (object | undefined)[] = [];
-				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled') => assert.deepStrictEqual(telemetry, ['started', outcome].map(outcome => ({
-					event: 'chat.enterprisePolicyRecovery',
-					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
-				})));
+				const migrationEvents: object[] = [];
+				// A move of a Local chat is also reported as a Local chat migration; Claude and Codex chats are not.
+				const localSourceScenario = scenario !== SessionType.AgentHostClaude && scenario !== SessionType.AgentHostCodex;
+				const migrationKind = scenario === 'empty' ? 'newChat' : scenario === 'unsupported' || scenario === 'archived-unsupported' ? 'transcript' : 'migrate';
+				const expectedMigration = (outcome: 'succeeded' | 'failed' | 'cancelled', failureReason = 'none') => localSourceScenario ? (['started', outcome] as const).map(event => ({
+					entryPoint: 'move', trigger: sidebar ? 'automatic' : 'manual', policyRequired: false, kind: migrationKind,
+					target: SessionType.AgentHostCopilot, location: sidebar ? 'panel' : 'editor', turns: migrationKind === 'migrate' ? 1 : 0,
+					outcome: event, failureReason: event === 'started' ? 'none' : failureReason, timed: true,
+				})) : [];
+				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled', failureReason?: string) => assert.deepStrictEqual({ telemetry, migrationEvents }, {
+					telemetry: ['started', outcome].map(outcome => ({
+						event: 'chat.enterprisePolicyRecovery',
+						data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
+					})),
+					migrationEvents: expectedMigration(outcome, failureReason),
+				});
 				services.stub(ITelemetryService, {
 					publicLog2: (event, data) => {
 						if (event === 'chat.importConversation') {
 							importEvents.push(data);
+						} else if (event === 'chat.localChatMigration') {
+							const { durationMs, ...rest } = data as { durationMs: number };
+							migrationEvents.push({ ...rest, timed: typeof durationMs === 'number' && durationMs >= 0 });
 						} else {
 							telemetry.push({ event, data });
 						}
 					}
 				});
+				services.stub(IManagedSettingsService, { getManagedSettingValue: () => undefined });
+				services.stub(IConfigurationService, { inspect: () => ({}) });
 				let archived = scenario === 'archived' || scenario === 'archived-unsupported' || scenario === 'archived-remote';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
@@ -113,6 +134,7 @@ suite('Continue in Copilot policy recovery', () => {
 				const cancelDuringMaterialization = scenario === 'hidden-during-materialization' || scenario === 'switched-during-materialization' || scenario === 'cleanup-failed';
 				const real = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/imported' });
 				let provisionalResource: URI | undefined;
+				let preparedFolder: URI | undefined;
 				let backendExists = false;
 				let listed = false;
 				const deleted: URI[] = [];
@@ -192,9 +214,10 @@ suite('Continue in Copilot policy recovery', () => {
 					notifySessionMaterialized: resource => { published.push(resource); },
 				});
 				services.stub(IAgentHostUntitledProvisionalSessionService, {
-					getOrCreate: async resource => {
+					getOrCreate: async (resource, _provider, workingDirectory) => {
 						preparation.push('prepare');
 						provisionalResource = resource;
+						preparedFolder = workingDirectory;
 						backendExists = scenario !== 'prepare-failed';
 						if (scenario === 'hidden-during-preparation') {
 							Object.defineProperty(widget, 'visible', { value: false });
@@ -215,7 +238,21 @@ suite('Continue in Copilot policy recovery', () => {
 						preparation.push('release imported ownership');
 					},
 				});
-				services.stub(IAgentHostNewSessionFolderService, { resolveNewSessionPrimary: () => undefined });
+				// A multi-root window with folders /a and /b, whose last active editor is in /b.
+				const chosenFolders = new Map<string, URI>();
+				let defaultFolderChanged = false;
+				services.stub(IAgentHostNewSessionFolderService, {
+					setFolder: (resource, folder, options) => {
+						chosenFolders.set(resource.toString(), folder);
+						defaultFolderChanged ||= options?.updateDefault !== false;
+					},
+					clear: resource => { chosenFolders.delete(resource.toString()); },
+					resolveNewSessionPrimary: resource => chosenFolders.get(resource.toString()),
+				});
+				services.stub(IWorkspaceContextService, {
+					getWorkspaceFolder: uri => ['/a', '/b'].map(path => URI.file(path)).find(folder => uri.path === folder.path || uri.path.startsWith(`${folder.path}/`)) ? upcastPartial<IWorkspaceFolder>({ uri: URI.file(uri.path.split('/').slice(0, 2).join('/')) }) : null,
+				});
+				services.stub(IHistoryService, { getLastActiveWorkspaceRoot: () => URI.file('/b/src/index.ts') });
 				services.stub(IAgentHostService, {
 					supportsConversationImport: scenario !== 'unsupported' && scenario !== 'archived-unsupported',
 					clientConnectionKind: scenario === 'archived-remote' ? AgentHostClientConnectionKind.RemoteExtensionHost : AgentHostClientConnectionKind.Local,
@@ -256,7 +293,8 @@ suite('Continue in Copilot policy recovery', () => {
 				}));
 				services.stub(IViewsService, { openView: views.openView });
 				const action = new ContinueChatInCopilotAction();
-				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri }));
+				// The policy move runs on its own when the panel opens a chat, and when the user chooses it in an editor.
+				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri, ...(sidebar ? { trigger: 'automatic' } : {}) }));
 				const run = execute();
 				if (cancelDuringMaterialization) {
 					await materializationStarted.p;
@@ -268,7 +306,7 @@ suite('Continue in Copilot policy recovery', () => {
 					materializing.complete();
 					const cleanupFailed = scenario === 'cleanup-failed';
 					await assert.rejects(run, cleanupFailed ? /Cleanup failed/ : CancellationError);
-					assertTelemetry(cleanupFailed ? 'failed' : 'cancelled');
+					assertTelemetry(cleanupFailed ? 'failed' : 'cancelled', cleanupFailed ? 'unexpected' : undefined);
 					assert.deepStrictEqual({
 						target, draft, archived, backendExists, listed, provisionalResource,
 						deleted, published, aliases, sourceRequests: model.getRequests().length, sourceDraft: widget.getInput(),
@@ -293,10 +331,11 @@ suite('Continue in Copilot policy recovery', () => {
 				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
 					await assert.rejects(run, CancellationError);
 					assertTelemetry('cancelled');
-					assert.deepStrictEqual({ target, archived, draft, preparation, importEvents }, {
+					assert.deepStrictEqual({ target, archived, draft, preparation, importEvents, chosenFolders: chosenFolders.size }, {
 						target: undefined, archived: false, draft: undefined,
 						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
 						importEvents: [],
+						chosenFolders: 0,
 					});
 					return;
 				}
@@ -306,22 +345,31 @@ suite('Continue in Copilot policy recovery', () => {
 							: scenario === 'history-missing' || scenario === 'history-load-error' ? /didn't load the moved conversation/
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
-					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
-					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, importEvents }, {
+					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed', ({
+						'unavailable': 'targetUnavailable', 'prepare-failed': 'prepareFailed', 'import-failed': 'importFailed', 'import-missing': 'sessionNotCreated',
+						'history-missing': 'historyMissing', 'history-load-error': 'historyMissing', 'open-failed': 'openFailed', 'open-cancelled': 'openFailed',
+						'archived': 'sourceArchived', 'missing-history': 'sourceMissing', 'in-progress': 'requestInProgress',
+					} as Record<string, string>)[scenario]);
+					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, importEvents, chosenFolders: chosenFolders.size }, {
 						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
 							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' || scenario === 'history-load-error' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
 						// A move that did not complete reports no import.
 						importEvents: [],
+						// Nor does it leave a folder chosen for a chat that never opened.
+						chosenFolders: 0,
 					});
 					return;
 				}
 				await run;
 				const transcriptOnly = scenario === 'unsupported' || scenario === 'archived-unsupported';
 				const newChat = scenario === 'empty' || transcriptOnly;
+				const localSource = scenario !== SessionType.AgentHostClaude && scenario !== SessionType.AgentHostCodex;
 				assert.deepStrictEqual(telemetry.map(entry => entry.data), ['started', 'succeeded'].map(outcome => ({
 					action: scenario === 'empty' ? 'newChat' : transcriptOnly ? 'transcript' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome,
 				})));
+				// A concurrent duplicate attempt is counted once.
+				assert.deepStrictEqual(migrationEvents, expectedMigration('succeeded'));
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					title: imported?.title,
@@ -329,6 +377,7 @@ suite('Continue in Copilot policy recovery', () => {
 					draft: draft && { ...draft, attachments: draft.attachments?.map(entry => entry.id.startsWith('chat-delegation-transcript-') ? { transcript: entry.value } : entry) },
 					preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
 					importEvents,
+					folder: { prepared: preparedFolder?.path, chosen: [...chosenFolders.values()].map(folder => folder.path), defaultChanged: defaultFolderChanged },
 				}, {
 					target: SessionType.AgentHostCopilot,
 					title: newChat ? undefined : 'Local conversation title',
@@ -353,6 +402,13 @@ suite('Continue in Copilot policy recovery', () => {
 						skippedAttachments: 0, skippedAttachmentKinds: '',
 						droppedToolOutputs: 0,
 					}],
+					// A moved Local chat continues in the folder of the window's last active editor (its conversation ran no
+					// terminal command), chosen for the new chat only. Claude and Codex chats keep the window's default.
+					folder: {
+						prepared: !newChat && localSource ? '/b' : undefined,
+						chosen: scenario !== 'empty' && localSource ? ['/b'] : [],
+						defaultChanged: false,
+					},
 				});
 			});
 		}

@@ -26,30 +26,18 @@ import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../.
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
-// eslint-disable-next-line local/code-import-patterns
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
-// eslint-disable-next-line local/code-import-patterns
+import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../contrib/sessions/browser/chat/sessionChatInputToolbar.js';
+import { ISessionChatPillsDebugData } from '../../../../contrib/sessions/browser/chat/sessionChatInputToolbarDebug.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { SessionInputBanners } from '../../../../contrib/sessions/browser/sessionInputBanners/sessionInputBanners.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionHost, SessionHostKind } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+import { ISessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
@@ -90,7 +78,7 @@ interface ISessionSpec {
 
 /** A mock session + its viewed chat, as the toolbar consumes them. */
 interface IMockSessionAndChat {
-	readonly session: IActiveSession;
+	readonly session: ISession;
 	readonly chat: IChat;
 	readonly browsers: readonly BrowserEditorInput[];
 	removeArtifact(id: string): void;
@@ -150,7 +138,7 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: chat.resource };
 	}());
 	const artifacts = observableValue<readonly ISessionArtifact[]>('fixture.artifacts', spec.artifacts ?? []);
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ISession>() {
 		override readonly resource = URI.parse('session:1');
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -213,12 +201,19 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	}());
 	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 	registration.defineInstance(IWorkbenchGitHubService, createFixtureWorkbenchGitHubService({}));
+	// The pills and banners show the session and chat of their window.
+	registration.defineInstance(ISessionHost, new class extends mock<ISessionHost>() {
+		override readonly kind = SessionHostKind.MainWindow;
+		override readonly parent = undefined;
+		override readonly session = constObservable<ISession | undefined>(sessionMock.session);
+		override readonly chat = constObservable<IChat | undefined>(sessionMock.chat);
+	}());
 	if (sessionMock.session.capabilities.get().supportsRemoveArtifacts || sessionMock.session.capabilities.get().supportsCanvases) {
 		registration.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
+			override async removeSessionArtifact(_session: ISession, artifactId: string): Promise<void> {
 				sessionMock.removeArtifact(artifactId);
 			}
-			override async closeCanvas(_session: IActiveSession, _chat: IChat, canvas: ISessionCanvas): Promise<void> {
+			override async closeCanvas(_session: ISession, _chat: IChat, canvas: ISessionCanvas): Promise<void> {
 				sessionMock.closeCanvas(canvas);
 			}
 		}());
@@ -327,13 +322,6 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
 	if (options?.debugData) {
-		// The banners show the session and chat of their window.
-		instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() {
-			override readonly kind = SessionHostKind.MainWindow;
-			override readonly parent = undefined;
-			override readonly session = constObservable<IActiveSession | undefined>(sessionMock.session);
-			override readonly chat = constObservable<IChat | undefined>(sessionMock.chat);
-		}());
 		const banners = disposableStore.add(instantiationService.createInstance(SessionInputBanners));
 		banners.setDebugData(options.debugData);
 		container.appendChild(banners.domNode);
