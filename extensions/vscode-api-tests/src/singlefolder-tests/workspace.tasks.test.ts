@@ -141,6 +141,100 @@ import { asPromise, assertNoRpc, DeferredPromise } from '../utils';
 			});
 		});
 
+		suite('Background dependencies', () => {
+			for (const outcome of ['success', 'failure', 'terminate', 'ready', 'foreground failure']) {
+				test(`sequence preserves a background dependency outcome (${outcome})`, async () => {
+					const folder = workspace.workspaceFolders?.[0];
+					assert.ok(folder);
+					const config = workspace.getConfiguration('tasks', folder.uri);
+					const oldTasks = config.inspect<readonly TaskDefinition[]>('tasks')?.workspaceValue;
+					const oldVersion = config.inspect<string>('version')?.workspaceValue;
+					const dependencyName = `background dependency ${outcome}`;
+					const targetName = `background dependent ${outcome}`;
+					const exitCode = outcome.includes('failure') ? 7 : 0;
+					const shouldRun = outcome === 'success' || outcome === 'ready';
+					const ended = new EventEmitter<void>();
+					const dependencyEnded = new EventEmitter<void>();
+					const started: string[] = [];
+					const dependencyExitCodes: (number | undefined)[] = [];
+					disposables.push(ended, dependencyEnded, tasks.onDidStartTask(event => {
+						if (event.execution.task.name === dependencyName || event.execution.task.name === targetName) {
+							started.push(event.execution.task.name);
+						}
+					}), tasks.onDidStartTaskProcess(event => {
+						if (event.execution.task.name === dependencyName && outcome === 'terminate') {
+							event.execution.terminate();
+						}
+					}), tasks.onDidEndTaskProcess(event => {
+						if (event.execution.task.name === dependencyName) {
+							dependencyExitCodes.push(event.exitCode);
+						}
+					}), tasks.onDidEndTask(event => {
+						if (event.execution.task.name === targetName) {
+							ended.fire();
+						} else if (event.execution.task.name === dependencyName) {
+							dependencyEnded.fire();
+						}
+					}), window.onDidOpenTerminal(terminal => {
+						if (terminal.name === dependencyName || terminal.name === targetName) {
+							disposables.push(terminal);
+						}
+					}));
+					try {
+						const execution = {
+							type: 'process',
+							command: process.execPath,
+							options: { env: { ELECTRON_RUN_AS_NODE: '1' } },
+							presentation: { reveal: 'never', panel: 'new' }
+						};
+						await config.update('version', '2.0.0', ConfigurationTarget.Workspace);
+						await config.update('tasks', [
+							{
+								...execution, label: dependencyName, isBackground: outcome !== 'foreground failure',
+								args: ['-e', outcome === 'ready' ? 'console.log("READY"); setTimeout(() => process.exit(99), 10000)'
+									: outcome === 'terminate' ? 'setTimeout(() => process.exit(99), 10000)' : `process.exit(${exitCode})`],
+								problemMatcher: {
+									owner: 'background-dependency-test',
+									pattern: { regexp: '^(.*):(\\d+): (.*)$', file: 1, line: 2, message: 3 },
+									background: { activeOnStart: true, beginsPattern: '^BEGIN$', endsPattern: '^READY$' }
+								}
+							},
+							{
+								...execution, label: targetName, args: ['-e', 'process.exit(0)'],
+								dependsOn: dependencyName, dependsOrder: 'sequence', problemMatcher: []
+							}
+						], ConfigurationTarget.Workspace);
+						const target = (await tasks.fetchTasks()).find(task => task.name === targetName);
+						assert.ok(target);
+						const finished = asPromise(ended.event, 10000);
+						await Promise.all([tasks.executeTask(target), finished]);
+						assert.deepStrictEqual({
+							started,
+							dependencyExitCodes,
+							active: tasks.taskExecutions.filter(execution => execution.task.name === dependencyName || execution.task.name === targetName).map(execution => execution.task.name)
+						}, {
+							started: shouldRun ? [dependencyName, targetName] : [dependencyName],
+							dependencyExitCodes: outcome === 'ready' ? [] : [outcome === 'terminate' ? undefined : exitCode],
+							active: outcome === 'ready' ? [dependencyName] : []
+						});
+					} finally {
+						try {
+							for (const execution of tasks.taskExecutions) {
+								if (execution.task.name === dependencyName || execution.task.name === targetName) {
+									const finished = asPromise(execution.task.name === dependencyName ? dependencyEnded.event : ended.event, 10000);
+									execution.terminate();
+									await finished;
+								}
+							}
+						} finally {
+							await config.update('tasks', oldTasks, ConfigurationTarget.Workspace);
+							await config.update('version', oldVersion, ConfigurationTarget.Workspace);
+						}
+					}
+				});
+			}
+		});
+
 		suite('CustomExecution', () => {
 			const reviewTaskType = 'custombuildscript';
 
