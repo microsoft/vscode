@@ -167,4 +167,29 @@ suite('MinimapLayout', () => {
 			sliderTopAtMaxScrollTop: 392,
 		});
 	});
+
+	test('fit/fill slider position does not map back to editor positions inside a view zone or past the last lines', () => {
+		function roundTrip(linesLayout: LinesLayout, scrollTop: number): [zoneFreeScrollTop: number, scrollTop: number] {
+			const scrollHeight = linesLayout.getLinesTotalHeight();
+			const viewport = linesLayout.getLinesViewportData(scrollTop, scrollTop + viewportHeight);
+			const zoneFreeScrollTop = MinimapLayout.getZoneFreeScrollPosition(linesLayout, lineCount, lineHeight, 0, viewport.startLineNumber, viewportHeight, scrollTop, scrollHeight).scrollTop;
+			return [zoneFreeScrollTop, MinimapLayout.getScrollTopFromZoneFreeScrollTop(linesLayout, lineCount, lineHeight, 0, viewportHeight, zoneFreeScrollTop, scrollHeight)];
+		}
+
+		// The zone between lines 100 and 101 spans scrollTop 2000 to 5000
+		const tallZone = createLinesLayout(0, [], [[100, 3000]]);
+		// The zone between lines 990 and 991 spans scrollTop 19800 to 22800, the editor scrolls to 22600 and the lines alone to 19600
+		const zoneNearEnd = createLinesLayout(0, [], [[990, 3000]]);
+
+		assert.deepStrictEqual({
+			insideZone: roundTrip(tallZone, 3000),
+			nearEnd: [19600, 21000, 22600].map(scrollTop => roundTrip(zoneNearEnd, scrollTop)),
+			// Dragging the slider down past the lines still reaches the end of the editor
+			pastLinesEnd: MinimapLayout.getScrollTopFromZoneFreeScrollTop(zoneNearEnd, lineCount, lineHeight, 0, viewportHeight, 19700, zoneNearEnd.getLinesTotalHeight()),
+		}, {
+			insideZone: [2000, 5000],
+			nearEnd: [[19600, 22600], [19600, 22600], [19600, 22600]],
+			pastLinesEnd: 22600,
+		});
+	});
 });
