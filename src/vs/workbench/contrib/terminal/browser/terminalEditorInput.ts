@@ -21,6 +21,7 @@ import { ConfirmOnKill } from '../common/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { getTerminalAccessibleTitle } from '../common/terminalStrings.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { Emitter } from '../../../../base/common/event.js';
 
@@ -195,6 +196,10 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 	override getName() {
 		return this._terminalInstance?.title || this.resource.fragment;
+	}
+
+	override getAriaLabel(): string {
+		return getTerminalAccessibleTitle(this.getName(), this._terminalInstance?.shellLaunchConfig.hostLabel);
 	}
 
 	override getIcon(): ThemeIcon | undefined {

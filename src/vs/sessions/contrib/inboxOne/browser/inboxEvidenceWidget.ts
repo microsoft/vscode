@@ -22,9 +22,9 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { collectInboxEvidence, IInboxEvidence, IInboxEvidenceImage } from '../common/inboxEvidence.js';
-import { IInboxNotificationItem } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem } from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 
 export function createInboxEvidenceSection(container: HTMLElement, title: string, count: number, store: DisposableStore, onLayout: () => void): HTMLElement {
 	const section = container.appendChild($('section.inbox-evidence-section'));

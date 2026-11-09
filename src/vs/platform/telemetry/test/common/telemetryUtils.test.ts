@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
+import { escapeModelIdForTelemetry, normalizeModelRouterTelemetryId, TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
 import { cleanData, cleanRemoteAuthority, getTelemetryLevel } from '../../common/telemetryUtils.js';
 
 suite('TelemetryUtils', () => {
@@ -196,6 +196,19 @@ suite('TelemetryUtils', () => {
 
 			assert.strictEqual(cleanRemoteAuthority('ssh-remote', config), 'other');
 			assert.strictEqual(cleanRemoteAuthority(undefined, config), 'none');
+		});
+	});
+
+	suite('model ids', () => {
+		test('model routers report as modelRouter, since their names are written by users', () => {
+			assert.deepStrictEqual([
+				normalizeModelRouterTelemetryId('model-router:secret'),
+				normalizeModelRouterTelemetryId('copilotcli:model-router:secret'),
+				normalizeModelRouterTelemetryId('claude-opus-5'),
+				normalizeModelRouterTelemetryId(undefined),
+				escapeModelIdForTelemetry('copilot/model-router:secret'),
+				escapeModelIdForTelemetry('azure/gpt-5'),
+			], ['modelRouter', 'modelRouter', 'claude-opus-5', undefined, 'modelRouter', 'azure|gpt-5']);
 		});
 	});
 });

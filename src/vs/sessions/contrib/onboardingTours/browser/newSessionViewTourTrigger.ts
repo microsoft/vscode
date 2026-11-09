@@ -11,9 +11,9 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
@@ -27,7 +27,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 		private readonly _onboardingScenarioService: IOnboardingScenarioService,
 		private readonly _sessionsService: Pick<ISessionsService, 'initialRestoreComplete'>,
 		/** The session the main window shows, whose new-session view the tour guides through. */
-		private readonly _mainWindowSession: IObservable<IHostSession | undefined>,
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _contextKeyService: IContextKeyService,
@@ -48,7 +48,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 				return;
 			}
 			const activeSession = this._mainWindowSession.read(reader);
-			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
+			const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession, reader);
 			const loggedIn = this._chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown;
 			if (!newSessionViewOpen || !loggedIn) {
 				return;
@@ -73,7 +73,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 
 	private _isReady(): boolean {
 		const activeSession = this._mainWindowSession.get();
-		const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
+		const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession);
 		return this._sessionsService.initialRestoreComplete.get()
 			&& newSessionViewOpen
 			&& this._chatEntitlementService.entitlement !== ChatEntitlement.Unknown

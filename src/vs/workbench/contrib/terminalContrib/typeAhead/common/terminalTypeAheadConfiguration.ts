@@ -38,10 +38,11 @@ export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPro
 		enumDescriptions: [
 			localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
 			localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
-			localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
+			localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote terminals, such as those in remote workspaces or on remote agent hosts")
 		],
 		default: 'off',
 		tags: ['preview'],
+		experiment: { mode: 'auto' },
 	},
 	[TerminalTypeAheadSettingId.LocalEchoExcludePrograms]: {
 		description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),

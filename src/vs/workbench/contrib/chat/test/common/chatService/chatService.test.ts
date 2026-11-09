@@ -55,7 +55,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
@@ -87,7 +87,7 @@ import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChat
 import { IChatSessionHistoryStatus } from '../../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
-import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
 import { NullLanguageModelsService } from '../languageModels.js';
 import { ICanvasContext } from '../../../../canvases/common/canvas.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -4147,6 +4147,124 @@ suite('ChatService', () => {
 		]);
 	});
 
+	test('parses the first provider submission from completion attachments without its originating widget', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/first-completion-request' });
+		const text = 'explain /commit and /compact with #file.ts';
+		const variables = [
+			{ ...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/commit', 'custom-skill:/commit', { uri: 'custom-skill:/commit' }), range: { start: text.indexOf('/commit'), endExclusive: text.indexOf('/commit') + '/commit'.length } },
+			{ ...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', { command: 'compact' }), range: { start: text.indexOf('/compact'), endExclusive: text.indexOf('/compact') + '/compact'.length } },
+		];
+		const sessionsService = new MockChatSessionsService();
+		sessionsService.setContributions([{
+			type: sessionType, name: 'Agent Host', displayName: 'Agent Host', description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(sessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async resource => ({
+				sessionResource: resource, history: [],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue('complete', true),
+				interruptActiveResponseCallback: async () => true,
+				onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, sessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const service = createChatService();
+		const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		// An unrelated live reference must survive supplementing the missing skill references.
+		const fileReference = {
+			id: 'file', range: new Range(1, text.indexOf('#file.ts') + 1, 1, text.length + 1),
+			data: URI.file('/workspace/file.ts'), isFile: true,
+		};
+		(instantiationService.get(IChatVariablesService) as MockChatVariablesService).setDynamicVariables(sessionResource, [fileReference]);
+		const result = await service.sendRequest(sessionResource, text, { agentIdSilent: sessionType, attachedContext: [...variables] });
+		ChatSendResult.assertSent(result);
+		await result.data.responseCompletePromise;
+
+		assert.deepStrictEqual(ref.object.getRequests().map(request => request.message.parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => ({ text: part.text, id: part.id, data: part.data }))), [[
+				{ text: '/commit', id: variables[0].id, data: variables[0].value },
+				{ text: '/compact', id: variables[1].id, data: variables[1].value },
+				{ text: '#file.ts', id: fileReference.id, data: fileReference.data },
+			]]);
+	});
+
+	test('keeps an explicit submission reference snapshot authoritative over completion attachments', async () => {
+		const agentId = 'completion-agent';
+		testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(agentId, { async invoke() { return {}; } }));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const completion = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/commit', 'custom-skill:/commit', { uri: 'custom-skill:/commit' });
+		const result = await service.sendRequest(model.sessionResource, 'explain /commit', {
+			attachedContext: [{ ...completion, range: { start: 8, endExclusive: 15 } }],
+			parserContext: { references: [] },
+		});
+		ChatSendResult.assertSent(result);
+		await result.data.responseCompletePromise;
+		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => part.kind), ['text']);
+	});
+
+	test('preserves accepted agent host completions in history, live and queued requests', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/completion-history' });
+		const text = '/skill first\nthen /command';
+		const variableData = {
+			variables: [
+				{ ...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, 'Skill', 'custom-skill:/selected', { uri: 'custom-skill:/selected' }), range: { start: 0, endExclusive: 6 } },
+				{ ...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, 'Command', 'command', { command: 'command' }), range: { start: text.indexOf('/command'), endExclusive: text.length } },
+			],
+		};
+		const starts = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+		const sessionsService = new MockChatSessionsService();
+		sessionsService.setContributions([{
+			type: sessionType, name: 'Agent Host', displayName: 'Agent Host', description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(sessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async resource => ({
+				sessionResource: resource,
+				history: [{ id: 'history', type: 'request', prompt: text, participant: sessionType, variableData }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue('complete', true),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: starts.event,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, sessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const service = createChatService();
+		const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		starts.fire({ id: 'live', prompt: text, variableData });
+		service.syncPendingRequestsFromRemote(sessionResource, [{ id: 'queued', kind: ChatRequestQueueKind.Queued, message: text, variableData }]);
+
+		const model = ref.object;
+		const persisted = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const requests = [...model.getRequests(), model.getPendingRequests()[0].request, ...persisted.getRequests()];
+		assert.deepStrictEqual(requests.map(request => request.message.parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => ({ text: part.text, value: part.data, range: { start: part.range.start, endExclusive: part.range.endExclusive }, metadata: part._meta }))),
+			Array.from({ length: 5 }, () => variableData.variables.map(variable => ({
+				text: text.slice(variable.range.start, variable.range.endExclusive),
+				value: variable.value,
+				range: variable.range,
+				metadata: variable._meta,
+			}))));
+	});
+
 	test('troubleshoot skill via attachedContext is blocked when fileLogging.enabled is off', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, false);
@@ -7100,6 +7218,36 @@ suite('ChatService', () => {
 			const model2 = ref2.object as ChatModel;
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
+
+		test('cleared draft input stays cleared when a remote session is released before its first request', async () => {
+			const { resource } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+			const acquire = async () => {
+				const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				return testDisposables.add(ref);
+			};
+			const saved = await acquire();
+			saved.object.inputModel.setState({
+				inputText: 'Start this task',
+				attachments: [{ kind: 'file', id: 'context', name: 'context.ts', value: URI.file('/workspace/context.ts') }],
+			});
+			saved.dispose();
+			await testService.waitForModelDisposals();
+
+			const composing = await acquire();
+			composing.object.inputModel.setState({ inputText: '', attachments: [], selections: [] });
+			composing.dispose();
+			await testService.waitForModelDisposals();
+
+			const reopened = await acquire();
+			const state = reopened.object.inputModel.state.get();
+			assert.deepStrictEqual({
+				inputText: state?.inputText,
+				attachments: state?.attachments,
+				requests: reopened.object.getRequests().length,
+			}, { inputText: '', attachments: [], requests: 0 });
 		});
 
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {

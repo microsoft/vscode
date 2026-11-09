@@ -1115,11 +1115,11 @@ suite('Issue reporter media import lifecycle', () => {
 		file.readGate = new DeferredPromise<void>();
 		pane.getWizard()!['requestAddAttachments']([file]);
 		await file.reading.p;
-		const pending = { crossGroup: typeof input.canMove(1, 2), sameGroup: input.canMove(1, 1) };
+		const pending = { crossGroup: typeof input.canMove(1, 2), sameGroup: input.canMove(1, 1), newWindow: typeof input.canMoveToNewWindow(1) };
 		await file.readGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2), files: savedFiles(input)?.length }, {
-			pending: { crossGroup: 'string', sameGroup: true }, completed: true, files: 1,
+		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2), completedNewWindow: input.canMoveToNewWindow(1), files: savedFiles(input)?.length }, {
+			pending: { crossGroup: 'string', sameGroup: true, newWindow: 'string' }, completed: true, completedNewWindow: true, files: 1,
 		});
 	});
 

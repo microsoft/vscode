@@ -12,11 +12,15 @@ import { COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH } from '../../common/computer
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { getComputerUseActivationAnswers, readComputerUseActivationCard } from '../../common/meta/computerUse.js';
 import { ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
-import { CopilotComputerUseActivation, type IComputerUseActivationChat, type ICopilotRuntimePlugin } from '../../node/copilot/copilotComputerUseActivationTool.js';
+import { CopilotComputerUseActivation, type ComputerUseActivationReport, type ComputerUseLaunchState, type IComputerUseActivationChat, type ICopilotRuntimePlugin } from '../../node/copilot/copilotComputerUseActivationTool.js';
 
 class TestActivationChat implements IComputerUseActivationChat {
 	plugins: ICopilotRuntimePlugin[] = [{ name: 'computer-use', source: 'builtin', enabled: false }];
+	/** Whether VS Code offers Computer Use in the chat. */
+	offered = true;
 	readonly requests: ChatInputRequest[] = [];
+	readonly launchStates: ComputerUseLaunchState[] = [];
+	readonly activations: ComputerUseActivationReport[] = [];
 	enableCalls = 0;
 	enableError: Error | undefined;
 	/** Leaves the plugin off after a successful enable, as a runtime that ignores it would. */
@@ -25,7 +29,10 @@ class TestActivationChat implements IComputerUseActivationChat {
 	canAsk = true;
 	private _requestWaiters: { readonly index: number; readonly deferred: DeferredPromise<ChatInputRequest> }[] = [];
 
-	async listPlugins(): Promise<readonly ICopilotRuntimePlugin[]> {
+	async listPlugins(): Promise<readonly ICopilotRuntimePlugin[] | undefined> {
+		if (!this.offered) {
+			return undefined;
+		}
 		if (this.listError) {
 			throw this.listError;
 		}
@@ -53,6 +60,14 @@ class TestActivationChat implements IComputerUseActivationChat {
 		for (const waiter of ready) {
 			waiter.deferred.complete(this.requests[waiter.index]);
 		}
+	}
+
+	reportLaunchState(state: ComputerUseLaunchState): void {
+		this.launchStates.push(state);
+	}
+
+	startActivationReport(): (report: ComputerUseActivationReport) => void {
+		return report => this.activations.push(report);
 	}
 
 	/** The `index`th request, once the activation made it. */
@@ -100,6 +115,23 @@ suite('CopilotComputerUseActivation', () => {
 			absent: [],
 			notBuiltin: [],
 			listFails: [],
+		});
+	});
+
+	test('reports the state of Computer Use as the chat launches, only while VS Code offers it', async () => {
+		const launchStates = async (configure: (chat: TestActivationChat) => void) => (await createActivation(configure)).chat.launchStates;
+		assert.deepStrictEqual({
+			off: await launchStates(() => { }),
+			on: await launchStates(chat => chat.plugins = [{ name: 'computer-use', source: 'builtin', enabled: true }]),
+			notInstalled: await launchStates(chat => chat.plugins = [{ name: 'computer-use', enabled: true }]),
+			listFails: await launchStates(chat => chat.listError = new Error('runtime gone')),
+			notOffered: await launchStates(chat => chat.offered = false),
+		}, {
+			off: ['off'],
+			on: ['on'],
+			notInstalled: ['notInstalled'],
+			listFails: ['unknown'],
+			notOffered: [],
 		});
 	});
 
@@ -234,6 +266,23 @@ suite('CopilotComputerUseActivation', () => {
 			results: ['success', 'success'],
 			cards: 1,
 			enableCalls: 1,
+		});
+	});
+
+	test('reports how each request ended once, even when calls share its card, and when turning it on throws', async () => {
+		const { chat, call, answer } = await createActivation();
+		const first = call();
+		const second = call();
+		await answer(0, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+		await Promise.all([first, second]);
+		await call();
+		const failing = await createActivation(failingChat => failingChat.enableError = new Error('repository controls enabledPlugins'));
+		const failed = failing.call();
+		await failing.answer(0, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+		await failed;
+		assert.deepStrictEqual({ reports: chat.activations, failing: failing.chat.activations }, {
+			reports: ['turnedOn', 'alreadyOn'],
+			failing: ['error'],
 		});
 	});
 

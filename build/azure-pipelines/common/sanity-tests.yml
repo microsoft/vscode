@@ -79,6 +79,11 @@ jobs:
           value: --artifacts-dir /root/artifacts
         ${{ else }}:
           value: --artifacts-dir $(ARTIFACTS_DIR)
+      # The pnpm store that the cache below restores (restore-pnpm-store.yml needs more of the
+      # repository than this job checks out). The job installs only test/sanity, so pnpm's metadata
+      # cache, which saves little here, isn't cached with it.
+      - name: PNPM_CONFIG_STORE_DIR
+        value: $(Pipeline.Workspace)/pnpm-store
       - name: SETUID_SANDBOX_GREP
         ${{ if or(eq(length(parameters.artifacts), 0), and(contains(join(',', parameters.artifacts), '_deb-package'), contains(join(',', parameters.artifacts), '_rpm-package'))) }}:
           value: desktop-linux-(deb|rpm)-
@@ -213,11 +218,13 @@ jobs:
 
       - task: Cache@2
         inputs:
-          key: '"sanity-node_modules" | "$(SANITY_NODE_VERSION)" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
-          path: $(TEST_DIR)/node_modules
-          cacheHitVar: SANITY_NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+          key: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
+          restoreKeys: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}"'
+          path: $(PNPM_CONFIG_STORE_DIR)
+          cacheHitVar: PNPM_STORE_RESTORED
+        displayName: Restore pnpm store cache
         retryCountOnTaskFailure: 2
+        continueOnError: true
 
       # Sets the registry and its authentication in the user npm configuration, as the product build
       # jobs do: `npm install -g pnpm` (also on a cache hit) doesn't read a project .npmrc, and these
@@ -231,7 +238,10 @@ jobs:
       - script: pnpm install --frozen-lockfile
         workingDirectory: $(TEST_DIR)
         displayName: Install Dependencies
-        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+
+      - template: ./prune-pnpm-store.yml@self
+        parameters:
+          os: ${{ parameters.os }}
 
       - script: pnpm run compile
         workingDirectory: $(TEST_DIR)
