@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { IRequestService } from '../../../request/common/request.js';
+import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxy } from '../../browser/agentHostClientProxy.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
 
@@ -39,6 +39,7 @@ suite('AgentHostClientProxy', () => {
 
 	function createProxy(options: IOptions) {
 		const resolvedUrls: string[] = [];
+		const authInfos: AuthInfo[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new RemoteSettingsConfigurationService({ ...options.settings, ...options.remoteSettings }, new Set(Object.keys(options.remoteSettings ?? {})));
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -48,12 +49,16 @@ suite('AgentHostClientProxy', () => {
 				return options.resolveProxy?.(url);
 			},
 			lookupKerberosAuthorization: async (url: string) => `Negotiate token:${new URL(url).hostname}`,
+			lookupAuthorization: async (authInfo: AuthInfo) => {
+				authInfos.push(authInfo);
+				return { username: 'user', password: `secret:${authInfo.host}` };
+			},
 		});
 		instantiationService.stub(IDefaultAccountService, {
 			currentDefaultAccount: options.apiEndpoint ? { entitlementsData: { endpoints: { api: options.apiEndpoint } } } : null,
 		} as Partial<IDefaultAccountService>);
 		instantiationService.stub(ILogService, options.logService ?? new NullLogService());
-		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, configurationService };
+		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, authInfos, configurationService };
 	}
 
 	async function lookUp(proxyUrls: readonly string[], options: IOptions) {
@@ -147,6 +152,52 @@ suite('AgentHostClientProxy', () => {
 			before: undefined,
 			resolved: 'PROXY pac.corp:8080; DIRECT',
 			after: 'Negotiate token:pac.corp',
+		});
+	});
+
+	test('only looks up Basic credentials for the proxies it points the agent host at', async () => {
+		async function lookUpBasic(proxyUrls: readonly string[], options: IOptions) {
+			const { proxy, authInfos } = createProxy(options);
+			const credentials: Record<string, string | undefined> = {};
+			for (const [index, proxyUrl] of proxyUrls.entries()) {
+				credentials[proxyUrl] = (await proxy.lookupBasicCredentials(proxyUrl, index ? undefined : 'Corp', index + 1))?.password;
+			}
+			return { credentials, authInfos };
+		}
+
+		const results = {
+			systemProxy: await lookUpBasic(['http://proxy.corp:8080', 'https://proxy.corp', 'http://intranet.corp:8080'], {
+				resolveProxy: () => 'PROXY proxy.corp:8080; DIRECT',
+			}),
+			configuredProxy: await lookUpBasic(['http://configured.corp', 'http://proxy.corp:8080'], {
+				settings: { 'http.proxy': 'http://user:pass@configured.corp:3128' },
+				resolveProxy: () => 'PROXY proxy.corp:8080',
+			}),
+			configuredPrincipal: await lookUpBasic(['http://other.corp:8080'], {
+				settings: { 'http.proxyKerberosServicePrincipal': 'HTTP@custom.corp@CORP.COM' },
+				resolveProxy: () => 'DIRECT',
+			}),
+			useLocalProxyConfigurationOff: await lookUpBasic(['http://proxy.corp:8080'], {
+				settings: { 'http.useLocalProxyConfiguration': false },
+				resolveProxy: () => 'PROXY proxy.corp:8080',
+			}),
+		};
+
+		assert.deepStrictEqual(results, {
+			systemProxy: {
+				credentials: { 'http://proxy.corp:8080': 'secret:proxy.corp', 'https://proxy.corp': 'secret:proxy.corp', 'http://intranet.corp:8080': undefined },
+				authInfos: [
+					{ isProxy: true, scheme: 'basic', host: 'proxy.corp', port: 8080, realm: 'Corp', attempt: 1 },
+					{ isProxy: true, scheme: 'basic', host: 'proxy.corp', port: 443, realm: '', attempt: 2 },
+				],
+			},
+			configuredProxy: {
+				credentials: { 'http://configured.corp': 'secret:configured.corp', 'http://proxy.corp:8080': undefined },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'configured.corp', port: 80, realm: 'Corp', attempt: 1 }],
+			},
+			// Unlike Kerberos tickets, a configured principal does not release Basic credentials for other proxies.
+			configuredPrincipal: { credentials: { 'http://other.corp:8080': undefined }, authInfos: [] },
+			useLocalProxyConfigurationOff: { credentials: { 'http://proxy.corp:8080': undefined }, authInfos: [] },
 		});
 	});
 

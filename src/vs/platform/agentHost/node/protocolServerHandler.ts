@@ -8,7 +8,7 @@ import { sandboxCertificateInstallationCapability, sandboxCertificateRefreshCapa
 import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod, lookupClientProxyBasicCredentialsResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
@@ -1501,6 +1501,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			lookupKerberosAuthorization: async proxyUrl => {
 				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }, 30_000);
 				return lookupClientProxyKerberosAuthorizationResultValidator.validateOrThrow(response).authorization;
+			},
+			lookupBasicCredentials: async (proxyUrl, realm, attempt) => {
+				// Long enough for the user to answer the client's proxy login dialog.
+				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl, realm, attempt }, 5 * 60_000);
+				const { username, password } = lookupClientProxyBasicCredentialsResultValidator.validateOrThrow(response);
+				return username ? { username, password: password ?? '' } : undefined;
 			},
 		}));
 		return true;

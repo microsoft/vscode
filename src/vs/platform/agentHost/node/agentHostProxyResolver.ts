@@ -58,13 +58,15 @@ function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
 /**
  * A client reached over the protocol that shares this agent host's network, such as the Windows client of an agent
  * host in WSL or a local container. Like a remote extension host with `useHostProxy`, the agent host may resolve
- * proxies through it and fall back to its Kerberos tickets.
+ * proxies through it and fall back to its Kerberos tickets and proxy credentials.
  */
 export interface IAgentHostSharedNetworkClient {
 	/** The client's raw proxy resolution for `url`, such as `PROXY proxy:8080; DIRECT`. */
 	resolveProxy(url: string): Promise<string | undefined>;
 	/** A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from the client's Kerberos tickets. */
 	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
+	/** Basic credentials for `proxyUrl`; `attempt` is 1 for the first credentials a request asks for. */
+	lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
 }
 
 /**
@@ -423,6 +425,22 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				return await connection.lookupAuthorization(authInfo);
 			} catch {
 				// This renderer could not serve the lookup; try the next one.
+			}
+		}
+		if (authInfo.scheme.toLowerCase() !== 'basic') {
+			return undefined;
+		}
+		// `@vscode/proxy-agent` passes the hostname of the proxy URL, which keeps the brackets of an IPv6 address, and
+		// port 0 for the default port.
+		const proxyUrl = `http://${authInfo.host}${authInfo.port ? `:${authInfo.port}` : ''}`;
+		for (const client of this._sharedNetworkClients.values()) {
+			try {
+				const credentials = await client.lookupBasicCredentials(proxyUrl, authInfo.realm || undefined, authInfo.attempt);
+				if (credentials) {
+					return credentials;
+				}
+			} catch {
+				// This client could not serve the lookup; try the next one.
 			}
 		}
 		return undefined;

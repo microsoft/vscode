@@ -8,7 +8,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../github/common/githubEndpoints.js';
 import { ILogService } from '../../log/common/log.js';
-import { IRequestService } from '../../request/common/request.js';
+import { Credentials, IRequestService } from '../../request/common/request.js';
 import type { IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../common/agentService.js';
@@ -19,14 +19,15 @@ const clientProxySettings = ['http.useLocalProxyConfiguration', 'http.proxy', 'h
 /**
  * Serves an agent host that shares this client's network, such as one in WSL or a local container, the way a remote
  * extension host with `useHostProxy` uses the local proxy configuration: proxies resolve through this client unless
- * `http.useLocalProxyConfiguration` is off, and the agent host can fall back to this client's Kerberos tickets.
+ * `http.useLocalProxyConfiguration` is off, and the agent host can fall back to this client's Kerberos tickets and
+ * proxy credentials.
  */
 export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	/** Hosts of the proxies this client resolved for the agent host or for GitHub Copilot. */
 	private readonly _resolvedProxyHosts = new Set<string>();
-	/** Hosts of the proxies this client declined tickets for, to log each once. */
-	private readonly _declinedProxyHosts = new Set<string>();
+	/** The lookups and hosts of the proxies this client declined, to log each once. */
+	private readonly _declinedLookups = new Set<string>();
 
 	constructor(
 		private readonly _isEnabled: () => boolean,
@@ -57,26 +58,60 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	async lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
 		if (!await this._isAgentHostProxy(proxyUrl)) {
-			const host = getUrlHost(proxyUrl) ?? 'an invalid URL';
-			if (!this._declinedProxyHosts.has(host)) {
-				this._declinedProxyHosts.add(host);
-				this._logService.info(`[AgentHostClientProxy] Declined Kerberos lookup for ${host}: not a proxy this client points the agent host at`);
-			}
+			this._logDeclined('Kerberos', proxyUrl);
 			return undefined;
 		}
 		return this._requestService.lookupKerberosAuthorization(proxyUrl);
 	}
 
 	/**
-	 * Tickets are only issued for proxies this client points the agent host at: its `http.proxy` setting, the proxies
-	 * it resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
-	 * resolved. A configured `http.proxyKerberosServicePrincipal` limits tickets to that principal instead. Both settings
-	 * are read as the native request service issuing the tickets reads them, so remote settings cannot widen access.
+	 * Unlike Kerberos tickets, Basic credentials are reusable secrets that the native lookup returns for any proxy, such
+	 * as the ones in `http.proxy`, so they only go to proxies this client points the agent host at.
+	 */
+	async lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
+		if (this._configurationService.getValue<boolean>('http.useLocalProxyConfiguration') === false) {
+			return undefined;
+		}
+		if (!await this._isResolvedProxy(proxyUrl)) {
+			this._logDeclined('Basic credentials', proxyUrl);
+			return undefined;
+		}
+		const { protocol, hostname, port } = new URL(proxyUrl);
+		return this._requestService.lookupAuthorization({
+			isProxy: true,
+			scheme: 'basic',
+			host: hostname,
+			// Like Electron, with the default port, which keys the credentials its login dialog stores.
+			port: Number(port) || (protocol === 'https:' ? 443 : 80),
+			realm: realm ?? '',
+			attempt,
+		});
+	}
+
+	private _logDeclined(lookup: string, proxyUrl: string): void {
+		const host = getUrlHost(proxyUrl) ?? 'an invalid URL';
+		const key = `${lookup} ${host}`;
+		if (!this._declinedLookups.has(key)) {
+			this._declinedLookups.add(key);
+			this._logService.info(`[AgentHostClientProxy] Declined ${lookup} lookup for ${host}: not a proxy this client points the agent host at`);
+		}
+	}
+
+	/**
+	 * Tickets are only issued for proxies this client points the agent host at (see {@link _isResolvedProxy}). A
+	 * configured `http.proxyKerberosServicePrincipal` limits tickets to that principal instead. It is read as the native
+	 * request service issuing the tickets reads it, so remote settings cannot widen access.
 	 */
 	private async _isAgentHostProxy(proxyUrl: string): Promise<boolean> {
-		if (this._getLocalValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim()) {
-			return true;
-		}
+		return !!this._getLocalValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim() || this._isResolvedProxy(proxyUrl);
+	}
+
+	/**
+	 * Whether `proxyUrl` is a proxy this client points the agent host at: its `http.proxy` setting, the proxies it
+	 * resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
+	 * resolved. `http.proxy` is read as the native request service reads it, so remote settings cannot widen access.
+	 */
+	private async _isResolvedProxy(proxyUrl: string): Promise<boolean> {
 		const host = getUrlHost(proxyUrl);
 		return !!host && (this._resolvedProxyHosts.has(host) || (await this._resolveCopilotProxyHosts()).includes(host));
 	}
