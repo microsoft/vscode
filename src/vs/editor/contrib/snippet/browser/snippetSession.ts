@@ -90,9 +90,9 @@ export class OneSnippet {
 		});
 	}
 
-	move(fwd: boolean | undefined): Selection[] {
+	move(fwd: boolean | undefined): void {
 		if (!this._editor.hasModel()) {
-			return [];
+			return;
 		}
 
 		this._initDecorations();
@@ -139,7 +139,7 @@ export class OneSnippet {
 			// not acurate any more -> simply restore it
 		}
 
-		const newSelections = model.changeDecorations(accessor => {
+		model.changeDecorations(accessor => {
 
 			const activePlaceholders = new Set<Placeholder>();
 
@@ -148,7 +148,6 @@ export class OneSnippet {
 			// tabstop.
 			// Special case #1: reaching the final tabstop
 			// Special case #2: placeholders enclosing active placeholders
-			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				const id = this._placeholderDecorations!.get(placeholder);
 				const range = id ? model.getDecorationRange(id) : null;
@@ -161,8 +160,6 @@ export class OneSnippet {
 				if (!id || !range) {
 					continue;
 				}
-				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
-
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 				activePlaceholders.add(placeholder);
 
@@ -182,11 +179,28 @@ export class OneSnippet {
 					accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive);
 				}
 			}
-
-			return selections;
 		});
 
-		return !couldSkipThisPlaceholder ? newSelections ?? [] : this.move(fwd);
+		if (couldSkipThisPlaceholder) {
+			this.move(fwd);
+		}
+	}
+
+	getSelections(): Selection[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+
+		const model = this._editor.getModel();
+		const selections: Selection[] = [];
+		for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+			const id = this._placeholderDecorations!.get(placeholder);
+			const range = id ? model.getDecorationRange(id) : null;
+			if (range) {
+				selections.push(Selection.fromRange(range, SelectionDirection.LTR));
+			}
+		}
+		return selections;
 	}
 
 	private _hasPlaceholderBeenCollapsed(placeholder: Placeholder): boolean {
@@ -781,12 +795,11 @@ export class SnippetSession {
 	}
 
 	private _move(fwd: boolean | undefined): Selection[] {
-		const selections: Selection[] = [];
 		for (const snippet of this._snippets) {
-			const oneSelection = snippet.move(fwd);
-			selections.push(...oneSelection);
+			snippet.move(fwd);
 		}
-		return selections;
+		// Read selections only after all transforms have updated their tracked ranges.
+		return this._snippets.flatMap(snippet => snippet.getSelections());
 	}
 
 	get isAtFirstPlaceholder() {
