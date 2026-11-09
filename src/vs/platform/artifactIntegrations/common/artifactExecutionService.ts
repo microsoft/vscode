@@ -670,7 +670,7 @@ export class ArtifactExecutionService extends Disposable {
 	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun, promptDetails: readonly ArtifactDetails[] | undefined): ArtifactRequestPresentation {
 		const view = binding.presentation.get();
 		const item = this.captureItem(binding, action, run);
-		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : item ? [item.details] : this.captureLinkedDetails(binding, action, view);
+		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : item ? item.details : this.captureLinkedDetails(binding, action, view);
 		return {
 			version: 1,
 			integrationLabel: binding.integrationLabel,
@@ -732,9 +732,10 @@ export class ArtifactExecutionService extends Disposable {
 
 	/**
 	 * A run an item action started for one details item, such as fixing one of several reported issues, is presented
-	 * as that item action on that item alone, rather than as the artifact action on every item it could apply to.
+	 * as that item action on that item alone, rather than as the artifact action on every item it could apply to. When
+	 * the details no longer list the item, the request names the item action without any details.
 	 */
-	private captureItem(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): { readonly action: ArtifactRequestPresentation['action']; readonly details: ArtifactDetails } | undefined {
+	private captureItem(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): { readonly action: ArtifactRequestPresentation['action']; readonly details: readonly ArtifactDetails[] } | undefined {
 		const input = run.input;
 		if (!isArtifactItemActionInput(input)) {
 			return undefined;
@@ -743,15 +744,22 @@ export class ArtifactExecutionService extends Disposable {
 			const model = binding.provider.acquireDetails(input.detailsId);
 			try {
 				const snapshot = model.details.get();
-				const item = isArtifactDetails(snapshot) ? snapshot.items.find(candidate => candidate.id === input.itemId) : undefined;
-				const itemAction = item && snapshot.itemActions?.find(candidate => candidate.actionId === action.id && item.actions?.includes(candidate.id));
-				if (!item || !itemAction) {
+				if (!isArtifactDetails(snapshot)) {
 					return undefined;
+				}
+				const item = snapshot.items.find(candidate => candidate.id === input.itemId);
+				const itemAction = snapshot.itemActions?.find(candidate => candidate.actionId === action.id && (!item || item.actions?.includes(candidate.id)));
+				if (!itemAction) {
+					return undefined;
+				}
+				const presentedAction = { label: itemAction.label, iconId: itemAction.iconId };
+				if (!item) {
+					return { action: presentedAction, details: [] };
 				}
 				const { actions: _, ...presented } = item;
 				return {
-					action: { label: itemAction.label, iconId: itemAction.iconId },
-					details: deepClone({ title: snapshot.title, availability: snapshot.availability, links: [], items: [presented], completeness: 'complete' }),
+					action: presentedAction,
+					details: [deepClone({ title: snapshot.title, availability: snapshot.availability, links: [], items: [presented], completeness: 'complete' })],
 				};
 			} finally {
 				model.dispose();

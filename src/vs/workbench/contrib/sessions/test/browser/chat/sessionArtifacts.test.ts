@@ -1094,7 +1094,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('lists references in the references pill whatever their group ID, leaving out those an artifact with a pill of its own stands in for', async () => {
+	test('lists references in the references pill whatever their group ID, even when an artifact with a pill of its own presents the same resource', async () => {
 		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
 		const snapshots: Record<string, ArtifactSnapshot> = {
 			experiment: integratedSnapshot('experiment', 'experiments', { resourceKey: 'experiment' }),
@@ -1115,7 +1115,8 @@ suite('Session Artifacts', () => {
 			integrated: ['experiment'],
 			ownPills: ['experiment'],
 			artifacts: [],
-			references: ['scorecard', 'commit'],
+			// References bound to the same resource as each other show once.
+			references: ['experimentLink', 'scorecard', 'commit'],
 		});
 	});
 

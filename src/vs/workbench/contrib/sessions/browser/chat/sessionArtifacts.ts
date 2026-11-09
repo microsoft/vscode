@@ -836,17 +836,18 @@ export class SessionArtifacts extends Disposable {
 			});
 		});
 
-		// Integrated records listed in the pills for their kind show once per resource, like those in pills of their own,
-		// and a reference to the resource of an artifact with a pill of its own is represented by that artifact.
+		// Integrated records listed in the pills for their kind show once per resource, like those in pills of their own.
+		// An artifact with a pill of its own never stands in for them: the pill's filters can hide it, and its pins are
+		// kept apart, so a reference to its resource stays listed with the other references.
 		const hiddenAliases = derived(this, reader => {
 			const integrated = presentations.read(reader);
 			const candidates = chatArtifacts.read(reader).flatMap(artifact => {
 				const snapshot = integrated.get(artifact.id)?.snapshot.read(reader);
-				return snapshot && snapshot.contributions.length > 0
+				return snapshot && snapshot.contributions.length > 0 && !this.hasOwnPill(artifact.id, reader)
 					? [{ id: artifact.id, isArtifact: artifact.isArtifact, ...getArtifactIntegrationAliasCandidate(snapshot) }] : [];
 			});
 			const kept = new Set(collapseArtifactIntegrationAliases(candidates).map(candidate => candidate.id));
-			return new Set(candidates.filter(candidate => !kept.has(candidate.id) && !this.hasOwnPill(candidate.id, reader)).map(candidate => candidate.id));
+			return new Set(candidates.filter(candidate => !kept.has(candidate.id)).map(candidate => candidate.id));
 		});
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
