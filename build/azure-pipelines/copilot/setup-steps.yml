@@ -63,9 +63,10 @@ steps:
     displayName: Install build dependencies
     retryCountOnTaskFailure: 3
 
-  # Only the dependencies of the root project, without the root install scripts that install every
-  # other install root. extensions/copilot is a separate install root.
-  - script: pnpm install --frozen-lockfile --ignore-scripts --filter .
+  # Only the dependencies of the root project, and of the local ESLint rules that Copilot's lint loads
+  # through the root ESLint configuration, without the root install scripts that install every other
+  # install root. extensions/copilot is a separate install root.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
     retryCountOnTaskFailure: 3

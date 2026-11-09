@@ -468,11 +468,12 @@ jobs:
           key-prefix: pnpm-store-copilot-linux
           lookup-only: 'true'
 
-      # Only the dependencies of the root project, without the root install scripts that install
+      # Only the dependencies of the root project, and of the local ESLint rules that Copilot's lint
+      # loads through the root ESLint configuration, without the root install scripts that install
       # every other install root. extensions/copilot is a separate install root.
       - name: Install root dependencies
         if: steps.pnpm-store.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
         if: steps.pnpm-store.outputs.cache-hit != 'true'
@@ -507,11 +508,12 @@ jobs:
           key-prefix: pnpm-store-copilot-windows
           lookup-only: 'true'
 
-      # Only the dependencies of the root project, without the root install scripts that install
+      # Only the dependencies of the root project, and of the local ESLint rules that Copilot's lint
+      # loads through the root ESLint configuration, without the root install scripts that install
       # every other install root. extensions/copilot is a separate install root.
       - name: Install root dependencies
         if: steps.pnpm-store.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
         if: steps.pnpm-store.outputs.cache-hit != 'true'
