@@ -60,6 +60,10 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 				}
 
 				documentUpdateQueue.queue(getComparisonKey(uri), async () => {
+					if (!this._documentContentProviders.has(handle)) {
+						return;
+					}
+
 					const value = await this.$provideTextDocumentContent(handle, uri);
 					if (!value && typeof value !== 'string') {
 						return;

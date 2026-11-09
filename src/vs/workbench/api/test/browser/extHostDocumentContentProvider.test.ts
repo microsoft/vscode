@@ -235,4 +235,55 @@ suite('ExtHostDocumentContentProvider', () => {
 			assert.strictEqual(calls, 0);
 		});
 	});
+
+	test('ignores refreshes queued immediately before provider disposal', async () => {
+		await runWithFakedTimers({}, async () => {
+			const emitter = disposables.add(new Emitter<URI>());
+			let calls = 0;
+			const registration = disposables.add(documentContentProvider.registerTextDocumentContentProvider(resource.scheme, {
+				onDidChange: emitter.event,
+				provideTextDocumentContent() {
+					calls++;
+					return 'updated';
+				}
+			}));
+
+			emitter.fire(resource);
+			registration.dispose();
+			await timeout(100);
+
+			assert.deepStrictEqual({ calls, changes }, { calls: 0, changes: [] });
+		});
+	});
+
+	for (const queueAnotherRefresh of [false, true]) {
+		test(`finishes an in-flight refresh after provider disposal${queueAnotherRefresh ? ' without starting queued refreshes' : ''}`, async () => {
+			await runWithFakedTimers({}, async () => {
+				const emitter = disposables.add(new Emitter<URI>());
+				const content = new DeferredPromise<string>();
+				let calls = 0;
+				const registration = disposables.add(documentContentProvider.registerTextDocumentContentProvider(resource.scheme, {
+					onDidChange: emitter.event,
+					provideTextDocumentContent() {
+						calls++;
+						return content.p;
+					}
+				}));
+
+				try {
+					emitter.fire(resource);
+					await timeout(0);
+					if (queueAnotherRefresh) {
+						emitter.fire(resource);
+					}
+					registration.dispose();
+				} finally {
+					await content.complete('updated');
+					await timeout(100);
+				}
+
+				assert.deepStrictEqual({ calls, changes: changes.map(([, value]) => value) }, { calls: 1, changes: ['updated'] });
+			});
+		});
+	}
 });
