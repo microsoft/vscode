@@ -801,6 +801,31 @@ suite('ConfigurationModel', () => {
 		assert.strictEqual(merged.override('typescript').getValue('editor.tabSize'), 4);
 	});
 
+	test('Bug #168411: object members of single-language user setting are preserved when workspace multi-language setting is an array overridden by workspace single-language object', () => {
+		const userConfig = new ConfigurationModel(
+			{},
+			[],
+			[{ identifiers: ['javascript'], contents: { 'editor': { 'codeActionsOnSave': { 'source.fixAll': 'explicit' } } }, keys: ['editor.codeActionsOnSave'] }],
+			undefined,
+			new NullLogService()
+		);
+		const workspaceConfig = new ConfigurationModel(
+			{},
+			[],
+			[
+				{ identifiers: ['javascript', 'typescript'], contents: { 'editor': { 'codeActionsOnSave': [] } }, keys: ['editor.codeActionsOnSave'] },
+				{ identifiers: ['javascript'], contents: { 'editor': { 'codeActionsOnSave': { 'source.organizeImports': 'explicit' } } }, keys: ['editor.codeActionsOnSave'] },
+			],
+			undefined,
+			new NullLogService()
+		);
+
+		const merged = userConfig.merge(workspaceConfig);
+
+		assert.deepStrictEqual(merged.override('javascript').getValue('editor.codeActionsOnSave'), { 'source.fixAll': 'explicit', 'source.organizeImports': 'explicit' });
+		assert.deepStrictEqual(merged.override('typescript').getValue('editor.codeActionsOnSave'), []);
+	});
+
 });
 
 suite('CustomConfigurationModel', () => {
