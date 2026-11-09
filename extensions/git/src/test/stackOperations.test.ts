@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, extensions, LogOutputChannel, Uri, window } from 'vscode';
+import { commands, ConfigurationTarget, extensions, LogOutputChannel, Uri, window, workspace } from 'vscode';
 import type { API, GitExtension, Repository } from '../api/git';
 import { ForcePushMode, GitErrorCodes, RefType } from '../api/git.constants';
 import { findGit, Git, GitError, Repository as GitRepository } from '../git';
@@ -305,6 +305,136 @@ suite('git stack operations', () => {
 				await closeRepository(temporaryRepository);
 				await repository.deleteWorktree(worktreePath, { force: true });
 			}
+		});
+
+		suite('worktree change migration', () => {
+			let worktreePath: string;
+			let worktreeRepository: Repository | null;
+
+			setup(async () => {
+				worktreePath = path.join(directory, 'migration-worktree');
+				worktreeRepository = null;
+				await repository.createWorktree({ path: worktreePath, branch: 'migration-source' });
+				worktreeRepository = await api.openRepository(Uri.file(worktreePath));
+				assert.ok(worktreeRepository);
+			});
+
+			teardown(async () => {
+				await closeRepository(worktreeRepository);
+				await repository.deleteWorktree(worktreePath, { force: true });
+			});
+
+			async function state() {
+				return {
+					sourceContent: await fs.promises.readFile(path.join(worktreePath, 'tracked.txt'), 'utf8'),
+					sourceIndex: (await git.exec(worktreePath, ['show', ':tracked.txt'])).stdout,
+					sourceStatus: (await git.exec(worktreePath, ['status', '--porcelain=v1', '-z'])).stdout,
+					targetContent: await fs.promises.readFile(path.join(root, 'tracked.txt'), 'utf8'),
+					targetIndex: (await git.exec(root, ['show', ':tracked.txt'])).stdout,
+					targetStatus: (await git.exec(root, ['status', '--porcelain=v1', '-z'])).stdout,
+					stashes: (await git.exec(root, ['stash', 'list', '--format=%H:%gs', '-z'])).stdout
+				};
+			}
+
+			for (const untrackedChanges of ['mixed', 'separate'] as const) {
+				for (const deleteFromSource of [false, true]) {
+					test(`preserves existing stashes when only excluded untracked changes remain (${untrackedChanges}, ${deleteFromSource ? 'move' : 'copy'})`, async () => {
+						assert.ok(worktreeRepository);
+						const config = workspace.getConfiguration('git');
+						const previous = config.inspect<string>('untrackedChanges')?.globalValue;
+
+						try {
+							await config.update('untrackedChanges', untrackedChanges, ConfigurationTarget.Global);
+							await fs.promises.writeFile(path.join(worktreePath, 'tracked.txt'), 'unrelated staged changes\n');
+							await worktreeRepository.add([path.join(worktreePath, 'tracked.txt')]);
+							await worktreeRepository.createStash({ message: 'unrelated stash' });
+							await fs.promises.writeFile(path.join(worktreePath, 'untracked.txt'), 'leave in source\n');
+							await worktreeRepository.status();
+							await repository.status();
+							const before = await state();
+
+							const migration = repository.migrateChanges(worktreePath, { deleteFromSource });
+							await commands.executeCommand('notifications.clearAll');
+							await migration;
+
+							assert.deepStrictEqual(await state(), before);
+						} finally {
+							await config.update('untrackedChanges', previous, ConfigurationTarget.Global);
+							await worktreeRepository.status();
+							await repository.status();
+						}
+					});
+				}
+			}
+
+			test('does nothing when excluded untracked changes remain without an existing stash', async () => {
+				assert.ok(worktreeRepository);
+				await fs.promises.writeFile(path.join(worktreePath, 'untracked.txt'), 'leave in source\n');
+				await worktreeRepository.status();
+				const before = await state();
+
+				const migration = repository.migrateChanges(worktreePath);
+				await commands.executeCommand('notifications.clearAll');
+				await migration;
+
+				assert.deepStrictEqual(await state(), before);
+			});
+
+			test('moves untracked changes when requested', async () => {
+				assert.ok(worktreeRepository);
+				await fs.promises.writeFile(path.join(worktreePath, 'untracked.txt'), 'move to target\n');
+				await worktreeRepository.status();
+
+				await repository.migrateChanges(worktreePath, { deleteFromSource: true, untracked: true });
+
+				assert.deepStrictEqual({
+					sourceExists: fs.existsSync(path.join(worktreePath, 'untracked.txt')),
+					targetContent: await fs.promises.readFile(path.join(root, 'untracked.txt'), 'utf8'),
+					stashes: (await git.exec(root, ['stash', 'list'])).stdout
+				}, { sourceExists: false, targetContent: 'move to target\n', stashes: '' });
+			});
+
+			test('moves tracked changes without including untracked changes', async () => {
+				assert.ok(worktreeRepository);
+				await fs.promises.writeFile(path.join(worktreePath, 'tracked.txt'), 'move to target\n');
+				await fs.promises.writeFile(path.join(worktreePath, 'untracked.txt'), 'leave in source\n');
+				await worktreeRepository.status();
+
+				await repository.migrateChanges(worktreePath, { deleteFromSource: true });
+
+				assert.deepStrictEqual({
+					sourceContent: await fs.promises.readFile(path.join(worktreePath, 'tracked.txt'), 'utf8'),
+					sourceUntracked: await fs.promises.readFile(path.join(worktreePath, 'untracked.txt'), 'utf8'),
+					targetContent: await fs.promises.readFile(path.join(root, 'tracked.txt'), 'utf8'),
+					targetUntrackedExists: fs.existsSync(path.join(root, 'untracked.txt')),
+					stashes: (await git.exec(root, ['stash', 'list'])).stdout
+				}, {
+					sourceContent: 'base\n',
+					sourceUntracked: 'leave in source\n',
+					targetContent: 'move to target\n',
+					targetUntrackedExists: false,
+					stashes: ''
+				});
+			});
+
+			test('copies staged changes and restores the source index', async () => {
+				assert.ok(worktreeRepository);
+				await fs.promises.writeFile(path.join(worktreePath, 'tracked.txt'), 'copy to target\n');
+				await worktreeRepository.add([path.join(worktreePath, 'tracked.txt')]);
+				await worktreeRepository.status();
+
+				await repository.migrateChanges(worktreePath);
+
+				assert.deepStrictEqual(await state(), {
+					sourceContent: 'copy to target\n',
+					sourceIndex: 'copy to target\n',
+					sourceStatus: 'M  tracked.txt\x00',
+					targetContent: 'copy to target\n',
+					targetIndex: 'base\n',
+					targetStatus: ' M tracked.txt\x00',
+					stashes: ''
+				});
+			});
 		});
 
 		test('updates a branch by CAS, reads remote tips and rejects a stale push lease', async () => {
