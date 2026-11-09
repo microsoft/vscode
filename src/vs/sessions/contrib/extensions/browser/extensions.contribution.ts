@@ -9,7 +9,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -17,6 +17,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
 import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
@@ -56,6 +57,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
 			experiment: { mode: 'startup' },
 		},
+		[EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS]: {
+			type: 'object',
+			patternProperties: {
+				[EXTENSION_IDENTIFIER_PATTERN]: { type: 'boolean' },
+			},
+			additionalProperties: false,
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnableExtensions', "Controls, for each extension identifier, such as `publisher.name`, whether an installed extension that hasn't declared support for the Agents window is enabled there automatically. Set an extension to `true` to enable it, even if it relies on features that are unavailable in the Agents window, or to `false` to never enable it automatically. Other extensions follow `#{0}#`. You can still enable or disable extensions from the Extensions section of Agent Customizations. Requires `#{1}#`.", EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			tags: ['experimental'],
+			// Each extension's value is assigned by its own treatment, so that each extension can be tested in its own
+			// experiment. Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
+			experiment: { mode: 'startup', keyed: true },
+		},
 		[AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -67,6 +82,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensionSuggestionsService, InstantiationType.Delayed);
+// Requests the experiment values of extensions as early as possible, so that extensions start with their experiment value.
+registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementExperiment.ID, AgentsWindowExtensionAutoEnablementExperiment, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementTelemetry.ID, AgentsWindowExtensionAutoEnablementTelemetry, WorkbenchPhase.AfterRestored);
 
 // Like Go Back, which returns to the previous editor from the Extensions editor in editor windows, with its keybindings. The
