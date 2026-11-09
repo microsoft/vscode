@@ -1522,33 +1522,8 @@ extends:
                     - vscode_client_linux_armhf_deb-package
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
-
-        # Installs the dependencies of the node_modules stage's jobs from a cached pnpm store, to
-        # compare the two caches. No other job uses the pnpm store cache yet.
+        # Installs the dependencies of the platforms that CI builds don't build, so that the product
+        # builds find their pnpm store in the pipeline cache (see common/restore-pnpm-store.yml).
         - stage: pnpm_store
           displayName: pnpm store
           dependsOn: []

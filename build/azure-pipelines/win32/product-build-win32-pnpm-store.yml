@@ -5,8 +5,9 @@ parameters:
     type: string
     default: 1es-windows-2022-x64
 
-# The dependency installation of product-build-win32-node-modules.yml, with the pnpm store restored
-# from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
+# Installs the dependencies of a platform that CI builds don't build (see the pnpm_store stage of
+# product-build.yml), so that product builds find its pnpm store in the pipeline cache (see
+# common/restore-pnpm-store.yml).
 jobs:
   - job: WindowsNodeModules_${{ parameters.VSCODE_ARCH }}
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
@@ -16,8 +17,6 @@ jobs:
     timeoutInMinutes: 60
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      PNPM_CONFIG_STORE_DIR: $(Pipeline.Workspace)/pnpm-store
-      PNPM_CONFIG_CACHE_DIR: $(Pipeline.Workspace)/pnpm-store/cache
     steps:
       - template: ../common/checkout.yml@self
 
@@ -70,14 +69,6 @@ jobs:
         retryCountOnTaskFailure: 5
         displayName: Install dependencies
 
-      # Removes the packages that the installed projects don't use from the store before the cache saves it,
-      # and the store's links to those projects (in `projects`), which the cache would follow when it
-      # archives the store: the next install adds its own.
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { pnpm store prune }
-          $StorePath = (pnpm store path)
-          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
-        condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'))
-        displayName: Prune pnpm store
+      - template: ../common/prune-pnpm-store.yml@self
+        parameters:
+          os: windows

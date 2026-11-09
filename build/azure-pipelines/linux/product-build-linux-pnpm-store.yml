@@ -4,8 +4,9 @@ parameters:
   - name: VSCODE_ARCH
     type: string
 
-# The dependency installation of product-build-linux-node-modules.yml, with the pnpm store restored
-# from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
+# Installs the dependencies of a platform that CI builds don't build (see the pnpm_store stage of
+# product-build.yml), so that product builds find its pnpm store in the pipeline cache (see
+# common/restore-pnpm-store.yml).
 jobs:
   - job: LinuxNodeModules_${{ parameters.VSCODE_ARCH }}
     displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
@@ -16,8 +17,6 @@ jobs:
     variables:
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      PNPM_CONFIG_STORE_DIR: $(Pipeline.Workspace)/pnpm-store
-      PNPM_CONFIG_CACHE_DIR: $(Pipeline.Workspace)/pnpm-store/cache
     steps:
       - template: ../common/checkout.yml@self
 
@@ -120,11 +119,6 @@ jobs:
           FOUNDRY_LOCAL_SKIP_INSTALL: "1"
         displayName: Install dependencies
 
-      # Removes the packages that the installed projects don't use from the store before the cache saves it,
-      # and the store's links to those projects (in `projects`): the next install adds its own.
-      - script: |
-          set -e
-          pnpm store prune
-          rm -rf "$(pnpm store path)/projects"
-        condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'))
-        displayName: Prune pnpm store
+      - template: ../common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux

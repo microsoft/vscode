@@ -977,30 +977,33 @@ stages:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
+        # Installs the dependencies of the platforms that CI builds don't build, so that the product
+        # builds find their pnpm store in the pipeline cache (see common/restore-pnpm-store.yml).
+        - stage: pnpm_store
+          displayName: pnpm store
           dependsOn: []
           jobs:
-            - template: win32/product-build-win32-node-modules.yml@self
+            - template: win32/product-build-win32-pnpm-store.yml@self
               parameters:
                 VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
+            - template: linux/product-build-linux-pnpm-store.yml@self
               parameters:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
+            - template: linux/product-build-linux-pnpm-store.yml@self
               parameters:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf
-            - template: alpine/product-build-alpine-node-modules.yml@self
+            - template: alpine/product-build-alpine-pnpm-store.yml@self
               parameters:
                 VSCODE_ARCH: x64
-            - template: alpine/product-build-alpine-node-modules.yml@self
+            - template: alpine/product-build-alpine-pnpm-store.yml@self
               parameters:
                 VSCODE_ARCH: arm64
-            - template: darwin/product-build-darwin-node-modules.yml@self
+            - template: darwin/product-build-darwin-pnpm-store.yml@self
               parameters:
                 VSCODE_ARCH: x64
-            - template: web/product-build-web-node-modules.yml@self
+            - template: web/product-build-web-pnpm-store.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
         - stage: APIScan
