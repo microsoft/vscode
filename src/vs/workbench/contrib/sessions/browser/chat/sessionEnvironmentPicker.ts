@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -227,7 +228,8 @@ export class SessionEnvironmentPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
-			hover: environment.kind === 'local' ? { content: localize('environmentPicker.localHover', "Run this session directly on this computer") } : undefined,
+			hover: { content: this.getEnvironmentHover(environment, escapeMarkdownSyntaxTokens(environment.label)) },
+			ariaDescription: this.getEnvironmentHover(environment, environment.label),
 			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
@@ -238,10 +240,13 @@ export class SessionEnvironmentPicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const action of actions) {
 				if (action instanceof MenuItemAction) {
+					const tooltip = action.tooltip;
 					items.push({
 						kind: ActionListItemKind.Action,
 						label: action.label,
 						disabled: !action.enabled,
+						hover: tooltip ? { content: escapeMarkdownSyntaxTokens(tooltip) } : undefined,
+						ariaDescription: tooltip || undefined,
 						group: { title: '', icon: ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : undefined },
 						item: { run: async () => { await action.run(); } },
 					});
@@ -251,11 +256,14 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
+				const manageHover = localize('environmentPicker.manageHover', "Add, connect, and manage remote environments");
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
 						kind: ActionListItemKind.Action,
 						label: localize('environmentPicker.manage', "Manage Remote Environments..."),
+						hover: { content: manageHover },
+						ariaDescription: manageHover,
 						group: { title: '', icon: Codicon.settingsGear },
 						item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
 					},
@@ -275,30 +283,58 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			},
 		}, trigger, undefined, [], {
-			getAriaLabel: item => typeof item.description === 'string' && item.description
-				? localize('environmentPicker.item', "{0}, {1}", item.label ?? '', item.description) : item.label ?? '',
+			getAriaLabel: item => [item.description, item.ariaDescription].reduce<string>((label, part) => typeof part === 'string' && part
+				? localize('environmentPicker.item', "{0}, {1}", label, part) : label, item.label ?? ''),
 			getWidgetAriaLabel: () => localize('environmentPicker.title', "Environment"),
 		}, { className: 'sessions-new-chat-picker-list', minWidth: 240, hideDefaultKeybindingTooltip: true });
 	}
 
+	private getEnvironmentHover(environment: ISessionCreationEnvironment, label: string): string {
+		switch (environment.kind) {
+			case 'local':
+				return localize('environmentPicker.localHover', "Run this session directly on this computer");
+			case 'cloud':
+				return localize('environmentPicker.cloudHover', "Run this session in the cloud on GitHub");
+			case 'container':
+				return localize('environmentPicker.containerHover', "Run this session in a dev container for the selected folder");
+			case 'remote':
+				switch (this.getConnectionKind(environment)) {
+					case 'githubEnvironment':
+						return localize('environmentPicker.githubEnvironmentHover', "Run this session on {0}, shared through GitHub Environments", label);
+					case RemoteAgentHostEntryType.SSH:
+						return localize('environmentPicker.sshHover', "Run this session on {0} over SSH", label);
+					case RemoteAgentHostEntryType.Tunnel:
+						return localize('environmentPicker.tunnelHover', "Run this session on {0} through a dev tunnel", label);
+					case RemoteAgentHostEntryType.WSL:
+						return localize('environmentPicker.wslHover', "Run this session on {0} in WSL", label);
+					default:
+						return localize('environmentPicker.remoteHover', "Run this session on {0}", label);
+				}
+		}
+	}
+
 	private isManagedInRemotes(environment: ISessionCreationEnvironment): boolean {
+		const kind = this.getConnectionKind(environment);
+		return kind === RemoteAgentHostEntryType.WSL ? isWindows : !!kind;
+	}
+
+	private getConnectionKind(environment: ISessionCreationEnvironment): 'githubEnvironment' | RemoteAgentHostEntryType.SSH | RemoteAgentHostEntryType.Tunnel | RemoteAgentHostEntryType.WSL | undefined {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
-			return false;
+			return undefined;
 		}
 		if (this.environmentService.enabled && this.environmentService.accountKey
 			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
-			return true;
+			return 'githubEnvironment';
 		}
 		const connection = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
 		switch (connection?.type) {
 			case RemoteAgentHostEntryType.SSH:
 			case RemoteAgentHostEntryType.Tunnel:
-				return true;
 			case RemoteAgentHostEntryType.WSL:
-				return isWindows;
+				return connection.type;
 			default:
-				return false;
+				return undefined;
 		}
 	}
 }

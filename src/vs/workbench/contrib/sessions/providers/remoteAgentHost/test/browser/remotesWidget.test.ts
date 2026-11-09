@@ -1317,18 +1317,30 @@ suite('RemotesWidget', () => {
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 		];
+		const status = () => {
+			const state = parent.querySelector('[data-remote-id] .remotes-connection-state');
+			const icon = [...state?.querySelector('.remotes-connection-icon')?.classList ?? []].filter(name => name.startsWith('codicon-')).join(' ');
+			return `${state?.textContent} (${icon})`;
+		};
 		const observed = states.map(remote => {
 			model.remotes.set([remote], undefined);
-			return parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent;
+			return status();
 		});
 		model.remotes.set([{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, offline.id).click();
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
+		observed.push(status());
 		await model.pendingConnection.complete();
 		await timeout(0);
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Host offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Host offline']);
+		observed.push(status());
+		assert.deepStrictEqual(observed, [
+			'Host offline (codicon-circle-slash)',
+			'Connected (codicon-plug)',
+			'Connecting (codicon-loading codicon-modifier-spin)',
+			'Disconnected (codicon-debug-disconnect)',
+			'Disconnecting (codicon-loading codicon-modifier-spin)',
+			'Host offline (codicon-circle-slash)',
+		]);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {
