@@ -289,13 +289,18 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.assertTerminalGroups([[{}, { name }]]);
 		});
 
-		it('should create a split terminal when single tab is alt clicked', async () => {
-			await terminal.createTerminal();
-			const page = await terminal.getPage();
-			page.keyboard.down('Alt');
-			await terminal.clickSingleTab();
-			page.keyboard.up('Alt');
-			await terminal.assertTerminalGroups([[{}, {}]]);
+		it('should create a split terminal when single tab is alt clicked', async function () {
+			const app = this.app as Application;
+			// Keep the single-tab action visible instead of testing its overflow-menu fallback.
+			const previousWindowSize = await app.code.driver.resizeWindow({ width: 1440, height: 720 });
+			try {
+				await terminal.createTerminal();
+				const page = await terminal.getPage();
+				await page.locator('.single-terminal-tab').click({ modifiers: ['Alt'] });
+				await terminal.assertTerminalGroups([[{}, {}]]);
+			} finally {
+				await app.code.driver.resizeWindow(previousWindowSize);
+			}
 		});
 
 		it('should do nothing when join tabs is run with only one terminal', async () => {

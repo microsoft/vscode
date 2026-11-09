@@ -14,6 +14,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
@@ -216,8 +217,8 @@ export function getChatInputEditorMetrics(options: IChatInputPartOptions['inputE
 }
 
 export function getToolbarPickerResponsiveItems(
-	toolbar: MenuWorkbenchToolBar,
-	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
+	toolbar: ToolBar,
+	compactStates: Map<string, ISettableObservable<boolean>>,
 	minimalStates?: ReadonlyMap<string, ISettableObservable<boolean>>,
 	excludedActionId?: string,
 ): IChatInputPickerResponsiveLayoutItem[] {
@@ -225,13 +226,18 @@ export function getToolbarPickerResponsiveItems(
 	const visibleActionIds = new Set<string>();
 
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
-		const action = toolbar.getItemAction(index);
-		const state = action && compactStates.get(action.id);
+		const renderedAction = toolbar.getItemAction(index);
+		const action = renderedAction && toolbar.getOriginalAction(renderedAction);
+		let state = action && compactStates.get(action.id);
 		const minimalState = action && minimalStates?.get(action.id);
 		const viewItem = toolbar.getItemViewItem(index);
 		const viewItemState = isChatInputPickerResponsiveState(viewItem) ? viewItem : undefined;
 		if (!action || action.id === excludedActionId || (!state && !viewItemState)) {
 			continue;
+		}
+		if (!state && viewItemState) {
+			state = observableValue(toolbar, viewItemState.isCompact());
+			compactStates.set(action.id, state);
 		}
 		visibleActionIds.add(action.id);
 		const element = toolbar.getItemElement(index);
@@ -250,7 +256,7 @@ export function getToolbarPickerResponsiveItems(
 	}
 
 	for (const [actionId, state] of compactStates) {
-		if (actionId !== excludedActionId && !visibleActionIds.has(actionId)) {
+		if (actionId !== excludedActionId && toolbar.hasPrimaryAction(actionId) && !visibleActionIds.has(actionId)) {
 			const minimalState = minimalStates?.get(actionId);
 			items.push({
 				element: undefined,
@@ -4246,6 +4252,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 
 		const shorterChatInputActionIds = new Set<string>([
+			CHAT_ATTACH_CONTEXT_ACTION_ID,
 			OpenModePickerAction.ID,
 			ConfigureToolsAction.ID,
 		]);

@@ -152,6 +152,36 @@ suite('ToolBar', () => {
 		});
 	});
 
+	test('keeps wrapped last actions shrinkable with an existing responsive configuration', () => {
+		const attach = store.add(new Action('attach', 'Attach'));
+		const model = store.add(new Action('model', 'Model'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => new FixedWidthActionViewItem(
+				action === model ? store.add(new Action(action.id, action.label)) : action,
+				22
+			),
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 2,
+				actionMinWidth: 48,
+				getActionMinWidth: action => action === model ? 22 : undefined,
+				reserveMinWidth: false,
+			}
+		}));
+		container.style.width = '56px';
+		toolbar.setActions([attach, model]);
+
+		assert.deepStrictEqual({
+			primary: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id),
+			shrinkable: Array.from({ length: toolbar.getItemsLength() }, (_, index) => index)
+				.filter(index => toolbar.getItemElement(index)?.classList.contains('toolbar-shrinkable-item'))
+				.map(index => toolbar.getItemAction(index)?.id),
+			minimumWidth: toolbar.getElement().style.getPropertyValue('--vscode-toolbar-action-min-width'),
+			overflow: toolbar.hasOverflow()
+		}, { primary: ['attach', 'model'], shrinkable: ['model'], minimumWidth: '22px', overflow: false });
+	});
+
 	test('does not enable responsive overflow when explicitly disabled', () => {
 		const custom = store.add(new Action('custom', 'Custom'));
 		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
