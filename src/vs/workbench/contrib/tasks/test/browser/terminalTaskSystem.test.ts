@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
@@ -278,6 +280,54 @@ suite('TerminalTaskSystem process executable', () => {
 		await assertRejectsWithMessage(result.promise.finally(() => timeout(100)), /^The command for process task 'Compile application' resolved to an empty string\.$/);
 		assert.deepStrictEqual(fixture.endedTasks, ['Prepare dependencies', 'Compile application', 'Build application']);
 	}));
+
+	for (const isBackground of [false, true]) {
+		for (const resolverRejects of [false, true]) {
+			test(`observes an early parallel ${isBackground ? 'background' : 'foreground'} rejection while a later dependency ${resolverRejects ? 'fails to resolve' : 'resolves'}`, async () => {
+				const fixture = createSystem(new Map([['input:tool', '']]), {
+					configurationProperties: isBackground ? { isBackground: true, problemMatchers: [backgroundMatcher] } : undefined
+				});
+				const failingTask = fixture.createTask('${input:tool}', undefined, undefined, 'Failing dependency');
+				const laterTask = new InMemoryTask('later', { kind: 'inMemory', label: 'test' }, 'Later dependency', 'composite', RunOptions.defaults, {});
+				const parent = new InMemoryTask('parent', { kind: 'inMemory', label: 'test' }, 'parent', 'composite', RunOptions.defaults, {
+					dependsOrder: DependsOrder.parallel,
+					dependsOn: [failingTask, laterTask].map(task => ({ uri: workspaceFolder.uri, task: task._label }))
+				});
+				const laterResolution = new DeferredPromise<InMemoryTask>();
+				const initialListeners = fixture.taskListeners;
+				const failingTaskEnded = Event.toPromise(Event.filter(fixture.system.onDidStateChange, event => event.kind === TaskEventKind.End && event.__task === failingTask), store);
+				const unhandledRejections: string[] = [];
+				store.add(addDisposableListener(mainWindow, 'unhandledrejection', event => unhandledRejections.push(String(event.reason))));
+				const result = fixture.system.run(parent, {
+					resolve: async (_folder, identifier) => identifier === failingTask._label ? failingTask : laterResolution.p
+				});
+				const rejection = assertRejectsWithMessage(result.promise, resolverRejects
+					? /^Later dependency resolution failed$/
+					: /^The command for process task 'Failing dependency' resolved to an empty string\.$/);
+
+				await failingTaskEnded;
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.setTimeout(resolve, 0)));
+				if (resolverRejects) {
+					await laterResolution.error(new Error('Later dependency resolution failed'));
+				} else {
+					await laterResolution.complete(laterTask);
+				}
+				await rejection;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					unhandledRejections,
+					endedTasks: fixture.endedTasks,
+					activeTasks: fixture.lifecycle.activeTasks,
+					extraListeners: fixture.taskListeners - initialListeners,
+					terminalCreated: fixture.state.terminalCreated
+				}, {
+					unhandledRejections: [], endedTasks: ['Failing dependency', 'parent'],
+					activeTasks: 0, extraListeners: 0, terminalCreated: false
+				});
+			});
+		}
+	}
 
 	test('resolves command, cwd and mixed-case PATH before executable lookup', async () => {
 		const { execute, lookupCalls } = createSystem(new Map([

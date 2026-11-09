@@ -564,6 +564,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						}
 						encounteredTasks.set(commonKey, taskResult);
 						promises.push(taskResult);
+						// Observe rejections while later dependencies resolve; keep the original promise for aggregation.
+						taskResult.catch(() => { });
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 							const promiseResult = await taskResult;
 							if (promiseResult.exitCode !== 0) {
