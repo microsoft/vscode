@@ -166,26 +166,32 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 			this.mergeContents(contents, other.contents);
 
-			for (const otherOverride of other.overrides) {
+			// Merge multi-language overrides before single-language overrides so that, within the same
+			// source, a single-language override still takes precedence over a multi-language one.
+			const otherOverrides = [
+				...other.overrides.filter(o => o.identifiers.length > 1),
+				...other.overrides.filter(o => o.identifiers.length <= 1),
+			];
+			for (const otherOverride of otherOverrides) {
+				// A multi-language override from a later (higher priority) source must win over
+				// single-language overrides from earlier sources. Merge its values into those
+				// single-language overrides so that only the keys it supplies are overridden and
+				// all other keys of the earlier single-language overrides are preserved.
+				if (otherOverride.identifiers.length > 1) {
+					for (const identifier of otherOverride.identifiers) {
+						const singleLanguageOverride = overrides.find(o => o.identifiers.length === 1 && o.identifiers[0] === identifier);
+						if (singleLanguageOverride) {
+							this.mergeContents(singleLanguageOverride.contents, otherOverride.contents);
+							singleLanguageOverride.keys = arrays.distinct([...singleLanguageOverride.keys, ...otherOverride.keys]);
+						}
+					}
+				}
 				const [override] = overrides.filter(o => arrays.equals(o.identifiers, otherOverride.identifiers));
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
 					override.keys.push(...otherOverride.keys);
 					override.keys = arrays.distinct(override.keys);
 				} else {
-					// When adding a multi-language override, remove any existing single-language overrides
-					// for the same identifiers to allow workspace multi-language settings to override
-					// user single-language settings
-					if (otherOverride.identifiers.length > 1) {
-						for (const identifier of otherOverride.identifiers) {
-							const singleLangIndex = overrides.findIndex(
-								o => o.identifiers.length === 1 && o.identifiers[0] === identifier
-							);
-							if (singleLangIndex !== -1) {
-								overrides.splice(singleLangIndex, 1);
-							}
-						}
-					}
 					overrides.push(objects.deepClone(otherOverride));
 				}
 			}
