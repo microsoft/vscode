@@ -42,7 +42,7 @@ export function setup(options?: { skipSuite: boolean }) {
 			const previousWindowSize = await app.code.driver.resizeWindow({ width: 1024, height: 720 });
 			const name = 'Notification settings progress '.repeat(10).trim();
 			// Settings automation reads rendered lines; the long title alone is enough to force truncation.
-			const description = 'Current task directory [project] C:\\workspace\\terminal_long_name';
+			const description = 'Current task <project> &amp; [name] C:\\workspace\\long_name';
 			try {
 				await setTerminalTestSettings(app, [
 					['terminal.integrated.tabs.description', JSON.stringify(description)],
@@ -123,9 +123,13 @@ export function setup(options?: { skipSuite: boolean }) {
 				const readColors = async () => {
 					const colors: { icon: string; terminal: string; progress: string; pickerProgress: string }[] = [];
 					for (const { state, icon } of states) {
-						await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\x1b]9;4;${state};0\\x07`);
 						const progressIcon = page.locator(`.single-terminal-tab-label .codicon-${icon}`);
-						await progressIcon.waitFor({ state: 'visible' });
+						// The progress addon may still be loading when the terminal first produces output.
+						const progressDeadline = Date.now() + 10_000;
+						do {
+							await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\x1b]9;4;${state};0\\x07`);
+						} while (!await progressIcon.isVisible() && Date.now() < progressDeadline);
+						await progressIcon.waitFor({ state: 'visible', timeout: 1000 });
 						const currentColors = await progressIcon.evaluate((progress: HTMLElement) => {
 							const label = progress.closest<HTMLElement>('.single-terminal-tab')!;
 							const terminalIcon = label.querySelector<HTMLElement>(':scope > .codicon:first-child')!;
@@ -161,6 +165,8 @@ export function setup(options?: { skipSuite: boolean }) {
 					progress,
 					pickerProgress: progress
 				})));
+				await page.locator('.single-terminal-tab').hover();
+				await page.locator('.monaco-hover:visible p').first().locator('.codicon-alert').waitFor({ state: 'visible' });
 			} finally {
 				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app);

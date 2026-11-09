@@ -59,10 +59,10 @@ export function createColorStyleElement(colorTheme: IColorTheme): IDisposable {
 }
 
 export function getIconColorStyle(colorClass: string, color: Color): string {
-	const iconSelector = '.codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)';
+	const iconSelector = '.codicon:first-child:not(.action-label):not(.file-icon)';
 	return (
 		`.monaco-workbench .${colorClass}:not(.single-terminal-tab) ${iconSelector},` +
-		`.monaco-workbench .${colorClass}.single-terminal-tab > ${iconSelector}` +
+		`.monaco-workbench .${colorClass}.single-terminal-tab:not(.alt-command) > ${iconSelector}` +
 		`{ color: ${color} !important; }`
 	);
 }

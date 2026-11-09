@@ -9,6 +9,7 @@ import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import * as cssJs from '../../../../base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
+import { escape } from '../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -687,7 +688,7 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 			return;
 		}
 		const label = getSingleTabTitle(instance, this._configurationService.getValue<string>(TerminalSettingId.TerminalTitleSeparator));
-		const hoverInfo = getInstanceHoverInfo(instance, this._storageService, escapeMarkdownSyntaxTokens(label));
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService, escapeMarkdownSyntaxTokens(escape(label)));
 		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
