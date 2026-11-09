@@ -365,7 +365,7 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the browsers.
       # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
       # action would point into the workspace.
       - name: Restore Playwright browsers

@@ -1,4 +1,4 @@
-name: Code OSS (node_modules)
+name: Code OSS (pnpm store)
 
 on:
   push:

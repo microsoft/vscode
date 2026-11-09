@@ -12,7 +12,7 @@ runs:
     - name: Setup pnpm
       uses: ./.github/actions/setup-pnpm
 
-    # Reuse a pnpm store that .github/workflows/pr-node-modules.yml keeps warm on `main`: the Copilot
+    # Reuse a pnpm store that .github/workflows/pr-pnpm-store.yml keeps warm on `main`: the Copilot
     # store on Linux and Windows, and the full store (which includes extensions/copilot) on macOS.
     # Never save: PR-scoped caches are not shared with other PRs and only evict the shared ones.
     - name: Restore pnpm store cache

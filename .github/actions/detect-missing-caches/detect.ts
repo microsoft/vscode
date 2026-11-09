@@ -49,7 +49,7 @@ type RunnerOs = 'Linux' | 'macOS' | 'Windows';
 type LineEndings = 'lf' | 'crlf';
 
 /**
- * A job of `.github/workflows/pr-node-modules.yml` and the caches it keeps warm on `main`.
+ * A job of `.github/workflows/pr-pnpm-store.yml` and the caches it keeps warm on `main`.
  */
 export interface ICacheWarmingJob {
 	readonly os: RunnerOs;
@@ -91,7 +91,7 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		electron: { arch: 'x64' },
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
-	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// Commented out with the macOS job of pr-pnpm-store.yml (see there).
 	// 'macOS': {
 	// 	os: 'macOS',
 	// 	pnpmStore: { prefix: 'pnpm-store-macos', args: ['darwin', 'arm64'] },

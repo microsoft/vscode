@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: node "$RUNNER_TEMP/workspace-image/image.ts" env
 
-      # The same packages as in pr-node-modules.yml, for the native modules
+      # The same packages as in pr-pnpm-store.yml, for the native modules
       - name: Install build tools
         run: |
           set -e

@@ -1,6 +1,6 @@
 # CI caches
 
-The GitHub Actions workflows cache the pnpm store, the Electron downloads, the built-in extensions, the WSL installer and the Playwright browsers. This describes the pnpm store cache, how [pr-node-modules.yml](../pr-node-modules.yml) keeps the caches warm, and the Electron download cache.
+The GitHub Actions workflows cache the pnpm store, the Electron downloads, the built-in extensions, the WSL installer and the Playwright browsers. This describes the pnpm store cache, how [pr-pnpm-store.yml](../pr-pnpm-store.yml) keeps the caches warm, and the Electron download cache.
 
 ## pnpm store cache
 
@@ -14,7 +14,7 @@ Only the job that keeps a store warm saves it, with [save-pnpm-store](../../acti
 
 ## Warming the caches on `main` and the release branches
 
-Pull requests can only restore caches saved on their base branch or on `main`, so [pr-node-modules.yml](../pr-node-modules.yml) saves the pnpm store, Electron, built-in extensions, WSL installer and Playwright browsers caches on every push to `main` and to the `release/*` branches. Most pushes don't change any of them, so the `Detect Missing Caches` job first computes each platform job's cache keys on a GitHub-hosted runner and lists the caches that the pushed branch can restore: its own and, on a release branch, those of `main`, which the jobs restore without saving a copy (see [detect-missing-caches](../../actions/detect-missing-caches/detect.ts)). A platform job only starts its runner when one of its caches is missing, for example after a dependency change or a cache eviction. All platform jobs run when the detection fails.
+Pull requests can only restore caches saved on their base branch or on `main`, so [pr-pnpm-store.yml](../pr-pnpm-store.yml) saves the pnpm store, Electron, built-in extensions, WSL installer and Playwright browsers caches on every push to `main` and to the `release/*` branches. Most pushes don't change any of them, so the `Detect Missing Caches` job first computes each platform job's cache keys on a GitHub-hosted runner and lists the caches that the pushed branch can restore: its own and, on a release branch, those of `main`, which the jobs restore without saving a copy (see [detect-missing-caches](../../actions/detect-missing-caches/detect.ts)). A platform job only starts its runner when one of its caches is missing, for example after a dependency change or a cache eviction. All platform jobs run when the detection fails.
 
 The detection mirrors the cache keys of the platform jobs, including the CRLF line endings of the Windows checkouts, and the cache versions that `actions/cache` matches in addition to the key: they depend on the cache paths, including the home directory of the runners for Electron. A cache with another version counts as missing, so the job runs and saves a compatible one; if the detection then keeps warning about a version, update its cache paths. When you change a cache key, path, key prefix, or the jobs of the workflow, update `cacheWarmingJobs` and `getCaches` in `detect.ts`; `build/lib/test/detectMissingCaches.test.ts` fails until they match.
 
@@ -22,7 +22,7 @@ At most one run of the workflow is in progress, and newer pushes replace its pen
 
 ## Electron download cache
 
-The platform jobs in [pr-node-modules.yml](../pr-node-modules.yml) also warm a
+The platform jobs in [pr-pnpm-store.yml](../pr-pnpm-store.yml) also warm a
 separate Electron download cache on `main`. The
 [setup-electron](../../actions/setup-electron/action.yml) action shares cache
 handling and download retries with the Linux and Windows PR test
