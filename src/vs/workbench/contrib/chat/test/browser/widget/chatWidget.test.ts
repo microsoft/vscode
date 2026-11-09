@@ -176,11 +176,11 @@ suite('ChatWidget', () => {
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
 	});
 
-	function createRespondentWidget(lockedAgent: boolean, sandboxToggleChecked: IObservable<boolean> = constObservable(false)) {
-		const resource = URI.parse('agent-host-copilotcli:/session#peer');
+	function createRespondentWidget(lockedAgent: boolean, sandboxToggleChecked: IObservable<boolean> = constObservable(false), selectedChat = constObservable(URI.parse('agent-host-copilotcli:/session#peer'))) {
+		const resource = selectedChat.get();
 		let placeholder: string | undefined;
 		const viewModel = upcastPartial<ChatViewModel>({
-			sessionResource: resource,
+			get sessionResource() { return selectedChat.get(); },
 			get inputPlaceholder() { return placeholder; },
 			setInputPlaceholder: (text: string) => { placeholder = text; },
 			resetInputPlaceholder: () => { placeholder = undefined; },
@@ -233,10 +233,10 @@ suite('ChatWidget', () => {
 		const plain = URI.parse('agent-host-copilotcli:/plain');
 		const sandboxed = URI.parse('agent-host-copilotcli:/sandboxed');
 		const selected = observableValue('selectedChat', plain);
-		const { widget, editorPlaceholders } = createRespondentWidget(true, selected.map(resource => resource === sandboxed));
+		const { widget, editorPlaceholders } = createRespondentWidget(true, selected.map(resource => resource === sandboxed), selected);
 		for (const resource of [plain, sandboxed, plain, sandboxed]) {
 			selected.set(resource, undefined);
-			widget['_applyInputPlaceholder']();
+			widget.setRespondent({ label: 'Copilot', icon: Codicon.copilot, modelSessionType: undefined });
 		}
 		assert.deepStrictEqual(editorPlaceholders, ['Chat with Copilot', 'Chat with Copilot (sandbox enabled)', 'Chat with Copilot', 'Chat with Copilot (sandbox enabled)']);
 	});
