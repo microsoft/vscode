@@ -792,7 +792,10 @@ abstract class AbstractCloseAllAction extends Action2 {
 	protected abstract get excludeSticky(): boolean;
 
 	protected async doCloseAll(editorGroupService: IEditorGroupsService): Promise<void> {
-		await Promise.all(this.groupsToClose(editorGroupService).map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky })));
+		// Close groups sequentially so the last shared dirty editor asks for confirmation.
+		for (const group of this.groupsToClose(editorGroupService)) {
+			await group.closeAllEditors({ excludeSticky: this.excludeSticky });
+		}
 	}
 }
 
@@ -865,13 +868,13 @@ export class CloseEditorsInOtherGroupsAction extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const groupToSkip = context ? editorGroupService.getGroup(context.groupId) : editorGroupService.activeGroup;
-		await Promise.all(editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
+		for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (groupToSkip && group.id === groupToSkip.id) {
-				return;
+				continue;
 			}
 
-			return group.closeAllEditors({ excludeSticky: true });
-		}));
+			await group.closeAllEditors({ excludeSticky: true });
+		}
 	}
 }
 
@@ -892,7 +895,9 @@ export class CloseEditorInAllGroupsAction extends Action2 {
 
 		const activeEditor = editorService.activeEditor;
 		if (activeEditor) {
-			await Promise.all(editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
+			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				await group.closeEditor(activeEditor);
+			}
 		}
 	}
 }
