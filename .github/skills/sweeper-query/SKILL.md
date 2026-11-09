@@ -1,6 +1,6 @@
 ---
 name: sweeper-query
-description: Answer natural-language questions about the VS Code Sweeper's published issue index (index-<name>.json for microsoft/vscode and the enrolled family repos) — which issues are agent-ready to implement or plan, what the sweeper proposed for an assignee or area, whether a report is a known duplicate, the highest-value open bugs in a lane. Use when the user asks about sweeper verdicts, agent-ready issues, duplicates, value ranking, needs-info asks or anything else "the sweeper knows". Read-only; discovery only.
+description: Answer natural-language questions about the VS Code Sweeper's published issue index (index-<name>.json for microsoft/vscode and the enrolled family repos) — which issues are agent-ready to implement or plan, what the sweeper proposed for an assignee or area, whether a report is a known duplicate, the highest-value open bugs in a lane — and, for one issue, the review's full record (evidence with file citations, fix brief, proposed comment). Use when the user asks about sweeper verdicts, agent-ready issues, duplicates, value ranking, needs-info asks, what the sweeper found on a given issue, or anything else "the sweeper knows". Read-only; discovery only.
 ---
 
 # Query the sweeper's index
@@ -9,7 +9,8 @@ The sweeper reviews every open issue of microsoft/vscode and a family of enrolle
 repos nightly and publishes one JSON index per repo. Each row carries the review's
 verdict, a value score, an agent-readiness tier, a duplicate canonical, the
 assignee, labels and lifecycle stamps. This skill turns a question in plain language
-into a `jq` query over that file and answers with a short table.
+into a `jq` query over that file and answers with a short table. For ONE issue it can
+go one level deeper and read the review record behind the row (section 5).
 
 **You write the jq.** There is no query language to learn and no helper script: read
 the field reference at the end of this file, map the question onto fields, run `jq`
@@ -108,6 +109,35 @@ documented below.
 - Never print `proposedComment` for more than one issue, and never dump rows the
   question did not ask for.
 
+## 5. Drill into one issue — the review record
+
+The index row is the verdict's summary line. The record behind it carries the
+review's reasoning: a Summary, the Evidence section with file and line citations into
+the checkout, the canonical search (which candidates were read and why they were
+rejected), the fix brief under `## Auto-fix candidate` (implement records) or
+`## Plan brief` with its open decisions (plan records), the full proposed comment, and
+a few fields the index drops (`breadth`, `priority`, `visionFit`, `milestone`,
+`refutedReason`). Read it when the question is about ONE issue — "what did the sweeper
+find on 12345?", "why does it think this is a duplicate?", "show me the brief" — or to
+explain a single row the index query returned. Never read records in bulk; the index
+is the corpus query.
+
+```bash
+STATE=egamma/vscodesweeper-state
+REPO=microsoft/vscode                        # the envelope's .target
+N=12345
+gh api "repos/$STATE/contents/records/$REPO/items/$N.md?ref=state" -H "Accept: application/vnd.github.raw"
+```
+
+A 404 means the sweeper has not reviewed the issue (it is closed, filtered, or newer
+than the last sweep) — say so. The row's `reviewUrl`, when present, overrides the
+path. Present the record by its sections, not verbatim: Summary · Proposed action
+(with the proposed comment — one issue, so printing it is fine) · the brief, if any ·
+Evidence as a list of cited locations. Two caveats go in every record answer: the
+record is as of its `reviewedAt` (`contentStale` on the index row means the issue has
+changed since), and evidence line numbers drift with main — point the reader at the
+cited FILE, and let them re-find the lines.
+
 ## Worked examples
 
 **"What did the sweeper propose in my area this week?"** (area = the `terminal`
@@ -164,6 +194,20 @@ jq -r '[.rows[] | select(.currentState == null and .owner == "alexdima" and .lan
   | sort_by(-(.valueRaw // 0))
   | .[:50][] | [.number, (.valueRaw // 0), (.severity // ""), .title] | @tsv' "$DIR/$FILE"
 ```
+
+**"What did the sweeper find on 285145?"** — one issue, so read its record (section
+5). Confirm the row first (open? which verdict? `contentStale`?), then fetch:
+
+```bash
+jq -r '.rows[] | select(.number == 285145)
+  | [.number, (.triageAction // "keep-open"), (.agentReadiness // "none"), (.contentStale // false), .reviewedAt, .title] | @tsv' "$DIR/$FILE"
+gh api "repos/$STATE/contents/records/microsoft/vscode/items/285145.md?ref=state" -H "Accept: application/vnd.github.raw"
+```
+
+Answer with the verdict line, the Summary, the proposed comment (one issue), the brief
+when the record is agent-ready, and the Evidence as a list of file citations — with
+the `reviewedAt` date and the line-drift caveat. If the user then wants to act on
+it, that is their call and a separate task.
 
 ## Field reference
 
