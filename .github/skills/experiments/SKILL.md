@@ -8,6 +8,7 @@ description: Use when adding, changing, or reviewing a VS Code A/B experiment, e
 ## Controlling behavior
 
 - **Experiment-controlled setting:** add `experiment: { mode: 'auto' }` to the setting's schema, or `mode: 'startup'` to only pick up changed assignments on startup. ExP then sets the setting's default through the treatment `config.<setting id>` (or `experiment.name`), and code reads the setting with `IConfigurationService` as usual. Values that users set themselves still win. Use this when users could reasonably choose the behavior themselves.
+- **Keyed object setting:** treatments can't be objects, so to let separate experiments control separate keys of an object setting, such as one experiment per extension, add `keyed: true` to its `experiment`. ExP then sets each key's default through the treatment `config.<setting id>.<key>`, and the mode applies to each key separately. Treatments can't be enumerated, so a key is only resolved once code requests it with `IExperimentalSettingsService.requestKeys`. Values that users set for a key still win.
 - **Treatment:** read a value with `IWorkbenchAssignmentService.getTreatment<T>(name)`. It resolves to `undefined` without an assignment, so keep a fallback, and read it again on `onDidRefetchAssignments`. Use this for values that are not user preferences, such as copy or variant names.
 
 To try an assignment locally, set `experiments.override.<treatment name>` in your user settings, for example `"experiments.override.config.chat.mySetting.enabled": true`.
@@ -18,6 +19,7 @@ A triggered scorecard only compares users who reached the moment where control a
 
 ```ts
 logSettingExperimentTrigger(telemetryService, MY_SETTING_ID); // experiment-controlled setting
+logSettingKeyExperimentTrigger(telemetryService, MY_SETTING_ID, key); // key of a keyed object setting
 logExperimentTrigger(telemetryService, 'myTreatment'); // treatment
 ```
 
