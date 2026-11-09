@@ -164,6 +164,8 @@ suite('Testing computed state and duration', () => {
 			test.ownState = TestResultState.Failed;
 			refreshComputedState(accessor, test, undefined, false);
 		}
+		refreshComputedState(accessor, suite, undefined, false);
+		assert.ok(suite.computedStateCache?.childrenStates);
 		suite.children.splice(1);
 		refreshComputedState(accessor, suite, undefined, false);
 		tests[0].ownState = TestResultState.Running;
