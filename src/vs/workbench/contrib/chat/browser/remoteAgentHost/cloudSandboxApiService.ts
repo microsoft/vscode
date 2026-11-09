@@ -60,7 +60,7 @@ import { RequestError } from '../../../../../platform/github/common/types.js';
 import { isRetryableMissionControlError, parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
-import type { ListTasksOptions, Repository, TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
+import { MAX_TASK_BATCH_SIZE, type ListTasksOptions, type Repository, type TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
@@ -192,8 +192,8 @@ const DISCOVERY_TASK_SCAN_LIMIT = 100;
 /** Maximum pages to read per repository/archive task scope during discovery. */
 const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
 
-/** Bounds caller fan-out so discovery batches do not exhaust shared queue admission. */
-const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
+/** Bounds concurrent on-demand session-resolution requests. */
+const SESSION_RESOLUTION_CONCURRENCY = 5;
 
 const DISCOVERY_OVERLAP_MS = 60_000;
 
@@ -215,7 +215,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private readonly _sessionResolutions = new Map<string, ISessionResolution>();
 	private readonly _sessionResolutionSources = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _sessionResolutionLimiter = this._register(new Limiter<ICloudSandboxDiscoveredSession>(DISCOVERY_TASK_FETCH_CONCURRENCY));
+	private readonly _sessionResolutionLimiter = this._register(new Limiter<ICloudSandboxDiscoveredSession>(SESSION_RESOLUTION_CONCURRENCY));
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private _discoverySince: string | undefined;
 	private _archivedDiscoverySince: string | undefined;
@@ -712,7 +712,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
 		const telemetry: ICloudSandboxDiscoveryTelemetryData = {
 			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
-			durationMs: 0, listOperationCount: 0, taskCount: 0,
+			durationMs: 0, listOperationCount: 0, taskBatchOperationCount: 0, taskBatchOperationFailureCount: 0, taskCount: 0,
 			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
 			checkpointAvailable: false, checkpointSource: 'unavailable',
 			listOperationFailureCount: 0, taskDetailFailureCount: 0, repositoryEnrichmentMissCount: 0,
@@ -779,7 +779,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'failed', reason: authorizationFailure.error.message };
 		}
 		const tasks = new Map<string, IScannedTask>();
-		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
 		const returnedSandboxTasks = new Set<string>();
 		const changedSandboxTasks = new Set<string>();
@@ -807,32 +806,36 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let checkpoint: number | undefined;
 		let latestUpdate: number | undefined;
 		if (targeted) {
-			const limiter = new Limiter<void>(DISCOVERY_TASK_FETCH_CONCURRENCY);
-			try {
-				await Promise.all([...new Set(options.taskIds)].map(id => limiter.queue(async () => {
-					try {
-						const task = await this._withReadClient(token, { caller: 'mc.taskClient.get', priority: 'background' },
-							(client, signal, options) => client.tasks.get(id, signal, options), session);
+			const ids = [...new Set(options.taskIds)];
+			for (let offset = 0; offset < ids.length; offset += MAX_TASK_BATCH_SIZE) {
+				const batch = ids.slice(offset, offset + MAX_TASK_BATCH_SIZE);
+				telemetry.taskBatchOperationCount = (telemetry.taskBatchOperationCount ?? 0) + 1;
+				try {
+					const returned = await this._withReadClient(token, { caller: 'mc.taskClient.getBatch', priority: 'background' },
+						(client, signal, options) => client.tasks.getBatch(batch, signal, options), session);
+					const returnedIds = new Set(returned.map(task => task.id));
+					for (const task of returned) {
 						recordTask({ ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
-						details.set(id, task);
-					} catch (error) {
-						if (isCancellationError(error) || token.isCancellationRequested) {
-							throw new CancellationError();
-						}
-						if (error instanceof CloudSandboxRequestError && (error.statusCode === 403 || error.statusCode === 404)) {
+					}
+					// Successful omissions end discoverability, not the remote task or its running session.
+					for (const id of batch) {
+						if (!returnedIds.has(id)) {
 							cache.delete(id);
 							removedTaskIds.push(id);
-						} else {
-							telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
-							telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + 1;
-							truncated = true;
-							failedTaskIds.add(id);
-							this._logService.warn(`${LOG_PREFIX} Feed task refresh failed: ${toErrorMessage(error)}`);
 						}
 					}
-				})));
-			} finally {
-				limiter.dispose();
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					telemetry.taskBatchOperationFailureCount = (telemetry.taskBatchOperationFailureCount ?? 0) + 1;
+					telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + batch.length;
+					truncated = true;
+					for (const id of batch) {
+						failedTaskIds.add(id);
+					}
+					this._logService.warn(`${LOG_PREFIX} Feed task batch refresh failed: ${toErrorMessage(error)}`);
+				}
 			}
 		}
 		// Separate repository scopes include workspace-less sandboxes as well as repository sessions.
@@ -931,52 +934,37 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		let unresolved = 0;
-		const repositoryMisses = new Set<number>();
-		const limiter = new Limiter<ICloudSandboxTask | undefined>(DISCOVERY_TASK_FETCH_CONCURRENCY);
-		let discovered: (ICloudSandboxTask | undefined)[];
-		try {
-			discovered = await Promise.all(sandboxTasks.map(task => limiter.queue(async (): Promise<ICloudSandboxTask | undefined> => {
-				try {
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
-					const previous = cache.get(task.id);
-					const full = details.get(task.id);
-					const binding = full ? getTaskEnvironmentBinding(full) : previous?.session;
-					const { repositoryId, session: summary } = await this._taskSummary(task, previous, token, repositoryMisses);
-					const session: ICloudSandboxTask = {
-						...summary,
-						...(binding?.environmentId && binding.sessionId ? { environmentId: binding.environmentId, sessionId: binding.sessionId } : {}),
-					};
-					const cached: ICachedSandboxTask = { summary: task, repositoryId, session };
-					if (repositoryId !== undefined && !session.repoName) {
-						telemetry.repositoryEnrichmentMissCount = (telemetry.repositoryEnrichmentMissCount ?? 0) + 1;
-					}
-					cache.set(task.id, cached);
-					if (binding?.environmentId && binding.sessionId
-						&& (binding.environmentId !== previous?.session?.environmentId || binding.sessionId !== previous?.session?.sessionId)) {
-						this._telemetry.lifecycle.record({
-							phase: 'binding', outcome: 'observed', operationId: generateUuid(),
-							environmentId: binding.environmentId, agentSessionId: binding.sessionId, taskId: task.id,
-						});
-					}
-					return session;
-				} catch (error) {
-					if (isCancellationError(error) || token.isCancellationRequested) {
-						throw new CancellationError();
-					}
-					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
-					logExcludedTask(task.id, 'detailFetchFailed');
-					telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
-					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
-					unresolved++;
-					failedTaskIds.add(task.id);
-					return undefined;
+		const discovered = await Promise.all(sandboxTasks.map(async (task): Promise<ICloudSandboxTask | undefined> => {
+			try {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
 				}
-			})));
-		} finally {
-			limiter.dispose();
-		}
+				const previous = cache.get(task.id);
+				const binding = previous?.session;
+				const { repositoryId, session: summary } = await this._taskSummary(task, previous, token);
+				const session: ICloudSandboxTask = {
+					...summary,
+					...(binding?.environmentId && binding.sessionId ? { environmentId: binding.environmentId, sessionId: binding.sessionId } : {}),
+				};
+				const cached: ICachedSandboxTask = { summary: task, repositoryId, session };
+				if (repositoryId !== undefined && !session.repoName) {
+					telemetry.repositoryEnrichmentMissCount = (telemetry.repositoryEnrichmentMissCount ?? 0) + 1;
+				}
+				cache.set(task.id, cached);
+				return session;
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				this._logService.warn(`${LOG_PREFIX} Discovery task ${task.id} processing failed: ${toErrorMessage(error)}`);
+				logExcludedTask(task.id, 'detailFetchFailed');
+				telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
+				cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
+				unresolved++;
+				failedTaskIds.add(task.id);
+				return undefined;
+			}
+		}));
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -1052,7 +1040,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					removed.add(id);
 				}
 			}
-			const observed = scannedTaskIds.has(id) || details.has(id) || updates.has(id);
+			const observed = scannedTaskIds.has(id) || updates.has(id);
 			// Window eviction and unobserved cached state cannot invalidate an overlapping read.
 			if (!removed.has(id) && (!cached || !observed)) {
 				continue;
@@ -1083,7 +1071,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
-	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken, repositoryMisses?: Set<number>): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
+	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
 		const application = task.clients?.find(client => client.creator === true)?.slug;
 		const repositoryId = [task.repository?.id, previous?.repositoryId].find(id => id !== undefined && id > 0);
 		const status = taskSessionStatus(task.state, this._logService);
@@ -1091,10 +1079,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const creatingApplication = application ?? previous?.session?.application;
 		const repoName = previous?.repositoryId === repositoryId ? previous?.session?.repoName : undefined;
 		const repositoryName = task.repository?.full_name || repoName
-			|| (repositoryId !== undefined && !repositoryMisses?.has(repositoryId) ? await this._resolveRepositoryName(repositoryId, token) : undefined);
-		if (!repositoryName && repositoryId !== undefined) {
-			repositoryMisses?.add(repositoryId);
-		}
+			|| (repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined);
 		return {
 			repositoryId,
 			session: {

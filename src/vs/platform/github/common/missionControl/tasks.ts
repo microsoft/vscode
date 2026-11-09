@@ -7,6 +7,9 @@ import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonObject, JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 import type { EnvironmentKind, PaginatedResponse, User } from './missionControl.js';
 
+/** Maximum task IDs accepted by one batch request. */
+export const MAX_TASK_BATCH_SIZE = 50;
+
 /** The current task state, derived from its most recent session. */
 export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idle' | 'waiting_for_user' | 'timed_out' | 'cancelled';
 
@@ -584,6 +587,9 @@ export interface ITasksClient {
 
 	/** GET /agents/tasks/{task_id}: read task details and associated sessions. */
 	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
+
+	/** GET /agents/tasks/batch: read up to 50 task summaries. Missing or undiscoverable tasks are omitted. */
+	getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]>;
 
 	/** POST /agents/tasks: create a task and optionally bind or provision its environment. */
 	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;

@@ -203,6 +203,10 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					ssh_url: 'git@github.com:owner/repository.git', archived: false, disabled: false, language: null, stargazers_count: 0,
 				});
 			}
+			if (new URL(url).pathname === '/agents/tasks/batch') {
+				const ids = new Set(new URL(url).searchParams.get('task_ids')?.split(','));
+				return jsonResponse({ tasks: options.tasks.filter(task => ids.has(task.id)) });
+			}
 			if (/\/tasks\/[^/]+$/.test(url)) {
 				const id = decodeURIComponent(url.split('/').pop()!);
 				const remaining = remainingTaskRateLimits.get(id) ?? 0;
@@ -303,7 +307,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					'Copilot-Integration-Id': headers.get('copilot-integration-id') ?? undefined,
 				},
 				callSite: url.pathname === '/agents/tasks' ? 'mc.taskClient.list'
-					: url.pathname.startsWith('/agents/tasks/') ? 'mc.taskClient.get' : 'test.typed',
+					: url.pathname === '/agents/tasks/batch' ? 'mc.taskClient.getBatch'
+						: url.pathname.startsWith('/agents/tasks/') ? 'mc.taskClient.get' : 'test.typed',
 				...(typeof init.body === 'string' ? { data: init.body } : {}),
 			}, token);
 			const responseHeaders = new Headers();
@@ -460,14 +465,84 @@ suite('CloudSandboxApiService typed reads', () => {
 		assert.deepStrictEqual(h.clientLifetimes.map(client => client.disposed), [true, true, false]);
 	});
 
-	test('drains a large targeted batch without overflowing shared queue admission', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const tasks = Array.from({ length: 80 }, (_, index) => task(`task-${index}`, 'Task', undefined, `session-${index}`, 'environment'));
-		const h = createService(store, { tasks, repositories: new Map(), taskFetchDelayMs: 10 });
-		const result = await h.service.listSessions(CancellationToken.None, { taskIds: tasks.map(task => task.id), trigger: 'feedChange' });
+	test('splits targeted task batches at 50 IDs without individual GETs or inventory filters', async () => {
+		const tasks = Array.from({ length: 51 }, (_, index) => ({
+			...task(`task-${index}`, 'Task', undefined, `session-${index}`, 'environment'),
+			...(index % 2 ? { archived_at: '2026-10-01T00:00:00Z' } : {}),
+		}));
+		const h = createService(store, { tasks, repositories: new Map() });
+		const ids = tasks.map(task => task.id);
+		const result = await h.service.listSessions(CancellationToken.None, { taskIds: [...ids, ids[0]], includeArchived: false, trigger: 'feedChange' });
 		assert.deepStrictEqual({
 			kind: result.kind, tasks: result.kind === 'failed' ? 0 : result.sessions.length,
-			requests: h.requestedUrls.length,
-		}, { kind: 'incremental', tasks: 80, requests: 80 });
+			archived: result.kind === 'failed' ? 0 : result.sessions.filter(task => task.isArchived).length,
+			requests: h.typedRequests.map(request => {
+				const url = new URL(request.url);
+				return {
+					path: url.pathname, method: request.method, priority: request.priority,
+					ids: url.searchParams.get('task_ids')?.split(','), filters: [...url.searchParams.keys()],
+				};
+			}),
+		}, {
+			kind: 'incremental', tasks: 51, archived: 25,
+			requests: [ids.slice(0, 50), ids.slice(50)].map(ids => ({
+				path: '/agents/tasks/batch', method: 'GET', priority: 'background', ids, filters: ['task_ids'],
+			})),
+		});
+	});
+
+	test('successful task batch omissions leave inventory without fallback GETs or remote deletion', async () => {
+		const visible = task('visible', 'Visible', undefined, 'visible-session', 'environment');
+		const omitted = task('omitted', 'Still directly readable', undefined, 'omitted-session', 'environment');
+		const h = createService(store, {
+			tasks: [visible, omitted], repositories: new Map(),
+			onRequest: url => url.pathname === '/agents/tasks/batch' ? jsonResponse({ tasks: [visible] }) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		await h.service.resolveSession('omitted', CancellationToken.None);
+		h.requestedUrls.length = 0;
+		const result = await h.service.listSessions(CancellationToken.None, { taskIds: ['visible', 'omitted'] });
+		const discoveryRequests = h.requestedUrls.map(url => new URL(url).pathname);
+		h.requestedUrls.length = 0;
+		const resolved = await h.service.resolveSession('omitted', CancellationToken.None);
+		assert.deepStrictEqual({
+			result: result.kind === 'failed' ? result : {
+				kind: result.kind, tasks: result.sessions.map(task => task.taskId), removed: result.removedTaskIds,
+			},
+			discoveryRequests,
+			onDemand: { session: resolved.sessionId, requests: h.requestedUrls.map(url => new URL(url).pathname) },
+		}, {
+			result: { kind: 'incremental', tasks: ['visible'], removed: ['omitted'] },
+			discoveryRequests: ['/agents/tasks/batch'],
+			onDemand: { session: 'omitted-session', requests: ['/agents/tasks/omitted'] },
+		});
+	});
+
+	test('failed task batches preserve their cached inventory while successful omissions are reconciled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const tasks = Array.from({ length: 51 }, (_, index) => task(`task-${index}`, 'Original', undefined, `session-${index}`, 'environment'));
+		const ids = tasks.map(task => task.id);
+		const h = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: url => url.pathname === '/agents/tasks/batch'
+				? url.searchParams.get('task_ids')?.includes('task-0') ? jsonResponse({}, 503) : jsonResponse({ tasks: [] })
+				: undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		await h.service.resolveSession('task-0', CancellationToken.None);
+		tasks[0] = { ...tasks[0], name: 'Must not replace the cache' };
+		h.requestedUrls.length = 0;
+		const result = await h.service.listSessions(CancellationToken.None, { taskIds: ids });
+		const retained = await h.service.resolveSession('task-0', CancellationToken.None);
+		assert.deepStrictEqual({
+			result,
+			retained: retained.name,
+			unexpectedRequests: h.requestedUrls.filter(url => new URL(url).pathname !== '/agents/tasks/batch'),
+			batches: h.discoveryEvents.at(-1)?.taskBatchOperationCount,
+			failures: h.discoveryEvents.at(-1)?.taskBatchOperationFailureCount,
+		}, {
+			result: { kind: 'partial', sessions: [], removedTaskIds: ['task-50'], failedTaskIds: ids.slice(0, 50) },
+			retained: 'Original', unexpectedRequests: [], batches: 2, failures: 1,
+		});
 	}));
 });
 
@@ -502,26 +577,29 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		]);
 	});
 
-	test('distinguishes list page and label failures from targeted detail failures', async () => {
+	test('distinguishes list and batch failures from optional label failures', async () => {
 		const h = createService(store, {
 			tasks: [task('bad', 'Bad detail', undefined, 's1', 'e1'), task('label', 'Optional label', 42, 's2', 'e2')],
 			repositories: new Map([[42, 'error']]),
-			onRequest: url => url.pathname === '/agents/tasks/bad' || url.pathname === '/agents/tasks' && url.searchParams.get('is_archived') === 'true'
+			onRequest: url => url.pathname === '/agents/tasks/batch' && url.searchParams.get('task_ids') === 'bad'
+				|| url.pathname === '/agents/tasks' && url.searchParams.get('is_archived') === 'true'
 				? jsonResponse({}, 503) : undefined,
 		});
 		await h.service.listSessions(CancellationToken.None);
 		const listDetailReads = h.requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/'));
-		await h.service.listSessions(CancellationToken.None, { taskIds: ['bad', 'label'], trigger: 'feedChange' });
+		await h.service.listSessions(CancellationToken.None, { taskIds: ['bad'], trigger: 'feedChange' });
+		await h.service.listSessions(CancellationToken.None, { taskIds: ['label'], trigger: 'feedChange' });
 		const summarizeFailures = (event: ICloudSandboxDiscoveryTelemetryData) => ({
-			outcome: event.outcome, lists: event.listOperationFailureCount, details: event.taskDetailFailureCount,
+			outcome: event.outcome, lists: event.listOperationFailureCount, batches: event.taskBatchOperationFailureCount, details: event.taskDetailFailureCount,
 			labels: event.repositoryEnrichmentMissCount, unresolved: event.unresolvedTaskCount,
 			advanced: event.checkpointAdvanced, invalidated: event.generationInvalidated,
 		});
 		assert.deepStrictEqual({ listDetailReads, events: h.discoveryEvents.map(summarizeFailures) }, {
 			listDetailReads: [],
 			events: [
-				{ outcome: 'failed', lists: 1, details: 0, labels: 0, unresolved: 0, advanced: false, invalidated: false },
-				{ outcome: 'partial', lists: 0, details: 1, labels: 1, unresolved: 1, advanced: false, invalidated: false },
+				{ outcome: 'failed', lists: 1, batches: 0, details: 0, labels: 0, unresolved: 0, advanced: false, invalidated: false },
+				{ outcome: 'partial', lists: 0, batches: 1, details: 0, labels: 0, unresolved: 1, advanced: false, invalidated: false },
+				{ outcome: 'incremental', lists: 0, batches: 0, details: 0, labels: 1, unresolved: 0, advanced: false, invalidated: false },
 			],
 		});
 	});
@@ -1666,7 +1744,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		const { service } = createService(store, {
 			tasks, repositories: new Map(),
 			onRequest: url => {
-				if (hold && url.pathname === '/agents/tasks/task') {
+				if (hold && url.pathname === '/agents/tasks/batch') {
 					void entered.complete();
 					return pending.p;
 				}
@@ -1679,7 +1757,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		await entered.p;
 		tasks.length = 0;
 		await service.listSessions(CancellationToken.None);
-		await pending.complete(jsonResponse(original));
+		await pending.complete(jsonResponse({ tasks: [original] }));
 		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
 	});
 
@@ -1692,7 +1770,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		const { service } = createService(store, {
 			tasks, repositories: new Map(),
 			onRequest: url => {
-				if (hold && url.pathname === '/agents/tasks/task') {
+				if (hold && url.pathname === '/agents/tasks/batch') {
 					void entered.complete();
 					return pending.p;
 				}
@@ -1707,7 +1785,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			...task(`new-${i}`, 'Other task', undefined, `s-${i}`, `e-${i}`), compute: { provider: 'codespaces' },
 		})));
 		const scan = await service.listSessions(CancellationToken.None);
-		await pending.complete(jsonResponse(original));
+		await pending.complete(jsonResponse({ tasks: [original] }));
 		const refreshed = await targeted;
 
 		assert.deepStrictEqual({
@@ -1780,8 +1858,8 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			tasks: [known], repositories: new Map([[42, { full_name: 'owner/repo' }]]),
 			onRequest: url => {
 				if (!hold) { return undefined; }
-				if (url.pathname === '/agents/tasks/removed') {
-					return jsonResponse({}, 404);
+				if (url.pathname === '/agents/tasks/batch') {
+					return jsonResponse({ tasks: [] });
 				}
 				if (url.pathname === '/agents/tasks') {
 					if (!entered.isSettled) {
@@ -1811,7 +1889,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [first, second], repositories: new Map(),
 			onRequest: url => {
-				if (url.pathname === '/agents/tasks/first' && !entered.isSettled) {
+				if (url.pathname === '/agents/tasks/batch' && url.searchParams.get('task_ids') === 'first' && !entered.isSettled) {
 					void entered.complete();
 					return pending.p;
 				}
@@ -1821,7 +1899,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		const firstRefresh = service.listSessions(CancellationToken.None, { taskIds: ['first'] });
 		await entered.p;
 		await service.listSessions(CancellationToken.None, { taskIds: ['second'] });
-		await pending.complete(jsonResponse(first));
+		await pending.complete(jsonResponse({ tasks: [first] }));
 		await firstRefresh;
 		const beforeScan = requestedUrls.length;
 		const result = await service.listSessions(CancellationToken.None);
@@ -1836,7 +1914,6 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		const entered = new DeferredPromise<void>();
 		const original = { ...task('task', 'Old title', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
 		const newer = { ...original, name: 'New title', updated_at: '2026-10-18T00:01:00Z' };
-		let updated = false;
 		const { service } = createService(store, {
 			tasks: [original], repositories: new Map(),
 			onRequest: url => {
@@ -1847,13 +1924,12 @@ suite('CloudSandboxApiService feed task refresh', () => {
 					}
 					return jsonResponse({ tasks: [] });
 				}
-				return updated && url.pathname === '/agents/tasks/task' ? jsonResponse(newer) : undefined;
+				return undefined;
 			},
 		});
 		const scan = service.listSessions(CancellationToken.None);
 		await entered.p;
 		await service.listSessions(CancellationToken.None, { taskIds: ['task'] });
-		updated = true;
 		await pending.complete(jsonResponse({ tasks: [newer] }));
 		const result = await scan;
 		assert.deepStrictEqual(result.kind === 'failed' ? [] : result.sessions.map(session => session.name), ['New title']);
@@ -1890,10 +1966,10 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			requests: requestedUrls.map(url => new URL(url).pathname),
 		}, {
 			results: [
-				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: 'session', environmentId: 'environment', name: 'New remote session', status: SessionStatus.InProgress }] },
-				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: 'session', environmentId: 'environment', name: 'Ready sandbox', status: SessionStatus.Idle }] },
+				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: undefined, environmentId: undefined, name: 'New remote session', status: SessionStatus.InProgress }] },
+				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: undefined, environmentId: undefined, name: 'Ready sandbox', status: SessionStatus.Idle }] },
 			],
-			requests: ['/agents/tasks/provisioning', '/agents/tasks/provisioning'],
+			requests: ['/agents/tasks/batch', '/agents/tasks/batch'],
 		});
 	});
 
@@ -1911,10 +1987,10 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => [session.taskId, session.name]),
 			urls,
 			other: other.kind === 'failed' ? [] : other.sessions.map(session => [session.taskId, session.name]),
-		}, { kind: 'incremental', sessions: [['one', 'Renamed']], urls: ['/agents/tasks/one'], other: [['two', 'Second']] });
+		}, { kind: 'incremental', sessions: [['one', 'Renamed']], urls: ['/agents/tasks/batch'], other: [['two', 'Second']] });
 	});
 
-	test('discovers new sandbox tasks without listing and ignores non-sandbox task hints', async () => {
+	test('discovers new sandbox tasks without inventory scans or detail GETs and ignores non-sandbox hints', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [task('sandbox', 'New', undefined, 's1', 'e1'), { ...task('actions', 'Other', undefined, 's2', 'e2'), compute: undefined, current_environment: { id: 'e2', kind: 'managed-actions' } }],
 			repositories: new Map(),
@@ -1924,16 +2000,16 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			kind: result.kind,
 			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
 			urls: requestedUrls.map(url => new URL(url).pathname).sort(),
-		}, { kind: 'incremental', tasks: ['sandbox'], urls: ['/agents/tasks/actions', '/agents/tasks/sandbox'] });
+		}, { kind: 'incremental', tasks: ['sandbox'], urls: ['/agents/tasks/batch'] });
 	});
 
 	for (const status of [403, 404, 500]) {
-		test(`handles hinted task HTTP ${status} without erasing unrelated inventory`, async () => {
+		test(`retains hinted inventory when a task batch returns HTTP ${status}`, async () => {
 			let fail = false;
 			const { service, requestedUrls } = createService(store, {
 				tasks: [task('one', 'First', undefined, 's1', 'e1'), task('two', 'Second', undefined, 's2', 'e2')],
 				repositories: new Map(),
-				onRequest: url => fail && url.pathname === '/agents/tasks/one' ? jsonResponse({}, status) : undefined,
+				onRequest: url => fail && url.pathname === '/agents/tasks/batch' ? jsonResponse({}, status) : undefined,
 			});
 			await service.listSessions(CancellationToken.None);
 			fail = true;
@@ -1943,8 +2019,8 @@ suite('CloudSandboxApiService feed task refresh', () => {
 				result,
 				urls: requestedUrls.slice(start).map(url => new URL(url).pathname),
 			}, {
-				result: { kind: status === 500 ? 'partial' : 'incremental', sessions: [], removedTaskIds: status === 500 ? [] : ['one'], ...(status === 500 ? { failedTaskIds: ['one'] } : {}) },
-				urls: Array(status === 500 ? 2 : 1).fill('/agents/tasks/one'),
+				result: { kind: 'partial', sessions: [], removedTaskIds: [], failedTaskIds: ['one'] },
+				urls: Array(status === 500 ? 2 : 1).fill('/agents/tasks/batch'),
 			});
 		});
 	}
@@ -3073,7 +3149,7 @@ suite('CloudSandboxApiService archived discovery', () => {
 			openedRequests: requestedUrls.map(url => new URL(url).pathname),
 		}, {
 			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, collapsedDetails: [],
-			opened: [{ taskId: 'changed', archived: true }], openedRequests: ['/agents/tasks/changed'],
+			opened: [{ taskId: 'changed', archived: true }], openedRequests: ['/agents/tasks/batch'],
 		});
 	});
 
@@ -3137,7 +3213,7 @@ suite('CloudSandboxApiService archived discovery', () => {
 		assert.deepStrictEqual({
 			archived: result.kind === 'failed' ? [] : result.sessions.map(session => session.isArchived),
 			urls: requestedUrls.map(url => new URL(url).pathname),
-		}, { archived: [true], urls: ['/agents/tasks/archived'] });
+		}, { archived: [true], urls: ['/agents/tasks/batch'] });
 	});
 });
 
@@ -3332,7 +3408,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
 			}, {
 				applications: [['copilot-cli'], ['copilot-cli'], ['copilot-cli'], ['copilot-cli']],
-				detailReads: 1,
+				detailReads: 0,
 			});
 		});
 	}
@@ -4113,7 +4189,7 @@ suite('CloudSandboxApiService discovery without recorded history', () => {
 				initial: initial.kind === 'failed' ? initial : { kind: initial.kind, tasks: initial.sessions.map(session => session.taskId).sort() },
 				renewed,
 				targeted: targeted.kind === 'failed' ? targeted : targeted.sessions.map(session => session.taskId),
-				unexpectedRequests: requestedUrls.filter(url => !/\/agents\/tasks(?:\?|\/(?:idle|legacy|archived)$)|\/repositories\/42$/.test(url)),
+				unexpectedRequests: requestedUrls.filter(url => !['/agents/tasks', '/agents/tasks/batch', '/repositories/42'].includes(new URL(url).pathname)),
 				queries: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => {
 					const query = new URL(url).searchParams;
 					return [query.get('with_repo'), query.get('is_archived'), query.get('since'), query.get('include_environment_kinds')];
@@ -4196,16 +4272,19 @@ suite('CloudSandboxApiService task catalog resolution', () => {
 		}, { queued: [true, undefined], details: [] });
 	});
 
-	test('reuses execution details already read for a targeted feed update', async () => {
+	test('resolves execution details only when opening a batch-discovered task', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [task('task', 'Conversation', undefined, 'session', 'environment')], repositories: new Map(),
 		});
 		await service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		const beforeOpen = requestedUrls.filter(url => new URL(url).pathname.endsWith('/tasks/task')).length;
 		const resolved = await service.resolveSession('task', CancellationToken.None);
+		await service.resolveSession('task', CancellationToken.None);
 		assert.deepStrictEqual({
+			beforeOpen,
 			binding: [resolved.sessionId, resolved.environmentId],
 			detailReads: requestedUrls.filter(url => new URL(url).pathname.endsWith('/tasks/task')).length,
-		}, { binding: ['session', 'environment'], detailReads: 1 });
+		}, { beforeOpen: 0, binding: ['session', 'environment'], detailReads: 1 });
 	});
 
 	test('bounds concurrent on-demand execution reads independently of enumeration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

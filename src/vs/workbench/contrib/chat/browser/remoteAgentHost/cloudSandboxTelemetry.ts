@@ -311,6 +311,8 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 			listRequestCount: data.listRequestCount,
 			listOperationCount: data.listOperationCount,
 			listOperationFailureCount: data.listOperationFailureCount,
+			taskBatchOperationCount: data.taskBatchOperationCount,
+			taskBatchOperationFailureCount: data.taskBatchOperationFailureCount,
 			taskCount: data.taskCount,
 			sandboxTaskCount: data.sandboxTaskCount,
 			changedSandboxTaskCount: data.changedSandboxTaskCount,
@@ -925,6 +927,8 @@ export interface ICloudSandboxDiscoveryTelemetryData extends Mutable<ICloudSandb
 	listRequestCount?: number;
 	listOperationCount?: number;
 	listOperationFailureCount?: number;
+	taskBatchOperationCount?: number;
+	taskBatchOperationFailureCount?: number;
 	taskCount: number;
 	sandboxTaskCount: number;
 	changedSandboxTaskCount: number;
@@ -955,6 +959,8 @@ type CloudSandboxDiscoveryEvent = Omit<ICloudSandboxDiscoveryTelemetryData, 'req
 	listRequestCount: number | undefined;
 	listOperationCount: number | undefined;
 	listOperationFailureCount: number | undefined;
+	taskBatchOperationCount: number | undefined;
+	taskBatchOperationFailureCount: number | undefined;
 	checkpointAvailable: boolean | undefined;
 	listPageFailureCount: number | undefined;
 	taskDetailFailureCount: number | undefined;
@@ -976,6 +982,8 @@ export type CloudSandboxDiscoveryClassification = {
 	listRequestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Legacy renderer task-list HTTP attempts, including retries; omitted for shared-client reads, whose wire counts use GitHub transport telemetry.' };
 	listOperationCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Logical task-list operations, including client acquisition failures; each may collect multiple pages and is not an HTTP attempt count.' };
 	listOperationFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed typed task-list operations, including page, schema and continuation failures.' };
+	taskBatchOperationCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Logical task-batch operations, including client acquisition failures; not an HTTP attempt count.' };
+	taskBatchOperationFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed typed task-batch operations, including request and schema failures.' };
 	taskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique task IDs returned by list pages or targeted reads, excluding cached tasks revisited locally.' };
 	sandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique returned tasks identified as sandbox tasks.' };
 	changedSandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Returned sandbox task summaries absent from or different from the client cache at scan start; not an authoritative server change count.' };

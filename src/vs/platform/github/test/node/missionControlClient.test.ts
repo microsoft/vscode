@@ -422,6 +422,33 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual({ tasks: listed.data.tasks, detail }, { tasks: [unbound, provisioning], detail: provisioning });
 	});
 
+	test('task batches accept 50 IDs and reject unsupported sizes before resolving credentials', async () => {
+		const ids = Array.from({ length: 50 }, (_, index) => `task-${index}`);
+		const returned = [{ ...task, id: ids[0], compute: null }, { ...task, id: ids[49] }];
+		const { client, requests, identities } = setup(() => Response.json({ tasks: returned }));
+		for (const invalid of [[], [...ids, 'extra']]) {
+			await assert.rejects(client.tasks.getBatch(invalid, signal()), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		const tasks = await client.tasks.getBatch(ids, signal());
+		assert.deepStrictEqual({
+			rejectedRequests, tasks,
+			requests: requests.map(({ url, init }) => ({
+				method: init.method, path: url.pathname, ids: url.searchParams.get('task_ids')?.split(','),
+			})),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 }, tasks: returned,
+			requests: [{ method: 'GET', path: '/agents/tasks/batch', ids }],
+		});
+	});
+
+	test('task batches reject malformed and unrequested rows instead of treating them as omissions', async () => {
+		for (const returned of [{ id: task.id }, { ...task, id: 'unrequested' }]) {
+			const { client } = setup(() => Response.json({ tasks: [returned] }));
+			await assert.rejects(client.tasks.getBatch([task.id], signal()), SchemaError);
+		}
+	});
+
 	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {
 		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
 		const hints = [120, 30, 60];

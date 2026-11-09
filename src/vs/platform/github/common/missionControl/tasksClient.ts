@@ -11,7 +11,7 @@ import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, MAX_TASK_BATCH_SIZE, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
@@ -67,6 +67,25 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 200,
 			options,
 		}, signal, response => parseTaskDetail(response.data, taskId));
+	}
+
+	async getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]> {
+		signal.throwIfAborted();
+		if (taskIds.length === 0 || taskIds.length > MAX_TASK_BATCH_SIZE) {
+			throw new GitHubRequestError(`Task batches require between 1 and ${MAX_TASK_BATCH_SIZE} IDs`, 'validation');
+		}
+		const requested = new Set(taskIds);
+		return this._client.request({
+			domain: 'tasks',
+			method: 'GET',
+			path: withQuery('/tasks/batch', { task_ids: taskIds.join(',') }),
+			expectedStatus: 200,
+			options,
+		}, signal, response => parse.refine(
+			parseListTasksResponse,
+			result => result.tasks.every(task => requested.has(task.id)),
+			'Task batch response contained an unrequested task',
+		)(response.data).tasks);
 	}
 
 	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
