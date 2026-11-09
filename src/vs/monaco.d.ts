@@ -5309,7 +5309,7 @@ declare namespace monaco.editor {
 		doubleClickSelectsBlock = 177,
 		fullwidthCharacterWidth = 178,
 		effectiveFullwidthCharacterWidth = 179,
-		experimentalClipboardApi = 179
+		experimentalClipboardApi = 180
 	}
 
 	export const EditorOptions: {
