@@ -1,0 +1,37 @@
+parameters:
+  # Arguments of `pnpmStoreCache.ts key`, for the platform of the job.
+  - name: keyArgs
+    type: string
+  # Operating system of the job (linux, macOS or windows).
+  - name: os
+    type: string
+
+# Restores the pnpm store of the job's platform from the pipeline cache, and saves it at the end of
+# the job unless its key hit. The job sets PNPM_CONFIG_STORE_DIR, the cached folder, and
+# PNPM_CONFIG_CACHE_DIR inside it: pnpm's metadata cache also keeps the log of the lockfiles that
+# passed the supply-chain policies, which pnpm then doesn't check again
+# (https://pnpm.io/continuous-integration).
+#
+# The key is the platform and the lockfiles of every install root. When no store has it, for
+# example after a lockfile change, the latest store of the platform is restored, so pnpm downloads
+# only the packages that it doesn't have. Run `node build/azure-pipelines/common/pnpmStoreCache.ts
+# prune` at the end of the job when PNPM_STORE_RESTORED isn't true, so that the saved store drops
+# the packages that the lockfiles no longer use.
+steps:
+  - script: node build/azure-pipelines/common/pnpmStoreCache.ts key ${{ parameters.keyArgs }}
+    displayName: Prepare pnpm store cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"pnpm_store" | .build/pnpmstorebase | .build/pnpmstorelockfiles'
+      restoreKeys: '"pnpm_store" | .build/pnpmstorebase'
+      path: $(PNPM_CONFIG_STORE_DIR)
+      cacheHitVar: PNPM_STORE_RESTORED
+    # Saves new entries with 1 MB chunks on AcesShared agents, like the node_modules cache in
+    # product-build-darwin-node-modules.yml.
+    ${{ if eq(parameters.os, 'macOS') }}:
+      env:
+        AGENT_ENABLE_PIPELINEARTIFACT_LARGE_CHUNK_SIZE: "true"
+        OVERRIDE_PIPELINE_ARTIFACT_CHUNKSIZE: Dedup1024K
+    displayName: Restore pnpm store cache
+    retryCountOnTaskFailure: 2
