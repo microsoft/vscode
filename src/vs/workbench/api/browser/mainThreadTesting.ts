@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
@@ -131,19 +132,23 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 */
 	$applyTestRunUpdates(controllerId: string, runId: string, updates: TestRunUpdate[]): void {
 		for (const update of updates) {
-			switch (update.type) {
-				case 'tests':
-					this.$addTestsToRun(controllerId, runId, update.tests);
-					break;
-				case 'state':
-					this.$updateTestStateInRun(runId, update.taskId, update.testId, update.state, update.duration);
-					break;
-				case 'messages':
-					this.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
-					break;
-				case 'output':
-					this.$appendOutputToRun(runId, update.taskId, VSBuffer.fromString(update.output), update.location, update.testId);
-					break;
+			try {
+				switch (update.type) {
+					case 'tests':
+						this.$addTestsToRun(controllerId, runId, update.tests);
+						break;
+					case 'state':
+						this.$updateTestStateInRun(runId, update.taskId, update.testId, update.state, update.duration);
+						break;
+					case 'messages':
+						this.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
+						break;
+					case 'output':
+						this.$appendOutputToRun(runId, update.taskId, VSBuffer.fromString(update.output), update.location, update.testId);
+						break;
+				}
+			} catch (error) {
+				onUnexpectedError(error);
 			}
 		}
 	}

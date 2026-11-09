@@ -5,6 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { RunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -76,6 +77,11 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 		this.observer = new TestObservers(this.proxy);
 		this.runTracker = new TestRunCoordinator(this.proxy, logService);
+		this._register(commands.registerExecutionParticipant(command => {
+			if (command.startsWith('testing.') || command === 'vscode.peekTestError') {
+				this.runTracker.flushUpdates();
+			}
+		}));
 
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -582,6 +588,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 				if (tracker.hasRunningTasks && !token.isCancellationRequested) {
 					await Event.toPromise(tracker.onEnd);
 				}
+				tracker.flushUpdates();
 			}
 		}
 	}
@@ -601,7 +608,7 @@ const enum TestRunTrackerState {
 
 class TestRunTracker extends Disposable {
 	private readonly pendingUpdates: TestRunUpdate[] = [];
-	private pendingOutputLength = 0;
+	private pendingUpdateSize = 0;
 	private readonly updateScheduler = this._register(new RunOnceScheduler(() => this.flushUpdates(), 0));
 	private state = TestRunTrackerState.Running;
 	private running = 0;
@@ -794,16 +801,19 @@ class TestRunTracker extends Disposable {
 				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
 			}),
 			//#endregion
-			appendOutput: (output, location?: vscode.Location, test?: vscode.TestItem) => {
-				if (ended) {
+			appendOutput: (output: string | Uint8Array, location?: vscode.Location, test?: vscode.TestItem) => {
+				if (ended || this._store.isDisposed) {
 					return;
 				}
-				if (typeof output !== 'string') {
-					throw new TypeError('Test output must be a string');
-				}
-
 				if (test) {
 					this.ensureTestIsKnown(test);
+				}
+
+				if (typeof output !== 'string') {
+					// Keep byte chunks intact, including UTF-8 characters spanning chunks.
+					this.flushUpdates();
+					this.proxy.$appendOutputToRun(runId, taskId, VSBuffer.wrap(output).clone(), location && Convert.location.from(location), test && TestId.fromExtHostTestItem(test, ctrlId).toString());
+					return;
 				}
 
 				this.queueUpdate({
@@ -886,11 +896,14 @@ class TestRunTracker extends Disposable {
 		if (this._store.isDisposed) {
 			return;
 		}
-		this.pendingUpdates.push(update);
-		if (update.type === 'output') {
-			this.pendingOutputLength += update.output.length;
+		// State updates are the hot path; avoid serializing them just to estimate their size.
+		const updateSize = update.type === 'state' ? update.taskId.length + update.testId.length : JSON.stringify(update).length;
+		if (this.pendingUpdateSize + updateSize > 64 * 1024) {
+			this.flushUpdates();
 		}
-		if (this.pendingUpdates.length >= 1024 || this.pendingOutputLength >= 64 * 1024) {
+		this.pendingUpdates.push(update);
+		this.pendingUpdateSize += updateSize;
+		if (this.pendingUpdates.length >= 1024 || this.pendingUpdateSize >= 64 * 1024) {
 			this.flushUpdates();
 		} else if (!this.updateScheduler.isScheduled()) {
 			this.updateScheduler.schedule();
@@ -901,7 +914,7 @@ class TestRunTracker extends Disposable {
 		this.updateScheduler.cancel();
 		if (this.pendingUpdates.length) {
 			const updates = this.pendingUpdates.splice(0);
-			this.pendingOutputLength = 0;
+			this.pendingUpdateSize = 0;
 			this.proxy.$applyTestRunUpdates(this.dto.controllerId, this.dto.id, updates);
 		}
 	}
@@ -940,10 +953,15 @@ export class TestRunCoordinator {
 
 	/** Publishes queued test registrations and states before retiring their results. */
 	public markTestRetired(testIds: string[] | undefined): void {
-		for (const tracker of this.trackedById.values()) {
+		this.flushUpdates();
+		this.proxy.$markTestRetired(testIds);
+	}
+
+	/** Publishes updates from every request, including profiles sharing a run ID. */
+	public flushUpdates(): void {
+		for (const tracker of this.tracked.values()) {
 			tracker.flushUpdates();
 		}
-		this.proxy.$markTestRetired(testIds);
 	}
 
 	/**
