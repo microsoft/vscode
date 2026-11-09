@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getRowsOutlinePath, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getRevealScrollTop, getRowsOutlinePath, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,10 +130,44 @@ suite('Comment thread floating widget', () => {
 		});
 	});
 
+	suite('getRevealScrollTop', () => {
+		const viewportHeight = 600;
+
+		test('scrolls only when the code or the widget is out of view', () => {
+			const code = { top: 1000, bottom: 1020 };
+			const widget = { top: 830, bottom: 1190 };
+			assert.deepStrictEqual({
+				inView: getRevealScrollTop(code, widget, 700, viewportHeight),
+				belowView: getRevealScrollTop(code, widget, 0, viewportHeight),
+			}, {
+				inView: undefined,
+				belowView: 710,
+			});
+		});
+
+		test('shows the whole widget when it does not fit in the viewport together with the code', () => {
+			// The widget is centered on code that is taller than the viewport.
+			const tallCode = { top: 1000, bottom: 3000 };
+			const centeredWidget = { top: 1820, bottom: 2180 };
+			assert.deepStrictEqual({
+				centeredOnTallCode: getRevealScrollTop(tallCode, centeredWidget, 0, viewportHeight),
+				widgetAlreadyInView: getRevealScrollTop(tallCode, centeredWidget, 1700, viewportHeight),
+				farBelowCode: getRevealScrollTop({ top: 1000, bottom: 1020 }, { top: 2000, bottom: 2360 }, 0, viewportHeight),
+				tallerThanViewport: getRevealScrollTop(tallCode, { top: 1500, bottom: 2200 }, 0, viewportHeight),
+			}, {
+				centeredOnTallCode: 1588,
+				widgetAlreadyInView: undefined,
+				farBelowCode: 1768,
+				tallerThanViewport: 1492,
+			});
+		});
+	});
+
 	suite('FloatingWidgetSizeModel', () => {
 		const code = { top: 1000, bottom: 1020 };
 		const collapsedReply = { fixed: 100, comments: 2000 };
 		const expandedReply = { fixed: 180, comments: 2000 };
+		const scrollableHeight = 5000;
 
 		function createModel(): FloatingWidgetSizeModel {
 			const model = new FloatingWidgetSizeModel();
@@ -189,10 +223,10 @@ suite('Comment thread floating widget', () => {
 			const model = createModel();
 			model.updateGrowth(collapsedReply);
 			const collapsedHeight = model.getHeight(collapsedReply, undefined);
-			const collapsed = { height: collapsedHeight, top: model.getTop(undefined, code, collapsedHeight) };
+			const collapsed = { height: collapsedHeight, top: model.getTop(undefined, code, collapsedHeight, scrollableHeight) };
 			const growthChanged = model.updateGrowth(expandedReply);
 			const expandedHeight = model.getHeight(expandedReply, undefined);
-			const expanded = { growthChanged, height: expandedHeight, top: model.getTop(undefined, code, expandedHeight), chosenHeight: model.getHeight(expandedReply, 300) };
+			const expanded = { growthChanged, height: expandedHeight, top: model.getTop(undefined, code, expandedHeight, scrollableHeight), chosenHeight: model.getHeight(expandedReply, 300) };
 			// A height chosen while the reply is expanded includes the reply.
 			model.resetGrowth();
 			model.updateGrowth(expandedReply);
@@ -211,7 +245,7 @@ suite('Comment thread floating widget', () => {
 			// The widget's top is 400px below the top of the editor, so the expanded reply extends past its bottom.
 			model.updateUpwardShift(0, code, 440, 600, 600);
 			shifts.push(model.upwardShift);
-			const shiftedTop = model.getTop(0, code, 440);
+			const shiftedTop = model.getTop(0, code, 440, scrollableHeight);
 			// The widget doesn't move back down while its reply is grown, such as when the editor scrolls.
 			model.updateUpwardShift(0, code, 440, 900, 600);
 			shifts.push(model.upwardShift);
@@ -228,6 +262,21 @@ suite('Comment thread floating widget', () => {
 			// The editor became shorter than the widget after the widget was shown. Its top is 100px below the editor's top.
 			model.updateUpwardShift(0, code, 440, 900, 400);
 			assert.strictEqual(model.upwardShift, 92);
+		});
+
+		test('stays within the area that the editor can scroll through', () => {
+			const model = createModel();
+			model.updateGrowth(collapsedReply);
+			// The commented code is the last line of a document that can't be scrolled beyond its last line.
+			assert.deepStrictEqual({
+				belowLastLine: model.getTop(28, code, 360, 1020),
+				centeredOnLastLine: model.getTop(undefined, code, 360, 1020),
+				documentShorterThanWidget: model.getTop(28, code, 360, 300),
+			}, {
+				belowLastLine: 652,
+				centeredOnLastLine: 652,
+				documentShorterThanWidget: 0,
+			});
 		});
 
 		test('is limited by the editor size it captured, rather than the current one', () => {

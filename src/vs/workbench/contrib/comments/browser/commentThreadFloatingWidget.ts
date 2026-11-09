@@ -33,7 +33,7 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getDefaultFloatingWidgetWidth, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getDefaultFloatingWidgetWidth, getRevealScrollTop, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -480,24 +480,18 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Scrolls the editor so that both the commented code and the widget are visible, if they aren't already.
+	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already.
 	 */
 	private _revealInEditor(): void {
 		if (!this._layout) {
 			return;
 		}
-		const code = this._codeGeometry.getVerticalBounds();
-		const widgetTop = this._getDocumentTop(this._layout, this._resizable.size.height);
-		const top = Math.min(code.top, widgetTop);
-		const bottom = Math.max(code.bottom, widgetTop + this._resizable.size.height);
-
-		const scrollTop = this.editor.getScrollTop();
-		const viewportHeight = this.editor.getLayoutInfo().height;
-		if (top >= scrollTop && bottom <= scrollTop + viewportHeight) {
-			return;
+		const height = this._resizable.size.height;
+		const widgetTop = this._getDocumentTop(this._layout, height);
+		const scrollTop = getRevealScrollTop(this._codeGeometry.getVerticalBounds(), { top: widgetTop, bottom: widgetTop + height }, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
+		if (scrollTop !== undefined) {
+			this.editor.setScrollTop(scrollTop);
 		}
-		const newScrollTop = bottom - top <= viewportHeight ? (top + bottom - viewportHeight) / 2 : top - EDGE_MARGIN;
-		this.editor.setScrollTop(Math.max(0, newScrollTop));
 	}
 
 	private _storeLayout(): void {
@@ -615,7 +609,14 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	 * The top of the widget in document coordinates.
 	 */
 	private _getDocumentTop(layout: ICommentThreadFloatingWidgetLayout, height: number): number {
-		return this._sizeModel.getTop(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height);
+		return this._sizeModel.getTop(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, this._getScrollableHeight());
+	}
+
+	/**
+	 * The height of the area that the editor can scroll through. Overlay widgets don't make it larger.
+	 */
+	private _getScrollableHeight(): number {
+		return Math.max(this.editor.getScrollHeight(), this.editor.getLayoutInfo().height);
 	}
 
 	private _render(): void {
@@ -751,12 +752,20 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		// Dragging a corner trades width for height: the allowed height depends on the new width.
 		const heights = this._measureContentHeights();
 		this._sizeModel.updateGrowth(heights);
-		const height = this._setHeight(session.vertical ? e.dimension.height : this._sizeModel.getHeight(heights, session.layout.height), heights);
+		let requestedHeight = session.vertical ? e.dimension.height : this._sizeModel.getHeight(heights, session.layout.height);
+		if (session.north) {
+			// The top edge can't go above the start of the document.
+			requestedHeight = Math.min(requestedHeight, session.top + session.height);
+		} else if (session.vertical) {
+			// The bottom edge can't go below the area that the editor can scroll through.
+			requestedHeight = Math.min(requestedHeight, this._getScrollableHeight() - EDGE_MARGIN - session.top);
+		}
+		const height = this._setHeight(requestedHeight, heights);
 
 		// Resizing vertically pins the edge that isn't being dragged, so the widget stops being centered on the code.
 		let offsetTop = session.layout.offsetTop;
 		if (session.vertical) {
-			const top = session.north ? session.top + session.height - height : session.top;
+			const top = session.north ? Math.max(0, session.top + session.height - height) : session.top;
 			offsetTop = top - this._codeGeometry.getVerticalBounds().top;
 			// The pinned edge includes any upward shift for the widget's expanded reply.
 			this._sizeModel.clearUpwardShift();

@@ -50,11 +50,24 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	 */
 	measureNaturalWidth(): number {
 		if (this._naturalWidth === undefined) {
-			const style = this._commentsElement.style;
-			const width = style.width;
-			style.width = 'max-content';
-			this._naturalWidth = this._commentsElement.offsetWidth;
-			style.width = width;
+			// Measure a hidden copy, because unwrapping the comments themselves would shorten them, which resets the
+			// scroll positions of the comments and of the scrolling parts within them.
+			const copy = this._commentsElement.cloneNode(true);
+			if (!dom.isHTMLElement(copy)) {
+				return 0;
+			}
+			copy.setAttribute('aria-hidden', 'true');
+			copy.style.position = 'absolute';
+			copy.style.visibility = 'hidden';
+			copy.style.width = 'max-content';
+			this.container.appendChild(copy);
+			const naturalWidth = copy.offsetWidth;
+			copy.remove();
+			if (naturalWidth === 0) {
+				// The comments aren't rendered, such as while the editor is hidden.
+				return 0;
+			}
+			this._naturalWidth = naturalWidth;
 		}
 		return this._naturalWidth;
 	}
@@ -86,6 +99,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	revealComment(commentUniqueId: number): void {
 		const coords = this.getCommentCoords(commentUniqueId);
 		if (coords && this._commentsScrollable) {
+			// The comments may have just been shown or resized, before their resize observer updated the scroll range.
+			this._commentsScrollable.scanDomNode();
 			this._commentsScrollable.setScrollPosition({ scrollTop: coords.comment.top - coords.thread.top });
 		}
 	}

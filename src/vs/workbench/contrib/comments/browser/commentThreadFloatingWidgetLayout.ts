@@ -167,6 +167,25 @@ export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availa
 	return Math.min(clamp(Math.round(editorContentWidth * DEFAULT_WIDTH_RATIO), DEFAULT_MIN_WIDTH, DEFAULT_MAX_WIDTH), availableWidth);
 }
 
+/**
+ * The scroll position that shows the commented code and the widget, all in document coordinates, or `undefined` when
+ * no scrolling is needed. When they don't fit in the viewport together, the widget is shown in full, with as much of
+ * the start of the code as fits.
+ */
+export function getRevealScrollTop(code: { top: number; bottom: number }, widget: { top: number; bottom: number }, scrollTop: number, viewportHeight: number): number | undefined {
+	const top = Math.min(code.top, widget.top);
+	const bottom = Math.max(code.bottom, widget.bottom);
+	if (bottom - top <= viewportHeight) {
+		const isInView = top >= scrollTop && bottom <= scrollTop + viewportHeight;
+		return isInView ? undefined : Math.max(0, (top + bottom - viewportHeight) / 2);
+	}
+	if (widget.top >= scrollTop && widget.bottom <= scrollTop + viewportHeight) {
+		return undefined;
+	}
+	// A widget that is taller than the viewport is shown from its top.
+	return Math.max(0, clamp(code.top - EDGE_MARGIN, widget.bottom + EDGE_MARGIN - viewportHeight, widget.top - EDGE_MARGIN));
+}
+
 function rectsIntersect(a: IRect, b: IRect): boolean {
 	return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
@@ -344,12 +363,14 @@ export class FloatingWidgetSizeModel {
 
 	/**
 	 * The top of the widget in document coordinates. A centered widget stays centered as it was before its reply and
-	 * additional actions grew, so that it grows down.
+	 * additional actions grew, so that it grows down. The widget is kept within the area that the editor can scroll
+	 * through, which the widget doesn't extend, so that the editor can always scroll to all of it.
 	 * @param offsetTop The widget's distance from the top of the code, or `undefined` when it's centered on the code.
 	 * @param code The vertical extent of the commented code in document coordinates.
+	 * @param scrollableHeight The height of the area that the editor can scroll through.
 	 */
-	getTop(offsetTop: number | undefined, code: { top: number; bottom: number }, height: number): number {
-		return this._getUnshiftedTop(offsetTop, code, height) - this._upwardShift;
+	getTop(offsetTop: number | undefined, code: { top: number; bottom: number }, height: number, scrollableHeight: number): number {
+		return clamp(this._getUnshiftedTop(offsetTop, code, height) - this._upwardShift, 0, Math.max(0, scrollableHeight - EDGE_MARGIN - height));
 	}
 
 	/**
