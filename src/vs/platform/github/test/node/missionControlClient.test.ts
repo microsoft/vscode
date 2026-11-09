@@ -394,7 +394,25 @@ suite('Mission Control client', () => {
 		}
 	});
 
-	test('task lists bound proxy and cursor walks through empty pages', async () => {
+	test('task lists reject page and cursor together before resolving credentials', async () => {
+		const { client, requests, identities } = setup(() => Response.json({ tasks: [] }));
+		for (const maxPages of [undefined, 3]) {
+			await assert.rejects(client.tasks.list(signal(), {
+				query: { page: 1, cursor: 'next' }, maxPages,
+			}), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		await client.tasks.list(signal(), { query: { cursor: 'next', per_page: 100 } });
+		assert.deepStrictEqual({
+			rejectedRequests,
+			pagination: requests.map(({ url }) => ({ page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor') })),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 },
+			pagination: [{ page: null, cursor: 'next' }],
+		});
+	});
+
+	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {
 		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
 		const hints = [120, 30, 60];
 		const scope = 'per_page=100&with_repo=false&is_archived=true&since=2026-01-01T00%3A00%3A00Z&include_counts=false';
@@ -404,10 +422,15 @@ suite('Mission Control client', () => {
 			return Response.json({ tasks: index === 0 ? [] : [{ ...task, id: `task-${index}` }] }, {
 				headers: {
 					date: dates[index], 'retry-after': String(hints[index]),
-					link: index === 0 ? `<https://api.github.com/agents/tasks?page=2&${scope}>; rel="next"`
+					link: index === 0 ? `<https://API.GITHUB.COM:443/agents/tasks?page=2&${scope}>; rel="next"`
 						: `<?cursor=cursor-${index + 2}&${scope}>; rel="next"`,
 				},
 			});
+		}, {
+			...clientOptions(),
+			missionControl: {
+				endpoint: { apiBaseUri: 'https://API.GITHUBCOPILOT.COM:443/agents/', integrationId: 'test-integration' },
+			},
 		});
 		const result = await client.tasks.list(signal(), {
 			query: { page: 1, per_page: 100, with_repo: false, is_archived: true, since: date, include_counts: false },

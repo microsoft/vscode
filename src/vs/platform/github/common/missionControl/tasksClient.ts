@@ -36,8 +36,12 @@ export class TasksClient implements ITasksClient {
 		});
 	}
 
-	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+	async list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		signal.throwIfAborted();
 		const { query, ...requestOptions } = options ?? {};
+		if (query?.cursor !== undefined && query.page !== undefined) {
+			throw new GitHubRequestError('Task pagination cannot combine cursor and page', 'validation');
+		}
 		return this._client.requestPages(
 			{
 				domain: 'tasks',

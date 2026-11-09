@@ -24,12 +24,16 @@ export function missionControlAccount(endpoint: ApiEndpoint, account: AccountHan
 
 function getMissionControlNextPagePath(apiBaseUri: string, responseUrl: string, link: string | undefined): string | null | undefined {
 	const path = getNextPagePath(apiBaseUri, responseUrl, link);
-	if (path !== null || apiBaseUri.replace(/\/$/, '') !== `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`) {
+	if (path !== null) {
+		return path;
+	}
+	const base = new URL(apiBaseUri);
+	if (base.origin !== new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).origin || base.pathname.replace(/\/+$/, '') !== '/agents') {
 		return path;
 	}
 	const current = new URL(responseUrl);
 	const next = nextLink(link);
-	if (current.origin !== GITHUB_DOT_COM_COPILOT_API_BASE_URI || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
+	if (current.origin !== base.origin || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
 		return null;
 	}
 	let target: URL;
@@ -38,7 +42,7 @@ function getMissionControlNextPagePath(apiBaseUri: string, responseUrl: string, 
 	} catch {
 		return null;
 	}
-	if (target.origin !== deriveGitHubEndpoints(undefined).apiBaseUri || target.pathname !== current.pathname
+	if (target.origin !== new URL(deriveGitHubEndpoints(undefined).apiBaseUri).origin || target.pathname !== current.pathname
 		|| target.username || target.password || target.hash) {
 		return null;
 	}

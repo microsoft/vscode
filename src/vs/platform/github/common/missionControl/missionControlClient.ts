@@ -91,13 +91,16 @@ export class MissionControlClient {
 			return data;
 		}
 		let serverDate: string | undefined;
+		let serverTimeMs: number | undefined;
 		let retryAfterSeconds: number | undefined;
 		const response = await collectPages(
 			request.path,
 			path => this.request({ ...request, path: path ?? request.path, options }, signal, response => {
 				const date = response.metadata?.serverDate;
-				if (date !== undefined && Number.isFinite(Date.parse(date)) && (serverDate === undefined || Date.parse(date) < Date.parse(serverDate))) {
+				const dateMs = date === undefined ? Number.NaN : Date.parse(date);
+				if (Number.isFinite(dateMs) && (serverTimeMs === undefined || dateMs < serverTimeMs)) {
 					serverDate = date;
+					serverTimeMs = dateMs;
 				}
 				const retryAfter = response.metadata?.retryAfterSeconds;
 				if (retryAfter !== undefined) {
