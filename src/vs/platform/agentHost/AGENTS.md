@@ -636,6 +636,8 @@ Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId =
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
+`AgentConfigurationService.copilotM365EnabledAtStartup` captures the validated `m365Enabled` root value once after loading persisted configuration. Only `true` enables it; missing or invalid values leave it off. The root value remains live requested configuration, while the effective value stays fixed for that Agent Host lifetime. A new host reads the persisted request; restarting VS Code recreates the local host. Reloading a window, connecting another client, or restarting only the Copilot SDK runtime does not recapture the value in an existing host. This is a host-lifetime snapshot, not a separate application-lifetime latch, and does not initiate account discovery, choose a service or migrate history.
+
 Copilot also has no AH-session container:
 - `_chatEntriesBySdkId: DisposableMap<string, CopilotChatEntry>` owns every live SDK conversation and its MCP/customization subscriptions.
 - `_chatBackings: Map<string, IPersistedChat>` maps each concrete host chat URI to exactly one provider-owned SDK backing record; SDK callbacks route directly through `_chatEntriesBySdkId`.

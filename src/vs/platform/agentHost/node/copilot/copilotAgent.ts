@@ -27,6 +27,7 @@ import { parseFrontMatter, parse as parseYaml, type YamlParseError } from '../..
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { Promises as FsPromises } from '../../../../base/node/pfs.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
 import { localize } from '../../../../nls.js';
 import { IParsedAgent, IParsedPlugin, IParsedRule, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
@@ -51,7 +52,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeCopilotPolicyHelperConfig, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
@@ -154,7 +155,8 @@ import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecis
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
-import { resolveCopilotRuntimePaths } from './copilotRuntimePaths.js';
+import { resolveCopilotRuntimePaths, type ICopilotRuntimePaths } from './copilotRuntimePaths.js';
+import { BROWSER_USE_PLUGIN_NAME } from './copilotBrowserUsePlugin.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { hasClientPluginMcpDefaultCwd, isClientPluginStandalone, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
@@ -1312,6 +1314,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sandboxCertificate: CopilotSandboxCertificate;
 	private readonly _customizationInstallations: CopilotCustomizationInstallations;
 	private readonly _extensionSdkPathByClient = new WeakMap<CopilotClient, string>();
+	/** Built-in plugin directories registered with the shared client; sessions trust reads of their bundled resources. */
+	private _builtinPluginDirectories: readonly URI[] = [];
 	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
 	/** Cancels the background Computer Use plugin download; cleared when it settles. */
 	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
@@ -1792,6 +1796,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	private async _resolveBrowserUsePlugin(runtimePaths: Promise<ICopilotRuntimePaths>): Promise<string | undefined> {
+		const { pluginsPath } = await runtimePaths;
+		const pluginPath = join(pluginsPath, BROWSER_USE_PLUGIN_NAME);
+		if (!await FsPromises.exists(join(pluginPath, '.plugin', 'plugin.json'))) {
+			this._logService.warn('[Copilot] Browser Use requested but the Copilot SDK does not bundle it');
+			return undefined;
+		}
+		this._logService.info(`[Copilot] Registering Browser Use built-in plugin: ${pluginPath}`);
+		return pluginPath;
+	}
+
 	private async _downloadComputerUsePlugin(plugin: CopilotComputerUsePlugin): Promise<void> {
 		if (this._computerUseDownload.value) {
 			return;
@@ -2029,6 +2044,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			&& this._localModelSetupService.isLocalAgentHost;
 	}
 
+	/** Only the local desktop agent host may operate the user's browser; the plugin registers a native messaging host on this machine. */
+	private _isBrowserUseEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostBrowserUseEnabledConfigKey) === true
+			&& this._localModelSetupService.isLocalAgentHost;
+	}
+
 	/**
 	 * Keeps the macOS permission setup in step with the startup configuration: it exists only while this local Agent
 	 * Host offers Computer Use on macOS, the one platform whose permissions it sets up. Other platforms and hosts keep
@@ -2075,6 +2096,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._getExecutionSubagentModel(),
 			this._isComputerUseEnabled(),
 			this._getPolicyHelper(),
+			this._isBrowserUseEnabled(),
 			this._isModelRouterEnabled(),
 		);
 	}
@@ -4787,13 +4809,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Keep the SDK wrapper and native module paired within the bundled platform
 			// package. Only the runtime executable can be explicitly overridden.
 			const nodeModulesUri = getAppNodeModulesUri();
-			// These lookups are independent; resolve them concurrently on the cold-start path.
-			const [{ runtimePath: bundledRuntimePath, extensionBootstrapPath, extensionSdkPath }, resolvedRgDiskPath, telemetry, nativeTelemetry, computerUsePluginPath] = await Promise.all([
-				resolveCopilotRuntimePaths(nodeModulesUri),
+			const runtimePaths = resolveCopilotRuntimePaths(nodeModulesUri);
+			// Resolve startup assets concurrently, sharing the runtime lookup with Browser Use.
+			const [{ runtimePath: bundledRuntimePath, extensionBootstrapPath, extensionSdkPath }, resolvedRgDiskPath, telemetry, nativeTelemetry, computerUsePluginPath, browserUsePluginPath] = await Promise.all([
+				runtimePaths,
 				rgDiskPath(),
 				this._otelService.getSdkTelemetryConfig(),
 				this._otelService.getNativeSdkTelemetryConfig(),
 				!scoped && startupConfig.computerUse ? this._resolveComputerUsePlugin() : undefined,
+				!scoped && startupConfig.browserUse ? this._resolveBrowserUsePlugin(runtimePaths) : undefined,
 				startupConfig.runtimePath ? validateCopilotRuntimePath(startupConfig.runtimePath) : undefined,
 			]);
 			let runtimePath = bundledRuntimePath;
@@ -4802,6 +4826,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Using configured runtime path: ${runtimePath}`);
 			} else {
 				this._logService.info(`[Copilot] Using bundled runtime path: ${runtimePath}`);
+			}
+
+			const builtinPluginDirectories: string[] = [];
+			if (computerUsePluginPath) {
+				builtinPluginDirectories.push(computerUsePluginPath);
+			}
+			if (browserUsePluginPath) {
+				builtinPluginDirectories.push(browserUsePluginPath);
 			}
 
 			// The request handler can only be set when the client starts (the runtime
@@ -4866,7 +4898,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				telemetry,
 				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
-				...(computerUsePluginPath ? { builtinPluginDirectories: [computerUsePluginPath] } : {}),
+				...(builtinPluginDirectories.length ? { builtinPluginDirectories } : {}),
 				logLevel: copilotSdkLogLevelAtStartup,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
@@ -4910,6 +4942,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._appliedProxyState = appliedProxy;
 			this._client = client;
+			this._builtinPluginDirectories = builtinPluginDirectories.map(directory => URI.file(directory));
 			this._clientGeneration++;
 			this._managedSettingsResolver.invalidate();
 			this._clientStartupAuthentication = { connectorsEnabled: startupConfig.copilotConnectors, enterpriseHost: startupConfig.enterpriseHost, token: gitHubToken };
@@ -10532,6 +10565,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				pathMapper: createCopilotSessionPathMapper(workspace, resourceJoinPath(this._copilotHomeService.home, 'session-state', launchPlan.sessionId)),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
+				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				currentActiveClientToolSet: () => {
 					const current = this._activeClients.get(owner.get());
