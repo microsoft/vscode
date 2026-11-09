@@ -286,6 +286,54 @@ suite('InternalTerminalShellIntegration', () => {
 			deepStrictEqual([await reading, await AsyncIterableObject.toPromise(stream)], [['first', 'last'], []]);
 		});
 
+		for (const timing of ['buffered', 'pending', 'after execution end'] as const) {
+			test(`read progress does not retain consumed output (${timing})`, async () => {
+				const execution = await startExecutionAwaitObject(testCommandLine);
+				const iterator = execution.read()[Symbol.asyncIterator]() as AsyncIterator<string, void, void> & { readonly _lastRead: Promise<void> | undefined };
+				let reading: Promise<IteratorResult<string>>;
+				if (timing === 'pending') {
+					reading = iterator.next();
+					si.emitData('output');
+				} else {
+					si.emitData('output');
+					if (timing === 'after execution end') {
+						await endExecutionAwaitObject(testCommandLine);
+					}
+					reading = iterator.next();
+				}
+				const result = await reading;
+				if (timing !== 'after execution end') {
+					await endExecutionAwaitObject(testCommandLine);
+				}
+
+				deepStrictEqual({ result, hasProgressSignal: Object.hasOwn(iterator, '_lastRead'), progress: await iterator._lastRead }, {
+					result: { done: false, value: 'output' },
+					hasProgressSignal: true,
+					progress: undefined,
+				});
+			});
+		}
+
+		test('polling completed reads does not block the end event', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const reading = iterator.next();
+			si.emitData('last');
+			await reading;
+			let endEventFired = false;
+			store.add(si.onDidRequestEndExecution(() => {
+				endEventFired = true;
+			}));
+			const ending = endExecutionAwaitObject(testCommandLine);
+			for (let i = 0; i < 100 && !endEventFired; i++) {
+				await iterator.next();
+			}
+			const endedWhilePolling = endEventFired;
+			await ending;
+
+			strictEqual(endedWhilePolling, true);
+		});
+
 		test('early return drops the abandoned queue without affecting other readers', async () => {
 			const execution = await startExecutionAwaitObject(testCommandLine);
 			const iterator = execution.read()[Symbol.asyncIterator]();

@@ -480,7 +480,7 @@ class ShellExecutionDataStreamReader implements AsyncIterableIterator<string, vo
 	private readonly _ended = new DeferredPromise<void>();
 	private readonly _data = new LinkedList<string>();
 	private readonly _pendingReads = new LinkedList<DeferredPromise<IteratorResult<string, void>>>();
-	private _lastRead: Promise<IteratorResult<string, void>> | undefined;
+	private _lastRead: Promise<void> | undefined;
 
 	constructor(private _onReturn: (() => void) | undefined) { }
 
@@ -491,14 +491,17 @@ class ShellExecutionDataStreamReader implements AsyncIterableIterator<string, vo
 	next(): Promise<IteratorResult<string, void>> {
 		const data = this._data.shift();
 		if (data !== undefined) {
-			return this._lastRead = Promise.resolve({ done: false, value: data });
+			this._lastRead = Promise.resolve();
+			return Promise.resolve({ done: false, value: data });
 		}
 		if (this._ended.isSettled) {
-			return this._lastRead = Promise.resolve({ done: true, value: undefined });
+			this._lastRead = undefined;
+			return Promise.resolve({ done: true, value: undefined });
 		}
 		const pending = new DeferredPromise<IteratorResult<string, void>>();
 		this._pendingReads.push(pending);
-		return this._lastRead = pending.p;
+		this._lastRead = pending.p.then(() => { });
+		return pending.p;
 	}
 
 	return(): Promise<IteratorResult<string, void>> {
