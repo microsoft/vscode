@@ -16,13 +16,14 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 
 	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
 		return this._client.request({
-			domain: 'environments', method: 'POST', path: '/environments/tokens', body: {}, expectedStatus: 200,
-			policy: { credential: true }, options,
-		}, signal, response => parse.object<EnvironmentIdentityToken>({
-			token: parse.nonEmptyString,
-			expires_at: parse.optional(parse.dateTime),
-			expires_in: parse.optional(parse.nonNegativeInteger),
-		})(response.data));
+			domain: 'environments',
+			method: 'POST',
+			path: '/environments/tokens',
+			body: {},
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => parseEnvironmentIdentityToken(response.data));
 	}
 
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
@@ -111,6 +112,12 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 function environmentPath(environmentId: string): string {
 	return `/environments/${pathSegment(environmentId)}`;
 }
+
+const parseEnvironmentIdentityToken = parse.object<EnvironmentIdentityToken>({
+	token: parse.nonEmptyString,
+	expires_at: parse.optional(parse.dateTime),
+	expires_in: parse.optional(parse.nonNegativeInteger),
+});
 
 const parseEnvironmentStatus = parse.oneOf('online', 'offline', 'waking', 'degraded', 'draining');
 const parseOptionalActivationContext = parse.optional(parseActivationContext);
