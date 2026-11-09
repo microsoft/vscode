@@ -903,6 +903,7 @@ suite('PromptValidator', () => {
 				'      exec: node',
 				'      args: [script.js]',
 				'      timeout: 2.5',
+				'      matcher: shell|bash',
 				'  preToolUse:',
 				'    - type: http',
 				'      url: https://example.com/approve',
@@ -914,6 +915,28 @@ suite('PromptValidator', () => {
 			].join('\n');
 
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent reports invalid hook matcher regular expressions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  preToolUse:',
+				'    - type: command',
+				'      bash: echo test',
+				'      matcher: "["',
+				'    - type: http',
+				'      url: https://example.com/approve',
+				'      matcher: "("',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'matcher' property in a hook must be a valid regular expression.`,
+				`The 'matcher' property in a hook must be a valid regular expression.`,
+			]);
 		});
 
 		const githubCopilotSchemaCases: [name: string, header: string[], expected: string[]][] = [
@@ -2076,6 +2099,12 @@ suite('PromptValidator', () => {
 				'        - type: script',
 				'          command: "echo foo"',
 			], [{ severity: MarkerSeverity.Error, message: `The 'type' property in a hook command must be 'command'.` }]],
+			['hooks - nested matcher must be a valid regular expression', [
+				'hooks:',
+				'  PreToolUse:',
+				'    - matcher: "["',
+				'      hooks: []',
+			], [{ severity: MarkerSeverity.Error, message: `The 'matcher' property in a hook must be a valid regular expression.` }]],
 			['hooks - nested hooks must be array', [
 				'hooks:',
 				'  PreToolUse:',

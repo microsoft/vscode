@@ -1049,6 +1049,10 @@ export class PromptValidator {
 					report(toMarker(localize('promptValidator.unknownMatcherProperty', "Unknown property '{0}' in hook matcher.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
 				}
 			}
+			const matcherProperty = item.properties.find(p => p.key.value === 'matcher');
+			if (matcherProperty) {
+				this.validateHookMatcher(matcherProperty.value, report);
+			}
 			if (hooksProperty.value.type !== 'sequence') {
 				report(toMarker(localize('promptValidator.nestedHooksMustBeArray', "The 'hooks' property in a matcher must be an array of command objects."), hooksProperty.value.range, MarkerSeverity.Error));
 				return;
@@ -1154,8 +1158,10 @@ export class PromptValidator {
 				this.validateNonEmptyHookString(name, property.value, report);
 			} else if (name === 'args') {
 				this.validateHookStringArray(name, property.value, report);
-			} else if (name === 'cwd' || name === 'matcher') {
+			} else if (name === 'cwd') {
 				this.validateHookString(name, property.value, report);
+			} else if (name === 'matcher') {
+				this.validateHookMatcher(property.value, report);
 			} else if (name === 'env') {
 				this.validateHookStringMap(name, property.value, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
@@ -1191,7 +1197,7 @@ export class PromptValidator {
 			} else if (name === 'allowedEnvVars') {
 				this.validateHookStringArray(name, property.value, report);
 			} else if (name === 'matcher') {
-				this.validateHookString(name, property.value, report);
+				this.validateHookMatcher(property.value, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
 				this.validateHookTimeout(name, property.value, report);
 			}
@@ -1225,6 +1231,18 @@ export class PromptValidator {
 	private validateHookString(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
 		if (value.type !== 'scalar') {
 			report(toMarker(localize('promptValidator.hookPropertyMustBeString', "The '{0}' property in a hook action must be a string.", name), value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateHookMatcher(value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'scalar') {
+			report(toMarker(localize('promptValidator.hookMatcherMustBeString', "The 'matcher' property in a hook must be a string."), value.range, MarkerSeverity.Error));
+			return;
+		}
+		try {
+			new RegExp(value.value);
+		} catch {
+			report(toMarker(localize('promptValidator.hookMatcherMustBeValidRegex', "The 'matcher' property in a hook must be a valid regular expression."), value.range, MarkerSeverity.Error));
 		}
 	}
 
