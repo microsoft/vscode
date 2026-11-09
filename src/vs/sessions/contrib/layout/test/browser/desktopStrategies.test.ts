@@ -91,6 +91,7 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		completeChangesEditorTransition: () => { },
 		chatLayoutActive: () => false,
 		chatLayoutSuspended: () => false,
+		windowCanvasShown: false,
 		shownByMainWindow: reader => {
 			const session = reader ? harness.activeSessionObs.read(reader) : harness.activeSessionObs.get();
 			return session && { session, chat: reader ? session.activeChat.read(reader) : session.activeChat.get() };
@@ -387,6 +388,28 @@ suite('Desktop layout strategies', () => {
 		harness.setPartHiddenCalls.length = 0;
 
 		activate(session);
+
+		assert.deepStrictEqual(harness.setPartHiddenCalls, [
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+			{ hidden: true, part: Parts.EDITOR_PART },
+		]);
+	});
+
+	test('New Session entry applies its default after a window canvas reopens into its group', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+		activate(session);
+
+		const canvas = store.add(harness.instaService.createInstance(WindowCanvasInput, { id: 'test.windowCanvas', title: 'Canvas', icon: Codicon.inbox, ctor: new SyncDescriptor(mock<IWindowCanvas>()) }));
+		harness.onWillOpenEditor.fire({ editor: canvas, groupId: 1 });
+		harness.activeGroupEditors.push(canvas);
+		harness.activeEditorInput = canvas;
+		harness.onDidEditorsChange.fire();
+		harness.setPartHiddenCalls.length = 0;
+		harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get())));
+		harness.onDidEditorsChange.fire();
 
 		assert.deepStrictEqual(harness.setPartHiddenCalls, [
 			{ hidden: false, part: Parts.AUXILIARYBAR_PART },

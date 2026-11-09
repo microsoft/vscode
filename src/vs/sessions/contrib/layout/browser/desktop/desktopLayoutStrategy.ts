@@ -32,6 +32,8 @@ export interface IDesktopLayoutContext {
 	completeChangesEditorTransition(): void;
 	chatLayoutActive(reader?: IReader): boolean;
 	chatLayoutSuspended(reader?: IReader): boolean;
+	/** `true` while a window canvas such as Inbox is shown instead of the chats, so side-pane changes are not a chat's composition. */
+	readonly windowCanvasShown: boolean;
 	readonly sharedChatLayout: boolean;
 	/** The session and chat the main window shows, from its host. */
 	shownByMainWindow(reader?: IReader): IShownChat | undefined;

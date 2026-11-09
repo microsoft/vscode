@@ -15,6 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IWindowCanvas, WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -2441,6 +2443,28 @@ suite('DesktopLayoutController', () => {
 			hasFilesTab: true,
 			changesTabMissing: false,
 		});
+	});
+
+	test('[managed tabs / Scenario 9] shows Changes and Files for a new-session view whose group holds only a window canvas', async () => {
+		createDesktopController({ activateAux: true, chatLayoutMode: 'chat' });
+		await settle();
+		const canvas = store.add(harness.instaService.createInstance(WindowCanvasInput, { id: 'test.windowCanvas', title: 'Canvas', icon: Codicon.inbox, ctor: new SyncDescriptor(mock<IWindowCanvas>()) }));
+		// Like the canvas service: keep the canvas through a Details-only collapse and reopen it into every applied working set.
+		store.add(harness.editorWorkingSetService.registerEditorToRetain(canvas));
+		harness.activeGroupEditors = [canvas];
+		harness.activeEditorInput = canvas;
+		harness.onApplyWorkingSet = () => {
+			harness.activeGroupEditors = [...harness.activeGroupEditors, canvas];
+			harness.activeEditorInput ??= canvas;
+		};
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			editors: harness.activeGroupEditors.map(editor => editor instanceof EmptyFileEditorInput ? 'files' : editor instanceof WindowCanvasInput ? 'canvas' : 'changes').sort(),
+			filesOpenedActive: harness.openEditorCalls.find(call => call.editor instanceof EmptyFileEditorInput)?.options?.inactive === false,
+		}, { editors: ['canvas', 'changes', 'files'], filesOpenedActive: true });
 	});
 
 	test('[managed tabs / new session] restores Changes after a delayed different-folder restore', async () => {

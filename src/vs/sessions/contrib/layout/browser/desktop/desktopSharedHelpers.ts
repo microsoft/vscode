@@ -11,7 +11,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../../workben
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
-import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -30,6 +30,19 @@ export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): bool
 		}
 	}
 	return true;
+}
+
+/**
+ * Whether `group` holds no editors of the shown chat. A window canvas such as Inbox joins every chat's editor group,
+ * so it never gives a chat's side pane content to show.
+ */
+export function holdsNoChatEditors(group: IEditorGroup): boolean {
+	return group.editors.every(editor => editor instanceof WindowCanvasInput);
+}
+
+/** Whether every group in the main editor part is empty or holds only window canvases; see {@link holdsNoChatEditors}. */
+export function hasNoChatEditors(editorGroupsService: IEditorGroupsService): boolean {
+	return editorGroupsService.mainPart.groups.every(group => group.isEmpty || (group.editors.length > 0 && holdsNoChatEditors(group)));
 }
 
 /** Whether the main window lays `shown` out as a Quick Chat: a workspace-less chat of a quick chat. */

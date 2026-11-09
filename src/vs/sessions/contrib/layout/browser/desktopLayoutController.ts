@@ -20,6 +20,7 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
+import { DesktopWindowCanvasCoordinator } from './desktop/desktopWindowCanvasCoordinator.js';
 import { IChat, isSessionCreated, ISession, isWorkspacelessQuickChat } from '../../../../workbench/services/sessions/common/session.js';
 import { getLayoutWorkspace, isQuickChatShown } from './desktop/desktopSharedHelpers.js';
 import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
@@ -58,6 +59,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _context: IDesktopLayoutContext | undefined;
 	private _existingSession: DesktopExistingSessionStrategy | undefined;
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	private _windowCanvas: DesktopWindowCanvasCoordinator | undefined;
 	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
@@ -131,6 +133,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 				},
 				chatLayoutActive: reader => that._chatLayoutActive(reader),
 				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
+				get windowCanvasShown() { return that._windowCanvas?.windowCanvasShown ?? false; },
 				get sharedChatLayout() { return that._sharedChatLayout; },
 				shownByMainWindow: reader => that._shownByMainWindow(reader),
 				get mainWindowSession() { return that._mainWindowSession; },
@@ -150,6 +153,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
 		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
+		this._windowCanvas = this._register(this._instantiationService.createInstance(DesktopWindowCanvasCoordinator, this._ctx, detailPanel));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(DesktopDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));

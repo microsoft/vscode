@@ -30,7 +30,7 @@ import { IChangesViewService } from '../../../../../workbench/contrib/sessions/c
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/services/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
-import { getLayoutWorkspace, isQuickChatShown } from './desktopSharedHelpers.js';
+import { getLayoutWorkspace, holdsNoChatEditors, isQuickChatShown } from './desktopSharedHelpers.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */
 const CHANGES_TAB_OPTIONS: IEditorOptions = { pinned: true, index: 0, inactive: true, preserveFocus: true, activation: EditorActivation.PRESERVE, isExplicit: false };
@@ -416,7 +416,8 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			// [2] Decide which docked inputs to open, from the trigger + group state. A created
 			// session leaves an empty group empty so it offers the Add Tab actions instead.
 			const isCreated = isSessionCreated(this._ctx.mainWindowSession.get());
-			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
+			const noChatEditors = holdsNoChatEditors(group);
+			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && noChatEditors;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
@@ -426,11 +427,11 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs)));
 			const openFiles = target.wantsFilesTab && !filesPresent && !preserveMissingFiles && (openIntoEmpty || ensureAllInputs);
-			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
+			const openFilesFirst = openChanges && openFiles && !isCreated && noChatEditors;
 
-			// [3] Keep Files active by default for a new-session view.
+			// [3] Keep Files active by default for a new-session view, also over a window canvas such as Inbox.
 			if (openFilesFirst) {
-				await this._openFilesTab(group, target.workspace);
+				await this._openFilesTab(group, target.workspace, true);
 				if (isCancelled()) {
 					return;
 				}
@@ -493,11 +494,11 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		return true;
 	}
 
-	private async _openFilesTab(group: IEditorGroup, workspace: ISessionWorkspace | undefined): Promise<void> {
+	private async _openFilesTab(group: IEditorGroup, workspace: ISessionWorkspace | undefined, active = false): Promise<void> {
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingFilesInternally = true;
 		try {
-			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput, workspace), FILES_TAB_OPTIONS, group);
+			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput, workspace), active ? { ...FILES_TAB_OPTIONS, inactive: false } : FILES_TAB_OPTIONS, group);
 			this._filesTabDismissed = false;
 		} finally {
 			this._changingFilesInternally = false;

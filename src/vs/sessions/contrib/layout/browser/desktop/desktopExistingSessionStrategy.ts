@@ -28,6 +28,7 @@ import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } fr
 import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -371,7 +372,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _captureExistingProfileIfApplicable(): void {
-		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()) {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._ctx.windowCanvasShown) {
 			return;
 		}
 		const shown = this._ctx.shownByMainWindow();
@@ -415,7 +416,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			&& this._ctx.shownByMainWindow()?.chat.status.get() === SessionStatus.Untitled;
 		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
 			&& !draftDetailsOnly
-			&& (!state.editorVisible || !this._editorGroupsService.mainPart.groups.some(group => group.editors.some(editor => !(editor instanceof DockedEditorInput))))) {
+			&& (!state.editorVisible || !this._editorGroupsService.mainPart.groups.some(group => group.editors.some(editor => !(editor instanceof DockedEditorInput) && !(editor instanceof WindowCanvasInput))))) {
 			state = { editorVisible: false, auxiliaryBarVisible: false };
 		}
 		this._detailPanel.resetTransientVisibility();

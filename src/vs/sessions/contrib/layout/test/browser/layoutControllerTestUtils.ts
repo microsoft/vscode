@@ -52,6 +52,10 @@ import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from 
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IWindowCanvasService, WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { TestWindowCanvasService } from '../../../../services/canvas/test/browser/testWindowCanvasService.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -286,6 +290,10 @@ export interface ITestLayoutHarness {
 	closedEditors: EditorInput[];
 	/** Records untyped editors reopened via `IEditorService.openEditors`. */
 	openedEditors: IUntypedEditorInput[];
+	/** Records editor inputs opened via `IEditorService.openEditor`. */
+	openEditorCalls: { readonly editor: EditorInput; readonly options: IEditorOptions | undefined }[];
+	/** Window canvases, such as Inbox, whose navigation state a test drives directly. */
+	readonly windowCanvasService: TestWindowCanvasService;
 	/** Records the depth-at-close for each `closeEditors` call, to assert layout-driven closes happen while suppressed. */
 	closeSuppressionFlags: boolean[];
 	/** Records whether each `closeEditors` call forces lifecycle cleanup. */
@@ -356,6 +364,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ILogService, store.add(new NullLogService()));
 	const editorWorkingSetService = new SessionEditorWorkingSetService();
 	instaService.stub(ISessionEditorWorkingSetService, editorWorkingSetService);
+	const windowCanvasService = new TestWindowCanvasService(new class extends mock<ICustomViewService>() {
+		override hideCustomView(): void { }
+	});
+	instaService.stub(IWindowCanvasService, windowCanvasService);
 
 	const chatLayoutIsPhoneObs = observableValue<boolean>('chatLayoutIsPhone', false);
 	const chatLayoutPresentation = store.add(new ChatLayoutPresentation(configService, options.desktopLayout ?? false, chatLayoutIsPhoneObs));
@@ -417,6 +429,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onWillDisposeActiveGroup: store.add(new Emitter<void>()),
 		closedEditors: [],
 		openedEditors: [],
+		openEditorCalls: [],
+		windowCanvasService,
 		closeSuppressionFlags: [],
 		closeForceFlags: [],
 		activePaneCompositeId: undefined,
@@ -771,6 +785,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override async openEditor(...args: unknown[]): Promise<undefined> {
 			const editor = args[0];
+			if (editor instanceof EditorInput) {
+				harness.openEditorCalls.push({ editor, options: args[1] as IEditorOptions | undefined });
+			}
 			if (editor instanceof EditorInput && !harness.activeGroupEditors.includes(editor)) {
 				const options = args[1] as { index?: number } | undefined;
 				const index = options?.index;
@@ -842,7 +859,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override saveWorkingSet(name: string): IEditorWorkingSet {
 			harness.saveWorkingSetCalls.push(name);
-			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
+			// A window canvas has no editor serializer: working sets drop it and its service reopens it.
+			const resources = harness.activeGroupEditors.filter(editor => !(editor instanceof WindowCanvasInput)).map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
 			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
 			return { id: name, name };
 		}

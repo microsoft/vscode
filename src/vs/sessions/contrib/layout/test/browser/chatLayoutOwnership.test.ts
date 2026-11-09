@@ -23,6 +23,10 @@ import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeQuickChatWithWorkspaceChild, makeSession, makeTestWorkspace, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IWindowCanvas, WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
@@ -1174,6 +1178,152 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		assert.deepStrictEqual({ composition: visible(), savedB: controller.composition(controller.ownerKeyFor(sessionB)) }, { composition: { editor: false, auxiliaryBar: false }, savedB: undefined });
 	});
+
+	function createWindowCanvas(): WindowCanvasInput {
+		return store.add(harness.instaService.createInstance(WindowCanvasInput, { id: 'test.windowCanvas', title: 'Canvas', icon: Codicon.inbox, ctor: new SyncDescriptor(mock<IWindowCanvas>()) }));
+	}
+
+	/** Opens a window canvas the way Inbox opens: its request precedes the editor, whose opening reveals a hidden Editor. */
+	function openWindowCanvas(): WindowCanvasInput {
+		const request = { id: 'test.windowCanvas', source: 'explicit' as const };
+		harness.windowCanvasService.navigationRequest.set(request, undefined);
+		const canvas = createWindowCanvas();
+		harness.activeGroupEditors = [...harness.activeGroupEditors, canvas];
+		harness.activeEditorInput = canvas;
+		harness.onDidEditorsChange.fire();
+		harness.onDidActiveEditorChange.fire();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.windowCanvasService.activeCanvasOpen.set(request, undefined);
+		return canvas;
+	}
+
+	for (const isQuickChat of [false, true]) {
+		for (const throughOtherChat of [false, true]) {
+			test(`chat: a window canvas visited from a ${isQuickChat ? 'Quick Chat' : 'session'} with a closed side pane leaves it closed on return${throughOtherChat ? ' through another chat' : ''}`, async () => {
+				createDesktopController({ chatLayoutMode: 'chat' });
+				const chatA = makeSession(URI.parse('session:canvas-a'), { isQuickChat });
+				const chatB = makeSession(URI.parse('session:canvas-b'), { isQuickChat });
+				harness.activeSessionObs.set(chatA, undefined);
+				await settle();
+				openOrdinaryEditors('canvas-a');
+				setVisible(true, false);
+				await settle();
+				harness.activeSessionObs.set(chatB, undefined);
+				await settle();
+				openOrdinaryEditors('canvas-b');
+				setVisible(true, false);
+				await settle();
+				setVisible(false, false);
+				await settle();
+
+				const canvas = openWindowCanvas();
+				await settle();
+				const whileShown = visible();
+				harness.openEditorCalls = [];
+				transaction(tx => {
+					harness.windowCanvasService.deactivateCanvas(tx);
+					if (throughOtherChat) {
+						harness.activeSessionObs.set(chatA, tx);
+					}
+				});
+				await settle();
+				const otherChat = visible();
+				const reactivated = harness.openEditorCalls.map(call => call.editor.resource?.path);
+				harness.activeSessionObs.set(chatB, undefined);
+				await settle();
+				if (throughOtherChat) {
+					// The canvas service reopens the canvas, without revealing the Editor, once a working set settles.
+					harness.activeGroupEditors = [...harness.activeGroupEditors, canvas];
+					harness.onDidEditorsChange.fire();
+					await settle();
+				}
+
+				assert.deepStrictEqual({ whileShown, otherChat, reactivated, returned: visible() }, {
+					whileShown: { editor: true, auxiliaryBar: false },
+					otherChat: { editor: throughOtherChat, auxiliaryBar: false },
+					reactivated: throughOtherChat ? [] : ['/canvas-b-two.txt'],
+					returned: { editor: false, auxiliaryBar: false },
+				});
+			});
+		}
+	}
+
+	test('chat: a window canvas visited from a Details-only side pane restores Details on return', async () => {
+		createDesktopController({ chatLayoutMode: 'chat' });
+		const session = makeSession(URI.parse('session:canvas-details'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		openOrdinaryEditors('canvas-details');
+		setVisible(false, true);
+		await settle();
+
+		openWindowCanvas();
+		await settle();
+		const whileShown = visible();
+		harness.windowCanvasService.deactivateCanvas();
+		await settle();
+
+		assert.deepStrictEqual({ whileShown, returned: visible() }, {
+			whileShown: { editor: true, auxiliaryBar: false },
+			returned: { editor: false, auxiliaryBar: true },
+		});
+	});
+
+	for (const isQuickChat of [false, true]) {
+		test(`chat: a window canvas tab does not open the side pane of ${isQuickChat ? 'a Quick Chat' : 'a session'} without editors of its own`, async () => {
+			createDesktopController({ chatLayoutMode: 'chat' });
+			const chatA = makeSession(URI.parse('session:canvas-entry-a'));
+			const chatB = makeSession(URI.parse('session:canvas-entry-b'), { isQuickChat });
+			harness.activeSessionObs.set(chatA, undefined);
+			await settle();
+			openOrdinaryEditors('canvas-entry-a');
+			setVisible(true, false);
+			await settle();
+			const canvas = createWindowCanvas();
+			// The canvas service reopens a window canvas into every working set the layout applies.
+			harness.onApplyWorkingSet = () => {
+				harness.activeGroupEditors = [...harness.activeGroupEditors, canvas];
+				harness.activeEditorInput ??= canvas;
+			};
+
+			harness.activeSessionObs.set(chatB, undefined);
+			await settle();
+
+			assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
+		});
+	}
+
+	for (const chooseOtherEditor of [false, true]) {
+		test(`chat: leaving a window canvas ${chooseOtherEditor ? 'for another editor keeps that editor' : 'reactivates the editor the chat showed'}`, async () => {
+			createDesktopController({ chatLayoutMode: 'chat' });
+			const session = makeSession(URI.parse('session:canvas-editor'));
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			openOrdinaryEditors('canvas-editor');
+			setVisible(false, false);
+			await settle();
+			const [otherEditor, shownEditor] = harness.activeGroupEditors;
+			if (!chooseOtherEditor) {
+				setVisible(true, false);
+				await settle();
+			}
+
+			openWindowCanvas();
+			await settle();
+			harness.openEditorCalls = [];
+			if (chooseOtherEditor) {
+				harness.activeEditorInput = otherEditor;
+				harness.onDidActiveEditorChange.fire();
+			}
+			harness.windowCanvasService.deactivateCanvas();
+			await settle();
+
+			assert.deepStrictEqual({ composition: visible(), reactivated: harness.openEditorCalls.map(call => call.editor) }, {
+				composition: { editor: true, auxiliaryBar: false },
+				reactivated: chooseOtherEditor ? [] : [shownEditor],
+			});
+		});
+	}
 
 	for (const dockedOnly of [false, true]) {
 		for (const peerChat of [false, true]) {

@@ -23,6 +23,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/services/sessions/common/session.js';
+import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import {
 	DetailPanelTarget,
 	DesktopDetailPanelCoordinator,
@@ -31,6 +32,7 @@ import {
 	FilesDetailsState,
 	getFilesDetailsState,
 	getLayoutWorkspace,
+	hasNoChatEditors,
 	isChangesEditorInput,
 	isEditorWithoutDockedDetails,
 	isMainPartEmpty,
@@ -113,7 +115,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _captureOwnerCompositionIfApplicable(): void {
-		if (this._changingVisibility || this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()
+		if (this._changingVisibility || this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._ctx.windowCanvasShown
 			|| this._ctx.multipleChatsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
 			return;
 		}
@@ -162,7 +164,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				if (!this._getActiveNewSessionKey()) {
 					return;
 				}
-				if (!(event.editor instanceof EmptyFileEditorInput)) {
+				if (!(event.editor instanceof EmptyFileEditorInput) && !(event.editor instanceof WindowCanvasInput)) {
 					this._pendingEntryHideSessionKey = undefined;
 				}
 			}),
@@ -292,7 +294,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			}
 
 			this._pendingEditorRestoreKey = undefined;
-			if (isMainPartEmpty(this._editorGroupsService)) {
+			if (hasNoChatEditors(this._editorGroupsService)) {
 				this._hideQuickChatSidePaneTransiently();
 				return;
 			}
@@ -346,7 +348,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			}
 			return;
 		}
-		if (!isRestoringSessionLayout && !hasSavedWorkingSet && isMainPartEmpty(this._editorGroupsService)) {
+		if (!isRestoringSessionLayout && !hasSavedWorkingSet && hasNoChatEditors(this._editorGroupsService)) {
 			this._hideQuickChatSidePaneTransiently();
 			return;
 		}
@@ -360,6 +362,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		if (this._changingVisibility
 			|| this._ctx.isRestoringSessionLayout
 			|| this._togglingQuickChatSidePane
+			|| this._ctx.windowCanvasShown
 			|| this._ctx.multipleSessionsVisibleObs.get()
 			|| this._layoutService.isEditorMaximized()
 			|| this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
@@ -466,7 +469,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				if (!this._getActiveNewSessionKey()) {
 					return;
 				}
-				if (!(event.editor instanceof EmptyFileEditorInput)) {
+				if (!(event.editor instanceof EmptyFileEditorInput) && !(event.editor instanceof WindowCanvasInput)) {
 					this._pendingSidePaneOpenHideSessionKey = undefined;
 				}
 			}),
@@ -535,10 +538,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		);
 	}
 
+	/** The main part's editors of the shown chat, without window canvases such as Inbox, which join every chat's group. */
 	private _getMainPartEditors(): EditorInput[] {
-		return this._editorGroupsService.mainPart.groups.flatMap((group) => [
-			...group.editors,
-		]);
+		return this._editorGroupsService.mainPart.groups.flatMap((group) => group.editors.filter(editor => !(editor instanceof WindowCanvasInput)));
 	}
 
 	private _getActiveNewSessionKey(): string | undefined {
