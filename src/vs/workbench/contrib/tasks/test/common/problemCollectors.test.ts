@@ -70,6 +70,50 @@ suite('ProblemCollectors', () => {
 		});
 	}
 
+	test('does not flush the current resource when an inactive background matcher ends', async () => {
+		const markerService = store.add(new MarkerService());
+		const modelService = new class extends mock<IModelService>() {
+			override readonly onModelAdded = Event.None;
+			override readonly onModelRemoved = Event.None;
+			override getModels(): ITextModel[] { return []; }
+		};
+		const matcher: ProblemMatcher = {
+			owner: 'test', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Relative, filePrefix: '/workspace',
+			pattern: { regexp: /^(.*):(\d+): (.*)$/, file: 1, line: 2, message: 3 },
+			watching: { activeOnStart: true, beginsPattern: { regexp: /^begin$/ }, endsPattern: { regexp: /^end$/ } }
+		};
+		const inactiveMatcher: ProblemMatcher = {
+			...matcher,
+			watching: { activeOnStart: false, beginsPattern: { regexp: /^inactive-begin$/ }, endsPattern: { regexp: /^inactive-end$/ } }
+		};
+		const collector = store.add(new WatchingProblemCollector([matcher, inactiveMatcher], markerService, modelService));
+		const snapshots: string[][] = [];
+		let inactiveEnd: (() => void) | undefined;
+		store.add(collector.onDidFindErrors((markers: IMarker[]) => {
+			snapshots.push(markers.map(marker => marker.message));
+			inactiveEnd?.();
+			inactiveEnd = undefined;
+		}));
+		let completed: (() => void) | undefined;
+		store.add(collector.onDidStateChange(event => {
+			if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+				completed?.();
+			}
+		}));
+		collector.aboutToStart();
+
+		const inactiveEndProcessed = new Promise<void>(resolve => inactiveEnd = resolve);
+		collector.processLine('a.ts:1: diagnostic');
+		collector.processLine('inactive-end');
+		await inactiveEndProcessed;
+		assert.deepStrictEqual(markerService.read({ owner: 'test' }), []);
+
+		const activeEndProcessed = new Promise<void>(resolve => completed = resolve);
+		collector.processLine('end');
+		await activeEndProcessed;
+		assert.deepStrictEqual(snapshots, [[], ['diagnostic']]);
+	});
+
 	test('does not retain replayed lines when a model is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const modelRemoved = store.add(new Emitter<ITextModel>());
 		const modelService = new class extends mock<IModelService>() {
