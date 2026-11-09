@@ -115,7 +115,7 @@ import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthe
 import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { supportsCopilotEntraAuthentication } from '../../common/meta/agentHostCopilotAuthentication.js';
-import { AgentHostClientConnectionService, type IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -1664,18 +1664,8 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 				undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
 			));
-			const connections = disposables.add(new AgentHostClientConnectionService());
 			const owner = disposables.add(new CancellationTokenSource());
-			disposables.add(connections.registerSource({
-				hasSeenClient: () => true,
-				isClientConnected: () => true,
-				isLocalClient: () => true,
-				usesLegacyChatUris: () => false,
-				getConnectedClientTransportCounts: () => new Map([['microsoft-owner', 1]]),
-				requestWorkspaceTrust: async () => false,
-				requestMcpAuthentication: async () => false,
-			}));
-			const microsoft = disposables.add(new CopilotEntraAuthentication(connections, getTestAgentServiceComposition(scopedService).authenticationService));
+			const microsoft = disposables.add(new CopilotEntraAuthentication(getTestAgentServiceComposition(scopedService).authenticationService));
 			const provider = disposables.add(new ScopedAgent('copilot'));
 			registerTestAgentProvider(scopedService, provider);
 			const request = { kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' } as const;

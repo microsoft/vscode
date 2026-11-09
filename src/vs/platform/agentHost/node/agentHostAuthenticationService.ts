@@ -26,6 +26,10 @@ export interface IAgentHostAuthTokenChangeEvent {
 	readonly token: string | undefined;
 }
 
+interface IAgentHostAuthenticationEvent extends IAgentHostAuthTokenRequest {
+	readonly connectionToken?: CancellationToken;
+}
+
 export interface IAgentHostAuthCredential {
 	readonly token: string;
 	readonly scopes: readonly string[];
@@ -40,7 +44,7 @@ export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
 	/** Accepted authentication, including same-token reauthorization when the source supports it. */
-	readonly onDidAuthenticate?: Event<IAgentHostAuthTokenRequest>;
+	readonly onDidAuthenticate?: Event<IAgentHostAuthenticationEvent>;
 	readonly onDidChangeSessionCredentials?: Event<void>;
 	readonly useLocalCredentials?: boolean;
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
@@ -104,7 +108,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	readonly onDidChangeSessionCredentials = this._onDidChangeSessionCredentials.event;
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
-	private readonly _onDidAuthenticate = this._register(new Emitter<IAgentHostAuthTokenRequest>());
+	private readonly _onDidAuthenticate = this._register(new Emitter<IAgentHostAuthenticationEvent>());
 	/** Accepted authentication or revocation, including reauthorization of an unchanged token. */
 	readonly onDidAuthenticate = this._onDidAuthenticate.event;
 
@@ -261,7 +265,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		if (authenticated || previousToken !== token) {
-			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
+			this._onDidAuthenticate.fire({ resource: params.resource, scopes, connectionToken });
 		}
 		return { authenticated };
 	}

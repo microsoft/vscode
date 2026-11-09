@@ -8,7 +8,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isExpired } from '../../../../base/common/date.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, transaction, type IReader } from '../../../../base/common/observable.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
@@ -16,7 +16,6 @@ import { readAuthenticationAccount, type IAgentAuthenticationAccount } from '../
 import { AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
-import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '../agentHostAuthenticationService.js';
 
 interface IEntraAuthority {
@@ -38,7 +37,6 @@ const discoveryResource: ProtectedResourceMetadata = {
 
 /** Reads credentials supplied through AHP without waiting for a client to acquire them. */
 export class CopilotEntraAuthentication extends Disposable {
-	private readonly _connectionListener = this._register(new MutableDisposable());
 	private readonly _onDidRevoke = this._register(new Emitter<void>());
 	readonly onDidRevoke = this._onDidRevoke.event;
 	private readonly _authority = observableValue<IEntraAuthority | undefined>(this, undefined);
@@ -54,20 +52,21 @@ export class CopilotEntraAuthentication extends Disposable {
 	};
 
 	constructor(
-		@IAgentHostClientConnectionService private readonly _connections: IAgentHostClientConnectionService,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
-		this._register(this._connections.onDidChangeConnections(() => {
-			if (this._connections.getConnectionCounts('').connectedClientCount === 0) {
-				this.revoke();
-			}
-		}));
 		this._register(toDisposable(() => {
 			this.clearAuthority();
 		}));
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
+				if (request.resource === copilotEntraDiscoveryResource && request.connectionToken && !this._authority.get()
+					&& this._requirements.get().some(requirement => requirement.resource.resource === copilotEntraDiscoveryResource)) {
+					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: discoveryResource.scopes_supported })?.account;
+					if (account?.providerId === 'microsoft') {
+						this._authority.set({ accountId: account.accountId, connection: request.connectionToken, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
+					}
+				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
 					this._requirements.set(this._requirements.get().filter(requirement => requirement.resource.resource !== request.resource), undefined);
 				}
@@ -88,19 +87,23 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return false;
 		}
-		if (!connection || connection.isCancellationRequested || this._store.isDisposed) {
-			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
-		}
+		this.validateAuthentication(params, connection);
 		if (!params.token) {
-			this.validateAuthentication(params, connection);
 			this.revoke();
 			return true;
 		}
-		return this.acceptCredential(params, connection);
+		return true;
 	}
 
 	validateAuthentication(params: AuthenticateParams, connection?: CancellationToken): void {
-		if (params.token || params.target || !isEntraCredentialResource(params.resource)) {
+		if (params.target || !isEntraCredentialResource(params.resource)) {
+			return;
+		}
+		if (!connection || connection.isCancellationRequested || this._store.isDisposed) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		if (params.token) {
+			this.validateCredential(params);
 			return;
 		}
 		const authority = this._authority.get();
@@ -109,7 +112,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		}
 	}
 
-	private acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
+	private validateCredential(params: AuthenticateParams): void {
 		const authority = this._authority.get();
 		const isDiscovery = params.resource === copilotEntraDiscoveryResource;
 		const resource = this.getProtectedResources().find(resource => resource.resource === params.resource);
@@ -118,18 +121,9 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (this._tokenChallenges.get(params.resource)?.rejectedToken === params.token) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft authentication requires a replacement credential.');
 		}
-		if (isDiscovery && !authority) {
-			const identity: IEntraAuthority = { accountId: account.accountId, connection, ...(account.label !== undefined ? { username: account.label } : {}) };
-			this._authority.set(identity, undefined);
-			this._connectionListener.value = connection.onCancellationRequested(() => {
-				if (this._authority.get() === identity) {
-					this.revoke();
-				}
-			});
-		} else if (!authority || authority.connection.isCancellationRequested) {
+		if (!isDiscovery && !authority) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
-		return true;
 	}
 
 	private revoke(): void {
@@ -141,7 +135,6 @@ export class CopilotEntraAuthentication extends Disposable {
 	}
 
 	private clearAuthority(): void {
-		this._connectionListener.clear();
 		this._tokenChallenges.clear();
 		for (const resource of [copilotEntraDiscoveryResource, ...copilotEntraResources.values()]) {
 			this._authenticationService.invalidateAuthTokens(resource);
@@ -156,7 +149,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (this._store.isDisposed || cancellation.isCancellationRequested) {
 			return { kind: 'cancelled' };
 		}
-		if (request.clientId !== copilotEntraClientId || this._connections.getConnectionCounts('').connectedClientCount === 0) {
+		if (request.clientId !== copilotEntraClientId) {
 			return { kind: 'unavailable' };
 		}
 		const resource = copilotEntraResourceForRequest(request);
@@ -209,7 +202,7 @@ export class CopilotEntraAuthentication extends Disposable {
 	private getCredential(resource: string, scopes: readonly string[]): IAgentHostAuthCredential | undefined {
 		const authority = this._authority.get();
 		const credential = this._authenticationService.getAuthCredential({ resource, scopes });
-		return authority && !authority.connection.isCancellationRequested && credential?.account?.providerId === 'microsoft'
+		return authority && credential?.account?.providerId === 'microsoft'
 			&& credential.account.accountId === authority.accountId
 			&& credential.token !== this._tokenChallenges.get(resource)?.rejectedToken ? credential : undefined;
 	}

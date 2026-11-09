@@ -92,7 +92,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
-import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -5163,18 +5163,19 @@ suite('CopilotAgent', () => {
 	}
 
 	for (const withdrawal of ['signOut', 'disconnect'] as const) {
-		test(`Microsoft ${withdrawal} settles shared-runtime turns and removes stopped sessions immediately`, async () => {
+		test(`Microsoft ${withdrawal} ${withdrawal === 'signOut' ? 'settles shared-runtime turns immediately' : 'retains accepted credentials and running shared-runtime turns'}`, async () => {
 			const client = new TestCopilotClient([]);
-			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+			const { agent, authenticationService, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
 			afterTest(() => disposeAgent(agent));
 			const initialResources = agent.getProtectedResources();
 			const connection = disposables.add(new CancellationTokenSource());
-			disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService)).registerSource({
+			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService));
+			const registration = disposables.add(connections.registerSource({
 				hasSeenClient: () => true,
 				isClientConnected: () => !connection.token.isCancellationRequested,
 				isLocalClient: () => true,
 				usesLegacyChatUris: () => false,
-				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				getConnectedClientTransportCounts: () => connection.token.isCancellationRequested ? new Map() : new Map([['client', 1]]),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async () => false,
 			}));
@@ -5183,15 +5184,25 @@ suite('CopilotAgent', () => {
 			assert.ok(provider);
 			const acquisition = provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
 			assert.deepStrictEqual(await acquisition, { kind: 'unavailable' });
-			await agent.handleAuthenticationToken({
+			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-			}, connection.token);
+			}, [agent], undefined, connection.token);
 			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
 			const resourcesDuringAuthority = {
 				sharedHasMicrosoft: agent.getProtectedResources().some(resource => resource.resource === copilotEntraDiscoveryResource),
 				client: agent.getProtectedResources(undefined, 'client'),
 			};
+			const request = {
+				kind: 'token' as const, clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' as const,
+				audience: copilotEntraEmuAudience, scopes: [`${copilotEntraEmuAudience}/.default`], skipCachedAccessToken: false,
+			};
+			await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None });
+			const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
+			await authenticationService.authenticate({
+				resource, scopes: request.scopes, token: 'synthetic-resource', expiresIn: 3600,
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+			}, [agent], undefined, connection.token);
 
 			const settled: string[] = [];
 			const disposed: string[] = [];
@@ -5209,14 +5220,22 @@ suite('CopilotAgent', () => {
 				});
 			}
 			if (withdrawal === 'signOut') {
-				await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' }, connection.token);
+				await authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [agent], undefined, connection.token);
+				await client.waitForCalls(() => client.stopCallCount === 1);
 			} else {
 				connection.cancel();
+				registration.dispose();
 			}
-			await client.waitForCalls(() => client.stopCallCount === 1);
-			assert.deepStrictEqual({ settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority }, {
-				settled: ['shared'], disposed: ['shared'], remaining: ['scoped', 'virtual'],
+			assert.deepStrictEqual({
+				settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority,
+				stops: client.stopCallCount, connected: connections.getConnectionCounts('').connectedClientCount,
+				credential: await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None }),
+			}, {
+				settled: withdrawal === 'signOut' ? ['shared'] : [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
+				remaining: withdrawal === 'signOut' ? ['scoped', 'virtual'] : ['shared', 'scoped', 'virtual'],
 				resourcesDuringAuthority: { sharedHasMicrosoft: true, client: initialResources },
+				stops: withdrawal === 'signOut' ? 1 : 0, connected: withdrawal === 'signOut' ? 1 : 0,
+				credential: withdrawal === 'signOut' ? { kind: 'unavailable' } : { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource' },
 			});
 		});
 	}

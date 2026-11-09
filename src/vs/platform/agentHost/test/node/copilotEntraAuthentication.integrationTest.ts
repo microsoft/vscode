@@ -53,7 +53,7 @@ suite('Copilot Entra authentication transport', () => {
 		const state = store.add(new AgentHostStateManager(log));
 		const connections = store.add(new AgentHostClientConnectionService());
 		const authentication = store.add(new AgentHostAuthenticationService(log));
-		const bridge = store.add(new CopilotEntraAuthentication(connections, authentication));
+		const bridge = store.add(new CopilotEntraAuthentication(authentication));
 		const provider = new class extends mock<IAgent>() {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
@@ -73,7 +73,7 @@ suite('Copilot Entra authentication transport', () => {
 			}
 		}();
 		const server = store.add(await WebSocketProtocolServer.create({ port: 0, host: '127.0.0.1' }, log));
-		store.add(new ProtocolServerHandler(
+		const handler = store.add(new ProtocolServerHandler(
 			service, state, server, { hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false },
 			store.add(new AgentHostFileSystemProvider()), log, NullTelemetryService,
 			store.add(new AgentHostManagedSettingsService()), connections,
@@ -180,6 +180,29 @@ suite('Copilot Entra authentication transport', () => {
 				resource: 'https://github.com/login/oauth/access_token',
 				identityRevoked: undefined,
 				graphToken: undefined,
+			});
+			session = undefined;
+			await bridge.options.tokenProvider?.({ kind: 'identity', clientId: bridge.options.clientId, reason: 'signIn' }, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+			await client.call('authenticate', {
+				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'],
+				token: 'synthetic-reconnected-graph-credential', expiresIn: 3600,
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
+			});
+			await runtime.start();
+			stopping = undefined;
+			const disconnected = Event.toPromise(Event.filter(handler.onDidChangeConnectionCount, count => count === 0));
+			client.close();
+			await disconnected;
+			assert.deepStrictEqual({
+				stopping,
+				identity: await bridge.options.tokenProvider?.({ kind: 'identity', clientId: bridge.options.clientId, accountId: 'transport-selected-account', reason: 'renewal' }, CancellationToken.None as Parameters<EntraTokenProvider>[1]),
+				graphToken: authentication.getAuthToken({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] }),
+				ping: (await runtime.ping('disconnected-host')).message,
+			}, {
+				stopping: undefined,
+				identity: { kind: 'identity', accountId: 'transport-selected-account' },
+				graphToken: 'synthetic-reconnected-graph-credential',
+				ping: 'pong: disconnected-host',
 			});
 		} finally {
 			client.close();

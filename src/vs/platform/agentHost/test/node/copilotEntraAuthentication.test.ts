@@ -37,12 +37,12 @@ suite('Copilot Entra authentication', () => {
 			isClientConnected: () => !connection.token.isCancellationRequested,
 			isLocalClient: () => true,
 			usesLegacyChatUris: () => false,
-			getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+			getConnectedClientTransportCounts: () => connection.token.isCancellationRequested ? new Map() : new Map([['client', 1]]),
 			requestWorkspaceTrust: async () => false,
 			requestMcpAuthentication: async () => false,
 		}));
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
-		const bridge = store.add(new CopilotEntraAuthentication(connections, authentication));
+		const bridge = store.add(new CopilotEntraAuthentication(authentication));
 		const provider = new class extends mock<IAgent>() {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
@@ -143,7 +143,7 @@ suite('Copilot Entra authentication', () => {
 			{ ...valid, _meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } } },
 		];
 		for (const params of invalid) {
-			assert.deepStrictEqual(await f.authenticate(params), { authenticated: false });
+			await assert.rejects(f.authenticate(params), /Microsoft credential|original account/i);
 		}
 		await f.authenticate(valid);
 		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected', username: 'Shared label' });
@@ -168,17 +168,22 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual(outcomes, outcomes.map(() => ({ kind: 'unavailable' })));
 	});
 
-	test('cache bypass advertises expired without replaying the old token or revoking identity', async () => {
+	test('cache bypass while disconnected advertises expired without replaying the old token or revoking identity', async () => {
 		const f = fixture();
 		await f.signIn();
 		const request = tokenRequest();
 		await f.acquire(request);
-		await f.authenticate(f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes));
+		const credential = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
+		await f.authenticate(credential);
+		f.connection.cancel();
+		f.registration.dispose();
 		const refresh = await f.acquire({ ...request, skipCachedAccessToken: true });
 		const requirement = f.bridge.authenticationRequired.get();
 		assert.ok(requirement);
 		const missing = await f.acquire(request);
-		await f.authenticate({ ...f.credential(requirement.resource.resource, request.scopes), token: 'renewed-credential' });
+		const replacement = store.add(new CancellationTokenSource());
+		await assert.rejects(f.authenticate(credential, replacement.token), /replacement credential/i);
+		await f.authenticate({ ...f.credential(requirement.resource.resource, request.scopes), token: 'renewed-credential' }, replacement.token);
 		assert.deepStrictEqual({ refresh, missing, reason: requirement.reason, renewed: await f.acquire(request), identity: await f.acquire(identity) }, {
 			refresh: { kind: 'unavailable' }, missing: { kind: 'unavailable' }, reason: AuthRequiredReason.Expired,
 			renewed: { kind: 'token', accountId: 'selected', accessToken: 'renewed-credential' }, identity: { kind: 'identity', accountId: 'selected' },
@@ -203,14 +208,13 @@ suite('Copilot Entra authentication', () => {
 		await f.authenticate(credential);
 		await f.acquire({ ...request, skipCachedAccessToken: true });
 		const secondClient = store.add(new CancellationTokenSource());
-		const replay = await f.authenticate(credential, secondClient.token);
+		await assert.rejects(f.authenticate(credential, secondClient.token), /replacement credential/i);
 		assert.deepStrictEqual({
-			replay,
 			retry: await f.acquire(request),
 			reason: f.bridge.authenticationRequired.get()?.reason,
 			identity: await f.acquire(identity),
 		}, {
-			replay: { authenticated: false }, retry: { kind: 'unavailable' },
+			retry: { kind: 'unavailable' },
 			reason: AuthRequiredReason.Expired, identity: { kind: 'identity', accountId: 'selected' },
 		});
 	});
@@ -269,17 +273,36 @@ suite('Copilot Entra authentication', () => {
 		}, { identity: { kind: 'identity', accountId: 'replacement' }, storedAccount: 'replacement' });
 	});
 
-	test('a credential that expires in the shared store produces an expired challenge', async () => {
+	test('a credential that expires while disconnected stays quarantined until the same account supplies a replacement', async () => {
 		await runWithFakedTimers({}, async () => {
 			const f = fixture();
 			await f.signIn();
+			let revoked = 0;
+			store.add(f.bridge.onDidRevoke(() => revoked++));
 			const request = tokenRequest();
 			await f.acquire(request);
 			const credential = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
 			await f.authenticate({ ...credential, expiresIn: 1 });
+			f.connection.cancel();
+			f.registration.dispose();
 			await timeout(1_001);
-			assert.deepStrictEqual({ result: f.acquire(request), reason: f.bridge.authenticationRequired.get()?.reason }, {
-				result: { kind: 'unavailable' }, reason: AuthRequiredReason.Expired,
+			const expired = f.acquire(request);
+			const reason = f.bridge.authenticationRequired.get()?.reason;
+			const replacement = store.add(new CancellationTokenSource());
+			await assert.rejects(f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, replacement.token), /own.*Microsoft/i);
+			await assert.rejects(f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }), /unavailable/i);
+			await assert.rejects(f.authenticate(credential, replacement.token), /replacement credential/i);
+			await assert.rejects(f.authenticate(f.credential(credential.resource, request.scopes, 'other'), replacement.token), /original account/i);
+			await f.authenticate({ ...credential, token: 'renewed-credential' }, replacement.token);
+			assert.deepStrictEqual({
+				expired, reason, revoked,
+				renewed: f.acquire(request),
+				identity: f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
+			}, {
+				expired: { kind: 'unavailable' }, reason: AuthRequiredReason.Expired,
+				revoked: 0,
+				renewed: { kind: 'token', accountId: 'selected', accessToken: 'renewed-credential' },
+				identity: { kind: 'identity', accountId: 'selected' },
 			});
 		});
 	});
@@ -303,48 +326,116 @@ suite('Copilot Entra authentication', () => {
 		}, { result: { kind: 'cancelled' }, requirement: undefined, identity: { kind: 'identity', accountId: 'selected', username: 'Selected account' } });
 	});
 
-	for (const end of ['signOut', 'disconnect', 'unavailable'] as const) {
-		test(`${end} forgets resource credentials and rejects late replies`, async () => {
+	for (const end of ['disconnect', 'lastSourceRemoved'] as const) {
+		test(`${end} retains accepted identity and resource credentials without revocation`, async () => {
 			const f = fixture();
 			await f.signIn('Selected account');
-			const request = tokenRequest();
-			await f.acquire(request);
-			const credential = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
-			await f.authenticate(credential);
-			if (end === 'signOut') {
-				await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
-			} else if (end === 'disconnect') {
+			const requests = [tokenRequest(), tokenRequest(copilotEntraM365Audience)];
+			for (const request of requests) {
+				await f.acquire(request);
+				await f.authenticate(f.credential(copilotEntraResources.get(request.audience!), request.scopes));
+			}
+			let revoked = 0;
+			const changes: string[] = [];
+			store.add(f.bridge.onDidRevoke(() => revoked++));
+			store.add(f.authentication.onDidChangeAuthToken(event => changes.push(event.resource)));
+			if (end === 'disconnect') {
 				f.connection.cancel();
 			} else {
 				f.registration.dispose();
 			}
 			assert.deepStrictEqual({
+				revoked, changes,
 				renewal: await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
-				late: await f.authenticate(credential),
-				stored: f.authentication.getAuthToken({ resource: credential.resource, scopes: request.scopes }),
+				tokens: await Promise.all(requests.map(request => f.acquire(request))),
+				graph: f.authentication.getAuthToken({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] }),
 				resources: f.bridge.getProtectedResources(),
-			}, { renewal: { kind: 'unavailable' }, late: { authenticated: false }, stored: undefined, resources: [] });
+			}, {
+				revoked: 0, changes: [],
+				renewal: { kind: 'identity', accountId: 'selected', username: 'Selected account' },
+				tokens: requests.map(() => ({ kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource-credential' })),
+				graph: 'synthetic-resource-credential',
+				resources: [{ resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] }],
+			});
 		});
 	}
 
-	test('withdrawal prevents an in-flight authentication write from repopulating the shared store', async () => {
+	test('explicit sign-out forgets accepted credentials and rejects late replies', async () => {
 		const f = fixture();
 		await f.signIn();
 		const request = tokenRequest();
 		await f.acquire(request);
-		const params = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
+		const credential = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
+		await f.authenticate(credential);
+		let revoked = 0;
+		store.add(f.bridge.onDidRevoke(() => revoked++));
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		await assert.rejects(f.authenticate(credential), /advertised requirement/i);
+		assert.deepStrictEqual({
+			revoked,
+			renewal: await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
+			stored: f.authentication.getAuthToken({ resource: credential.resource, scopes: request.scopes }),
+			resources: f.bridge.getProtectedResources(),
+		}, { revoked: 1, renewal: { kind: 'unavailable' }, stored: undefined, resources: [] });
+	});
+
+	for (const kind of ['identity', 'resource'] as const) {
+		test(`disconnect rejects an in-flight ${kind} delivery without withdrawing accepted host authority`, async () => {
+			const f = fixture();
+			if (kind === 'resource') {
+				await f.signIn();
+				await f.acquire(tokenRequest());
+			} else {
+				await f.acquire(identity);
+			}
+			let revoked = 0;
+			store.add(f.bridge.onDidRevoke(() => revoked++));
+			const params = kind === 'identity' ? f.credential() : f.credential(copilotEntraResources.get(copilotEntraEmuAudience), tokenRequest().scopes);
+			const gate = new DeferredPromise<void>();
+			const started = new DeferredPromise<void>();
+			const delayed = new class extends mock<IAgent>() {
+				override getProtectedResources() { return []; }
+				override async handleAuthenticationToken() { started.complete(); await gate.p; return false; }
+			}();
+			const write = f.authentication.authenticate(params, [f.provider, delayed], undefined, f.connection.token);
+			const rejected = assert.rejects(write, /unavailable/i);
+			await started.p;
+			f.connection.cancel();
+			gate.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				revoked,
+				stored: f.authentication.getAuthToken({ resource: params.resource, scopes: params.scopes }),
+				identity: await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
+			}, {
+				revoked: 0, stored: undefined,
+				identity: kind === 'resource' ? { kind: 'identity', accountId: 'selected' } : { kind: 'unavailable' },
+			});
+		});
+	}
+
+	test('a delayed initial identity cannot overwrite another account accepted before it commits', async () => {
+		const f = fixture();
+		await f.acquire(identity);
 		const gate = new DeferredPromise<void>();
 		const started = new DeferredPromise<void>();
 		const delayed = new class extends mock<IAgent>() {
 			override getProtectedResources() { return []; }
 			override async handleAuthenticationToken() { started.complete(); await gate.p; return false; }
 		}();
+		const params = { ...f.credential(), scopes: ['User.Read', 'additional'] };
 		const write = f.authentication.authenticate(params, [f.provider, delayed], undefined, f.connection.token);
+		const rejected = assert.rejects(write, /original account/i);
 		await started.p;
-		f.connection.cancel();
+		const secondClient = store.add(new CancellationTokenSource());
+		await f.authenticate(f.credential(undefined, undefined, 'replacement'), secondClient.token);
 		gate.complete();
-		await write;
-		assert.strictEqual(f.authentication.getAuthToken({ resource: params.resource, scopes: params.scopes }), undefined);
+		await rejected;
+		assert.deepStrictEqual({
+			identity: await f.acquire(identity),
+			stale: f.authentication.getAuthCredential({ resource: params.resource, scopes: params.scopes }),
+			account: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+		}, { identity: { kind: 'identity', accountId: 'replacement' }, stale: undefined, account: 'replacement' });
 	});
 
 	test('invalidating a resource preserves unrelated credentials and targeted MCP tokens', async () => {
@@ -397,7 +488,7 @@ suite('Copilot Entra authentication', () => {
 		await f.signIn();
 		await f.acquire(tokenRequest());
 		assert.deepStrictEqual(resources, [copilotEntraDiscoveryResource, copilotEntraResources.get(copilotEntraEmuAudience)]);
-		f.connection.cancel();
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
 		assert.deepStrictEqual(resources, []);
 	});
 });
