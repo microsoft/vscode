@@ -889,7 +889,7 @@ export class DebugService implements IDebugService {
 				// we previously may have issued an onDidEndSession with restart: true,
 				// assuming the adapter exited (in `registerSessionListeners`). But the
 				// restart failed, so emit the final termination now.
-				if (!didRestart) {
+				if (!didRestart && session.state === State.Inactive) {
 					this._onDidEndSession.fire({ session, restart: false });
 				}
 			}
