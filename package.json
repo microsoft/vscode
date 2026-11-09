@@ -228,7 +228,6 @@
     "eslint": "10.8.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
-    "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsdoc": "^63.3.3",
     "event-stream": "3.3.4",
     "events": "^3.3.0",
