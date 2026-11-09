@@ -11,6 +11,7 @@ import { TerminalShellExecutionCommandLineConfidence } from '../../common/extHos
 import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
 import { AsyncIterableObject, DeferredPromise } from '../../../../base/common/async.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
 
 function cmdLine(value: string): TerminalShellExecutionCommandLine {
 	return Object.freeze({
@@ -284,6 +285,30 @@ suite('InternalTerminalShellIntegration', () => {
 			await endExecutionAwaitObject(testCommandLine);
 
 			deepStrictEqual([await reading, await AsyncIterableObject.toPromise(stream)], [['first', 'last'], []]);
+		});
+
+		test('consumed queue entries are released before execution ends', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]() as AsyncIterator<string, void, void> & { readonly _data: LinkedList<string> };
+			for (const chunk of ['first', 'second', 'third', 'last']) {
+				si.emitData(chunk);
+			}
+			const unread = new LinkedList<string>();
+			unread.push('third');
+			unread.push('last');
+
+			try {
+				// Compare backing nodes too, so stale links to consumed chunks cannot hide behind iteration.
+				deepStrictEqual({ consumed: [await iterator.next(), await iterator.next()], queue: iterator._data }, {
+					consumed: [
+						{ done: false, value: 'first' },
+						{ done: false, value: 'second' },
+					],
+					queue: unread,
+				});
+			} finally {
+				await endExecutionAwaitObject(testCommandLine);
+			}
 		});
 
 		for (const timing of ['buffered', 'pending', 'after execution end'] as const) {
