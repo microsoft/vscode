@@ -474,12 +474,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
+		const range = options?.range;
+		if (!range) {
+			// Supersedes earlier navigation without loading a possibly collapsed target.
+			this._navigationId++;
+			return;
+		}
 		this._runWhenReady(viewItem, () => {
 			const diffEditor = viewItem.template.get()?.editor;
 			const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
-			if (editor && options?.range) {
-				editor.revealRangeInCenter(options.range);
-				highlightRange(editor, options.range);
+			if (editor) {
+				editor.revealRangeInCenter(range);
+				highlightRange(editor, range);
 			}
 		});
 	}
@@ -637,7 +643,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._navigateToChange('previous');
 	}
 
-	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true): void {
+	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true, afterLoading = false): void {
 		const viewItems = this._viewItems.get();
 		if (viewItems.length === 0) {
 			return;
@@ -656,13 +662,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		// Try current file first - expand if collapsed
 		const currentItem = viewItems[currentIndex];
-		if (!currentItem.viewModel.isLoaded.get()) {
-			this._goToFile(currentIndex, direction === 'next' ? 'first' : 'last', focusEditor);
-			return;
-		}
 		if (currentItem.viewModel.collapsed.get()) {
 			this._logger.log('expanding collapsed item to navigate within it', { file: currentItem.getLabel() });
 			currentItem.viewModel.collapsed.set(false, undefined);
+		}
+		if (!this._isReady(currentItem) && !currentItem.viewModel.loadError.get()) {
+			this.reveal({ original: currentItem.viewModel.originalUri, modified: currentItem.viewModel.modifiedUri });
+			this._runWhenReady(currentItem, () => this._navigateToChange(direction, focusEditor, true));
+			return;
 		}
 
 		const editor = currentItem.template.get()?.editor;
@@ -673,6 +680,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 			if (hasNext) {
 				editor.goToDiff(direction);
+				if (focusEditor && afterLoading) {
+					currentItem.binding.get()?.focus();
+				}
 				return;
 			}
 		}
@@ -712,18 +722,24 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private _navigationId = 0;
 
+	private _isReady(item: VirtualizedViewItem): boolean {
+		return item.viewModel.isReady.get() && item.viewModel.diffEditorViewModel.isDiffUpToDate.get();
+	}
+
+	/**
+	 * Runs the action once the item's diff is computed, or right away when it failed to load, unless another navigation
+	 * or a change of the active item superseded it.
+	 */
 	private _runWhenReady(item: VirtualizedViewItem, action: () => void): void {
 		const navigationId = ++this._navigationId;
-		if (item.viewModel.isLoaded.get() && item.viewModel.diffEditorViewModel.isDiffUpToDate.get()) {
+		if (this._isReady(item) || item.viewModel.loadError.get()) {
 			action();
 			return;
 		}
 		const run = async () => {
-			const ref = await item.viewModel.load().catch(() => undefined);
-			if (!ref) {
-				return;
-			}
-			await ref.object.waitForDiff();
+			await item.viewModel.waitForInitialDiffOr1s.getPromise().catch(() => { });
+			const ref = item.viewModel.isLoaded.get() ? item.viewModel.diffEditorViewModelRef : undefined;
+			await ref?.object.waitForDiff();
 			if (!this._store.isDisposed && navigationId === this._navigationId
 				&& this._viewModel.get()?.activeDiffItem.get() === item.viewModel && item.viewModel.isAlive.get()) {
 				action();

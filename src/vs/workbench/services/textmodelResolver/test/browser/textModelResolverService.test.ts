@@ -440,7 +440,7 @@ suite('Workbench - TextModelResolverService', () => {
 			toDisposable(() => sourceDisposed = true),
 		));
 		const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([document]) }));
-		const rejected = assert.rejects(parent.waitForDiffOr1s(), /Synthetic resolution failed/);
+		const rejected = assert.rejects(parent.items.get()[0].load(), /Synthetic resolution failed/);
 		await secondRequested.p;
 		parent.dispose();
 		document.dispose();

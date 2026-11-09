@@ -201,6 +201,32 @@ suite('MultiDiffEditorInput', () => {
 		});
 	});
 
+	test('reordering does not load collapsed files, and a failing file does not fail the files loaded up front', async () => {
+		const { input, requests, pending } = createLazyInput(10);
+		const fail = new DeferredPromise<void>();
+		fail.p.catch(() => { });
+		void fail.error(new Error('cannot load'));
+		pending.set('/modified/2', fail);
+		const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: string[] = [];
+		setUnexpectedErrorHandler(e => reportedErrors.push(e.message));
+		try {
+			const viewModel = await input.getViewModel();
+			await viewModel.waitForDiffOr1s();
+			viewModel.collapseAll();
+			input.setResourceOrder(resources => [...resources].reverse());
+			await (await input.getViewModel()).waitForDiffOr1s();
+			assert.deepStrictEqual({
+				first: viewModel.items.get()[0].modifiedUri?.path,
+				requests: requests.length,
+				loaded: viewModel.items.get().filter(item => item.isLoaded.get()).length,
+				reportedErrors,
+			}, { first: '/modified/9', requests: 10, loaded: 4, reportedErrors: ['cannot load'] });
+		} finally {
+			setUnexpectedErrorHandler(previousErrorHandler);
+		}
+	});
+
 	test('saving dirty unloaded resources does not load their diffs', async () => {
 		const { input, requests, saved, dirty } = createLazyInput(10);
 		await input.getViewModel();

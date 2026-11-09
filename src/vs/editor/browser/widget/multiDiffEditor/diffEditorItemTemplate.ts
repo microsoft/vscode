@@ -244,19 +244,20 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._register(autorun(reader => {
 			const collapsed = this._collapsed.read(reader);
 			const item = this._viewModel.read(reader);
-			const loaded = item?.isLoaded.read(reader) === true;
+			const ready = item?.isReady.read(reader) === true;
 			const error = item?.loadError.read(reader);
 			const isBinary = item?.isBinary === true;
-			const restoreFocus = loaded && !isBinary && isAncestorOfActiveElement(this._elements.binaryFilePlaceholder);
+			const restoreFocus = ready && !isBinary && isAncestorOfActiveElement(this._elements.binaryFilePlaceholder);
 			const canOpenDiff = isBinary && !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
 			const label = error ? localize('loadingFailed', "Unable to load this file.")
-				: !loaded ? localize('loading', "Loading...")
+				: !ready ? localize('loading', "Loading...")
 					: binaryFileChangedLabel;
 			this._elements.placeholderLabel.textContent = label;
 			this._elements.binaryFilePlaceholder.setAttribute('aria-label', label);
-			this._elements.binaryFilePlaceholder.setAttribute('aria-busy', String(!loaded && !error));
-			this._elements.editor.style.display = collapsed || isBinary || !loaded ? 'none' : 'block';
-			this._elements.binaryFilePlaceholder.style.display = !collapsed && (isBinary || !loaded) ? 'grid' : 'none';
+			this._elements.binaryFilePlaceholder.setAttribute('aria-busy', String(!ready && !error));
+			// Like before its file loads, a diff shows only once it is computed, or after a second at the latest.
+			this._elements.editor.style.display = collapsed || isBinary || !ready ? 'none' : 'block';
+			this._elements.binaryFilePlaceholder.style.display = !collapsed && (isBinary || !ready) ? 'grid' : 'none';
 			this._elements.binaryFilePlaceholder.tabIndex = canOpenDiff ? -1 : 0;
 			this._elements.binaryFilePlaceholderActions.style.display = canOpenDiff ? '' : 'none';
 			if (restoreFocus && !collapsed) {
@@ -459,7 +460,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		}
 		this._dataStore.add(autorun(reader => {
 			if (!item.collapsed.read(reader)) {
-				void item.load().catch(() => { });
+				void item.waitForInitialDiffOr1s.getPromise().catch(() => { });
 			}
 		}));
 		this._dataStore.add(autorun(reader => {
@@ -566,9 +567,10 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 	public focusBinaryFilePlaceholder(): void {
 		const item = this._viewModel.get();
-		if (item?.originalUri && item.modifiedUri && this._openBinaryDiffButton) {
+		if (item?.isLoaded.get() && item.isBinary && item.originalUri && item.modifiedUri && this._openBinaryDiffButton) {
 			this._openBinaryDiffButton.focus();
 		} else {
+			// While loading, focus moves on into the editor once its diff shows.
 			this._elements.binaryFilePlaceholder.focus();
 		}
 	}
@@ -616,7 +618,7 @@ export class DiffEditorItemBinding extends VirtualizedItemBinding<DocumentDiffIt
 	}
 
 	focus(): void {
-		if (!this.item.isLoaded.get() || this.item.isBinary) {
+		if (!this.item.isReady.get() || this.item.isBinary) {
 			this._template.focusBinaryFilePlaceholder();
 		} else {
 			this.editor.focus();

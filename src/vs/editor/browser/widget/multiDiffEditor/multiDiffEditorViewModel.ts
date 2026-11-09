@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, ObservableLazyPromise, ObservablePromise, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, ObservableLazyPromise, ObservablePromise, constObservable, derived, derivedObservableWithWritableCache, derivedOpts, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { rejectIfNotCanceled, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,6 +18,17 @@ import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../diffEditor/utils.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
+
+/** How many files are loaded up front; further files load once shown or navigated to. */
+const initialLoadCount = 5;
+
+function haveSameElements<T>(a: readonly T[], b: readonly T[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	const elements = new Set(b);
+	return a.every(element => elements.has(element));
+}
 
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
@@ -38,7 +49,7 @@ export class MultiDiffEditorViewModel extends Disposable {
 		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1 ? lastValue : undefined)
 	);
 
-	/** Waits for the initial batch to load and for its diffs, with a one-second limit on diff computation. */
+	/** Waits for the files loaded up front and for their diffs, with a one-second limit on diff computation. Files that fail to load do not fail it. */
 	public async waitForDiffOr1s(): Promise<void> {
 		if (this._documents.get() === 'loading') {
 			await waitForState(this._documents, documents => documents !== 'loading');
@@ -92,14 +103,15 @@ export class MultiDiffEditorViewModel extends Disposable {
 			(d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this))
 		).recomputeInitiallyAndOnChange(this._store);
 
+		// Reordering the same files does not start loading other ones.
+		const itemSet = derivedOpts<readonly DocumentDiffItemViewModel[]>({ owner: this, equalsFn: haveSameElements }, reader => this.items.read(reader));
+
 		this._waitForNewDiffs = derived(this, reader => {
-			const initialItems = this.items.read(reader).slice(0, 5);
-			const result = ObservablePromise.fromFn(async () => {
-				await Promise.all(initialItems.map(i => i.waitForInitialDiffOr1s.getPromise()));
+			const initialItems = itemSet.read(reader).filter(i => !i.collapsed.read(undefined)).slice(0, initialLoadCount);
+			// A file that fails to load reports its error itself and must not fail the batch.
+			return ObservablePromise.fromFn(async () => {
+				await Promise.all(initialItems.map(i => i.waitForInitialDiffOr1s.getPromise().catch(() => { })));
 			});
-			// Load failures are reported once by the item itself.
-			result.promise.catch(() => { });
-			return result;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		this.isLoading = derived(this, reader =>
@@ -144,6 +156,11 @@ export class DocumentDiffItemViewModel extends Disposable {
 			ref.object.waitForDiff().catch(rejectIfNotCanceled),
 			timeout(1000, cancelOnDispose(this._store)).catch(rejectIfNotCanceled),
 		]);
+	});
+	/** Whether the file is loaded and its first diff computed or took more than a second, so its diff can be shown. */
+	public readonly isReady = derived(this, reader => {
+		const result = this.waitForInitialDiffOr1s.cachedPromiseResult.read(reader);
+		return !!result && !result.error && this.isLoaded.read(reader);
 	});
 	public readonly collapsed = observableValue<boolean>(this, false);
 
