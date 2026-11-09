@@ -103,6 +103,8 @@ interface IExtensionsViewletState {
 
 export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionsViewletViews';
+
 	private readonly container: ViewContainer;
 
 	constructor(
@@ -1067,6 +1069,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 
 export class StatusUpdater extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionsStatusUpdater';
+
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	constructor(
@@ -1115,6 +1119,8 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 }
 
 export class MaliciousExtensionChecker implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.maliciousExtensionChecker';
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
@@ -1180,6 +1186,8 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 }
 
 export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensionMarketplaceStatusUpdater';
 
 	private readonly badgeHandle = this._register(new MutableDisposable());
 	private readonly accountBadgeDisposable = this._register(new MutableDisposable());

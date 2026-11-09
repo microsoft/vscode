@@ -13,12 +13,11 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { Schemas } from '../../../../base/common/network.js';
 import { IConfigurationRegistry, Extensions, ConfigurationScope, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IExternalTerminalService } from '../../../../platform/externalTerminal/electron-browser/externalTerminalService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -110,6 +109,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 export class ExternalTerminalContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.externalTerminal.nativeConfiguration';
+
 	public _serviceBrand: undefined;
 	constructor(@IExternalTerminalService private readonly _externalTerminalService: IExternalTerminalService) {
 		this._updateConfiguration();
@@ -170,5 +171,4 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 }
 
 // Register workbench contributions
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ExternalTerminalContribution.ID, ExternalTerminalContribution, WorkbenchPhase.AfterRestored);

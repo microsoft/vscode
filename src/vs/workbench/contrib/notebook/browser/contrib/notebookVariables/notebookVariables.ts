@@ -24,6 +24,9 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookVariables';
+
 	private listeners: IDisposable[] = [];
 	private configListener: IDisposable;
 	private initialized = false;

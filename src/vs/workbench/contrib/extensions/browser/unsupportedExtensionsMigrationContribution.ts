@@ -12,6 +12,8 @@ import { IExtensionManagementServerService } from '../../../services/extensionMa
 
 export class UnsupportedExtensionsMigrationContrib implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.unsupportedExtensionsMigrationContrib';
+
 	constructor(
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,

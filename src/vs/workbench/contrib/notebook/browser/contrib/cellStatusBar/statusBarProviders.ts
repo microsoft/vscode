@@ -12,15 +12,13 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE } from '../../notebookBrowser.js';
 import { INotebookCellStatusBarService } from '../../../common/notebookCellStatusBarService.js';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from '../../../common/notebookCommon.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { ILanguageDetectionService, LanguageDetectionHintConfig } from '../../../../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
 
@@ -155,6 +153,9 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 }
 
 class BuiltinCellStatusBarProviders extends Disposable {
+
+	static readonly ID = 'workbench.contrib.builtinCellStatusBarProviders';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService notebookCellStatusBarService: INotebookCellStatusBarService) {
@@ -170,4 +171,4 @@ class BuiltinCellStatusBarProviders extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinCellStatusBarProviders, LifecyclePhase.Restored);
+registerWorkbenchContribution2(BuiltinCellStatusBarProviders.ID, BuiltinCellStatusBarProviders, WorkbenchPhase.AfterRestored);

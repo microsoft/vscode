@@ -48,7 +48,7 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -56,7 +56,6 @@ import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWo
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -607,6 +606,8 @@ type IExtensionActionOptions = IAction2Options & {
 };
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensions.workbench';
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -2048,6 +2049,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 class ExtensionStorageCleaner implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionStorageCleaner';
+
 	constructor(
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IStorageService storageService: IStorageService,
@@ -2057,6 +2060,9 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 }
 
 class TrustedPublishersInitializer implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.trustedPublishersInitializer';
+
 	constructor(
 		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
@@ -2105,22 +2111,21 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementContextKeysContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(TrustedPublishersInitializer, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionMarketplaceStatusUpdater, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(ExtensionsContributions.ID, ExtensionsContributions, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(StatusUpdater.ID, StatusUpdater, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(MaliciousExtensionChecker.ID, MaliciousExtensionChecker, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(KeymapExtensions.ID, KeymapExtensions, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ExtensionsViewletViewsContribution.ID, ExtensionsViewletViewsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ExtensionActivationProgress.ID, ExtensionActivationProgress, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ExtensionDependencyChecker.ID, ExtensionDependencyChecker, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ExtensionEnablementWorkspaceTrustTransitionParticipant.ID, ExtensionEnablementWorkspaceTrustTransitionParticipant, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ExtensionsCompletionItemsProvider.ID, ExtensionsCompletionItemsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ExtensionEnablementContextKeysContribution.ID, ExtensionEnablementContextKeysContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(UnsupportedExtensionsMigrationContrib.ID, UnsupportedExtensionsMigrationContrib, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(TrustedPublishersInitializer.ID, TrustedPublishersInitializer, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ExtensionMarketplaceStatusUpdater.ID, ExtensionMarketplaceStatusUpdater, WorkbenchPhase.Eventually);
 if (isWeb) {
-	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
+	registerWorkbenchContribution2(ExtensionStorageCleaner.ID, ExtensionStorageCleaner, WorkbenchPhase.Eventually);
 }
 
 registerWorkbenchContribution2(ExtensionToolsContribution.ID, ExtensionToolsContribution, WorkbenchPhase.AfterRestored);

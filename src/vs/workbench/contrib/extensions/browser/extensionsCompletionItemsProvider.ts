@@ -17,6 +17,9 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 
 
 export class ExtensionsCompletionItemsProvider extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensionsCompletionItemsProvider';
+
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,

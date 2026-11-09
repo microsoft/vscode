@@ -27,16 +27,14 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
 import { NotebookFileWorkingCopyModel } from '../../../common/notebookEditorModel.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../../../../services/workingCopy/common/workingCopyFileService.js';
 import { NotebookMultiCursorController, NotebookMultiCursorState } from '../multicursor/notebookMulticursor.js';
@@ -647,6 +645,9 @@ function getActiveCellCodeEditor(editorService: IEditorService): ICodeEditor | u
 }
 
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookSaveParticipants';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService) {
@@ -664,5 +665,4 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SaveParticipantsContribution.ID, SaveParticipantsContribution, WorkbenchPhase.AfterRestored);

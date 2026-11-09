@@ -6,9 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IBreadcrumbsOutlineElement, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from '../../../../services/outline/browser/outline.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate, DocumentSymbolDragAndDrop } from './documentSymbolsTree.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -398,6 +396,8 @@ export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, DocumentSymbolItem> {
 
+	static readonly ID = 'workbench.contrib.documentSymbolsOutlineCreator';
+
 	readonly dispose: () => void;
 
 	constructor(
@@ -443,4 +443,4 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DocumentSymbolsOutlineCreator, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(DocumentSymbolsOutlineCreator.ID, DocumentSymbolsOutlineCreator, WorkbenchPhase.Eventually);

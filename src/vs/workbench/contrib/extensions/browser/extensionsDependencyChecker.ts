@@ -19,6 +19,8 @@ import { Promises } from '../../../../base/common/async.js';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionDependencyChecker';
+
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
