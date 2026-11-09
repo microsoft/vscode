@@ -1,0 +1,40 @@
+{
+	"version": 1,
+	"id": "colors",
+	"renderer": "foundations",
+	"content": "content/foundations/colors.json",
+	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/colors/COLORS.md"
+		},
+		{
+			"file": ".github/skills/ux-theming/SKILL.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "colors-usage",
+			"title": "Color roles"
+		},
+		{
+			"id": "colors-surfaces",
+			"title": "Neutral hierarchy"
+		},
+		{
+			"id": "colors-accent",
+			"title": "Accent and actions"
+		},
+		{
+			"id": "colors-feedback",
+			"title": "Semantic feedback"
+		},
+		{
+			"id": "colors-states",
+			"title": "Interaction states"
+		},
+		{
+			"id": "colors-palette",
+			"title": "Color reference"
+		}
+	]
+}

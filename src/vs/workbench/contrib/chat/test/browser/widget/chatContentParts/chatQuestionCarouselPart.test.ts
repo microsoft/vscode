@@ -24,6 +24,8 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import '../../../../../../browser/media/style.css';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -981,6 +983,62 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Navigation', () => {
+		for (const reduced of [false, true]) {
+			for (const completion of ['option', 'submit']) {
+				test(`question navigation stays readable and preserves answers through ${completion} with reduced motion ${reduced}`, () => {
+					createWidget(createMockCarousel([
+						{ id: 'q1', type: 'singleSelect', title: 'Question 1', options: [{ id: 'a', label: 'Option A', value: 'a' }, { id: 'b', label: 'Option B', value: 'b' }], defaultValue: 'a', allowFreeformInput: false },
+						{ id: 'q2', type: 'singleSelect', title: 'Question 2', options: [{ id: 'unit', label: 'Unit tests', value: 'unit' }], defaultValue: 'unit', allowFreeformInput: false },
+					]), undefined, mainWindow.document.body, services => {
+						services.stub(IAccessibilityService, new class extends TestAccessibilityService {
+							override isMotionReduced() { return reduced; }
+						}());
+					}, { shouldAutoFocus: false });
+					const content = widget.domNode.querySelector<HTMLElement>('.chat-question-carousel-content')!;
+					const footer = widget.domNode.querySelector('.chat-question-footer-row');
+					const read = () => ({
+						question: content.querySelector('.chat-question-title')?.textContent?.trim(),
+						opacity: getWindow(content).getComputedStyle(content).opacity,
+						animations: content.getAnimations().length,
+						footerPreserved: widget.domNode.querySelector('.chat-question-footer-row') === footer,
+					});
+					widget.domNode.querySelectorAll<HTMLElement>('.chat-question-list-item')[1].click();
+					const afterSelection = read();
+					widget.domNode.querySelector<HTMLElement>('.chat-question-nav-prev')!.click();
+					const afterPrevious = read();
+					const restoredSelection = content.querySelector('.chat-question-list-item.selected .chat-question-list-label')?.textContent;
+					widget.domNode.querySelector<HTMLElement>('.chat-question-nav-next')!.click();
+					const afterNext = read();
+					const navigationFocused = mainWindow.document.activeElement === widget.domNode;
+					const submitControl = widget.domNode.querySelector<HTMLElement>(completion === 'option' ? '.chat-question-list' : '.chat-question-submit-button')!;
+					submitControl.focus();
+					widget.domNode.querySelector<HTMLElement>(completion === 'option' ? '.chat-question-list-item' : '.chat-question-submit-button')!.click();
+					assert.deepStrictEqual({
+						afterSelection, afterPrevious, afterNext, restoredSelection, navigationFocused,
+						completionFocused: mainWindow.document.activeElement === widget.domNode,
+						answers: submittedAnswers,
+						summary: [...widget.domNode.querySelectorAll('.chat-question-summary-answer-title')].map(element => element.textContent),
+						remainingInputs: widget.domNode.querySelectorAll('.chat-question-input-container').length,
+						animations: widget.domNode.getAnimations({ subtree: true }).length,
+					}, {
+						afterSelection: { question: 'Question 2', opacity: '1', animations: 0, footerPreserved: true },
+						afterPrevious: { question: 'Question 1', opacity: '1', animations: 0, footerPreserved: true },
+						afterNext: { question: 'Question 2', opacity: '1', animations: 0, footerPreserved: true },
+						restoredSelection: 'Option B',
+						navigationFocused: true,
+						completionFocused: true,
+						answers: new Map([
+							['q1', { selectedValue: 'b', freeformValue: undefined }],
+							['q2', { selectedValue: 'unit', freeformValue: undefined }],
+						]),
+						summary: ['A: Option B', 'A: Unit tests'],
+						remainingInputs: 0,
+						animations: 0,
+					});
+				});
+			}
+		}
+
 		test('previous button is disabled on first question', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' },

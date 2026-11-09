@@ -44,6 +44,19 @@ suite('Radio', () => {
 		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
 	}
 
+	function emulateHover(radio: Radio): void {
+		const collectRules = (sheet: CSSStyleSheet): string[] => Array.from(sheet.cssRules).flatMap(rule => rule instanceof CSSImportRule
+			? (rule.styleSheet ? collectRules(rule.styleSheet) : [])
+			: rule.cssText.includes('.monaco-custom-radio') ? [rule.cssText] : []);
+		const rules = Array.from(mainWindow.document.styleSheets).flatMap(collectRules);
+		const style = mainWindow.document.createElement('style');
+		disposables.add(toDisposable(() => style.remove()));
+		// Preserve the real cascade while making :hover controllable without moving the system pointer.
+		style.textContent = rules.join('\n').replaceAll('.monaco-custom-radio', '.monaco-custom-radio.test-hover-styles').replaceAll(':hover', '.test-hover');
+		radio.domNode.classList.add('test-hover-styles');
+		radio.domNode.parentElement!.appendChild(style);
+	}
+
 	test('an optional empty selection stays keyboard reachable and selecting the first option emits a change', () => {
 		const radio = createRadio({ className: 'segmented', allowNoSelection: true, arrowKeyBehavior: 'focus', items: [{ text: 'Low' }, { text: 'High' }] });
 		const selected: number[] = [];
@@ -60,6 +73,59 @@ suite('Radio', () => {
 	});
 
 	for (const highContrast of [false, true]) {
+		test(`segmented hover leaves the fill to the selection indicator${highContrast ? ' in high contrast' : ''}`, async () => {
+			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Extra High' }, { text: 'Maximum', disabled: true }] });
+			radio.domNode.style.width = '276px';
+			radio.domNode.style.setProperty('--vscode-foreground', '#333333');
+			radio.domNode.style.setProperty('--vscode-toolbar-hoverBackground', '#ff0000');
+			radio.domNode.style.setProperty('--vscode-radio-inactiveHoverBackground', '#00ff00');
+			if (highContrast) {
+				radio.domNode.parentElement!.classList.add('hc-light');
+				radio.domNode.style.setProperty('--vscode-contrastBorder', '#444444');
+				radio.domNode.style.setProperty('--vscode-contrastActiveBorder', '#006bbd');
+			}
+			emulateHover(radio);
+			await nextFrame(radio);
+			const targetWindow = getWindow(radio.domNode);
+			const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+			const [, destination, disabled] = radio.optionElements;
+			const measure = () => radio.optionElements.map(element => {
+				const { x, y, width, height } = element.getBoundingClientRect();
+				const labelWidth = element.querySelector('[data-label]')!.getBoundingClientRect().width;
+				return { x, y, width, height, labelWidth };
+			});
+			const state = () => ({
+				backgrounds: radio.optionElements.map(element => targetWindow.getComputedStyle(element).backgroundColor),
+				weights: radio.optionElements.map(element => targetWindow.getComputedStyle(element).fontWeight),
+				checked: radio.optionElements.map(element => element.getAttribute('aria-checked')),
+				indicatorFill: targetWindow.getComputedStyle(indicator).backgroundColor,
+			});
+			const bounds = measure();
+			const resting = state();
+			destination.classList.add('test-hover');
+			const hovered = state();
+			const hoverBounds = measure();
+			destination.click();
+			const selected = state();
+			const selectedBounds = measure();
+			disabled.classList.add('test-hover');
+			disabled.click();
+
+			assert.deepStrictEqual({
+				resting, hovered, selected, disabledHover: state(),
+				hoverBounds, selectedBounds, disabledBounds: measure(),
+				disabledOpacity: targetWindow.getComputedStyle(disabled).opacity,
+				indicatorHasFill: resting.indicatorFill !== 'rgba(0, 0, 0, 0)',
+			}, {
+				resting: { backgrounds: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], weights: ['600', '400', '400'], checked: ['true', 'false', 'false'], indicatorFill: resting.indicatorFill },
+				hovered: { ...resting, weights: ['600', '600', '400'] },
+				selected: { ...resting, weights: ['400', '600', '400'], checked: ['false', 'true', 'false'] },
+				disabledHover: { ...resting, weights: ['400', '600', '400'], checked: ['false', 'true', 'false'] },
+				hoverBounds: bounds, selectedBounds: bounds, disabledBounds: bounds,
+				disabledOpacity: '0.4', indicatorHasFill: true,
+			});
+		});
+
 		test(`segmented controls share rounded rectangles and a neutral selected fill${highContrast ? ' in high contrast' : ''}`, async () => {
 			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Medium', isActive: true }, { text: 'High' }] });
 			radio.domNode.style.width = '240px';
@@ -181,7 +247,7 @@ suite('Radio', () => {
 			reducedDuration: targetWindow.getComputedStyle(indicator).transitionDuration,
 			animations: indicator.getAnimations().length,
 		}, {
-			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.25s, 0.25s, 0.1s',
+			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.16s, 0.16s, 0.1s',
 			reducedDuration: '0s',
 			animations: 0,
 		});
@@ -288,6 +354,19 @@ suite('Radio', () => {
 			secondSelected: [['1px', '0px'], ['1px', '1px'], ['0px', '1px']],
 			sizingLabels: 0,
 		});
+	});
+
+	test('joined radio hover retains its themed background', () => {
+		const radio = createRadio({ items: [{ text: 'One' }, { text: 'Two' }] });
+		radio.domNode.style.setProperty('--vscode-radio-inactiveHoverBackground', '#ff0000');
+		radio.domNode.style.setProperty('--vscode-radio-activeBackground', '#0000ff');
+		emulateHover(radio);
+		const destination = radio.optionElements[1];
+		destination.classList.add('test-hover');
+		const background = () => getWindow(destination).getComputedStyle(destination).backgroundColor;
+		const hovered = background();
+		destination.click();
+		assert.deepStrictEqual({ hovered, selected: background() }, { hovered: 'rgb(255, 0, 0)', selected: 'rgb(0, 0, 255)' });
 	});
 
 	test('segmented arrows can move focus without selecting until Enter', () => {

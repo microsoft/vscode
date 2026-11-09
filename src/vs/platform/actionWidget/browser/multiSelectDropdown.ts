@@ -12,6 +12,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { ActionListItemKind, IActionListItem } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
+import { withActionWidgetDropdownMotion } from './actionWidgetDropdown.js';
 
 export interface IMultiSelectDropdownItem {
 	/** Unique across all sections. */
@@ -46,7 +47,7 @@ export class MultiSelectDropdown extends Disposable {
 	/** A fresh snapshot in section/item order, emitted only for user toggles. */
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onDidHide = this._register(new Emitter<void>());
-	/** Fired after the shared widget has finished closing. */
+	/** Fired when the shared widget is dismissed, before its visual departure completes. */
 	readonly onDidHide = this._onDidHide.event;
 
 	constructor(
@@ -128,7 +129,7 @@ export class MultiSelectDropdown extends Disposable {
 				const label = [item.label, item.description, options.sections.find(section => section.items.includes(item.item!))?.label].filter(Boolean).join(', ');
 				return item.disabled ? localize('multiSelectDropdown.disabled', "{0}, disabled", label) : label;
 			},
-		}, {
+		}, withActionWidgetDropdownMotion({
 			showFilter: options.searchable,
 			filterPlaceholder: options.filterPlaceholder,
 			focusFilterOnOpen: options.searchable,
@@ -142,7 +143,7 @@ export class MultiSelectDropdown extends Disposable {
 			hideDefaultKeybindingTooltip: true,
 			preferredAnchorPosition: AnchorPosition.BELOW,
 			widgetClassName: 'multi-select-dropdown',
-		}, options.contextViewLayer);
+		}), options.contextViewLayer);
 		const popup = dom.getActiveElement()?.closest<HTMLElement>('.multi-select-dropdown');
 	}
 

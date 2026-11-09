@@ -125,7 +125,11 @@ export class ChatImageGenerationProgressPart extends BaseChatToolInvocationSubPa
 		const label = localize('chat.imageGeneration.placeholder', "Generating image");
 		this.domNode = dom.$('.chat-image-generation-placeholder', { role: 'img', 'aria-label': label, 'aria-busy': 'true' });
 		this.line = dom.append(this.domNode, dom.$('.chat-image-generation-line', { 'aria-hidden': 'true' }));
-		this.surface.value = instantiationService.createInstance(GlyphSurface, this.line);
+		this.surface.value = this.createSurface(this.line, instantiationService);
+	}
+
+	protected createSurface(container: HTMLElement, instantiationService: IInstantiationService): GlyphSurface {
+		return instantiationService.createInstance(GlyphSurface, container);
 	}
 
 	takeSurface(): GlyphSurface | undefined {

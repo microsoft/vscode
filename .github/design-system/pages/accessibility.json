@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "accessibility",
+	"renderer": "guidance",
+	"content": "content/guidance/accessibility.json",
+	"sources": [
+		{
+			"file": ".github/skills/accessibility/SKILL.md"
+		}
+	],
+	"sections": []
+}

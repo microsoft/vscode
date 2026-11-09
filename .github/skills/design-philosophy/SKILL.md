@@ -191,7 +191,7 @@ Moves are the **concrete mechanics** - the tokens, ramps, and tiers. On their ow
 
 This is the one section that touches implementation - and even here, the goal is to keep the *conversation* about design. Treat the Moves as the **shared vocabulary that lets an agreed design be built consistently**, not as the opening move in a review. Reach for them *after* you've named the feeling and the principle, never instead of it.
 
-The size and font tokens live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts); the full reference is in [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
+The size and font tokens live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts). Use the [source-backed design-system book](../../extensions/vscode-design-system/README.md) for current definitions and the [CSS usage instructions](../../instructions/design-tokens.instructions.md) for application guidance.
 
 <a id="design-tokens"></a>
 ### Tokens are the source of truth, not the pixel

@@ -20,12 +20,13 @@ export interface IPixelSpinnerOptions {
 
 	/**
 	 * Visual variant of the spinner.
-	 *  - `'grid'` (default): six dots in a 2×3 grid that cascade vertically.
-	 *  - `'ring'`: six dots arranged in a circle with a highlight that orbits the ring.
+	 *  - `'grid'` (default): six stationary dots in a 2×3 grid that brighten in sequence.
+	 *  - `'ring'`: the same grid with a highlight that travels around its perimeter.
 	 */
 	readonly variant?: 'grid' | 'ring';
 }
 
+/** Disposal pauses animation and releases visibility tracking without removing the element. */
 export interface IPixelSpinner extends IDisposable {
 	readonly element: HTMLElement;
 }
@@ -58,7 +59,10 @@ export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinner
 	const animationTracking = trackSpinner(root);
 	return {
 		element: root,
-		dispose: () => animationTracking.dispose(),
+		dispose: () => {
+			animationTracking.dispose();
+			root.classList.add(PAUSED_CLASS);
+		},
 	};
 }
 

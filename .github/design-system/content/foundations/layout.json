@@ -1,0 +1,35 @@
+{
+	"version": 1,
+	"id": "layout",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": ".github/design-system/guidance/layout.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"hierarchy": {
+			"title": "Arrange the primary task",
+			"description": {
+				"$text": {
+					"file": ".github/design-system/guidance/layout.md",
+					"heading": "Arrange the primary task",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"responsive": {
+			"title": "Adapt to available space",
+			"description": {
+				"$text": {
+					"file": ".github/design-system/guidance/layout.md",
+					"heading": "Adapt to available space",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	}
+}

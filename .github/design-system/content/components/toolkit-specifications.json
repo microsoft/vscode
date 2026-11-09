@@ -1,0 +1,596 @@
+{
+	"version": 1,
+	"file": "AJnTgc00iEI0KTVdyoN997",
+	"specifications": [
+		{
+			"id": "activity-bar",
+			"name": "Activity bar",
+			"nodeId": "113:234"
+		},
+		{
+			"id": "activity-bar-item",
+			"name": "Activity bar item",
+			"nodeId": "2574:10"
+		},
+		{
+			"id": "chat-sidebar",
+			"name": "Chat sidebar",
+			"nodeId": "10831:29352"
+		},
+		{
+			"id": "inline-chat",
+			"name": "Inline chat",
+			"nodeId": "11160:91324"
+		},
+		{
+			"id": "inline-chat-thread",
+			"name": "Inline chat thread",
+			"nodeId": "11160:90918"
+		},
+		{
+			"id": "inline-chat-message",
+			"name": "Inline chat message",
+			"nodeId": "11160:90885"
+		},
+		{
+			"id": "inline-chat-hint",
+			"name": "Inline chat hint",
+			"nodeId": "11160:90874"
+		},
+		{
+			"id": "chat-thread",
+			"name": "Chat thread",
+			"nodeId": "10830:10448"
+		},
+		{
+			"id": "chat-message",
+			"name": "Chat message",
+			"nodeId": "10823:81576"
+		},
+		{
+			"id": "chat-message-content",
+			"name": "Chat message content",
+			"nodeId": "10823:32682"
+		},
+		{
+			"id": "chat-code-toolbar",
+			"name": "Chat code block toolbar",
+			"nodeId": "10823:32934"
+		},
+		{
+			"id": "chat-response-toolbar",
+			"name": "Chat response toolbar",
+			"nodeId": "18692:215076"
+		},
+		{
+			"id": "chat-message-header",
+			"name": "Chat message header",
+			"nodeId": "18684:16375"
+		},
+		{
+			"id": "chat-avatar",
+			"name": "Chat message avatar",
+			"nodeId": "10823:32593"
+		},
+		{
+			"id": "chat-progress-label",
+			"name": "Chat progress label",
+			"nodeId": "10823:32878"
+		},
+		{
+			"id": "loading-spinner",
+			"name": "Spinner",
+			"nodeId": "20676:39418"
+		},
+		{
+			"id": "chat-reference",
+			"name": "Chat references",
+			"nodeId": "10823:32486"
+		},
+		{
+			"id": "chat-references-header",
+			"name": "Chat references list header",
+			"nodeId": "10823:33005"
+		},
+		{
+			"id": "chat-references-list",
+			"name": "Chat references list",
+			"nodeId": "10831:102575"
+		},
+		{
+			"id": "chat-reference-item",
+			"name": "Chat reference list item",
+			"nodeId": "10823:32494"
+		},
+		{
+			"id": "chat-confirmation",
+			"name": "Chat confirmation",
+			"nodeId": "11011:18876"
+		},
+		{
+			"id": "chat-notification",
+			"name": "Chat notification",
+			"nodeId": "11033:15672"
+		},
+		{
+			"id": "chat-footer",
+			"name": "Chat footer",
+			"nodeId": "13205:8326"
+		},
+		{
+			"id": "chat-input",
+			"name": "Chat input",
+			"nodeId": "10823:32762"
+		},
+		{
+			"id": "chat-input-element",
+			"name": "Chat input element",
+			"nodeId": "10823:32665"
+		},
+		{
+			"id": "chat-input-action",
+			"name": "Chat input action",
+			"nodeId": "16584:14341"
+		},
+		{
+			"id": "chat-attachments-group",
+			"name": "Chat attachments group",
+			"nodeId": "10890:14610"
+		},
+		{
+			"id": "chat-suggestion",
+			"name": "Chat suggestion",
+			"nodeId": "10986:61756"
+		},
+		{
+			"id": "chat-suggestion-group",
+			"name": "Chat suggestion group",
+			"nodeId": "10831:17862"
+		},
+		{
+			"id": "chat-input-menu",
+			"name": "Chat input menu",
+			"nodeId": "10859:6803"
+		},
+		{
+			"id": "chat-participant-avatar",
+			"name": "Chat participant avatar",
+			"nodeId": "10859:6832"
+		},
+		{
+			"id": "chat-edit-session",
+			"name": "Chat edit session",
+			"nodeId": "14067:53772"
+		},
+		{
+			"id": "chat-attachment",
+			"name": "Chat attachment",
+			"nodeId": "20676:43729"
+		},
+		{
+			"id": "chat-edit-summary",
+			"name": "Chat edit summary",
+			"nodeId": "16661:162197"
+		},
+		{
+			"id": "chat-tool-output",
+			"name": "Chat tool output row",
+			"nodeId": "20676:56816"
+		},
+		{
+			"id": "chat-input-container",
+			"name": "Chat input container",
+			"nodeId": "20507:15081"
+		},
+		{
+			"id": "chat-drawer",
+			"name": "Chat drawer",
+			"nodeId": "20507:15094"
+		},
+		{
+			"id": "chat-file-list",
+			"name": "Chat file list",
+			"nodeId": "20507:15226"
+		},
+		{
+			"id": "chat-checkpoint",
+			"name": "Chat checkpoint",
+			"nodeId": "20526:18934"
+		},
+		{
+			"id": "chat-checkpoint-button",
+			"name": "Chat checkpoint button",
+			"nodeId": "20526:18956"
+		},
+		{
+			"id": "chat-empty-state",
+			"name": "Chat empty state",
+			"nodeId": "20505:14165"
+		},
+		{
+			"id": "dialog",
+			"name": "Dialog",
+			"nodeId": "3047:2574"
+		},
+		{
+			"id": "editor",
+			"name": "Editor",
+			"nodeId": "3263:46390"
+		},
+		{
+			"id": "editor-glyph-margin",
+			"name": "Editor glyph margin",
+			"nodeId": "144:706"
+		},
+		{
+			"id": "editor-code",
+			"name": "Editor code",
+			"nodeId": "144:1041"
+		},
+		{
+			"id": "editor-glyph",
+			"name": "Editor glyph",
+			"nodeId": "3085:23"
+		},
+		{
+			"id": "editor-folding",
+			"name": "Editor folding control",
+			"nodeId": "3085:7440"
+		},
+		{
+			"id": "editor-minimap",
+			"name": "Editor minimap",
+			"nodeId": "144:1040"
+		},
+		{
+			"id": "extension-row",
+			"name": "Extension row",
+			"nodeId": "2839:51235"
+		},
+		{
+			"id": "extension-icon",
+			"name": "Extension icon",
+			"nodeId": "4274:102698"
+		},
+		{
+			"id": "extension-header",
+			"name": "Extension header",
+			"nodeId": "2839:51984"
+		},
+		{
+			"id": "extensions-sidebar",
+			"name": "Extensions sidebar",
+			"nodeId": "4275:102773"
+		},
+		{
+			"id": "hover",
+			"name": "Hover",
+			"nodeId": "2588:3740"
+		},
+		{
+			"id": "button",
+			"name": "Button",
+			"nodeId": "3232:257"
+		},
+		{
+			"id": "split-button",
+			"name": "Split button",
+			"nodeId": "2954:48837"
+		},
+		{
+			"id": "button-bar",
+			"name": "Button group",
+			"nodeId": "3276:47825"
+		},
+		{
+			"id": "toggle",
+			"name": "Icon toggle",
+			"nodeId": "56:97"
+		},
+		{
+			"id": "icon-button",
+			"name": "Icon button",
+			"nodeId": "2553:5682"
+		},
+		{
+			"id": "split-icon-button",
+			"name": "Split icon button",
+			"nodeId": "14025:8438"
+		},
+		{
+			"id": "toolbar-dropdown",
+			"name": "Toolbar dropdown",
+			"nodeId": "14025:16056"
+		},
+		{
+			"id": "select",
+			"name": "Select box",
+			"nodeId": "2550:4378"
+		},
+		{
+			"id": "input",
+			"name": "Text field",
+			"nodeId": "2481:3354"
+		},
+		{
+			"id": "checkbox-label",
+			"name": "Checkbox label",
+			"nodeId": "2557:87"
+		},
+		{
+			"id": "checkbox",
+			"name": "Checkbox",
+			"nodeId": "1724:1387"
+		},
+		{
+			"id": "badge",
+			"name": "Count badge",
+			"nodeId": "2608:38370"
+		},
+		{
+			"id": "text-label",
+			"name": "Label",
+			"nodeId": "2692:50851"
+		},
+		{
+			"id": "identifier",
+			"name": "Identifier",
+			"nodeId": "2839:51955"
+		},
+		{
+			"id": "status-icon",
+			"name": "Status indicator",
+			"nodeId": "2643:6"
+		},
+		{
+			"id": "file-icon",
+			"name": "File icon",
+			"nodeId": "2501:31"
+		},
+		{
+			"id": "folder-row",
+			"name": "Folder row",
+			"nodeId": "3875:65360"
+		},
+		{
+			"id": "file-row",
+			"name": "File row",
+			"nodeId": "3912:107433"
+		},
+		{
+			"id": "menu",
+			"name": "Menu",
+			"nodeId": "2644:641"
+		},
+		{
+			"id": "menu-item",
+			"name": "Menu item",
+			"nodeId": "2645:35842"
+		},
+		{
+			"id": "menu-section-title",
+			"name": "Menu section title",
+			"nodeId": "18130:6674"
+		},
+		{
+			"id": "model-picker",
+			"name": "Model picker menu",
+			"nodeId": "18130:6827"
+		},
+		{
+			"id": "notebook",
+			"name": "Notebook",
+			"nodeId": "3263:51583"
+		},
+		{
+			"id": "notebook-code-cell",
+			"name": "Notebook code cell",
+			"nodeId": "3263:47139"
+		},
+		{
+			"id": "notebook-add-cell",
+			"name": "Notebook add-cell control",
+			"nodeId": "4156:140307"
+		},
+		{
+			"id": "notebook-toolbar",
+			"name": "Notebook toolbar",
+			"nodeId": "4512:208661"
+		},
+		{
+			"id": "notebook-cell-status-bar",
+			"name": "Notebook cell status bar",
+			"nodeId": "3263:47261"
+		},
+		{
+			"id": "notebook-markdown-cell",
+			"name": "Notebook markdown cell",
+			"nodeId": "3263:51437"
+		},
+		{
+			"id": "notification",
+			"name": "Notification",
+			"nodeId": "3276:50008"
+		},
+		{
+			"id": "notification-header",
+			"name": "Notification header",
+			"nodeId": "715:1508"
+		},
+		{
+			"id": "notification-center",
+			"name": "Notification center",
+			"nodeId": "715:1735"
+		},
+		{
+			"id": "peek-view",
+			"name": "Peek view",
+			"nodeId": "5079:192057"
+		},
+		{
+			"id": "panel",
+			"name": "Panel",
+			"nodeId": "2608:42468"
+		},
+		{
+			"id": "panel-title",
+			"name": "Panel title",
+			"nodeId": "3296:24"
+		},
+		{
+			"id": "progress",
+			"name": "Progress bar",
+			"nodeId": "10604:4479"
+		},
+		{
+			"id": "quick-pick",
+			"name": "Quick Pick",
+			"nodeId": "2607:35646"
+		},
+		{
+			"id": "quick-pick-item",
+			"name": "Quick Pick item",
+			"nodeId": "3931:93561"
+		},
+		{
+			"id": "quick-pick-title",
+			"name": "Quick Pick title",
+			"nodeId": "2599:36148"
+		},
+		{
+			"id": "quick-pick-shortcut",
+			"name": "Quick Pick shortcut",
+			"nodeId": "2593:22722"
+		},
+		{
+			"id": "setting",
+			"name": "Setting row",
+			"nodeId": "4593:168893"
+		},
+		{
+			"id": "settings-category",
+			"name": "Settings category",
+			"nodeId": "4541:169099"
+		},
+		{
+			"id": "settings-navigation",
+			"name": "Settings table of contents",
+			"nodeId": "4564:168329"
+		},
+		{
+			"id": "settings-tab",
+			"name": "Settings tab",
+			"nodeId": "4564:168891"
+		},
+		{
+			"id": "settings-list",
+			"name": "Settings list",
+			"nodeId": "4820:179799"
+		},
+		{
+			"id": "sidebar",
+			"name": "Sidebar",
+			"nodeId": "3666:50945"
+		},
+		{
+			"id": "sidebar-title",
+			"name": "Sidebar title",
+			"nodeId": "2564:49178"
+		},
+		{
+			"id": "sidebar-header",
+			"name": "Sidebar header",
+			"nodeId": "2557:1613"
+		},
+		{
+			"id": "sidebar-icon-tab",
+			"name": "Sidebar icon tab",
+			"nodeId": "15091:42054"
+		},
+		{
+			"id": "status-bar",
+			"name": "Status bar",
+			"nodeId": "2660:377"
+		},
+		{
+			"id": "status-bar-item",
+			"name": "Status bar item",
+			"nodeId": "2656:3649"
+		},
+		{
+			"id": "suggest-widget",
+			"name": "Suggest widget",
+			"nodeId": "4345:102715"
+		},
+		{
+			"id": "suggest-item",
+			"name": "Suggest item",
+			"nodeId": "3091:45534"
+		},
+		{
+			"id": "suggest-icon",
+			"name": "Suggest item icon",
+			"nodeId": "3091:46822"
+		},
+		{
+			"id": "tabs",
+			"name": "Tabs",
+			"nodeId": "2575:373"
+		},
+		{
+			"id": "tab-group",
+			"name": "Tab group",
+			"nodeId": "3661:285"
+		},
+		{
+			"id": "editor-toolbar",
+			"name": "Editor toolbar",
+			"nodeId": "144:232"
+		},
+		{
+			"id": "tooltip",
+			"name": "Tooltip",
+			"nodeId": "18796:213565"
+		},
+		{
+			"id": "title-bar",
+			"name": "Title bar",
+			"nodeId": "18667:42940"
+		},
+		{
+			"id": "window-actions",
+			"name": "Window actions",
+			"nodeId": "15124:44904"
+		},
+		{
+			"id": "window-control",
+			"name": "Window control",
+			"nodeId": "18675:60983"
+		},
+		{
+			"id": "titlebar-menu-item",
+			"name": "Title bar menu item",
+			"nodeId": "18675:63375"
+		},
+		{
+			"id": "session-indicator",
+			"name": "Session indicator",
+			"nodeId": "22253:25641"
+		},
+		{
+			"id": "squiggle",
+			"name": "Squiggle",
+			"nodeId": "6195:197850"
+		},
+		{
+			"id": "squiggle-text",
+			"name": "Squiggle text",
+			"nodeId": "6195:198632"
+		},
+		{
+			"id": "cursor",
+			"name": "Text cursor",
+			"nodeId": "6195:198109"
+		}
+	]
+}

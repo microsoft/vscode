@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "badge",
+	"className": "CountBadge",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"count",
+			"number?",
+			"Initial count, defaulting to zero.",
+			"readonly count?: number;"
+		],
+		[
+			"countFormat",
+			"string?",
+			"Formatting pattern for the visible count.",
+			"readonly countFormat?: string;"
+		],
+		[
+			"titleFormat",
+			"string?",
+			"Formatting pattern for the hover title.",
+			"readonly titleFormat?: string;"
+		],
+		[
+			"setCount(count)",
+			"method",
+			"Updates and renders the count.",
+			"setCount(count: number)"
+		]
+	]
+}

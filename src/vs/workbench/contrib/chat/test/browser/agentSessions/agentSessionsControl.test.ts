@@ -20,11 +20,15 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('AgentSessionsControl', () => {
 
@@ -214,6 +218,322 @@ suite('AgentSessionsControl', () => {
 			{ provider: undefined, reason: 'manual' },
 			{ provider: undefined, reason: 'manual' },
 		]);
+	});
+
+	suite('loading', () => {
+		async function createControl(sessions: IAgentSession[] = [], resolved = true, reduced = false) {
+			const willResolve = store.add(new Emitter<string>());
+			const didResolve = store.add(new Emitter<string>());
+			const changedSessions = store.add(new Emitter<void>());
+			const model: IAgentSessionsModel = {
+				sessions,
+				resolved,
+				getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+				observeSession: () => { throw new Error('Not implemented'); },
+				onWillResolve: willResolve.event,
+				onDidResolve: didResolve.event,
+				onDidChangeSessions: changedSessions.event,
+				onDidChangeSessionArchivedState: Event.None,
+				resolve: async () => { },
+			};
+			const instantiation = workbenchInstantiationService(undefined, store);
+			const reducedMotionChanged = store.add(new Emitter<void>());
+			instantiation.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override readonly onDidChangeReducedMotion = reducedMotionChanged.event;
+				override isMotionReduced() { return reduced; }
+			}());
+			instantiation.stub(IChatSessionsService, new class extends MockChatSessionsService {
+				override getChatSessionContribution() { return undefined; }
+				override resolveChatSessionItem = async () => undefined;
+			});
+			instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion = observableValue(this, 0);
+				override hasPendingResponse = () => false;
+			});
+			instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+				override getSession = (resource: URI) => model.getSession(resource);
+			});
+			const errors: (NotificationMessage | NotificationMessage[])[] = [];
+			instantiation.stub(INotificationService, new class extends mock<INotificationService>() {
+				override error(message: NotificationMessage | NotificationMessage[]) { errors.push(message); }
+			});
+			const container = document.body.appendChild(document.createElement('div'));
+			container.style.cssText = 'width: 500px; height: 500px;';
+			store.add(toDisposable(() => container.remove()));
+			const opened: string[] = [];
+			const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+				overrideStyles: {}, filter: createFilter(), source: 'test',
+				createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW,
+				trackActiveEditorSession: () => false,
+				overrideSessionOpen: async resource => { opened.push(resource.toString()); },
+			}));
+			await timeout(0);
+			control.layout(500, 500);
+			await control.update();
+			const element = control.element!;
+			const progress = element.querySelector<HTMLElement>('.monaco-progress-container')!;
+			const label = element.querySelector<HTMLElement>('.agent-sessions-loading')!;
+			const state = () => ({
+				busy: element.getAttribute('aria-busy'),
+				progressVisible: progress.style.display !== 'none',
+				statusVisible: label.style.display !== 'none',
+			});
+			const setReducedMotion = (value: boolean) => { reduced = value; reducedMotionChanged.fire(); };
+			return { control, model, sessions, willResolve, didResolve, changedSessions, errors, opened, progress, label, state, setReducedMotion };
+		}
+
+		test('fast initial content cancels delayed progress and only reveals once', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl([], false);
+			const initial = harness.state();
+			harness.willResolve.fire('test');
+			await timeout(100);
+			const session = createSession(URI.parse('test:/loaded'), 'Loaded session');
+			harness.sessions.push(session);
+			harness.changedSessions.fire();
+			harness.didResolve.fire('test');
+			await harness.control.update();
+			const list = harness.control.element!.querySelector<HTMLElement>('.monaco-list')!;
+			const entrance = list.getAnimations()[0];
+			assert.ok(entrance, 'first usable content should reveal');
+			entrance.finish();
+			await entrance.finished;
+			harness.willResolve.fire('test');
+			harness.changedSessions.fire();
+			harness.didResolve.fire('test');
+			await harness.control.update();
+			await timeout(200);
+			assert.deepStrictEqual({
+				initial,
+				settled: harness.state(),
+				rowVisible: !!harness.control.getSessionElement(session.resource),
+				replayedEntrance: list.getAnimations().some(animation => animation !== entrance),
+			}, {
+				initial: { busy: 'true', progressVisible: false, statusVisible: true },
+				settled: { busy: 'false', progressVisible: false, statusVisible: false },
+				rowVisible: true,
+				replayedEntrance: false,
+			});
+			harness.control.dispose();
+		}));
+
+		test('slow refresh retains usable rows and only shows progress after the threshold', () => runWithFakedTimers({}, async () => {
+			const session = createSession(URI.parse('test:/retained'), 'Retained session');
+			const harness = await createControl([session]);
+			const row = harness.control.getSessionElement(session.resource)!;
+			const settled = harness.state();
+			harness.willResolve.fire('test');
+			const started = harness.state();
+			await timeout(149);
+			const beforeThreshold = harness.state();
+			await timeout(1);
+			const afterThreshold = harness.state();
+			row.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, button: 0 }));
+			await timeout(0);
+			harness.didResolve.fire('test');
+			assert.deepStrictEqual({
+				settled, started, beforeThreshold, afterThreshold,
+				finished: harness.state(),
+				sameRow: harness.control.getSessionElement(session.resource) === row,
+				opened: harness.opened,
+			}, {
+				settled: { busy: 'false', progressVisible: false, statusVisible: false },
+				started: { busy: 'true', progressVisible: false, statusVisible: false },
+				beforeThreshold: { busy: 'true', progressVisible: false, statusVisible: false },
+				afterThreshold: { busy: 'true', progressVisible: true, statusVisible: false },
+				finished: { busy: 'false', progressVisible: false, statusVisible: false },
+				sameRow: true,
+				opened: [session.resource.toString()],
+			});
+			harness.control.dispose();
+		}));
+
+		for (const { reason, reduced, reveals } of [
+			{ reason: 'manual', reduced: false, reveals: true },
+			{ reason: 'manual', reduced: true, reveals: false },
+			{ reason: 'automatic', reduced: false, reveals: false },
+		] as const) {
+			test(`${reason} refresh reveals only new rendered rows (reduced=${reduced})`, async () => {
+				const retained = createSession(URI.parse('test:/retained'), 'Retained session');
+				const added = createSession(URI.parse('test:/added'), 'New session');
+				const harness = await createControl([retained], true, reduced);
+				harness.control.focus();
+				const focused = document.activeElement;
+				harness.model.resolve = async () => {
+					harness.sessions.push(added);
+					harness.changedSessions.fire();
+				};
+				await harness.control.refresh(reason);
+				const addedRow = harness.control.getSessionElement(added.resource)!;
+				const retainedRow = harness.control.getSessionElement(retained.resource)!;
+				const entrance = addedRow.getAnimations()[0];
+				const afterRefresh = {
+					newRowRendered: !!addedRow,
+					revealed: !!entrance,
+					retainedRow: retainedRow.textContent!.includes(retained.label),
+					retainedAnimations: retainedRow.getAnimations().length,
+					surfaceAnimations: harness.control.element!.querySelector('.monaco-list')!.getAnimations().length,
+					focusRetained: document.activeElement === focused,
+				};
+				if (entrance) {
+					harness.setReducedMotion(true);
+					await entrance.finished;
+					await timeout(0);
+				}
+				await harness.control.update();
+				const replayed = harness.control.getSessionElement(added.resource)!.getAnimations().some(animation => animation !== entrance);
+				assert.deepStrictEqual({ afterRefresh, replayed, activeAfterReduction: addedRow.getAnimations().length }, {
+					afterRefresh: { newRowRendered: true, revealed: reveals, retainedRow: true, retainedAnimations: 0, surfaceAnimations: 0, focusRetained: true },
+					replayed: false,
+					activeAfterReduction: 0,
+				});
+			});
+		}
+
+		test('hiding cancels a result reveal without replaying it on return', async () => {
+			const harness = await createControl([createSession(URI.parse('test:/retained'), 'Retained session')]);
+			const added = createSession(URI.parse('test:/added'), 'New session');
+			harness.model.resolve = async () => { harness.sessions.push(added); };
+			await harness.control.refresh();
+			const row = harness.control.getSessionElement(added.resource)!;
+			const revealing = row.getAnimations().length;
+			harness.control.setVisible(false);
+			await timeout(0);
+			harness.control.setVisible(true);
+			await harness.control.update();
+			assert.deepStrictEqual({ revealing, onReturn: row.getAnimations().length }, { revealing: 1, onReturn: 0 });
+		});
+
+		test('recycling a revealing row cannot fade another session', async () => {
+			const retained = createSession(URI.parse('test:/retained'), 'Retained session');
+			const added = createSession(URI.parse('test:/added'), 'New session');
+			const harness = await createControl([retained]);
+			harness.model.resolve = async () => { harness.sessions.unshift(added); };
+			await harness.control.refresh();
+			const revealingRow = harness.control.getSessionElement(added.resource)!;
+			const entrance = revealingRow.getAnimations()[0];
+			harness.sessions.splice(0, 1);
+			harness.changedSessions.fire();
+			await harness.control.update();
+			await timeout(0);
+			assert.deepStrictEqual({
+				entranceCancelled: entrance.playState,
+				retainedVisible: !!harness.control.getSessionElement(retained.resource),
+				activeAnimations: harness.control.element!.getAnimations({ subtree: true }).length,
+			}, { entranceCancelled: 'idle', retainedVisible: true, activeAnimations: 0 });
+		});
+
+		test('overlapping providers stay busy until the final provider resolves', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl([], false);
+			harness.willResolve.fire('first');
+			await timeout(100);
+			harness.willResolve.fire('second');
+			harness.didResolve.fire('first');
+			const firstFinished = harness.state();
+			await timeout(50);
+			const secondPending = harness.state();
+			harness.didResolve.fire('second');
+			assert.deepStrictEqual({ firstFinished, secondPending, finished: harness.state() }, {
+				firstFinished: { busy: 'true', progressVisible: false, statusVisible: true },
+				secondPending: { busy: 'true', progressVisible: true, statusVisible: true },
+				finished: { busy: 'false', progressVisible: false, statusVisible: false },
+			});
+			harness.control.dispose();
+		}));
+
+		test('refresh acknowledges the request before debounced provider resolution begins', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl();
+			harness.model.resolve = async () => {
+				await timeout(500); // AgentSessionsModel debounces provider resolution.
+				harness.willResolve.fire('test');
+				harness.didResolve.fire('test');
+			};
+			const refresh = harness.control.refresh();
+			const requested = harness.state();
+			await timeout(150);
+			const queued = harness.state();
+			await refresh;
+			assert.deepStrictEqual({ requested, queued, finished: harness.state() }, {
+				requested: { busy: 'true', progressVisible: false, statusVisible: true },
+				queued: { busy: 'true', progressVisible: true, statusVisible: true },
+				finished: { busy: 'false', progressVisible: false, statusVisible: false },
+			});
+			harness.control.dispose();
+		}));
+
+		test('failed refresh retains content and reports the error after provider completion', () => runWithFakedTimers({}, async () => {
+			const session = createSession(URI.parse('test:/retained'), 'Retained session');
+			const harness = await createControl([session]);
+			const row = harness.control.getSessionElement(session.resource);
+			assert.ok(row);
+			harness.model.resolve = async (_provider, onError) => {
+				harness.willResolve.fire('test');
+				await timeout(200);
+				harness.didResolve.fire('test');
+				onError?.(new Error('Provider unavailable'));
+			};
+			await harness.control.refresh();
+			assert.deepStrictEqual({
+				state: harness.state(),
+				sameRow: harness.control.getSessionElement(session.resource) === row,
+				errors: harness.errors,
+			}, {
+				state: { busy: 'false', progressVisible: false, statusVisible: false },
+				sameRow: true,
+				errors: ['Provider unavailable'],
+			});
+			harness.control.dispose();
+		}));
+
+		test('an empty refresh without providers finishes the initial loading state', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl([], false);
+			await harness.control.refresh();
+			await timeout(200);
+			assert.deepStrictEqual(harness.state(), { busy: 'false', progressVisible: false, statusVisible: false });
+			harness.control.dispose();
+		}));
+
+		test('an initial failure offers a retry and clears the error after a successful refresh', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl([], false);
+			harness.model.resolve = async (_provider, onError) => {
+				harness.willResolve.fire('test');
+				harness.didResolve.fire('test');
+				onError?.(new Error('Provider unavailable'));
+			};
+			await harness.control.refresh();
+			const failed = { ...harness.state(), status: harness.label.textContent };
+			harness.model.resolve = async () => { };
+			await harness.control.refresh();
+			assert.deepStrictEqual({ failed, retried: harness.state(), errors: harness.errors }, {
+				failed: { busy: 'false', progressVisible: false, statusVisible: true, status: 'Couldn\'t load sessions. Refresh to try again.' },
+				retried: { busy: 'false', progressVisible: false, statusVisible: false },
+				errors: ['Provider unavailable'],
+			});
+			harness.control.dispose();
+		}));
+
+		test('disposal cancels delayed progress and ignores later provider events', () => runWithFakedTimers({}, async () => {
+			const harness = await createControl();
+			const completion = new DeferredPromise<void>();
+			harness.model.resolve = async () => {
+				harness.willResolve.fire('test');
+				await completion.p;
+				harness.didResolve.fire('test');
+			};
+			const refresh = harness.control.refresh();
+			harness.control.dispose();
+			await timeout(200);
+			await completion.complete();
+			await refresh;
+			harness.willResolve.fire('late');
+			await timeout(200);
+			assert.deepStrictEqual({
+				progressVisible: harness.progress.style.display !== 'none',
+				progressActive: harness.progress.classList.contains('active'),
+				errors: harness.errors,
+			}, { progressVisible: false, progressActive: false, errors: [] });
+		}));
 	});
 
 	test('creates a new chat when double-clicking empty list space', () => {

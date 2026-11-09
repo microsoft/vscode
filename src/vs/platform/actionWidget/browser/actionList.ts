@@ -40,6 +40,7 @@ import { IOpenerService } from '../../opener/common/opener.js';
 import { Link } from '../../opener/browser/link.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
+import { motionTokenRegistry } from '../../theme/common/motionRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IHoverService } from '../../hover/browser/hover.js';
@@ -2070,7 +2071,10 @@ export class ActionListWidget<T> extends Disposable {
 		const animation = row.animate([
 			{ ...frame, transform: `translateY(${(previous.top - current.top) / zoom}px)` },
 			{ ...frame, transform: 'translateY(0)' },
-		], { duration: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+		], {
+			duration: motionTokenRegistry.getNumber('motion.selection.duration', 'duration'),
+			easing: motionTokenRegistry.getValueCss('motion.selection.easing', 'easing'),
+		});
 		this._itemMoveAnimation.value = toDisposable(() => animation.cancel());
 	}
 

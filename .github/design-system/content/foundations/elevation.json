@@ -1,0 +1,74 @@
+{
+	"version": 1,
+	"id": "elevation",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/elevation.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"tiers": {
+			"title": "Surface hierarchy",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/elevation.md",
+					"heading": "Surface hierarchy",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"shadows": {
+			"title": "Shadow scale",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/elevation.md",
+					"heading": "Shadow scale",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"guidance": {
+			"title": "High contrast",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/elevation.md",
+					"heading": "High contrast",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"role": {
+			"title": "Elevation by role",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/elevation.md",
+					"heading": "Elevation by role",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	},
+	"roles": [
+		[
+			"Control",
+			"cornerRadius.small",
+			"Buttons, inputs, and interactive rows"
+		],
+		[
+			"Inner",
+			"cornerRadius.medium",
+			"Containers within a surface"
+		],
+		[
+			"Outer",
+			"cornerRadius.large",
+			"Floating menus, hovers, and dialogs"
+		]
+	]
+}

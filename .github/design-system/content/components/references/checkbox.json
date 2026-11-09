@@ -1,0 +1,58 @@
+{
+	"version": 1,
+	"id": "checkbox",
+	"className": "Checkbox",
+	"apiStart": "abstract class BaseCheckbox",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/toggle/checkbox-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/toggle/checkbox-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/toggle/checkbox-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/toggle/checkbox-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"constructor(title, isChecked, styles)",
+			"Checkbox",
+			"Creates a named binary choice with the caller’s theme styles.",
+			"constructor(title: string, isChecked: boolean, styles: ICheckboxStyles)"
+		],
+		[
+			"checked",
+			"boolean",
+			"Read or update the selection.",
+			"get checked(): boolean"
+		],
+		[
+			"onChange",
+			"Event<boolean>",
+			"Reports keyboard origin; read checked for the selected state.",
+			"readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;"
+		],
+		[
+			"disable()",
+			"void",
+			"Makes the choice unavailable without changing its state.",
+			"disable(): void"
+		]
+	]
+}

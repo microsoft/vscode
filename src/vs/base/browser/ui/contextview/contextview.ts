@@ -151,7 +151,7 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} > .monaco-scrollable-element {
-		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} backwards;
+		animation: context-view-menu-motion-open var(--vscode-motion-surface-enter-duration, ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms) var(--vscode-motion-surface-easing, ${CONTEXT_VIEW_MENU_MOTION_EASING}) backwards;
 		box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 		transform-origin: top left;
 		will-change: opacity;
@@ -170,7 +170,7 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS} > .monaco-scrollable-element {
-		animation: context-view-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+		animation: context-view-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) var(--vscode-motion-surface-exit-easing, ${CONTEXT_VIEW_MENU_MOTION_EASING}) both;
 		pointer-events: none;
 	}
 
@@ -181,7 +181,7 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 
 		0% {
 			opacity: 0;
-			transform: scale(0.97);
+			transform: scale(var(--vscode-motion-surface-enter-scale, 0.97));
 		}
 
 		100% {
@@ -202,7 +202,7 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 
 		100% {
 			opacity: 0;
-			transform: scale(0.99);
+			transform: scale(var(--vscode-motion-surface-exit-scale, 0.99));
 		}
 	}`;
 }

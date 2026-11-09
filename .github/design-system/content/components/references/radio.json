@@ -1,0 +1,64 @@
+{
+	"version": 1,
+	"id": "radio",
+	"className": "Radio",
+	"apiStart": "export interface IRadioOptions {",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/radio/radio-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/radio/radio-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/radio/radio-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/radio/radio-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"items",
+			"ReadonlyArray<IRadioOptionItem>",
+			"The options, labels, and initial active state.",
+			"readonly items: ReadonlyArray<IRadioOptionItem>;"
+		],
+		[
+			"ariaLabel",
+			"string?",
+			"Accessible name of the group.",
+			"readonly ariaLabel?: string;"
+		],
+		[
+			"allowNoSelection",
+			"boolean?",
+			"Allows an initially unchecked group when no item is active.",
+			"readonly allowNoSelection?: boolean;"
+		],
+		[
+			"arrowKeyBehavior",
+			"'select' | 'focus'?",
+			"Select while navigating, or move focus without selecting.",
+			"readonly arrowKeyBehavior?: 'select' | 'focus';"
+		],
+		[
+			"onDidSelect",
+			"Event<number>",
+			"Receives the selected option index.",
+			"readonly onDidSelect = this._onDidSelect.event;"
+		]
+	]
+}

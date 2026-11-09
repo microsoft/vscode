@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { descriptionForeground, focusBorder, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
@@ -61,6 +61,7 @@ export class GlyphSurface extends Disposable {
 	private loadingTime: number | undefined;
 	private imagePalette: Float32Array | undefined;
 	private readonly stageTimes = new Float64Array(3);
+	private intersecting = true;
 
 	constructor(
 		container: HTMLElement,
@@ -86,9 +87,33 @@ export class GlyphSurface extends Disposable {
 		this._register(resizeObserver.observe(this.canvas));
 		this._register(themeService.onDidColorThemeChange(() => this.refresh()));
 		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refresh()));
+		const targetWindow = dom.getWindow(this.canvas);
+		this._register(dom.addDisposableListener(targetWindow.document, 'visibilitychange', () => this.update()));
+		const observer = new targetWindow.IntersectionObserver(entries => {
+			let intersecting = this.intersecting;
+			for (const entry of entries) {
+				if (entry.target === this.canvas) {
+					intersecting = entry.isIntersecting;
+				}
+			}
+			if (intersecting !== this.intersecting) {
+				this.intersecting = intersecting;
+				this.refresh();
+			}
+		});
+		this._register(toDisposable(() => observer.disconnect()));
+		observer.observe(this.canvas);
 	}
 
-	getRevealTiming(fromWidth: number, loadingTime = this.loadingTime ?? Date.now() * 2): ITextureRevealTiming {
+	protected now(): number {
+		return Date.now();
+	}
+
+	protected scheduleFrame(targetWindow: Window, runner: () => void): IDisposable {
+		return dom.scheduleAtNextAnimationFrame(targetWindow, runner);
+	}
+
+	getRevealTiming(fromWidth: number, loadingTime = this.loadingTime ?? this.now() * 2): ITextureRevealTiming {
 		const wave = getLoadingWave(fromWidth, loadingTime);
 		const speed = (fromWidth + wave.tail * 1.3) / wavePeriod;
 		const loadingEnd = this.showingBand && speed > 0 ? Math.max(0, (fromWidth + wave.tail * wakeLength - wave.head) / speed) : 0;
@@ -113,6 +138,9 @@ export class GlyphSurface extends Disposable {
 	}
 
 	private refresh(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this.atlases.clear();
 		this.measure();
 		this.update();
@@ -129,7 +157,8 @@ export class GlyphSurface extends Disposable {
 	private update(): void {
 		this.nextFrame.clear();
 		const active = this.active;
-		if (!this.canvas.isConnected || (!active && (!this.canvas.clientWidth || !this.canvas.clientHeight))) {
+		if (this._store.isDisposed || !this.intersecting || dom.getWindow(this.canvas).document.hidden
+			|| !this.canvas.isConnected || (!active && (!this.canvas.clientWidth || !this.canvas.clientHeight))) {
 			return;
 		}
 		const animated = !this.accessibilityService.isMotionReduced() && !isHighContrast(this.themeService.getColorTheme().type);
@@ -140,10 +169,10 @@ export class GlyphSurface extends Disposable {
 			this.canvas.style.opacity = String(frame.textureOpacity);
 			active.options.onFrame(frame);
 		} else {
-			this.paintLoading(animated ? Date.now() * 2 : wavePeriod * 0.55);
+			this.paintLoading(animated ? this.now() * 2 : wavePeriod * 0.55);
 		}
 		if (animated) {
-			this.nextFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.canvas), () => this.update());
+			this.nextFrame.value = this.scheduleFrame(dom.getWindow(this.canvas), () => this.update());
 		}
 	}
 

@@ -7,7 +7,7 @@ import * as dom from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import { Disposable } from '../../../common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../common/lifecycle.js';
 import './hoverWidget.css';
 import { localize } from '../../../../nls.js';
 
@@ -25,13 +25,23 @@ export class HoverWidget extends Disposable {
 	public readonly containerDomNode: HTMLElement;
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
+	private readonly fadeInFrame = this._register(new MutableDisposable());
 
-	constructor(fadeIn: boolean) {
+	constructor(private readonly fadeIn: boolean) {
 		super();
 
 		this.containerDomNode = document.createElement('div');
 		this.containerDomNode.className = 'monaco-hover';
-		this.containerDomNode.classList.toggle('fade-in', !!fadeIn);
+		if (fadeIn) {
+			for (const event of ['animationend', 'animationcancel']) {
+				this._register(dom.addDisposableListener(this.containerDomNode, event, e => {
+					if (e.target === this.containerDomNode && this.containerDomNode.getAnimations().length === 0) {
+						this.containerDomNode.classList.remove('fade-in');
+					}
+				}));
+			}
+			this.startFadeIn();
+		}
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
@@ -42,6 +52,27 @@ export class HoverWidget extends Disposable {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
 		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
+	}
+
+	/** Reused hovers animate a new reveal, not an update to visible content. */
+	public setVisible(visible: boolean): void {
+		const wasHidden = this.containerDomNode.classList.contains('hidden');
+		this.containerDomNode.classList.toggle('hidden', !visible);
+		if (!visible) {
+			this.fadeInFrame.clear();
+			this.containerDomNode.classList.remove('fade-in');
+		} else if (wasHidden && this.fadeIn) {
+			this.startFadeIn();
+		}
+	}
+
+	private startFadeIn(): void {
+		this.containerDomNode.classList.add('fade-in');
+		this.fadeInFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.containerDomNode), () => {
+			if (this.containerDomNode.isConnected && this.containerDomNode.getAnimations().length === 0) {
+				this.containerDomNode.classList.remove('fade-in');
+			}
+		});
 	}
 
 	public onContentsChanged(): void {

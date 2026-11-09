@@ -1,0 +1,85 @@
+{
+	"version": 1,
+	"id": "label",
+	"className": "HighlightedLabel / IconLabel",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/highlightedlabel/label-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/highlightedlabel/label-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/highlightedlabel/label-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/highlightedlabel/label-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"set(...)",
+			"method",
+			"Sets text, highlight ranges, title, and optional newline/icon handling.",
+			"set(text: string | undefined, highlights:"
+		],
+		[
+			"IHighlight.start",
+			"number",
+			"Start of a highlighted range.",
+			"start: number;"
+		],
+		[
+			"IHighlight.end",
+			"number",
+			"End of a highlighted range.",
+			"end: number;"
+		],
+		[
+			"hoverDelegate",
+			"IHoverDelegate?",
+			"Shared hover behavior in the construction options.",
+			"readonly hoverDelegate?: IHoverDelegate;"
+		],
+		[
+			"IconLabel.supportIcons",
+			"boolean?",
+			"Enables inline icon syntax at construction.",
+			"readonly supportIcons?: boolean;",
+			"src/vs/base/browser/ui/iconLabel/iconLabel.ts"
+		],
+		[
+			"IconLabel.supportHighlights",
+			"boolean?",
+			"Enables matched-range rendering.",
+			"readonly supportHighlights?: boolean;",
+			"src/vs/base/browser/ui/iconLabel/iconLabel.ts"
+		],
+		[
+			"IconLabel.setLabel(label, description, options)",
+			"void",
+			"Updates the name, supporting text, and appearance.",
+			"setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void",
+			"src/vs/base/browser/ui/iconLabel/iconLabel.ts"
+		],
+		[
+			"IconLabel.matches",
+			"readonly IMatch[]?",
+			"Highlight ranges in the displayed name.",
+			"matches?: readonly IMatch[];",
+			"src/vs/base/browser/ui/iconLabel/iconLabel.ts"
+		]
+	]
+}

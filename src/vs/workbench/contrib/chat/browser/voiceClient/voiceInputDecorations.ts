@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../../../../base/browser/animationSync.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -91,7 +92,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 
 	// --- Audio-reactive glow ---
 	const win = dom.getWindow(glowContainerEl);
-	let animFrameId: number | undefined;
+	const glowFrame = store.add(new MutableDisposable<IDisposable>());
+	let glowActive = false;
+	let glowVisible = false;
 	const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 	let glowController: IVoiceGlowController;
 	try {
@@ -105,42 +108,44 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		throw error;
 	}
 	store.add(themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
-	const startGlowAnimation = () => {
-		if (animFrameId !== undefined) {
+	const renderGlow = () => {
+		glowFrame.clear();
+		if (store.isDisposed) {
 			return;
 		}
-		const animate = () => {
-			animFrameId = win.requestAnimationFrame(animate);
-			const voiceState = voiceSessionController.voiceState.get();
-
-			const analyser = ttsPlaybackService.analyserNode
-				?? (voiceState === 'listening' && !voiceSessionController.isMuted.get() ? micCaptureService.analyserNode : null)
-				?? null;
-			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
-
-			glowController.render(intensity, accessibilityService.isMotionReduced());
-		};
-		animFrameId = win.requestAnimationFrame(animate);
-	};
-	const stopGlowAnimation = () => {
-		if (animFrameId !== undefined) {
-			win.cancelAnimationFrame(animFrameId);
-			animFrameId = undefined;
+		if (!glowActive) {
+			glowController.clear();
+			return;
 		}
-		glowController.clear();
+		if (accessibilityService.isMotionReduced()) {
+			glowController.render(0.3, true);
+			return;
+		}
+		if (!glowVisible || !glowContainerEl.isConnected || win.document.hidden) {
+			return;
+		}
+		const voiceState = voiceSessionController.voiceState.get();
+		const analyser = ttsPlaybackService.analyserNode
+			?? (voiceState === 'listening' && !voiceSessionController.isMuted.get() ? micCaptureService.analyserNode : null)
+			?? null;
+		glowController.render(readVoiceGlowIntensity(analyser, glowDataArrayRef), false);
+		glowFrame.value = dom.scheduleAtNextAnimationFrame(win, renderGlow);
 	};
-
+	store.add(accessibilityService.onDidChangeReducedMotion(renderGlow));
+	store.add(pauseCSSAnimationsWhenHidden(glowContainerEl, {
+		pausedClass: 'voice-glow-paused',
+		onDidChangeVisibility: visible => {
+			glowVisible = visible;
+			renderGlow();
+		},
+	}));
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice)) {
-			startGlowAnimation();
-		} else {
-			stopGlowAnimation();
-		}
+		glowActive = shouldRenderVoiceInputGlow(connected, active, ownsVoice);
+		renderGlow();
 	}));
-	store.add({ dispose: () => stopGlowAnimation() });
 
 	// --- Transcript rendering ---
 	store.add(autorun(reader => {

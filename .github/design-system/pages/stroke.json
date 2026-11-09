@@ -1,0 +1,18 @@
+{
+	"version": 1,
+	"id": "stroke",
+	"renderer": "foundations",
+	"content": "content/foundations/stroke.json",
+	"guidance": [
+		{ "id": "stroke-guidance", "title": "Using boundary strokes", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "stroke" }
+	],
+	"sources": [
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		},
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		}
+	],
+	"sections": []
+}

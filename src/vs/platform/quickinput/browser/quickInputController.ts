@@ -48,6 +48,8 @@ const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
 const QUICK_INPUT_MOTION_SETTLED_CLASS = 'quick-input-widget-motion-settled';
 const QUICK_INPUT_MOTION_OPEN_ANIMATION = 'quick-input-widget-open';
+const QUICK_INPUT_CLOSE_OPACITY_PROPERTY = '--vscode-quick-input-close-opacity';
+const QUICK_INPUT_CLOSE_TRANSFORM_PROPERTY = '--vscode-quick-input-close-transform';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = motionTokenRegistry.getNumber('motion.surface.exit.duration', 'duration');
 const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
@@ -100,6 +102,7 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+	private readonly openAnimation = this._register(new MutableDisposable<IDisposable>());
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
@@ -177,11 +180,6 @@ export class QuickInputController extends Disposable {
 		this._register(toDisposable(() => container.remove()));
 		container.tabIndex = -1;
 		container.style.display = 'none';
-		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {
-			if (e.target === container && e.animationName === QUICK_INPUT_MOTION_OPEN_ANIMATION) {
-				this.settleOpenAnimation(container);
-			}
-		}));
 
 		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
@@ -748,7 +746,8 @@ export class QuickInputController extends Disposable {
 		const ui = this.getUI(true);
 		// Only a hidden widget plays the entrance animation when shown, a visible widget whose
 		// controller is replaced stays settled so the animation does not replay
-		if (ui.container.style.display === 'none') {
+		const wasHidden = ui.container.style.display === 'none';
+		if (wasHidden) {
 			ui.container.classList.remove(QUICK_INPUT_MOTION_SETTLED_CLASS);
 		}
 		const oldController = this.controller;
@@ -813,6 +812,9 @@ export class QuickInputController extends Disposable {
 		} else {
 			// Re-sync from DnD in case a previous anchored input left us stale.
 			this._alignment.set(this.dndController?.alignment.get() ?? 'top', undefined);
+		}
+		if (wasHidden) {
+			this.trackOpenAnimation(ui.container);
 		}
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
@@ -885,9 +887,16 @@ export class QuickInputController extends Disposable {
 		// because focus inside a menu hosted in the container is in a nested shadow root
 		const focusChanged = container && !dom.isAncestor((dom.getShadowRoot(container) ?? container.ownerDocument).activeElement, container);
 		this.controller = null;
+		const wasOpening = !!this.openAnimation.value;
+		this.openAnimation.clear();
 		this.onHideEmitter.fire();
 		if (container) {
 			if (!container.classList.contains(QUICK_INPUT_OVERLAY_CLASS) && dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
+				if (wasOpening) {
+					const { opacity, transform } = dom.getWindow(container).getComputedStyle(container);
+					container.style.setProperty(QUICK_INPUT_CLOSE_OPACITY_PROPERTY, opacity);
+					container.style.setProperty(QUICK_INPUT_CLOSE_TRANSFORM_PROPERTY, transform);
+				}
 				container.inert = true;
 				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
 				const animationDisposables = new DisposableStore();
@@ -934,14 +943,29 @@ export class QuickInputController extends Disposable {
 			container.inert = false;
 			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
 			container.style.display = 'none';
+			container.style.removeProperty(QUICK_INPUT_CLOSE_OPACITY_PROPERTY);
+			container.style.removeProperty(QUICK_INPUT_CLOSE_TRANSFORM_PROPERTY);
 		}
 	}
 
-	/**
-	 * Ends the entrance animation of the widget early (or marks it as ended), so that the widget
-	 * no longer establishes a containing block for fixed-position descendants such as item hovers.
-	 */
+	private trackOpenAnimation(container: HTMLElement): void {
+		this.openAnimation.clear();
+		const animation = container.getAnimations().find(animation => animation instanceof dom.getWindow(container).CSSAnimation && animation.animationName === QUICK_INPUT_MOTION_OPEN_ANIMATION);
+		if (!animation) {
+			this.settleOpenAnimation(container);
+			return;
+		}
+
+		const animationDisposables = new DisposableStore();
+		this.openAnimation.value = animationDisposables;
+		for (const event of ['finish', 'cancel']) {
+			animationDisposables.add(dom.addDisposableListener(animation, event, () => this.settleOpenAnimation(container)));
+		}
+	}
+
+	/** Keeps an ended or suppressed entrance from replaying, and releases the containing block used by item hovers. */
 	private settleOpenAnimation(container: HTMLElement): void {
+		this.openAnimation.clear();
 		container.classList.add(QUICK_INPUT_MOTION_SETTLED_CLASS);
 	}
 

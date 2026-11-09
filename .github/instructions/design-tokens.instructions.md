@@ -1,140 +1,72 @@
 ---
-description: Design-system size tokens (spacing, corner radius, font size, codicon size, stroke). Use when writing or editing CSS to size, space, or round UI — prefer the `--vscode-*` token vars over hardcoded px values.
+description: Semantic design-token usage and source-backed lookup for CSS sizing, spacing, typography, icons, strokes, and motion.
 applyTo: src/vs/**/*.css
 ---
 
-# Design tokens for sizing, spacing & radii
+# Design-token usage in CSS
 
-> **These tokens are the *moves*, not the reasoning.** They implement the **design philosophy** (Values → Principles → Moves): reach for a token *after* naming the feeling and the principle it serves - a radius is an *elevation tier*, a font is a *type role*, not a number. See the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md) for the full vocabulary, worked examples, and how to give UI feedback in design terms.
+Choose the design role before the implementation value. Use the [design philosophy](../skills/design-philosophy/SKILL.md) to explain the intended hierarchy, relationship, or surface role; use the product registries to find its current token.
 
-VS Code ships a design-system **size** ramp. These tokens are registered in [baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) and emitted as `--vscode-*` CSS variables. **When generating or editing CSS, use the token variable instead of a raw `px` value** wherever a token exists for that value. This keeps new UI visually consistent with the design system.
+## Read definitions from their owners
 
-> Every `var()` you reference, except product-icon `--vscode-icon-*-content` and `--vscode-icon-*-font-family` variables, must exist in [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json) or stylelint/hygiene fails. After registering a *new* token in `baseSizes.ts`, run `./scripts/test-documentation.sh` to regenerate the `"sizes"` array; CSS-only custom properties belong in `"others"`.
+[baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) owns the shared size, spacing, radius, typography, icon-size, and stroke registrations. [motionRegistry.ts](../../src/vs/platform/theme/common/motionRegistry.ts) and [motionRecipes.ts](../../src/vs/platform/theme/common/motion/motionRecipes.ts) own motion parameters and recipes.
 
-## Spacing — padding, margin, gap
+Read current IDs, values, units, deprecation messages, and replacements from these sources. Do not infer a value from a token name or maintain another numeric table, token catalog, or alias map in instructions.
 
-Use for `padding`, `margin`, `gap`, and fixed `width`/`height` of spacers. The numeric token name is the value in tenths of a px (`size200` = 20px).
+The [design-system book](../extensions/vscode-design-system/README.md) provides source-backed references and a [headless interface](../extensions/vscode-design-system/README.md#headless-access) for agents. A visible canvas is not required.
 
-| px | Variable |
-|----|----------|
-| 0  | `--vscode-spacing-sizeNone` |
-| 2  | `--vscode-spacing-size20` |
-| 4  | `--vscode-spacing-size40` |
-| 6  | `--vscode-spacing-size60` |
-| 8  | `--vscode-spacing-size80` |
-| 10 | `--vscode-spacing-size100` |
-| 12 | `--vscode-spacing-size120` |
-| 16 | `--vscode-spacing-size160` |
-| 20 | `--vscode-spacing-size200` |
-| 24 | `--vscode-spacing-size240` |
-| 28 | `--vscode-spacing-size280` |
-| 32 | `--vscode-spacing-size320` |
-| 36 | `--vscode-spacing-size360` |
-| 40 | `--vscode-spacing-size400` |
+## Choose by role
 
-```css
-/* token   */          padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-/* also ok */          padding: 8px 12px;   /* on-scale raw px is fine */
-/* avoid   */          padding: 5px 7px;    /* off-scale - breaks rhythm */
-```
+Use the token variable for a design-system choice rather than substituting a literal merely because the values match. Reuse an existing component or shared style contract before choosing individual tokens. The existing spacing-literal allowance is described below.
 
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap those to the nearest scale value (ties round **up**), e.g. `5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`. Each length of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`, `em`/`rem`, and any `var()`/`calc()` expression are left untouched.
+Structural measurements are not automatically design tokens. Preserve intentional geometry, relative units, inherited values, expressions, and `!important` unless the requested change requires otherwise. Do not apply a blanket nearest-value conversion across unrelated CSS properties.
 
-## Corner radius — `border-radius`
+## Spacing
 
-| px | Variable | Use |
-|----|----------|-----|
-| 2  | `--vscode-cornerRadius-xSmall` | very compact elements |
-| 4  | `--vscode-cornerRadius-small` | controls (buttons, inputs) |
-| 6  | `--vscode-cornerRadius-medium` | base / inner surfaces |
-| 8  | `--vscode-cornerRadius-large` | prominent / outer surfaces |
-| 12 | `--vscode-cornerRadius-xLarge` | very prominent surfaces |
-| 9999 | `--vscode-cornerRadius-circle` | fully rounded (pills, dots) |
+Use the current registered spacing ramp for padding, margins, gaps, and dedicated spacers. Prefer token variables; existing on-scale spacing literals remain valid when checked against the current registry.
 
-**Snap map** for off-scale literals (ties round **up**): `2→xSmall`, `3,4→small`, `5,6→medium`, `7,8→large`, `10,11,12→xLarge`, `14,16,18,20→xLarge`, `999→circle`.
+When normalizing off-scale spacing, select the nearest registered step, rounding ties upward. Check each length in a shorthand independently. Do not round relative units, automatic sizing, or expressions as though they were absolute spacing values.
 
-- **Pills** (radius ≈ half the element height, e.g. `28h`/`14r`, `36h`/`18r`, `22×22`/`11r`) → `--vscode-cornerRadius-circle`, **not** xLarge. The literal-nearest token would square them and lose the fully-rounded intent.
-- **Leave untouched:** `50%`, `0`, `0px`, `inherit`, and any `calc()`/`var()` expression. Preserve `!important`.
+## Corner radius
 
-## Font size — `font-size`
+Choose the radius by the surface's [elevation role](../skills/design-philosophy/SKILL.md#elevation-tiers), not by numeric proximity. Preserve fully rounded pills and circles rather than replacing them with the largest fixed-radius token.
 
-Generic UI ramp — pair a **size** token with a **weight** token; "Strong" reuses the matching size token + `fontWeight.semiBold`, **never** a separate "strong" size:
+## Font size
 
-| px | Size var | Weight |
-|----|----------|--------|
-| 26 | `--vscode-fontSize-heading1` | semiBold |
-| 18 | `--vscode-fontSize-heading2` | semiBold |
-| 13 | `--vscode-fontSize-heading3` | semiBold |
-| 13 | `--vscode-fontSize-body1` | regular |
-| 11 | `--vscode-fontSize-body2` | regular |
-| 12 | `--vscode-fontSize-label1` | regular |
-| 11 | `--vscode-fontSize-label2` | regular |
-| 10 | `--vscode-fontSize-label3` | regular |
+Choose a shared UI type role according to its place in the hierarchy. Pair the size with the appropriate registered weight. Strong emphasis reuses the same size role; it is not a separate size token.
 
-**Deprecated** — the legacy `--vscode-bodyFontSize*` and Agents-specific `--vscode-agents-fontSize-*` tokens are deprecated. Use the generic ramp above instead:
+Editor font configuration is distinct from the UI type ramp.
 
-| Deprecated | px | Use instead |
-|------------|----|-------------|
-| `--vscode-bodyFontSize` | 13 | `--vscode-fontSize-body1` |
-| `--vscode-bodyFontSize-small` | 12 | `--vscode-fontSize-label1` |
-| `--vscode-bodyFontSize-xSmall` | 11 | `--vscode-fontSize-body2` |
-| `--vscode-agents-fontSize-heading1` | 26 | `--vscode-fontSize-heading1` |
-| `--vscode-agents-fontSize-heading2` | 18 | `--vscode-fontSize-heading2` |
-| `--vscode-agents-fontSize-heading3` | 13 | `--vscode-fontSize-heading3` |
-| `--vscode-agents-fontSize-body1` | 13 | `--vscode-fontSize-body1` |
-| `--vscode-agents-fontSize-body2` | 11 | `--vscode-fontSize-body2` |
-| `--vscode-agents-fontSize-label1` | 12 | `--vscode-fontSize-label1` |
-| `--vscode-agents-fontSize-label2` | 11 | `--vscode-fontSize-label2` |
-| `--vscode-agents-fontSize-label3` | 10 | `--vscode-fontSize-label3` |
+## Font weight
 
-## Font weight — `font-weight`
+Use the registered UI weights for ordinary text and headings or strong emphasis. Do not introduce intermediate or heavier weights outside that ramp. Preserve inherited and relative weight expressions unless their behavior is intentionally being changed.
 
-The generic ramp uses two weights — there are no others. Pair every text style with one of these:
+## Deprecated aliases
 
-| weight | Variable | Use |
-|--------|----------|-----|
-| 400 | `--vscode-fontWeight-regular` | body, labels, metadata |
-| 600 | `--vscode-fontWeight-semiBold` | headings, "strong" emphasis |
+Follow the replacement declared by the owning registration rather than a copied migration table. Avoid deprecated aliases in new code; preserve compatibility where existing consumers still require it.
 
-The legacy `--vscode-agents-fontWeight-regular` and `--vscode-agents-fontWeight-semiBold` tokens are deprecated; use the corresponding generic variables above.
+## Codicon size
 
-- **No medium (500).** `font-weight: 500` is **off the ramp** — snap it to `semiBold` (600). The same goes for `700`/`bold` and any other numeric weight: round to the nearer of 400/600.
-- **"Strong" is not a separate size.** A "Body 1 Strong" / "Label 2 Strong" style reuses the matching `--vscode-fontSize-*` token paired with `semiBold`. Never introduce a separate strong *size* token.
-- `normal` ≡ 400 → `regular`. **Leave untouched:** `inherit`, `lighter`, `bolder`, and any `var()`/`calc()` expression. Preserve `!important`.
+Choose the registered base or compact size by the icon's density and role. When using the compact size, use the matching compact glyph if one is registered; CSS scaling alone does not select it.
 
-```css
-/* avoid */            font-weight: 500;   /* not on the 400/600 ramp */
-/* prefer */           font-weight: var(--vscode-fontWeight-semiBold);
-```
+Check the current [Codicon definitions](../../src/vs/base/common/codicons.ts) instead of maintaining a list of glyph exceptions. If no compact variant exists, retain the regular glyph at the compact size. When changing a glyph, also check selectors targeting its original class and keep them consistent.
 
-## Codicon size — icon `font-size`
+## Stroke
 
-Codicons are **only ever 16px or 12px**. There is no in-between size — never use `14px` (or any other value) for a codicon. Pick the base or the compact token:
+Use the registered base stroke for standard borders and separators. Preserve stronger focus, contrast, and other semantic strokes; do not normalize them to the ordinary boundary stroke.
 
-| px | Variable | Use |
-|----|----------|-----|
-| 16 | `--vscode-codiconFontSize` (base) | default icon size |
-| 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
+## Motion
 
-If a design or existing CSS sizes a codicon at 14px, treat it as a bug: snap it to 16 (default) or 12 (compact) and flag it.
+Follow the [motion specification and authoring method](../../src/vs/platform/theme/common/motion/MOTION.md#authoring-and-validation). Choose by intent and reuse the owning component or recipe before composing properties. Keep state and focus immediate, honor effective reduced motion, and preserve theme-owned colors and anchor geometry.
 
-When sizing an icon at the **compact** 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`) so the icon is visually optimized for the small size. CSS `font-size` alone only scales the icon — it does not change to the compact glyph. Only swap the glyph when no CSS selector targets the original glyph class (e.g. `.codicon-close`), otherwise update that selector too. Some icons (agent, vm, info, lock) have no compact variant — keep the regular glyph at the compact size.
+Preserve shipped timing and curves when centralizing existing behavior. Compatibility parameters must not be snapped to the ordinary duration ramp.
 
-## Stroke — border width
+## Register and validate variables
 
-The design system has a **single** stroke thickness: 1px. Any `border`/`outline` width of 1px should use the token.
+Follow the [CSS variable validator](../../build/lib/stylelint/validateVariableNames.ts) and its existing product-icon exemptions. Referenced variables must be recognized by [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json); custom properties without a product registry belong in `others`.
 
-| px | Variable |
-|----|----------|
-| 1  | `--vscode-strokeThickness` |
-
-```css
-/* prefer */           border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-/* avoid  */           border: 1px solid var(--vscode-widget-border);
-```
-
-Applies to the `border: 1px solid <color>` shorthand and `border-width: 1px`. Other widths have no token — leave them as-is.
+After adding a size registration, use [the documentation tests](../../scripts/test-documentation.sh) to update the generated size-variable inventory. Review generated changes rather than maintaining a second list here.
 
 ## `.monaco-editor-background` must be opaque
 
-`.monaco-editor-background` must use a fully opaque color — making it `transparent` (or any partial alpha) is forbidden. Monaco reuses this layer to carve the reverse-rounded notches out of text selections, so a non-opaque background introduces subtle rendering bugs (blocky selection corners) and performance problems. To blend an embedded editor into its surface, keep `.monaco-editor` transparent and paint `.monaco-editor-background` with the container's solid background color.
+`.monaco-editor-background` must use a fully opaque color. Monaco uses this layer to carve the reverse-rounded notches out of text selections; transparency can cause rendering artifacts and performance problems. To blend an embedded editor into its surface, keep `.monaco-editor` transparent and paint `.monaco-editor-background` with the container's solid background color.

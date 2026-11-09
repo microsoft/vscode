@@ -1,0 +1,143 @@
+{
+	"version": 1,
+	"domains": [
+		{
+			"id": "spacing",
+			"title": "Spacing",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Spacing"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Spacing"
+		},
+		{
+			"id": "typography",
+			"title": "Typography",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Typography"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Font size"
+		},
+		{
+			"id": "shape",
+			"title": "Corner radius",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Corner radius"
+				}
+			},
+			"file": ".github/skills/design-philosophy/SKILL.md",
+			"anchor": "### Elevation tiers"
+		},
+		{
+			"id": "iconography",
+			"title": "Icon size",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Icon size"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Codicon size"
+		},
+		{
+			"id": "stroke",
+			"title": "Stroke",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Stroke"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Stroke"
+		},
+		{
+			"id": "colors",
+			"title": "Color roles",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Color roles"
+				}
+			},
+			"file": "src/vs/platform/theme/common/colors/COLORS.md",
+			"anchor": "# Color foundations"
+		},
+		{
+			"id": "elevation",
+			"title": "Elevation",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Elevation"
+				}
+			},
+			"file": ".github/skills/ux-theming/SKILL.md",
+			"anchor": "## 6. High Contrast Theme Rules"
+		},
+		{
+			"id": "motion",
+			"title": "Motion",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Motion"
+				}
+			},
+			"file": "src/vs/platform/theme/common/motion/MOTION.md",
+			"anchor": "## Foundations"
+		},
+		{
+			"id": "layout",
+			"title": "Scoped layout tokens",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Scoped layout tokens"
+				}
+			},
+			"file": ".github/design-system/foundations.md",
+			"anchor": "## Scoped layout tokens"
+		},
+		{
+			"id": "legacy",
+			"title": "Deprecated aliases",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/token-domains.md",
+					"heading": "Deprecated aliases"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Deprecated aliases"
+		}
+	],
+	"palettes": [
+		{
+			"id": "Light 2026",
+			"label": "Light"
+		},
+		{
+			"id": "Dark 2026",
+			"label": "Dark"
+		},
+		{
+			"id": "Default High Contrast",
+			"label": "High contrast dark"
+		},
+		{
+			"id": "Default High Contrast Light",
+			"label": "High contrast light"
+		}
+	]
+}

@@ -5,13 +5,13 @@
 
 .monaco-pixel-spinner {
 	display: inline-grid;
-	grid-template-columns: repeat(2, 2px);
-	grid-template-rows: repeat(3, 2px);
-	column-gap: 2px;
-	row-gap: 2px;
+	grid-template-columns: repeat(2, var(--vscode-spacing-size20, 2px));
+	grid-template-rows: repeat(3, var(--vscode-spacing-size20, 2px));
+	column-gap: var(--vscode-spacing-size20, 2px);
+	row-gap: var(--vscode-spacing-size20, 2px);
 	place-content: center;
-	width: 16px;
-	height: 16px;
+	width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-codiconFontSize, 16px);
 	color: currentColor;
 	pointer-events: none;
 	contain: layout style size paint;
@@ -19,40 +19,31 @@
 	transform: translateZ(0);
 }
 
-/* Pause all dot animations while the spinner is scrolled out of view. The
- * `monaco-pixel-spinner-paused` class is toggled from JS by a per-window
- * IntersectionObserver. Continuous CSS animations otherwise force the
- * compositor to do work every vsync even for spinners that are offscreen. */
-.monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
-	animation-play-state: paused;
-}
-
 .monaco-pixel-spinner .monaco-pixel-spinner-dot {
 	display: block;
-	width: 2px;
-	height: 2px;
+	width: var(--vscode-spacing-size20, 2px);
+	height: var(--vscode-spacing-size20, 2px);
 	border-radius: 50%;
 	background-color: currentColor;
-	opacity: 0;
-	transform: translateY(-4px);
-	animation: monaco-pixel-spinner-dot-cycle 1820ms infinite;
-	animation-timing-function: steps(6, jump-none);
+	opacity: 0.25;
+	animation: monaco-pixel-spinner-dot-cycle var(--vscode-motion-matrix-duration, 1820ms) infinite;
+	animation-timing-function: var(--vscode-motion-matrix-easing, steps(6, jump-none));
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(1) {
-	animation-delay: 520ms;
+	animation-delay: calc(var(--vscode-motion-matrix-stagger, 130ms) * 4);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(2) {
-	animation-delay: 650ms;
+	animation-delay: calc(var(--vscode-motion-matrix-stagger, 130ms) * 5);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(3) {
-	animation-delay: 260ms;
+	animation-delay: calc(var(--vscode-motion-matrix-stagger, 130ms) * 2);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(4) {
-	animation-delay: 390ms;
+	animation-delay: calc(var(--vscode-motion-matrix-stagger, 130ms) * 3);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(5) {
@@ -61,55 +52,46 @@
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(6) {
 	animation-name: monaco-pixel-spinner-dot-cycle-short;
-	animation-delay: 130ms;
+	animation-delay: var(--vscode-motion-matrix-stagger, 130ms);
 }
 
 @keyframes monaco-pixel-spinner-dot-cycle {
 	0% {
-		opacity: 0;
-		transform: translateY(-4px);
+		opacity: 0.25;
 	}
 	9.34%, 57.14% {
 		opacity: 1;
-		transform: translateY(0);
 	}
 	66.48%, 100% {
-		opacity: 0;
-		transform: translateY(7px);
+		opacity: 0.25;
 	}
 }
 
 @keyframes monaco-pixel-spinner-dot-cycle-long {
 	0% {
-		opacity: 0;
-		transform: translateY(-4px);
+		opacity: 0.25;
 	}
 	9.34%, 64.29% {
 		opacity: 1;
-		transform: translateY(0);
 	}
 	73.63%, 100% {
-		opacity: 0;
-		transform: translateY(7px);
+		opacity: 0.25;
 	}
 }
 
 @keyframes monaco-pixel-spinner-dot-cycle-short {
 	0% {
-		opacity: 0;
-		transform: translateY(-4px);
+		opacity: 0.25;
 	}
 	9.34%, 50% {
 		opacity: 1;
-		transform: translateY(0);
 	}
 	59.34%, 100% {
-		opacity: 0;
-		transform: translateY(7px);
+		opacity: 0.25;
 	}
 }
 
-/* Ring variant: same 2×3 grid layout as the cascading variant, but the
+/* Ring variant: same 2×3 grid layout, but the
  * highlight travels clockwise around the perimeter of the 6 dots:
  *   [1][2]      1 → 2
  *   [3][4]      ↑   ↓
@@ -119,7 +101,7 @@
  */
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot {
-	animation: monaco-pixel-spinner-ring-pulse 1200ms linear infinite;
+	animation: monaco-pixel-spinner-ring-pulse var(--vscode-motion-matrix-ring-duration, 1200ms) linear infinite;
 	opacity: 0.25;
 	transform: none;
 	animation-timing-function: steps(4, jump-none);
@@ -130,23 +112,28 @@
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(2) {
-	animation-delay: 200ms;
+	animation-delay: calc(var(--vscode-motion-matrix-ring-duration, 1200ms) / 6);
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(3) {
-	animation-delay: 1000ms;
+	animation-delay: calc(var(--vscode-motion-matrix-ring-duration, 1200ms) * 5 / 6);
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(4) {
-	animation-delay: 400ms;
+	animation-delay: calc(var(--vscode-motion-matrix-ring-duration, 1200ms) * 2 / 6);
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(5) {
-	animation-delay: 800ms;
+	animation-delay: calc(var(--vscode-motion-matrix-ring-duration, 1200ms) * 4 / 6);
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(6) {
-	animation-delay: 600ms;
+	animation-delay: calc(var(--vscode-motion-matrix-ring-duration, 1200ms) / 2);
+}
+
+/* Apply after both variants' animation shorthands so neither resets the paused state. */
+.monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
+	animation-play-state: paused;
 }
 
 @keyframes monaco-pixel-spinner-ring-pulse {
@@ -160,9 +147,17 @@
 	}
 }
 
+.monaco-reduce-motion .monaco-pixel-spinner .monaco-pixel-spinner-dot,
+.monaco-reduce-motion .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot {
+	animation: none;
+	opacity: 1;
+	transform: translateY(0);
+}
+
+/* Explicit workbench motion settings override the OS preference; standalone spinners still follow it. */
 @media (prefers-reduced-motion: reduce) {
-	.monaco-pixel-spinner .monaco-pixel-spinner-dot,
-	.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot {
+	.monaco-pixel-spinner:not(.monaco-enable-motion *) .monaco-pixel-spinner-dot,
+	.monaco-pixel-spinner.monaco-pixel-spinner-ring:not(.monaco-enable-motion *) .monaco-pixel-spinner-dot {
 		animation: none;
 		opacity: 1;
 		transform: translateY(0);

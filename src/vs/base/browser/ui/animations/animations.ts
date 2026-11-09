@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThemeIcon } from '../../../common/themables.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import * as dom from '../../dom.js';
 
 export const enum ClickAnimation {
@@ -63,6 +64,41 @@ const defaultConfettiFallDistance = { min: 48, max: 72 };
 
 function randomInRange(range: IConfettiAnimationRange): number {
 	return range.min + Math.random() * (range.max - range.min);
+}
+
+function readConfettiParameter(style: CSSStyleDeclaration, parameter: string, kind: 'duration' | 'distance', defaultValue: number, allowZero = false): number {
+	const name = `--vscode-motion-confetti-${parameter.replaceAll('.', '-')}`;
+	const value = style.getPropertyValue(name).trim();
+	if (!value) {
+		return defaultValue;
+	}
+	const match = /^(?<number>(?:\d+(?:\.\d+)?|\.\d+))(?<unit>ms|s|px)$/.exec(value);
+	const unit = match?.groups?.unit;
+	const number = Number(match?.groups?.number) * (unit === 's' ? 1000 : 1);
+	if (!match || (kind === 'duration' ? unit !== 'ms' && unit !== 's' : unit !== 'px')
+		|| !Number.isFinite(number) || (allowZero ? number < 0 : number <= 0)) {
+		throw new Error(`Invalid confetti motion ${kind}: ${name}`);
+	}
+	return number;
+}
+
+function readConfettiRange(style: CSSStyleDeclaration, parameter: string, kind: 'duration' | 'distance', defaults: IConfettiAnimationRange, override?: IConfettiAnimationRange): IConfettiAnimationRange {
+	const range = override ?? {
+		min: readConfettiParameter(style, `${parameter}.min`, kind, defaults.min, kind === 'distance'),
+		max: readConfettiParameter(style, `${parameter}.max`, kind, defaults.max, kind === 'distance'),
+	};
+	if (!Number.isFinite(range.min) || !Number.isFinite(range.max) || (kind === 'distance' ? range.min < 0 : range.min <= 0) || range.max < range.min) {
+		throw new Error(`Invalid confetti motion range: ${parameter}`);
+	}
+	return range;
+}
+
+function isConfettiMotionReduced(container: HTMLElement): boolean {
+	if (container.closest('.monaco-enable-motion')) {
+		return false;
+	}
+	return !!container.closest('.monaco-reduce-motion')
+		|| dom.getWindow(container).matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /**
@@ -138,21 +174,30 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 }
 
 /**
- * Confetti: independent pixel squares arc upward, drift, and fall.
+ * Pixel confetti self-disposes at completion; the returned handle cancels the burst early.
  */
-export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget, options: IConfettiAnimationOptions = {}) {
-	const { overlay, cx, cy, element, rect } = createOverlay(target);
-	const launchDuration = options.launchDuration ?? defaultConfettiLaunchDuration;
-	const fallDuration = options.fallDuration ?? defaultConfettiFallDuration;
-	const fallDistance = options.fallDistance ?? defaultConfettiFallDistance;
-	const pixelSize = 4;
-	const frameDuration = 40;
+export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget, options: IConfettiAnimationOptions = {}): IDisposable {
+	const animationTarget = dom.isHTMLElement(target) ? captureAnimationTarget(target) : target;
+	const styleOwner = animationTarget.element.isConnected && animationTarget.container.contains(animationTarget.element) ? animationTarget.element : animationTarget.container;
+	const targetWindow = dom.getWindow(styleOwner);
+	if (isConfettiMotionReduced(styleOwner) || targetWindow.document.hidden) {
+		return Disposable.None;
+	}
+	const style = dom.getWindow(styleOwner).getComputedStyle(styleOwner);
+	const launchDuration = readConfettiRange(style, 'launch', 'duration', defaultConfettiLaunchDuration, options.launchDuration);
+	const fallDuration = readConfettiRange(style, 'fall', 'duration', defaultConfettiFallDuration, options.fallDuration);
+	const fallDistance = readConfettiRange(style, 'distance', 'distance', defaultConfettiFallDistance, options.fallDistance);
+	const arc = readConfettiRange(style, 'arc', 'distance', { min: 24, max: 44 });
+	const drift = readConfettiParameter(style, 'drift', 'distance', 8, true);
+	const pixelSize = readConfettiParameter(style, 'pixel.size', 'distance', 4);
+	const frameDuration = readConfettiParameter(style, 'frame.duration', 'duration', 40);
+	const { overlay, cx, cy, rect } = createOverlay(animationTarget);
 	const particleCount = 24;
 	const particles = Array.from({ length: particleCount }, () => {
 		const launchTime = randomInRange(launchDuration);
 		const fallTime = randomInRange(fallDuration);
 		const angle = (-150 + Math.random() * 120) * Math.PI / 180;
-		const distance = 24 + Math.random() * 20;
+		const distance = randomInRange(arc);
 		const keyframes: Keyframe[] = [];
 		return {
 			launchTime,
@@ -161,7 +206,7 @@ export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget,
 			peakX: Math.cos(angle) * distance,
 			peakY: Math.sin(angle) * distance * 1.5,
 			fallDistance: randomInRange(fallDistance),
-			driftX: (Math.random() - 0.5) * 16,
+			driftX: (Math.random() - 0.5) * (drift * 2),
 			flutterPhase: Math.random() * Math.PI * 2,
 			revealTime: 20 + Math.random() * 140,
 			keyframes,
@@ -197,14 +242,7 @@ export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget,
 		}
 	}
 
-	// Element bounce
-	bounceElement(element, {
-		scale: [1, 1.3, 1],
-		rotate: [0, -10, 10, 0],
-		duration: 350,
-	});
-
-	// Confetti particles
+	const animations: Animation[] = [];
 	for (let i = 0; i < particleCount; i++) {
 		const part = dom.$('.animation-particle.animation-confetti-particle');
 		part.style.position = 'absolute';
@@ -215,13 +253,41 @@ export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget,
 		part.style.top = `${Math.round((rect.top + cy) / pixelSize) * pixelSize - rect.top}px`;
 		overlay.appendChild(part);
 
-		part.animate(particles[i].keyframes, {
+		animations.push(part.animate(particles[i].keyframes, {
 			duration,
 			fill: 'both',
-		});
+		}));
 	}
 
-	cleanupOverlay(overlay, launchDuration.max + fallDuration.max + 200);
+	const lifetime = new DisposableStore();
+	lifetime.add(toDisposable(() => {
+		for (const animation of animations) {
+			animation.cancel();
+		}
+		overlay.remove();
+	}));
+	const update = () => {
+		const owner = styleOwner.isConnected ? styleOwner : animationTarget.container;
+		if (!overlay.isConnected || targetWindow.document.hidden || isConfettiMotionReduced(owner)) {
+			lifetime.dispose();
+		}
+	};
+	lifetime.add(dom.addDisposableListener(targetWindow.matchMedia('(prefers-reduced-motion: reduce)'), 'change', update));
+	lifetime.add(dom.addDisposableListener(targetWindow.document, 'visibilitychange', update));
+	const preferences = new targetWindow.MutationObserver(update);
+	lifetime.add(toDisposable(() => preferences.disconnect()));
+	for (let element: HTMLElement | null = styleOwner; element; element = element.parentElement) {
+		preferences.observe(element, { attributes: true, attributeFilter: ['class'], childList: true });
+	}
+	const visibility = new targetWindow.IntersectionObserver(entries => {
+		if (entries.some(entry => entry.target === overlay && !entry.isIntersecting)) {
+			lifetime.dispose();
+		}
+	});
+	lifetime.add(toDisposable(() => visibility.disconnect()));
+	visibility.observe(overlay);
+	void Promise.allSettled(animations.map(animation => animation.finished)).then(() => lifetime.dispose());
+	return lifetime;
 }
 
 /**
@@ -476,11 +542,10 @@ export function triggerRadiantLinesAnimation(target: HTMLElement | IAnimationTar
 /**
  * Triggers the specified click animation on a live element or a captured target.
  */
-export function triggerClickAnimation(target: HTMLElement | IAnimationTarget, animation: ClickAnimation, icon?: ThemeIcon) {
+export function triggerClickAnimation(target: HTMLElement | IAnimationTarget, animation: ClickAnimation, icon?: ThemeIcon): IDisposable | undefined {
 	switch (animation) {
 		case ClickAnimation.Confetti:
-			triggerConfettiAnimation(target);
-			break;
+			return triggerConfettiAnimation(target);
 		case ClickAnimation.FloatingIcons:
 			if (icon) {
 				triggerFloatingIconsAnimation(target, icon);
@@ -493,4 +558,5 @@ export function triggerClickAnimation(target: HTMLElement | IAnimationTarget, an
 			triggerRadiantLinesAnimation(target);
 			break;
 	}
+	return undefined;
 }

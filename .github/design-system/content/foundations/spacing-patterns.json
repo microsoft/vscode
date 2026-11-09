@@ -1,0 +1,48 @@
+{
+	"version": 1,
+	"patterns": [
+		{
+			"id": "association",
+			"title": "Keep a label and its icon together",
+			"guidance": { "$text": { "file": "src/vs/platform/theme/common/sizes/spacing.md", "heading": "Keep a label and its icon together" } },
+			"context": "Automations · owner label",
+			"rules": [{ "file": "src/vs/sessions/contrib/automations/browser/media/automationDialog.css", "selector": ".automation-owner-label", "properties": ["gap"] }]
+		},
+		{
+			"id": "field",
+			"title": "Keep a field close to its label",
+			"guidance": { "$text": { "file": "src/vs/platform/theme/common/sizes/spacing.md", "heading": "Keep a field close to its label" } },
+			"context": "Automations · prompt section",
+			"rules": [{ "file": "src/vs/sessions/contrib/automations/browser/media/automationDialog.css", "selector": ".automation-prompt-section", "properties": ["gap"] }]
+		},
+		{
+			"id": "siblings",
+			"title": "Give sibling controls a steady rhythm",
+			"guidance": { "$text": { "file": "src/vs/platform/theme/common/sizes/spacing.md", "heading": "Give sibling controls a steady rhythm" } },
+			"context": "Automations · provider tools",
+			"rules": [{ "file": "src/vs/sessions/contrib/automations/browser/media/automationDialog.css", "selector": ".automation-provider-tools", "properties": ["gap"] }]
+		},
+		{
+			"id": "inset",
+			"title": "Let the surface own its inset",
+			"guidance": { "$text": { "file": "src/vs/platform/theme/common/sizes/spacing.md", "heading": "Let the surface own its inset" } },
+			"context": "Agent settings · setting row",
+			"rules": [{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings-row", "properties": ["padding", "gap"] }]
+		},
+		{
+			"id": "sections",
+			"title": "Use a larger break for a new section",
+			"guidance": { "$text": { "file": "src/vs/platform/theme/common/sizes/spacing.md", "heading": "Use a larger break for a new section" } },
+			"context": "Agent settings · sections",
+			"rules": [
+				{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings-section", "properties": ["margin-top"] },
+				{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings-section h2", "properties": ["margin"] }
+			]
+		}
+	],
+	"responsive": [
+		{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings-content", "properties": ["padding"] },
+		{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings.narrow .agent-global-configuration-settings-content", "properties": ["padding"] },
+		{ "file": "src/vs/workbench/contrib/chat/browser/aiCustomization/media/agentGlobalConfigurationSettings.css", "selector": ".agent-global-configuration-settings.narrow .agent-global-configuration-settings-row", "properties": ["flex-wrap"] }
+	]
+}

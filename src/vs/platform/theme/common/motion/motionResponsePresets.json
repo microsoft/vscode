@@ -1,0 +1,33 @@
+{
+	"$comment": "Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License. See License.txt in the project root for license information. These are rest-to-rest candidates derived from seed parameters, not Feel CSS exports or validated product defaults. Accuracy limits bound the endpoint snap and total interpolation error in travel fractions; multiplying by maxTravelPx gives their pixel limits.",
+	"schemaVersion": 1,
+	"source": {
+		"repository": "https://github.com/diip3sh/feel",
+		"revision": "c9b22fa42b25757852d7c3aa621344d13882a519",
+		"path": "runtime/feel.js",
+		"license": "MIT"
+	},
+	"accuracy": {
+		"maxEndpointResidual": 0.0001,
+		"maxInterpolationError": 0.0005,
+		"maxTravelPx": 1000
+	},
+	"presets": [
+		{
+			"id": "responsive",
+			"label": "Responsive",
+			"sourcePreset": "instant",
+			"frequencyHz": 6,
+			"dampingRatio": 1,
+			"mass": 1
+		},
+		{
+			"id": "settled",
+			"label": "Settled",
+			"sourcePreset": "precise",
+			"frequencyHz": 4.5,
+			"dampingRatio": 1,
+			"mass": 1
+		}
+	]
+}

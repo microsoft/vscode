@@ -1,0 +1,761 @@
+{
+	"version": 1,
+	"archiveReason": "This toolkit specification belongs to a larger product composition, not a standalone component in the curated index.",
+	"missingReference": "TBD: an isolated primitive example and component reference.",
+	"productControls": [
+		{
+			"id": "button",
+			"name": "Button",
+			"family": "Actions",
+			"groups": [
+				"baseUI/Buttons"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/button/button.ts",
+			"reason": "Shared action control, independent of any feature workflow."
+		},
+		{
+			"id": "split-button",
+			"name": "Split button",
+			"family": "Actions",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/button/button.ts",
+			"reason": "A default action with a separate menu of alternatives. ButtonWithDropdown exists, but an isolated reference is TBD."
+		},
+		{
+			"id": "dropdown-button",
+			"name": "Menu button",
+			"family": "Actions",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/dropdown/dropdown.ts",
+			"reason": "A trigger that opens actions rather than selecting a field value. DropdownMenu exists; its primitive reference is TBD."
+		},
+		{
+			"id": "toggle",
+			"name": "Icon toggle",
+			"family": "Actions",
+			"groups": [
+				"baseUI/IconToggles",
+				"baseUI/KeyboardFocusedToggle"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/toggle/toggle.ts",
+			"reason": "An independently checked mode, not a mutually exclusive radio option."
+		},
+		{
+			"id": "action-bar",
+			"name": "Action bar",
+			"family": "Actions",
+			"groups": [
+				"baseUI/ActionBar"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/actionbar/actionbar.ts",
+			"reason": "Foundational action grouping and keyboard navigation, without a feature toolbar model."
+		},
+		{
+			"id": "button-bar",
+			"name": "Button bar",
+			"family": "Actions",
+			"groups": [
+				"baseUI/ButtonBar"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/button/button.ts",
+			"reason": "Elementary grouping of related buttons, not a feature-specific command surface."
+		},
+		{
+			"id": "link",
+			"name": "Link",
+			"family": "Actions",
+			"groups": [],
+			"owner": "src/vs/platform/opener/browser/link.ts",
+			"reason": "Navigation to a destination, distinct from running an action. A shared Link exists outside base UI; its primitive reference is TBD."
+		},
+		{
+			"id": "input",
+			"name": "Input box",
+			"family": "Input and selection",
+			"groups": [
+				"baseUI/InputBoxes"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/inputbox/inputBox.ts",
+			"reason": "Shared text entry and validation states."
+		},
+		{
+			"id": "textarea",
+			"name": "Text area",
+			"family": "Input and selection",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/inputbox/inputBox.ts",
+			"reason": "Multiline text entry. InputBox supports a flexible-height textarea, but a dedicated primitive reference is TBD."
+		},
+		{
+			"id": "combobox",
+			"name": "Combobox",
+			"family": "Input and selection",
+			"groups": [],
+			"evidence": "src/vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput.ts",
+			"reason": "Editable text with suggested choices. Product evidence is a composed editor-backed input, not a standalone combobox contract; content is TBD."
+		},
+		{
+			"id": "checkbox",
+			"name": "Checkbox",
+			"family": "Input and selection",
+			"groups": [
+				"baseUI/Checkboxes"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/toggle/toggle.ts",
+			"reason": "An independent form choice; separate from immediate settings switches and icon toggles."
+		},
+		{
+			"id": "switch",
+			"name": "Switch",
+			"family": "Input and selection",
+			"groups": [
+				"baseUI/Switches"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/toggle/switch.ts",
+			"reason": "An on/off setting that takes effect immediately."
+		},
+		{
+			"id": "radio",
+			"name": "Radio group",
+			"family": "Input and selection",
+			"groups": [
+				"baseUI/Radios"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/radio/radio.ts",
+			"reason": "Shared mutually exclusive selection, including the product’s segmented presentation."
+		},
+		{
+			"id": "select",
+			"name": "Select box",
+			"family": "Input and selection",
+			"groups": [
+				"baseUI/SelectBoxes"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/selectBox/selectBox.ts",
+			"reason": "Shared single-selection dropdown; not the composed multi-select action widget."
+		},
+		{
+			"id": "dropdown",
+			"name": "Multi-select",
+			"family": "Input and selection",
+			"groups": [],
+			"owner": "src/vs/platform/actionWidget/browser/multiSelectDropdown.ts",
+			"reason": "Selection of several values from a known set. The current platform widget is composed; reserve the primitive contract without using its composite preview."
+		},
+		{
+			"id": "form-label",
+			"name": "Field label",
+			"family": "Text and labeling",
+			"groups": [],
+			"reason": "A visible name associated with an input, distinct from highlighted display text. A shared field-label reference is TBD."
+		},
+		{
+			"id": "label",
+			"name": "Highlighted label",
+			"family": "Text and labeling",
+			"groups": [
+				"baseUI/HighlightedLabels"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/highlightedlabel/highlightedLabel.ts",
+			"reason": "Reusable text and match highlighting, not a form-field label."
+		},
+		{
+			"id": "icon-label",
+			"name": "Icon label",
+			"family": "Text and labeling",
+			"groups": [
+				"baseUI/IconLabels"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/iconLabel/iconLabel.ts",
+			"reason": "A shared name, optional icon, and description without a resource or feature model."
+		},
+		{
+			"id": "keybinding-label",
+			"name": "Keybinding label",
+			"family": "Text and labeling",
+			"groups": [
+				"baseUI/KeybindingLabels"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/keybindingLabel/keybindingLabel.ts",
+			"reason": "Platform-aware shortcut notation; it displays a binding without registering one."
+		},
+		{
+			"id": "list",
+			"name": "List",
+			"family": "Collections and navigation",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/list/listWidget.ts",
+			"reason": "A reusable collection with row focus and selection. Feature lists do not substitute for an isolated primitive reference."
+		},
+		{
+			"id": "tree",
+			"name": "Tree",
+			"family": "Collections and navigation",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/tree/objectTree.ts",
+			"reason": "A hierarchical collection with expansion, focus, and selection, independent of Explorer or another feature."
+		},
+		{
+			"id": "table",
+			"name": "Table",
+			"family": "Collections and navigation",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/table/tableWidget.ts",
+			"reason": "A reusable row-and-column collection. The shared Table API qualifies independently of fixture registration."
+		},
+		{
+			"id": "tabs",
+			"name": "Tabs",
+			"family": "Collections and navigation",
+			"groups": [],
+			"evidence": "src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts",
+			"reason": "Selection between peer content panels. Current editor tabs are composite product evidence, not a general-purpose tabs primitive; content is TBD."
+		},
+		{
+			"id": "breadcrumbs",
+			"name": "Breadcrumbs",
+			"family": "Collections and navigation",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/breadcrumbs/breadcrumbsWidget.ts",
+			"reason": "Navigation through a hierarchy. BreadcrumbsWidget is reusable without the editor breadcrumb model; its isolated reference is TBD."
+		},
+		{
+			"id": "badge",
+			"name": "Count badge",
+			"family": "Feedback",
+			"groups": [
+				"baseUI/CountBadges"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/countBadge/countBadge.ts",
+			"reason": "Reusable count indicator, not a feature status badge."
+		},
+		{
+			"id": "status-icon",
+			"name": "Status indicator",
+			"family": "Feedback",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/severityIcon/severityIcon.ts",
+			"reason": "Compact information, warning, or error status. SeverityIcon supplies glyph classes, not a complete accessible indicator reference; content is TBD."
+		},
+		{
+			"id": "message",
+			"name": "Message",
+			"family": "Feedback",
+			"groups": [],
+			"evidence": "src/vs/workbench/browser/parts/notifications/notificationsList.ts",
+			"reason": "A reusable message with severity, supporting text, and optional actions. Current notification rows are composites; the standalone building block is TBD."
+		},
+		{
+			"id": "progress",
+			"name": "Progress bar",
+			"family": "Feedback",
+			"groups": [
+				"baseUI/ProgressBars"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/progressbar/progressbar.ts",
+			"reason": "Shared progress feedback, without a feature-specific task model."
+		},
+		{
+			"id": "spinner",
+			"name": "Pixel spinner",
+			"family": "Feedback",
+			"groups": [
+				"baseUI/PixelSpinners"
+			],
+			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+			"owner": "src/vs/base/browser/ui/pixelSpinner/pixelSpinner.ts",
+			"reason": "Shared indeterminate busy indicator, not a chat-specific loading illustration."
+		},
+		{
+			"id": "tooltip",
+			"name": "Tooltip",
+			"family": "Surfaces",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/hover/hoverWidget.ts",
+			"reason": "Brief supplemental text for a control. The shared hover shell alone does not demonstrate tooltip triggers, keyboard access, or dismissal; content is TBD."
+		},
+		{
+			"id": "hover",
+			"name": "Hover",
+			"family": "Surfaces",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/hover/hoverWidget.ts",
+			"reason": "An anchored surface for richer supplemental content, distinct from a brief tooltip. Editor hovers and the motion surface demo are not isolated primitive references."
+		},
+		{
+			"id": "menu",
+			"name": "Menu",
+			"family": "Surfaces",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/menu/menu.ts",
+			"reason": "Reusable action-menu behavior, separate from feature-specific menu contents."
+		},
+		{
+			"id": "dialog",
+			"name": "Dialog",
+			"family": "Surfaces",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/dialog/dialog.ts",
+			"reason": "Reusable modal surface. Product callers should normally use the dialog service."
+		},
+		{
+			"id": "separator",
+			"name": "Separator",
+			"family": "Layout and containment",
+			"groups": [],
+			"reason": "A visual or semantic boundary between related groups, not a layout engine. A dedicated reusable reference is TBD."
+		},
+		{
+			"id": "scroll-area",
+			"name": "Scroll area",
+			"family": "Layout and containment",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/scrollbar/scrollableElement.ts",
+			"reason": "A reusable viewport with scrollbars and overflow affordances. ScrollableElement exists; a primitive reference is TBD."
+		},
+		{
+			"id": "sash",
+			"name": "Resize handle",
+			"family": "Layout and containment",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/sash/sash.ts",
+			"reason": "A user-facing divider for resizing adjacent regions. Sash qualifies; the grid and split-view engines around it remain infrastructure."
+		}
+	],
+	"families": [
+		[
+			"button",
+			{
+				"aliases": [
+					"split-button",
+					"dropdown-button",
+					"button-bar",
+					"icon-button",
+					"split-icon-button",
+					"toolbar-dropdown"
+				],
+				"groups": [
+					"baseUI/Buttons",
+					"baseUI/ButtonBar"
+				],
+				"groupLabels": {
+					"baseUI/ButtonBar": "Button group"
+				},
+				"relatedOwners": [
+					"src/vs/base/browser/ui/dropdown/dropdown.ts"
+				],
+				"members": [
+					"Button",
+					"ButtonWithIcon",
+					"ButtonWithDescription",
+					"ButtonWithDropdown",
+					"ButtonBar",
+					"DropdownMenu"
+				]
+			}
+		],
+		[
+			"toggle",
+			{
+				"name": "Toggle",
+				"members": [
+					"Toggle",
+					"Keyboard focus states"
+				]
+			}
+		],
+		[
+			"action-bar",
+			{
+				"name": "Toolbar",
+				"aliases": [
+					"editor-toolbar"
+				],
+				"relatedOwners": [
+					"src/vs/base/browser/ui/toolbar/toolbar.ts"
+				],
+				"members": [
+					"ActionBar",
+					"ToolBar",
+					"Overflow actions"
+				]
+			}
+		],
+		[
+			"link",
+			{
+				"reason": "Navigate to another location."
+			}
+		],
+		[
+			"input",
+			{
+				"name": "Text field",
+				"aliases": [
+					"textarea"
+				],
+				"relatedOwners": [
+					"src/vs/base/browser/ui/findinput/findInput.ts"
+				],
+				"members": [
+					"InputBox",
+					"Multiline input",
+					"HistoryInputBox",
+					"FindInput"
+				]
+			}
+		],
+		[
+			"combobox",
+			{
+				"reason": "Choose a suggestion or enter a text value."
+			}
+		],
+		[
+			"checkbox",
+			{
+				"aliases": [
+					"checkbox-label"
+				],
+				"members": [
+					"Checkbox",
+					"Checkbox label",
+					"Disabled states"
+				]
+			}
+		],
+		[
+			"switch",
+			{}
+		],
+		[
+			"radio",
+			{
+				"members": [
+					"Radio",
+					"Segmented presentation",
+					"Keyboard selection modes"
+				]
+			}
+		],
+		[
+			"select",
+			{
+				"members": [
+					"SelectBox",
+					"Native picker",
+					"Custom-drawn picker",
+					"Options"
+				]
+			}
+		],
+		[
+			"dropdown",
+			{
+				"reason": "Select several values from a known set."
+			}
+		],
+		[
+			"form-label",
+			{
+				"name": "Field",
+				"members": [
+					"Field label",
+					"Help text",
+					"Validation association"
+				],
+				"reason": "Associate an input with its visible label, help, and validation."
+			}
+		],
+		[
+			"label",
+			{
+				"name": "Label",
+				"aliases": [
+					"icon-label",
+					"text-label",
+					"identifier"
+				],
+				"groups": [
+					"baseUI/HighlightedLabels",
+					"baseUI/IconLabels"
+				],
+				"groupLabels": {
+					"baseUI/IconLabels": "Icon label"
+				},
+				"relatedOwners": [
+					"src/vs/base/browser/ui/iconLabel/iconLabel.ts",
+					"src/vs/workbench/browser/labels.ts"
+				],
+				"members": [
+					"HighlightedLabel",
+					"IconLabel",
+					"ResourceLabels"
+				]
+			}
+		],
+		[
+			"keybinding-label",
+			{}
+		],
+		[
+			"list",
+			{
+				"aliases": [
+					"file-row"
+				],
+				"members": [
+					"List",
+					"Row renderers",
+					"Selection and focus"
+				],
+				"reason": "Browse, focus, and select rows in a collection."
+			}
+		],
+		[
+			"tree",
+			{
+				"aliases": [
+					"folder-row"
+				],
+				"relatedOwners": [
+					"src/vs/base/browser/ui/tree/asyncDataTree.ts"
+				],
+				"members": [
+					"ObjectTree",
+					"AsyncDataTree",
+					"Compressed trees",
+					"Tree rows"
+				],
+				"reason": "Browse and expand a hierarchy."
+			}
+		],
+		[
+			"table",
+			{
+				"members": [
+					"Table",
+					"Column headers",
+					"Rows",
+					"Column resizing"
+				],
+				"reason": "Present rows across labeled columns."
+			}
+		],
+		[
+			"tabs",
+			{
+				"aliases": [
+					"tab-group",
+					"settings-tab",
+					"sidebar-icon-tab"
+				],
+				"members": [
+					"Tab list",
+					"Tab",
+					"Tab panel"
+				],
+				"reason": "Switch between peer content panels."
+			}
+		],
+		[
+			"breadcrumbs",
+			{
+				"reason": "Navigate through a hierarchy."
+			}
+		],
+		[
+			"badge",
+			{}
+		],
+		[
+			"message",
+			{
+				"name": "Notification",
+				"aliases": [
+					"notification",
+					"notification-header"
+				],
+				"members": [
+					"Message content",
+					"Severity",
+					"Actions",
+					"Toast presentation"
+				],
+				"reason": "Present a message, severity, and optional actions."
+			}
+		],
+		[
+			"progress",
+			{}
+		],
+		[
+			"spinner",
+			{
+				"name": "Spinner",
+				"aliases": [
+					"loading-spinner"
+				],
+				"members": [
+					"Pixel spinner",
+					"Grid and ring variants",
+					"Busy label"
+				]
+			}
+		],
+		[
+			"tooltip",
+			{
+				"reason": "Show brief supporting text on hover or keyboard focus."
+			}
+		],
+		[
+			"hover",
+			{
+				"name": "Hover card",
+				"reason": "Preview richer supporting information near its trigger."
+			}
+		],
+		[
+			"menu",
+			{
+				"aliases": [
+					"menu-item",
+					"menu-section-title"
+				],
+				"relatedOwners": [
+					"src/vs/base/browser/ui/dropdown/dropdown.ts"
+				],
+				"members": [
+					"Menu",
+					"Trigger",
+					"Menu item",
+					"Section label",
+					"Submenu",
+					"Separator"
+				],
+				"reason": "Choose an action from a menu, with optional submenus."
+			}
+		],
+		[
+			"dialog",
+			{
+				"members": [
+					"Dialog",
+					"Message and detail",
+					"Actions",
+					"Optional inputs",
+					"Modal focus behavior"
+				],
+				"reason": "Present a focused modal decision with actions and optional inputs."
+			}
+		],
+		[
+			"separator",
+			{
+				"reason": "Separate groups of related content or actions."
+			}
+		],
+		[
+			"scroll-area",
+			{
+				"members": [
+					"ScrollableElement",
+					"Scrollbars",
+					"Thumbs",
+					"Overflow affordances"
+				],
+				"reason": "Navigate overflowing content through a shared scroll viewport."
+			}
+		],
+		[
+			"sash",
+			{
+				"members": [
+					"Sash",
+					"Horizontal and vertical handles",
+					"Resize states"
+				],
+				"reason": "Resize adjacent regions with a draggable divider."
+			}
+		]
+	],
+	"additions": [
+		{
+			"id": "pane",
+			"name": "Collapsible pane",
+			"groups": [],
+			"owner": "src/vs/base/browser/ui/splitview/paneview.ts",
+			"aliases": [
+				"sidebar-header",
+				"sidebar-title",
+				"panel-title"
+			],
+			"members": [
+				"Pane",
+				"PaneView",
+				"Header",
+				"Body",
+				"Expansion state"
+			],
+			"reason": "Expand or collapse a content region through its header."
+		},
+		{
+			"id": "quick-pick",
+			"name": "Quick Pick",
+			"groups": [],
+			"owner": "src/vs/platform/quickinput/browser/quickInput.ts",
+			"aliases": [
+				"quick-pick-item",
+				"quick-pick-title",
+				"quick-pick-shortcut"
+			],
+			"members": [
+				"QuickPick",
+				"Filter input",
+				"Items",
+				"Title and actions",
+				"Shortcut labels"
+			],
+			"reason": "Filter a collection and choose an item without leaving the current task."
+		},
+		{
+			"id": "pill",
+			"name": "Resource pill",
+			"groups": [],
+			"evidence": "src/vs/workbench/browser/chatPills.ts",
+			"nodeId": "20676:43729",
+			"relatedOwners": [
+				"src/vs/workbench/browser/chatResourcePill.ts",
+				"src/vs/workbench/browser/chatDropdownPill.ts"
+			],
+			"aliases": [
+				"chat-attachment",
+				"chat-attachments-group",
+				"chat-reference",
+				"chat-reference-item"
+			],
+			"members": [
+				"ChatPillsWidget",
+				"Resource pill",
+				"Dropdown pill",
+				"Trailing actions"
+			],
+			"reason": "A compact resource reference with an optional menu and trailing actions."
+		}
+	]
+}

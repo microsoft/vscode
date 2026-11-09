@@ -20,7 +20,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Throttler } from '../../../../../base/common/async.js';
@@ -45,6 +45,11 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { MotionController } from '../../../../../base/browser/ui/animations/motion.js';
+import { resolveMotionRecipe } from '../../../../../platform/theme/common/motion/motionRecipes.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly initiallyVisible?: boolean;
@@ -88,6 +93,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
 
 	private emptyFilterMessage: HTMLElement | undefined;
+	private loadingLabel: HTMLElement | undefined;
+	private loadingProgress: ProgressBar | undefined;
+	private readonly resolvingProviders = new Set<string>();
+	private refreshesInProgress = 0;
+	private refreshGeneration = 0;
+	private initialLoad = false;
+	private loading = false;
+	private hasPresentedContent = false;
+	private presentedSessionCount = 0;
+	private revealLoadedContent = false;
+	private loadFailed = false;
+	private readonly contentMotion = this._register(new DisposableStore());
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsDataSource: AgentSessionsDataSource | undefined;
@@ -131,6 +148,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.visible = options.initiallyVisible ?? true;
@@ -185,6 +203,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private create(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
+		const progressHost = append(this.sessionsContainer, $('.agent-sessions-load-progress'));
+		this.loadingProgress = this._register(new ProgressBar(progressHost, { progressBarBackground: 'var(--vscode-progressBar-background)' }));
+		this.loadingProgress.hide();
+		this.loadingLabel = append(this.sessionsContainer, $('.agent-sessions-loading', { role: 'status' }));
+		this.loadingLabel.textContent = localize('agentSessions.loading', "Loading sessions...");
+		hide(this.loadingLabel);
 
 		this.createEmptyFilterMessage(this.sessionsContainer);
 		this.createList(this.sessionsContainer);
@@ -603,6 +627,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this._register(sessionDataSource.onDidGetChildren(count => {
+			this.presentedSessionCount = count;
 			this.updateEmpty(count === 0);
 		}));
 
@@ -611,6 +636,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 
 		const model = this.agentSessionsService.model;
+		this.initialLoad = !model.resolved;
+		this._register(model.onWillResolve(provider => {
+			this.resolvingProviders.add(provider);
+			this.updateLoading();
+		}));
+		this._register(model.onDidResolve(provider => {
+			this.initialLoad = false;
+			this.resolvingProviders.delete(provider);
+			if (model.sessions.length === 0) { this.revealLoadedContent = false; }
+			this.updateLoading();
+		}));
+		this.updateLoading();
 
 		this._register(this.options.filter.onDidChange(async () => {
 			if (this.visible) {
@@ -626,7 +663,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 
 		this.computeRecentRepositoryLabels();
-		list.setInput(model);
+		void list.setInput(model).then(() => this.revealInitialContent()).catch(onUnexpectedError);
 
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
 		this._register(list.onContextMenu(e => this.showContextMenu(e)));
@@ -694,6 +731,50 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive && !this.sessionsDataSource?.hasLoadableArchiveSection;
 		setVisibility(showEmpty, this.emptyFilterMessage);
 		setVisibility(!showEmpty, this.sessionsList.getHTMLElement());
+	}
+
+	private updateLoading(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const loading = this.initialLoad || this.refreshesInProgress > 0 || this.resolvingProviders.size > 0;
+		if (loading && !this.hasPresentedContent) { this.revealLoadedContent = true; }
+		this.sessionsContainer?.setAttribute('aria-busy', String(loading));
+		if (this.loadingLabel) {
+			this.loadingLabel.textContent = this.loadFailed
+				? localize('agentSessions.loadFailed', "Couldn't load sessions. Refresh to try again.")
+				: localize('agentSessions.loading', "Loading sessions...");
+			setVisibility((loading || this.loadFailed) && this.agentSessionsService.model.sessions.length === 0, this.loadingLabel);
+		}
+		if (loading !== this.loading) {
+			this.loading = loading;
+			if (loading) { this.loadingProgress?.infinite().show(150); }
+			else { this.loadingProgress?.stop().hide(); }
+		}
+	}
+
+	private revealInitialContent(): void {
+		if (this._store.isDisposed || !this.visible || !this.sessionsList || this.hasPresentedContent || this.presentedSessionCount === 0) {
+			return;
+		}
+		this.hasPresentedContent = true;
+		if (this.revealLoadedContent) {
+			this.revealContent(this.sessionsList.getHTMLElement());
+		}
+		this.revealLoadedContent = false;
+	}
+
+	private revealContent(element: HTMLElement): void {
+		if (!this.visible || this._store.isDisposed || this.accessibilityService.isMotionReduced()) {
+			return;
+		}
+		const lifetime = this.contentMotion.add(new DisposableStore());
+		const motion = lifetime.add(new MotionController(element, false));
+		lifetime.add(this.accessibilityService.onDidChangeReducedMotion(() => motion.setReducedMotion(this.accessibilityService.isMotionReduced())));
+		void motion.play(resolveMotionRecipe('motion.content.enter'))
+			.finally(() => this.contentMotion.delete(lifetime))
+			.catch(onUnexpectedError);
 	}
 
 	private hasTodaySessions(): boolean {
@@ -864,8 +945,38 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	refresh(reason: AgentSessionRefreshReason = 'manual'): Promise<void> {
-		return this.agentSessionsService.model.resolve(undefined, undefined, reason);
+	async refresh(reason: AgentSessionRefreshReason = 'manual'): Promise<void> {
+		const generation = ++this.refreshGeneration;
+		const previousSessions = reason === 'manual' && this.hasPresentedContent
+			? new Set(this.agentSessionsService.model.sessions.map(session => session.resource.toString()))
+			: undefined;
+		this.contentMotion.clear();
+		this.loadFailed = false;
+		this.refreshesInProgress++;
+		this.updateLoading();
+		try {
+			await this.agentSessionsService.model.resolve(undefined, error => {
+				this.loadFailed = true;
+				this.notificationService.error(toErrorMessage(error));
+			}, reason);
+			if (!this._store.isDisposed) {
+				const updated = await this.update();
+				if (updated && this.visible && generation === this.refreshGeneration && previousSessions && !this.loadFailed) {
+					for (const session of this.agentSessionsService.model.sessions) {
+						if (!previousSessions.has(session.resource.toString())) {
+							const reveal = this.sessionRenderer?.revealSession(session.resource);
+							if (reveal) {
+								this.contentMotion.add(reveal);
+							}
+						}
+					}
+				}
+			}
+		} finally {
+			this.refreshesInProgress--;
+			this.initialLoad = false;
+			this.updateLoading();
+		}
 	}
 
 	collapseAllSections(): void {
@@ -898,6 +1009,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			this.hasPendingUpdate = false;
 			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
+			this.revealInitialContent();
 			this.updateArchiveDemand();
 
 			this._onDidUpdate.fire();
@@ -928,6 +1040,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.visible = visible;
+		if (!visible) {
+			this.contentMotion.clear();
+		}
 		this.updateArchiveDemand();
 
 		if (this.visible) {

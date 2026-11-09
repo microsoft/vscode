@@ -1,0 +1,135 @@
+{
+	"version": 1,
+	"id": "spacing",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/sizes/spacing.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"grouping": {
+			"title": "Make relationships visible",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "Make relationships visible",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"ownership": {
+			"title": "Give each interval one owner",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "Give each interval one owner",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"heading": "Give each interval one owner",
+						"paragraph": 1
+					}
+				}
+			]
+		},
+		"patterns": {
+			"title": "Choose a spacing pattern",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "Choose a spacing pattern",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"product": {
+			"title": "Spacing between controls",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "Spacing between controls",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"responsive": {
+			"title": "When space gets tight",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "When space gets tight",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"heading": "When space gets tight",
+						"paragraph": 1
+					}
+				}
+			]
+		},
+		"ramp": {
+			"title": "Spacing ramp",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"heading": "Spacing ramp",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"heading": "Spacing ramp",
+						"paragraph": 1
+					}
+				}
+			]
+		}
+	},
+	"relationships": [
+		[
+			"Within a group",
+			"Keep a label, its control, and supporting text close enough to read as one unit."
+		],
+		[
+			"Between groups",
+			"Use a larger break when the task or subject changes. Equal spacing at every level flattens the hierarchy."
+		],
+		[
+			"Inside a surface",
+			"Use one consistent inset to align content and keep it clear of the boundary."
+		]
+	],
+	"ownership": [
+		[
+			"Padding · inside a surface",
+			"The container owns the content inset. Align repeated rows to the same edge; keep the outer gutter separate from each control’s internal padding."
+		],
+		[
+			"Gap · between siblings",
+			"The layout owns the interval between children. Use row and column gaps for wrapping groups; let the component keep its own hit target."
+		],
+		[
+			"Margin · outside an element",
+			"Use it for a contextual separation such as the start of a new section. Account for adjacent margins and the parent layout before adding more."
+		]
+	],
+	"preview": {
+		"control": "button",
+		"summary": "Related actions in light and dark themes."
+	}
+}

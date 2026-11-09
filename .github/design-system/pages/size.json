@@ -1,0 +1,21 @@
+{
+	"version": 1,
+	"id": "size",
+	"renderer": "foundations",
+	"content": "content/foundations/size.json",
+	"guidance": [
+		{ "id": "size-guidance", "title": "Choosing an icon size", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "codicon-size" }
+	],
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		},
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		}
+	],
+	"sections": []
+}

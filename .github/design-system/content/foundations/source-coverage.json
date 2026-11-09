@@ -1,0 +1,124 @@
+{
+	"version": 1,
+	"topics": {
+		"principles": {
+			"Design principles": {
+				"source-defined": "Values and seven principles are read from the design philosophy."
+			},
+			"Application across the product": {
+				"not-assessed": "The viewer links principles to relevant topics; product-wide adherence has not been assessed."
+			}
+		},
+		"typography": {
+			"UI role scale": {
+				"source-defined": "Complete current heading, body, label and weight registrations."
+			},
+			"Font families": {
+				"implementation-only": "Native interface/monospace stacks and the workbench baseline come from product CSS, not family tokens."
+			},
+			"Role-specific line height and tracking": {
+				"source-defined": "Metric registrations are present; review their role coverage.",
+				"not-defined-in-covered-sources": "A role-specific line-height/tracking scale is not registered here; the workbench baseline is an implementation value."
+			}
+		},
+		"spacing": {
+			"Spacing scale": {
+				"source-defined": "Every registered spacing step is shown, including zero."
+			},
+			"Product spacing patterns": {
+				"implementation-only": "Curated CSS examples illustrate associations, fields, sibling controls, insets, section breaks, and narrow layouts; they are not universal semantic aliases."
+			},
+			"Named semantic spacing roles": {
+				"source-defined": "Named spacing aliases are present; their usage should be reviewed.",
+				"not-defined-in-covered-sources": "The numeric ramp is defined, but named spacing roles such as within-group/between-group are not registered in the covered size source."
+			}
+		},
+		"shape": {
+			"Radius scale": {
+				"source-defined": "Every registered radius is shown; the fully rounded value is distinct from a larger corner."
+			},
+			"Surface-role guidance": {
+				"source-defined": "Control, inner and outer tiers are documented, along with fully rounded pills."
+			}
+		},
+		"size": {
+			"Icon dimensions": {
+				"source-defined": "Base and compact glyph sizes are defined; stroke is a separate topic."
+			},
+			"Control height, density and hit-area scales": {
+				"source-defined": "Sizing registrations are present; their usage coverage has not been assessed.",
+				"not-defined-in-covered-sources": "Named control-height, density and hit-area scales are not defined in this size registry. These glyph/stroke examples are not a complete component sizing system."
+			},
+			"Product control geometry": {
+				"implementation-only": "Button, Switch, and SelectBox geometry is read from the owning styles, preserving density and platform differences.",
+				"not-assessed": "The covered sources do not include component geometry. Icon registrations do not establish control dimensions or hit targets."
+			}
+		},
+		"stroke": {
+			"Registered stroke": {
+				"source-defined": "The base registry defines a single stroke thickness."
+			},
+			"Boundary and scrollbar recipes": {
+				"implementation-only": "Control borders, keyboard-focus offsets, contrast borders, scrollbar states, track defaults, and the thumb minimum come from owning sources.",
+				"not-assessed": "The covered stroke registry does not include component boundaries, scrollbar geometry, or their interaction states."
+			}
+		},
+		"colors": {
+			"Semantic color roles": {
+				"source-defined": "Theming guidance groups surface, text, input, list and widget colors; examples use actual theme values."
+			},
+			"Runtime color-default coverage": {
+				"present": "The registry inventory resolves supported definitions and defaults, but computed runtime expressions remain explicit. An unresolved default is not evidence that the product lacks the color.",
+				"absent": "This reader covers explicit theme declarations and ANSI defaults, not every runtime color expression. An unresolved example is not evidence that the design system lacks that color."
+			}
+		},
+		"theming": {
+			"Theme mappings": {
+				"source-defined": "Contributed themes and a bounded set of source-registered defaults supply the comparisons."
+			},
+			"High-contrast guidance": {
+				"source-defined": "Use solid backgrounds, explicit contrast borders and focus indicators; do not rely on shadows."
+			}
+		},
+		"iconography": {
+			"Glyph catalog": {
+				"source-defined": "The full catalog comes from Codicon registrations."
+			},
+			"Glyph sizing and naming guidance": {
+				"source-defined": "Base/compact glyphs, accessible names and text labels are documented."
+			}
+		},
+		"motion": {
+			"Motion intent": {
+				"source-defined": "Motion should guide, confirm or orient, remain interruptible, and preserve meaning with reduced motion."
+			},
+			"Named timing and easing system": {
+				"source-defined": "Patterns, timing, curves and reduced-motion behavior are projected from the selected checkout’s motion definitions.",
+				"not-defined-in-covered-sources": "No complete motion token and recipe catalog is defined in the covered source paths. Existing CSS observations are not a published motion system."
+			},
+			"Current implementation examples": {
+				"implementation-only": "Representative CSS declarations are observations, not the canonical motion system."
+			}
+		},
+		"layout": {
+			"Constraint-based layout guidance": {
+				"source-defined": "SplitView/Grid, minimum sizes, priorities and responsive constraints are documented."
+			},
+			"Named composition recipes": {
+				"not-defined-in-covered-sources": "The covered layout guidance describes constraints and reusable containers. It does not define a named composition-recipe catalog."
+			}
+		},
+		"elevation": {
+			"Shadow definitions": {
+				"source-defined": "Named elevation shadow CSS variables are defined in workbench CSS; they are not registered size tokens."
+			},
+			"Shadow-tier usage guidance": {
+				"not-defined-in-covered-sources": "The covered theming guidance does not define a universal shadow-to-surface mapping. Preserve consumer-specific settings and high-contrast behavior."
+			},
+			"Product usage": {
+				"present": "The notification example is one observed consumer, not a universal mapping.",
+				"absent": "The covered consumer has no selected shadow declaration; broader usage is not assessed."
+			}
+		}
+	}
+}

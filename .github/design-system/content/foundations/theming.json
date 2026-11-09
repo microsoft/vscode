@@ -1,0 +1,36 @@
+{
+	"version": 1,
+	"id": "theming",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/theming.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"guidance": {
+			"title": "Keep meaning in high contrast",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/theming.md",
+					"heading": "Keep meaning in high contrast",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"comparison": {
+			"title": "Theme comparisons",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/theming.md",
+					"heading": "Theme comparisons",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	},
+	"specimen": "Semantic roles stay the same while theme values change."
+}

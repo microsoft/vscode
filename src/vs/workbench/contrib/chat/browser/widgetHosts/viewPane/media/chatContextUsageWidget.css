@@ -85,3 +85,13 @@
 	max-width: 4em;
 	opacity: 1;
 }
+
+.monaco-reduce-motion .chat-context-usage-widget .percentage-label {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-context-usage-widget:not(.monaco-enable-motion *) .percentage-label {
+		transition: none;
+	}
+}

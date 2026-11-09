@@ -1,0 +1,69 @@
+{
+	"version": 1,
+	"id": "input",
+	"className": "InputBox",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/inputbox/input-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/inputbox/input-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/inputbox/input-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/inputbox/input-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"placeholder",
+			"string?",
+			"Hint shown when the field is empty.",
+			"readonly placeholder?: string;"
+		],
+		[
+			"ariaLabel",
+			"string?",
+			"Accessible name for the field.",
+			"readonly ariaLabel?: string;"
+		],
+		[
+			"validationOptions",
+			"IInputValidationOptions?",
+			"Supplies the value-validation function.",
+			"readonly validationOptions?: IInputValidationOptions;"
+		],
+		[
+			"value",
+			"string",
+			"Read or update the current text on the instance.",
+			"public set value(newValue: string)"
+		],
+		[
+			"onDidChange",
+			"Event<string>",
+			"Receives text changes.",
+			"public get onDidChange(): Event<string>"
+		],
+		[
+			"flexibleHeight",
+			"boolean?",
+			"Uses a textarea with flexible height.",
+			"readonly flexibleHeight?: boolean;"
+		]
+	]
+}

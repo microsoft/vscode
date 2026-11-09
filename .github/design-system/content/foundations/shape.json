@@ -1,0 +1,40 @@
+{
+	"version": 1,
+	"id": "shape",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/sizes/shape.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"roles": {
+			"title": "Round by surface role",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/shape.md",
+					"heading": "Round by surface role",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"scale": {
+			"title": "Corner scale",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/shape.md",
+					"heading": "Corner scale",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	},
+	"contexts": [
+		{ "kind": "control", "label": "Control", "token": "cornerRadius.small" },
+		{ "kind": "contained", "label": "Contained surface", "token": "cornerRadius.medium" },
+		{ "kind": "overlay", "label": "Overlay", "token": "cornerRadius.large" }
+	]
+}

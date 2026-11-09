@@ -5,19 +5,23 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuEntryActionViewItemOptions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { INotificationHandle, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -46,9 +50,9 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
-	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }): MenuEntryActionViewItem {
+	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }, notificationService = new TestNotificationService(), reducedMotion = false): SessionArchiveActionViewItem {
 		const action = new MenuItemAction(
-			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
+			{ id: ARCHIVE_SESSION_COMMAND_ID, title: 'Mark as Done', icon: Codicon.check },
 			undefined,
 			undefined,
 			undefined,
@@ -63,16 +67,17 @@ suite('SessionActionViewItem', () => {
 				}
 			}(),
 		);
-		const viewItem = disposables.add(new MenuEntryActionViewItem(
+		const viewItem = disposables.add(new SessionArchiveActionViewItem(
 			action,
 			options,
-			new class extends mock<IKeybindingService>() { }(),
-			new TestNotificationService(),
+			new TestExperimentTriggerTelemetryService(),
+			new MockKeybindingService(),
+			notificationService,
 			new class extends mock<IContextKeyService>() { }(),
 			new TestThemeService(),
 			new class extends mock<IContextMenuService>() { }(),
 			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
+				override isMotionReduced(): boolean { return reducedMotion; }
 			}(),
 		));
 		viewItem.actionRunner = disposables.add(new ActionRunner());
@@ -118,7 +123,7 @@ suite('SessionActionViewItem', () => {
 				createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID),
 				getSessionArchiveActionViewItemOptions({}, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false })),
 				telemetryService,
-				new class extends mock<IKeybindingService>() { }(),
+				new MockKeybindingService(),
 				new TestNotificationService(),
 				new class extends mock<IContextKeyService>() { }(),
 				new TestThemeService(),
@@ -154,6 +159,123 @@ suite('SessionActionViewItem', () => {
 		}, {
 			disabled: undefined,
 			enabled: ClickAnimation.Confetti,
+		});
+	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`acknowledges pointer and keyboard archive immediately without allowing repeated input (${reducedMotion ? 'reduced' : 'full'} motion)`, async () => {
+			for (const input of ['pointer', 'keyboard']) {
+				const completion = new DeferredPromise<void>();
+				let calls = 0;
+				const viewItem = createArchiveActionViewItem(async () => {
+					calls++;
+					await completion.p;
+				}, { onClickAnimation: ClickAnimation.Confetti }, undefined, reducedMotion);
+				const container = dom.append(document.body, dom.$('div'));
+				disposables.add(toDisposable(() => container.remove()));
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				const actionBar = disposables.add(new ActionBar(container, {
+					actionRunner: viewItem.actionRunner,
+					actionViewItemProvider: () => viewItem,
+				}));
+				actionBar.push(viewItem.action);
+				actionBar.focus(0);
+				const label = container.querySelector<HTMLElement>('.action-label')!;
+				const keyboard = () => {
+					for (const type of ['keydown', 'keyup']) {
+						actionBar.getContainer().dispatchEvent(new KeyboardEvent(type, { keyCode: 13, bubbles: true }));
+					}
+				};
+				const finished = Event.toPromise(viewItem.actionRunner.onDidRun);
+				const click = input === 'pointer' ? viewItem.onClick(new MouseEvent('click')) : keyboard();
+				await viewItem.onClick(new MouseEvent('click'));
+				keyboard();
+
+				assert.deepStrictEqual({
+					calls,
+					busy: label.getAttribute('aria-busy'),
+					disabled: label.getAttribute('aria-disabled'),
+					label: label.getAttribute('aria-label'),
+					spinner: !!label.querySelector('.codicon-loading.codicon-modifier-spin'),
+					buttonSpinning: label.classList.contains('codicon-modifier-spin'),
+					focused: document.activeElement === label,
+					connected: label.isConnected,
+					animation: document.querySelector('.animation-overlay'),
+				}, {
+					calls: 1,
+					busy: 'true',
+					disabled: 'true',
+					label: 'Mark as Done (in progress)',
+					spinner: true,
+					buttonSpinning: false,
+					focused: true,
+					connected: true,
+					animation: null,
+				});
+				await completion.complete();
+				await finished;
+				await click;
+				const overlay = document.querySelector('.animation-overlay');
+				const animated = !!overlay;
+				overlay?.remove();
+
+				assert.deepStrictEqual({
+					busy: label.getAttribute('aria-busy'),
+					disabled: label.getAttribute('aria-disabled'),
+					label: label.getAttribute('aria-label'),
+					spinner: !!label.querySelector('.codicon-loading'),
+					check: label.classList.contains('codicon-check'),
+					focused: document.activeElement === label,
+					animated,
+				}, {
+					busy: 'false',
+					disabled: null,
+					label: 'Mark as Done',
+					spinner: false,
+					check: true,
+					focused: true,
+					animated: input === 'pointer' && !reducedMotion,
+				});
+			}
+		});
+	}
+
+	test('restores the archive action on failure and permits retry without celebrating', async () => {
+		const failure = new DeferredPromise<void>();
+		const errors: NotificationMessage[] = [];
+		let calls = 0;
+		const viewItem = createArchiveActionViewItem(async () => {
+			if (++calls === 1) {
+				await failure.p;
+			}
+		}, { onClickAnimation: ClickAnimation.Confetti }, new class extends TestNotificationService {
+			override error(error: NotificationMessage): INotificationHandle {
+				errors.push(error);
+				return super.error(error);
+			}
+		}());
+		const container = dom.append(document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		viewItem.focus();
+		const label = container.querySelector<HTMLElement>('.action-label')!;
+		const click = viewItem.onClick(new MouseEvent('click'));
+		const error = new Error('Archive failed');
+		await failure.error(error);
+		await click;
+		const failedState = {
+			busy: label.getAttribute('aria-busy'),
+			enabled: viewItem.isEnabled(),
+			focused: document.activeElement === label,
+			check: label.classList.contains('codicon-check'),
+			animation: document.querySelector('.animation-overlay'),
+		};
+		await viewItem.onClick(new MouseEvent('click'));
+		document.querySelector('.animation-overlay')?.remove();
+		assert.deepStrictEqual({ failedState, errors, calls }, {
+			failedState: { busy: 'false', enabled: true, focused: true, check: true, animation: null },
+			errors: [error],
+			calls: 2,
 		});
 	});
 
@@ -225,7 +347,6 @@ suite('SessionActionViewItem', () => {
 		await click;
 
 		const overlay = document.querySelector<HTMLElement>('.animation-overlay');
-		disposables.add(toDisposable(() => overlay?.remove()));
 		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
 		assert.deepStrictEqual({
 			animationBeforeCompletion,
@@ -241,6 +362,20 @@ suite('SessionActionViewItem', () => {
 			bounds: ['120px', '80px', '48px', '24px'],
 			particleOrigin: ['24px', '12px'],
 			inheritsWorkbenchTheme: true,
+		});
+
+		const animations = overlay?.getAnimations({ subtree: true }) ?? [];
+		const finished = Promise.all(animations.map(animation => animation.finished));
+		animations.forEach(animation => animation.finish());
+		await finished;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			overlayConnected: overlay?.isConnected,
+			animationsReleased: animations.every(animation => animation.playState === 'idle'),
+		}, {
+			overlayConnected: false,
+			animationsReleased: true,
 		});
 	});
 

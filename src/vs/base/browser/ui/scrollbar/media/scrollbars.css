@@ -24,7 +24,7 @@
 	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
-	transition: opacity var(--vscode-motion-duration-scrollFade, 800ms) var(--vscode-motion-easing-linear, linear);
+	transition: opacity var(--vscode-motion-scrollbar-exit-duration, 800ms) var(--vscode-motion-fade-easing, linear);
 }
 
 .disable-animations .monaco-scrollable-element > .visible,

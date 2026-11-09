@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "select",
+	"className": "SelectBox",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/selectBox/select-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/selectBox/select-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/selectBox/select-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/selectBox/select-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"ariaLabel",
+			"string?",
+			"Accessible name in ISelectBoxOptions.",
+			"ariaLabel?: string;"
+		],
+		[
+			"useCustomDrawn",
+			"boolean?",
+			"Overrides the platform-native macOS picker choice.",
+			"useCustomDrawn?: boolean;"
+		],
+		[
+			"setOptions(options, selected)",
+			"void",
+			"Updates available choices and an optional selected index.",
+			"setOptions(options: ISelectOptionItem[], selected?: number): void"
+		],
+		[
+			"onDidSelect",
+			"Event<ISelectData>",
+			"Reports the selected text and index.",
+			"get onDidSelect(): Event<ISelectData>"
+		]
+	]
+}

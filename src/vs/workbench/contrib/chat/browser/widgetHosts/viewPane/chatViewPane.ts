@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, scheduleAtNextAnimationFrame, setVisibility } from '../../../../../../base/browser/dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../../../../../base/browser/animationSync.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -525,6 +526,84 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return focused ?? this._widget?.viewModel?.sessionResource;
 	}
 
+	protected setupVoiceGlow(inputContainerEl: HTMLElement): void {
+		const glowFrame = this._register(new MutableDisposable<IDisposable>());
+		let glowActive = false;
+		let glowVisible = false;
+		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
+		const win = getWindow(inputContainerEl);
+		const glowController = this._register(createVoiceGlowController(
+			inputContainerEl,
+			() => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			() => resolveVoiceGlowColors(this.themeService.getColorTheme()),
+		));
+		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
+		// Merge the real voice session with any dev/preview simulation so the walkthrough
+		// commands drive the input-box glow exactly as a live session would.
+		const getEffectiveVoice = (reader?: IReader) => {
+			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
+				return { connected: true, voiceState: sim, simulating: true };
+			}
+			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
+				return { connected: false, voiceState: 'idle', simulating: true };
+			}
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			return {
+				connected: this.voiceSessionController.isConnected.read(reader),
+				voiceState,
+				simulating: false,
+			};
+		};
+		const renderGlow = () => {
+			glowFrame.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (!glowActive) {
+				glowController.clear();
+				return;
+			}
+			if (this.accessibilityService.isMotionReduced()) {
+				glowController.render(0.3, true);
+				return;
+			}
+			if (!glowVisible || !this.isBodyVisible() || !inputContainerEl.isConnected || win.document.hidden) {
+				return;
+			}
+			const { voiceState, simulating } = getEffectiveVoice();
+			const analyser = this.ttsPlaybackService.analyserNode
+				?? (voiceState === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
+				?? null;
+			let intensity: number;
+			if (!analyser && simulating) {
+				const t = Date.now() / 1000;
+				intensity = Math.min(1, 0.28 + 0.34 * Math.abs(Math.sin(t * 6.1)) + 0.22 * Math.abs(Math.sin(t * 11.3 + 1)));
+			} else {
+				intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+			}
+			glowController.render(intensity, false);
+			glowFrame.value = scheduleAtNextAnimationFrame(win, renderGlow);
+		};
+		this._register(this.accessibilityService.onDidChangeReducedMotion(renderGlow));
+		this._register(this.onDidChangeBodyVisibility(renderGlow));
+		this._register(pauseCSSAnimationsWhenHidden(inputContainerEl, {
+			pausedClass: 'voice-glow-paused',
+			onDidChangeVisibility: visible => {
+				glowVisible = visible;
+				renderGlow();
+			},
+		}));
+		this._register(autorun(reader => {
+			const { connected, simulating } = getEffectiveVoice(reader);
+			const currentSession = this._currentSessionResource.read(reader);
+			const boundResource = this._currentVoiceInputResource(reader);
+			const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
+			glowActive = shouldRenderVoiceInputGlow(connected, true, simulating || isOwner);
+			renderGlow();
+		}));
+	}
+
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
 		const showTranscriptSetting = observableFromEvent(
@@ -551,91 +630,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		transcriptOverlayNode.classList.add('voice-transcript-overlay-scrollable');
 		transcriptOverlayNode.style.display = 'none';
 		inputContainerEl.append(transcriptOverlayNode);
-
-		// Dynamic audio-reactive glow animation (matches aux window behavior)
-		let animFrameId: number | undefined;
-		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
-		const win = getWindow(inputContainerEl);
-		const glowController = this._register(createVoiceGlowController(
-			inputContainerEl,
-			() => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
-			() => resolveVoiceGlowColors(this.themeService.getColorTheme()),
-		));
-		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
-		// Merge the real voice session with any dev/preview simulation so the walkthrough
-		// commands drive the input-box glow exactly as a live session would.
-		const getEffectiveVoice = () => {
-			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.get();
-			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
-				return { connected: true, voiceState: sim, simulating: true };
-			}
-			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
-				return { connected: false, voiceState: 'idle', simulating: true };
-			}
-			const voiceState = this.voiceSessionController.voiceState.get();
-			return {
-				connected: this.voiceSessionController.isConnected.get(),
-				voiceState,
-				simulating: false,
-			};
-		};
-		const startGlowAnimation = () => {
-			if (animFrameId !== undefined) { return; }
-			const animate = () => {
-				animFrameId = win.requestAnimationFrame(animate);
-				const { connected, voiceState, simulating } = getEffectiveVoice();
-				// Only glow the input of the session voice is bound to. Mirrors the
-				// transcript overlay's ownership test (see below) so the glow and
-				// the transcript overlay always render on the same
-				// pane and never on a different split/window (#8514) or a chat
-				// editor open alongside this pane. A dev/preview simulation bypasses
-				// ownership so the walkthrough can light up here.
-				const currentSession = this._currentSessionResource.get();
-				const boundResource = this._currentVoiceInputResource();
-				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = shouldRenderVoiceInputGlow(connected, true, simulating || isOwner);
-
-				if (!glowActive) {
-					glowController.clear();
-					return;
-				}
-
-				// Get audio intensity from analyser
-				const analyser = this.ttsPlaybackService.analyserNode
-					?? (voiceState === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
-					?? null;
-				let intensity: number;
-				if (!analyser && simulating) {
-					// No live audio (a simulation): synthesize a lively pulsing intensity
-					// so the walkthrough glow behaves like real speech instead of sitting flat.
-					const t = Date.now() / 1000;
-					intensity = Math.min(1, 0.28 + 0.34 * Math.abs(Math.sin(t * 6.1)) + 0.22 * Math.abs(Math.sin(t * 11.3 + 1)));
-				} else {
-					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
-				}
-
-				glowController.render(intensity, this.accessibilityService.isMotionReduced());
-			};
-			animFrameId = win.requestAnimationFrame(animate);
-		};
-		const stopGlowAnimation = () => {
-			if (animFrameId !== undefined) {
-				win.cancelAnimationFrame(animFrameId);
-				animFrameId = undefined;
-			}
-			glowController.clear();
-		};
-		this._register(autorun(reader => {
-			const connected = this.voiceSessionController.isConnected.read(reader);
-			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
-			const simGlow = sim === 'idle' || sim === 'listening' || sim === 'speaking';
-			if (simGlow || (sim === undefined && connected)) {
-				startGlowAnimation();
-			} else {
-				stopGlowAnimation();
-			}
-		}));
-		this._register({ dispose: () => stopGlowAnimation() });
+		this.setupVoiceGlow(inputContainerEl);
 
 		// Voice transcript is per-session. The transcript is "owned" by the
 		// session the user is dictating into (the explicit target session, or the

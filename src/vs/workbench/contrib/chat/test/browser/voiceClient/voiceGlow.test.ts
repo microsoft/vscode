@@ -52,6 +52,53 @@ suite('VoiceGlow', () => {
 			micShadow: '0 0 3px rgba(88,166,255,0.2)',
 			activeAfterClear: false,
 		});
+
+	});
+
+	test('a host clock preserves rim movement while its timeline is paused', () => {
+		const target = document.createElement('div');
+		let time = 0;
+		const rim = disposables.add(createVoiceRimLight(target, Color.fromHex('#58A6FF'), 'dark', 'cool', undefined, { now: () => time }));
+		const slot = target.querySelector<HTMLElement>('.voice-glow-rim')!;
+		rim.drive(0.3);
+		const first = slot.style.getPropertyValue('--vg-x1');
+		rim.drive(0.3);
+		const paused = slot.style.getPropertyValue('--vg-x1');
+		time = 0.05;
+		rim.drive(0.3);
+		assert.deepStrictEqual({ paused: paused === first, resumed: slot.style.getPropertyValue('--vg-x1') !== first }, { paused: true, resumed: true });
+	});
+
+	test('enabling reduced motion settles an active rim and clears it without a fade', () => {
+		const target = document.createElement('div');
+		const controller = disposables.add(createVoiceGlowController(target));
+		controller.render(0.7, false);
+		const slot = target.querySelector<HTMLElement>('.voice-glow-rim')!;
+		const moving = slot.style.getPropertyValue('--vg-x1');
+		controller.render(0.7, true);
+		const still = slot.style.getPropertyValue('--vg-x1');
+		controller.render(0.1, true);
+		const unchanged = slot.style.getPropertyValue('--vg-strength');
+		controller.render(0.9, true);
+		const state = {
+			settled: still !== moving,
+			still: slot.style.getPropertyValue('--vg-x1') === still,
+			stableIntensity: slot.style.getPropertyValue('--vg-strength') === unchanged,
+			transition: slot.style.transition,
+			active: target.classList.contains('voice-active'),
+		};
+		controller.clear();
+		controller.render(0.3, true);
+		controller.dispose();
+		assert.deepStrictEqual({
+			...state,
+			disposedClasses: target.className,
+			disposedAccent: target.style.getPropertyValue('--voice-accent'),
+			disposedSlots: target.childElementCount,
+		}, {
+			settled: true, still: true, stableIntensity: true, transition: 'none', active: true,
+			disposedClasses: '', disposedAccent: '', disposedSlots: 0,
+		});
 	});
 
 	test('clears legacy voice classes with or without an active rim', () => {

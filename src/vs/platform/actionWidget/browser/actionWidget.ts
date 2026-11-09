@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { hasRequiredAncestorClasses, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES, hasRequiredAncestorClasses, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
@@ -86,6 +86,8 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	private readonly _closeAnimation = this._register(new MutableDisposable<IDisposable>());
 	private _widgetElement: HTMLElement | undefined;
 	private _closingList: ActionList<unknown> | undefined;
+	private _anchor: HTMLElement | StandardMouseEvent | IAnchor | undefined;
+	private _user: string | undefined;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -96,13 +98,18 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	}
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions, contextViewLayer?: number): void {
+		const previousStyle = this._closingList && this._widgetElement && this._anchor === anchor && this._user === user
+			? dom.getWindow(this._widgetElement).getComputedStyle(this._widgetElement) : undefined;
+		const entrance = previousStyle ? { opacity: previousStyle.opacity, transform: previousStyle.transform } : undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
+				this._anchor = anchor;
+				this._user = user;
+				return this._renderWidget(container, list, actionBarActions ?? [], listOptions, entrance);
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
@@ -115,7 +122,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	}
 
 	acceptSelected(preview?: boolean) {
-		this._list.value?.acceptSelected(preview);
+		if (!this._closingList) {
+			this._list.value?.acceptSelected(preview);
+		}
 	}
 
 	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
@@ -169,6 +178,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const closeAnimation = list.closeAnimation;
+		ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService).reset();
 		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
 			this._closingList = list;
 			list.hide(didCancel);
@@ -182,11 +192,24 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		widget.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
 		widget.classList.add(closeAnimation.className);
 		list.hide(didCancel, false);
-		this._closeAnimation.value = disposableTimeout(() => {
+		if (this._list.value !== list || this._widgetElement !== widget) {
+			return;
+		}
+		widget.inert = true;
+		const lifetime = new DisposableStore();
+		this._closeAnimation.value = lifetime;
+		const finish = () => {
 			if (this._list.value === list) {
 				this._contextViewService.hideContextView(didCancel);
 			}
-		}, closeAnimation.duration);
+		};
+		const animation = widget.getAnimations().find(animation => animation instanceof dom.getWindow(widget).CSSAnimation);
+		if (animation) {
+			lifetime.add(dom.addDisposableListener(animation, 'finish', finish));
+			lifetime.add(dom.addDisposableListener(animation, 'cancel', finish));
+		} else {
+			lifetime.add(disposableTimeout(finish, closeAnimation.duration));
+		}
 	}
 
 	clear() {
@@ -195,10 +218,12 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE);
 		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE);
 		this._widgetElement = undefined;
+		this._anchor = undefined;
+		this._user = undefined;
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], listOptions: IActionListOptions | undefined): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], listOptions: IActionListOptions | undefined, entrance: { opacity: string; transform: string } | undefined): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
@@ -224,6 +249,13 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+		for (const event of ['animationend', 'animationcancel']) {
+			renderDisposables.add(dom.addDisposableListener(widget, event, (e: AnimationEvent) => {
+				if (e.target === widget && e.animationName === 'action-widget-dropdown-open') {
+					widget.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
+				}
+			}));
+		}
 		if (listOptions?.filterAsCombobox) {
 			renderDisposables.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
 				if (e.keyCode === KeyCode.Escape && !e.browserEvent.isComposing) {
@@ -297,7 +329,13 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		if (widgetClassNames?.length) {
 			widget.classList.add(...widgetClassNames);
 		}
-		widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
+		if (entrance) {
+			widget.style.setProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE, entrance.opacity);
+			widget.style.setProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE, entrance.transform);
+		}
+		if (hasRequiredAncestorClasses(widget, CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES)) {
+			widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
+		}
 		return renderDisposables;
 	}
 

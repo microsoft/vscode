@@ -49,13 +49,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { MotionController } from '../../../../../base/browser/ui/animations/motion.js';
+import { resolveMotionRecipe } from '../../../../../platform/theme/common/motion/motionRecipes.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
@@ -246,11 +248,25 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
-	private readonly renderedElements = new Map<string, HTMLElement>();
+	private readonly renderedElements = new Map<string, IAgentSessionItemTemplate>();
 
 	/** Returns only a currently rendered row owned by this list renderer. */
 	getSessionElement(resource: URI): HTMLElement | undefined {
-		return this.renderedElements.get(resource.toString());
+		return this.renderedElements.get(resource.toString())?.element;
+	}
+
+	revealSession(resource: URI): IDisposable | undefined {
+		const template = this.renderedElements.get(resource.toString());
+		if (!template || this.accessibilityService.isMotionReduced()) {
+			return undefined;
+		}
+		const lifetime = template.elementDisposable.add(new DisposableStore());
+		const motion = lifetime.add(new MotionController(template.element, false));
+		lifetime.add(this.accessibilityService.onDidChangeReducedMotion(() => motion.setReducedMotion(this.accessibilityService.isMotionReduced())));
+		void motion.play(resolveMotionRecipe('motion.content.enter'))
+			.finally(() => template.elementDisposable.delete(lifetime))
+			.catch(onUnexpectedError);
+		return lifetime;
 	}
 
 	private readonly _onDidChangeItemHeight = this._register(new Emitter<IAgentSession>());
@@ -356,9 +372,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Clear old state
 		template.elementDisposable.clear();
 		const resource = session.element.resource.toString();
-		this.renderedElements.set(resource, template.element);
+		this.renderedElements.set(resource, template);
 		template.elementDisposable.add(toDisposable(() => {
-			if (this.renderedElements.get(resource) === template.element) {
+			if (this.renderedElements.get(resource) === template) {
 				this.renderedElements.delete(resource);
 			}
 		}));

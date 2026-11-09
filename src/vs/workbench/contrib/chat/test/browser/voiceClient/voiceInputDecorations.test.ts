@@ -5,6 +5,9 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -20,6 +23,75 @@ import { ITranscriptTurn, IVoiceSessionController, VoiceState } from '../../../b
 
 suite('Voice input decorations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('stops sampling while reduced or hidden and responds to ownership without a frame loop', async () => {
+		const motionChanged = store.add(new Emitter<void>());
+		let reduced = true;
+		let samples = 0;
+		const active = observableValue('active', true);
+		const owner = observableValue('owner', true);
+		const connected = observableValue('connected', true);
+		const input = dom.append(document.body, dom.$('div'));
+		input.style.cssText = 'position: fixed; top: 80px; left: 0; width: 200px; height: 80px;';
+		store.add(toDisposable(() => input.remove()));
+		const decorations = store.add(setupVoiceInputDecorations({
+			voiceSessionController: new class extends mock<IVoiceSessionController>() {
+				override readonly isConnected = connected;
+				override readonly voiceState = observableValue<VoiceState>('state', 'listening');
+				override readonly isMuted = observableValue('muted', false);
+				override readonly transcriptTurns = observableValue<readonly ITranscriptTurn[]>('turns', []);
+			},
+			ttsPlaybackService: new class extends mock<ITtsPlaybackService>() {
+				override get analyserNode() { samples++; return undefined; }
+			},
+			micCaptureService: new class extends mock<IMicCaptureService>() {
+				override readonly analyserNode = undefined;
+			},
+			configurationService: new TestConfigurationService({ 'agents.voice.showTranscript': false }),
+			keybindingService: new MockKeybindingService(),
+			themeService: new TestThemeService(),
+			accessibilityService: new class extends TestAccessibilityService {
+				override onDidChangeReducedMotion = motionChanged.event;
+				override isMotionReduced() { return reduced; }
+			}(),
+		}, { inputContainer: input, isActive: active, isOwner: owner }));
+		const sampleFor = async () => {
+			const before = samples;
+			await timeout(60);
+			return samples - before;
+		};
+		const initial = { samples: await sampleFor(), active: input.classList.contains('voice-active') };
+		reduced = false;
+		motionChanged.fire();
+		await retry(async () => assert.ok(samples > 1), 10, 100);
+		input.style.display = 'none';
+		await retry(async () => assert.ok(input.classList.contains('voice-glow-paused')), 10, 100);
+		const hidden = await sampleFor();
+		input.style.display = '';
+		const beforeResume = samples;
+		await retry(async () => assert.ok(samples > beforeResume), 10, 100);
+		reduced = true;
+		motionChanged.fire();
+		const reducedAgain = await sampleFor();
+		owner.set(false, undefined);
+		const otherOwnerActive = input.classList.contains('voice-active');
+		owner.set(true, undefined);
+		const reboundActive = input.classList.contains('voice-active');
+		connected.set(false, undefined);
+		const disconnectedActive = input.classList.contains('voice-active');
+		connected.set(true, undefined);
+		decorations.dispose();
+		reduced = false;
+		motionChanged.fire();
+		assert.deepStrictEqual({
+			initial, hidden, reducedAgain, otherOwnerActive, reboundActive, disconnectedActive,
+			disposedSamples: await sampleFor(), disposedActive: input.classList.contains('voice-active'),
+		}, {
+			initial: { samples: 0, active: true }, hidden: 0, reducedAgain: 0,
+			otherOwnerActive: false, reboundActive: true, disconnectedActive: false,
+			disposedSamples: 0, disposedActive: false,
+		});
+	});
 
 	test('keeps the blue glow connected without listening or barge-in hints', async () => {
 		const connected = observableValue('connected', true);

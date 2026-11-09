@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "patterns",
+	"renderer": "guidance",
+	"content": "content/guidance/interaction-patterns.json",
+	"sources": [
+		{ "file": ".github/skills/hover/SKILL.md" },
+		{ "file": ".github/skills/context-menus/SKILL.md" },
+		{ "file": ".github/skills/accessibility/SKILL.md" }
+	],
+	"sections": []
+}

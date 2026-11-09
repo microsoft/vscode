@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-progress-container {
+	position: relative;
 	width: 100%;
 	height: 2px;
 	overflow: hidden; /* keep progress bit in bounds */
@@ -23,7 +24,7 @@
 
 .monaco-progress-container.discrete .progress-bit {
 	left: 0;
-	transition: width var(--vscode-motion-duration-normal, 200ms) var(--vscode-motion-easing-linear, linear);
+	transition: width var(--vscode-motion-progress-determinate-duration, 200ms) var(--vscode-motion-easing-linear, linear);
 }
 
 .monaco-progress-container.discrete.done .progress-bit {
@@ -33,7 +34,7 @@
 .monaco-progress-container.infinite .progress-bit {
 	animation-name: progress;
 	animation-duration: var(--vscode-motion-progress-duration, 4000ms);
-	animation-iteration-count: var(--vscode-motion-iterations-loop, infinite);
+	animation-iteration-count: infinite;
 	transform: translate3d(0px, 0px, 0px);
 	animation-timing-function: var(--vscode-motion-progress-easing, linear);
 }
@@ -45,20 +46,15 @@
 		https://github.com/microsoft/vscode/issues/97900 &
 		https://github.com/microsoft/vscode/issues/138396
 	*/
-	animation-timing-function: var(--vscode-motion-easing-progressSteps, steps(100));
+	animation-timing-function: var(--vscode-motion-progress-longRunning-easing, steps(100));
 }
 
-/**
- * The progress bit has a width: 2% (1/50) of the parent container. The animation moves it from 0% to 100% of
- * that container. Since translateX is relative to the progress bit size, we have to multiple it with
- * its relative size to the parent container:
- * parent width: 5000%
- *    bit width: 100%
- * translateX should be as follow:
- *  50%: 5000% * 50% - 50% (set to center) = 2450%
- * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
- */
-@keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }
+.monaco-progress-container.monaco-progress-paused .progress-bit {
+	animation-play-state: paused;
+}
+
+/* The fixed 10% segment wraps only after leaving the clipped track. */
+@keyframes progress { from { transform: translateX(-100%) } to { transform: translateX(1000%) } }
 
 .monaco-reduce-motion .monaco-progress-container.infinite .progress-bit {
 	animation: none;
@@ -70,12 +66,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-progress-container.infinite .progress-bit {
+	.monaco-progress-container.infinite:not(.monaco-enable-motion *) .progress-bit {
 		animation: none;
 		transform: none;
 	}
 
-	.monaco-progress-container.discrete .progress-bit {
+	.monaco-progress-container.discrete:not(.monaco-enable-motion *) .progress-bit {
 		transition: none;
 	}
 }

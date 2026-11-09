@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "iconography",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/base/common/iconography.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {}
+}

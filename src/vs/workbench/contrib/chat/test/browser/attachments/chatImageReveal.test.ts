@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -116,6 +116,78 @@ suite('ChatImageReveal', () => {
 			state: { pending: true, revealing: false, effects: 1, imageOpacity: '0' },
 			size: [200, 200],
 			painted: true,
+		});
+	});
+
+	test('a loading surface follows its injected clock and cancels scheduled frames on disposal', async () => {
+		const { container, reveal, instantiationService } = await render();
+		reveal.dispose();
+		container.style.width = '200px';
+		container.style.height = '200px';
+		let now = 400;
+		const pending = new Set<() => void>();
+		const surface = store.add(instantiationService.createInstance(class extends GlyphSurface {
+			protected override now(): number { return now; }
+			protected override scheduleFrame(_window: Window, runner: () => void) {
+				pending.add(runner);
+				return toDisposable(() => pending.delete(runner));
+			}
+		}, container));
+		await nextFrame();
+		await nextFrame();
+		const pixels = () => surface.canvas.getContext('2d')!.getImageData(0, 0, surface.canvas.width, surface.canvas.height).data;
+		const runFrame = () => {
+			for (const runner of [...pending]) {
+				pending.delete(runner);
+				runner();
+			}
+		};
+		const initial = pixels();
+		runFrame();
+		const paused = pixels();
+		now += 400;
+		runFrame();
+		const resumed = pixels();
+		const scheduled = pending.size;
+		surface.dispose();
+		assert.deepStrictEqual({
+			painted: initial.some((value, index) => index % 4 === 3 && value > 0),
+			paused: initial.every((value, index) => value === paused[index]),
+			resumed: initial.some((value, index) => value !== resumed[index]),
+			scheduled,
+			pending: pending.size,
+			connected: surface.canvas.isConnected,
+		}, { painted: true, paused: true, resumed: true, scheduled: 1, pending: 0, connected: false });
+	});
+
+	test('loading stops scheduling offscreen and resumes without changing reduced-motion or disposal semantics', async () => {
+		const { container, reveal, instantiationService } = await render();
+		reveal.dispose();
+		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 160px; height: 160px;';
+		const pending = new Set<() => void>();
+		const surface = store.add(instantiationService.createInstance(class extends GlyphSurface {
+			protected override scheduleFrame(_window: Window, runner: () => void) {
+				pending.add(runner);
+				return toDisposable(() => pending.delete(runner));
+			}
+		}, container));
+		const waitForPending = (count: number) => retry(async () => assert.strictEqual(pending.size, count), 10, 100);
+		await waitForPending(1);
+		container.style.top = '100000px';
+		await waitForPending(0);
+		const offscreen = pending.size;
+		container.style.top = '0';
+		await waitForPending(1);
+		const resumed = pending.size;
+		reducedMotion = true;
+		motionChanged.fire();
+		const reduced = pending.size;
+		reducedMotion = false;
+		motionChanged.fire();
+		const enabled = pending.size;
+		surface.dispose();
+		assert.deepStrictEqual({ offscreen, resumed, reduced, enabled, disposed: pending.size }, {
+			offscreen: 0, resumed: 1, reduced: 0, enabled: 1, disposed: 0,
 		});
 	});
 

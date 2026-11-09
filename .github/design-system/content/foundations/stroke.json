@@ -1,0 +1,35 @@
+{
+	"version": 1,
+	"id": "stroke",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/sizes/stroke.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"usage": {
+			"title": "Use strokes to define boundaries",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/stroke.md",
+					"heading": "Use strokes to define boundaries",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"reference": {
+			"title": "Stroke reference",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/stroke.md",
+					"heading": "Stroke reference",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	}
+}

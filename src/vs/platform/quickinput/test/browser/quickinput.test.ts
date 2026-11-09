@@ -39,6 +39,7 @@ import { IAccessibilityService } from '../../../accessibility/common/accessibili
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import { HoverService } from '../../../hover/browser/hoverService.js';
+import { motionPresetBindings, resolveMotionPresetBinding } from '../../../theme/common/motion/motionPresetBindings.js';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -432,16 +433,158 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		]);
 	});
 
+	for (const suppression of ['reduced motion', 'CSS'] as const) {
+		test(`does not replay entrance after ${suppression} changes while visible`, async () => {
+			fixture.classList.add('modern-ui', 'monaco-enable-motion');
+			controller.layout({ height: 500, width: 600 }, 0);
+			const quickpick = store.add(controller.createQuickPick());
+			quickpick.items = [{ label: 'first' }, { label: 'second' }];
+			const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+			const suppressMotion = (suppressed: boolean) => {
+				if (suppression === 'reduced motion') {
+					fixture.classList.toggle('monaco-enable-motion', !suppressed);
+					fixture.classList.toggle('monaco-reduce-motion', suppressed);
+				} else {
+					widget.style.animation = suppressed ? 'none' : '';
+				}
+			};
+
+			suppressMotion(true);
+			quickpick.show();
+			const initialWidth = widget.offsetWidth;
+			suppressMotion(false);
+			const lateEntranceCount = widget.getAnimations().length;
+			quickpick.value = 'second';
+			const filteredItems = quickpick.activeItems.map(item => item.label);
+
+			quickpick.hide();
+			quickpick.show();
+			const [opening] = widget.getAnimations();
+			assert.ok(opening, 'a new showing should still animate');
+			opening.pause();
+			opening.currentTime = 100;
+			const cancelled = Event.toPromise(Event.fromDOMEventEmitter(opening, 'cancel'), store.add(new DisposableStore()));
+			suppressMotion(true);
+			const cancelledAnimationCount = widget.getAnimations().length;
+			await cancelled;
+			suppressMotion(false);
+
+			const state = {
+				lateEntranceCount,
+				cancelledAnimationCount,
+				restartedEntranceCount: widget.getAnimations().length,
+				filteredItems,
+				inputFocused: widget.contains(mainWindow.document.activeElement) && mainWindow.document.activeElement?.tagName === 'INPUT',
+				widthPreserved: widget.offsetWidth === initialWidth,
+				visible: controller.isVisible(),
+				inert: widget.inert,
+			};
+			quickpick.hide();
+			assert.deepStrictEqual(state, {
+				lateEntranceCount: 0,
+				cancelledAnimationCount: 0,
+				restartedEntranceCount: 0,
+				filteredItems: ['second'],
+				inputFocused: true,
+				widthPreserved: true,
+				visible: true,
+				inert: false,
+			});
+		});
+	}
+
+	test('reopening discards the previous entrance animation callbacks', () => {
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [previousOpening] = widget.getAnimations();
+		assert.ok(previousOpening);
+		quickpick.hide();
+		quickpick.show();
+		const [opening] = widget.getAnimations();
+		assert.ok(opening);
+		previousOpening.dispatchEvent(new mainWindow.Event('finish'));
+		previousOpening.dispatchEvent(new mainWindow.Event('cancel'));
+
+		const state = {
+			animationPreserved: widget.getAnimations()[0] === opening,
+			settled: widget.classList.contains('quick-input-widget-motion-settled'),
+			visible: controller.isVisible(),
+			inert: widget.inert,
+		};
+		quickpick.hide();
+		assert.deepStrictEqual(state, {
+			animationPreserved: true,
+			settled: false,
+			visible: true,
+			inert: false,
+		});
+	});
+
+	for (const candidate of [false, true]) {
+		test(`interrupted entrance closes from its current presentation (${candidate ? 'candidate' : 'default'})`, async () => {
+			fixture.classList.add('modern-ui', 'monaco-enable-motion');
+			if (candidate) {
+				for (const [name, value] of Object.entries(resolveMotionPresetBinding(motionPresetBindings.find(binding => binding.id === 'surface')!).cssVariables)) {
+					fixture.style.setProperty(name, value);
+				}
+			}
+			const quickpick = store.add(controller.createQuickPick());
+			quickpick.items = [{ label: 'item' }];
+			const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+			const states = [];
+			const expected = [];
+
+			for (const currentTime of [0, 40, 120]) {
+				quickpick.show();
+				const [opening] = widget.getAnimations();
+				assert.ok(opening);
+				opening.pause();
+				opening.currentTime = currentTime;
+				const { opacity, transform } = mainWindow.getComputedStyle(widget);
+
+				quickpick.hide();
+				const [closing] = widget.getAnimations();
+				assert.ok(closing);
+				closing.pause();
+				closing.currentTime = 0;
+				const presentation = mainWindow.getComputedStyle(widget);
+				const state = {
+					currentTime,
+					opacity: presentation.opacity,
+					transform: presentation.transform,
+					visible: controller.isVisible(),
+					inert: widget.inert,
+				};
+				const finished = Event.toPromise(Event.fromDOMEventEmitter(closing, 'finish'), store.add(new DisposableStore()));
+				closing.finish();
+				await finished;
+				states.push({
+					...state,
+					opacitySnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-opacity'),
+					transformSnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-transform'),
+				});
+				expected.push({
+					currentTime, opacity, transform, visible: false, inert: true,
+					opacitySnapshot: '', transformSnapshot: '',
+				});
+			}
+			assert.deepStrictEqual(states, expected);
+		});
+	}
+
 	test('close motion requires modern UI with motion enabled', () => {
 		const clock = sinon.useFakeTimers();
 		const quickpick = store.add(controller.createQuickPick());
 		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
-		const states: { display: string; closing: boolean; inert: boolean; visible: boolean }[] = [];
+		const states: { display: string; closing: boolean; inert: boolean; visible: boolean; hasSnapshot: boolean }[] = [];
 		const recordState = () => states.push({
 			display: widget.style.display,
 			closing: widget.classList.contains('quick-input-widget-closing'),
 			inert: widget.inert,
 			visible: controller.isVisible(),
+			hasSnapshot: !!widget.style.getPropertyValue('--vscode-quick-input-close-opacity'),
 		});
 
 		fixture.classList.add('modern-ui', 'monaco-reduce-motion');
@@ -462,10 +605,10 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		recordState();
 
 		assert.deepStrictEqual(states, [
-			{ display: 'none', closing: false, inert: false, visible: false },
-			{ display: '', closing: true, inert: true, visible: false },
-			{ display: '', closing: false, inert: false, visible: true },
-			{ display: 'none', closing: false, inert: false, visible: false },
+			{ display: 'none', closing: false, inert: false, visible: false, hasSnapshot: false },
+			{ display: '', closing: true, inert: true, visible: false, hasSnapshot: true },
+			{ display: '', closing: false, inert: false, visible: true, hasSnapshot: false },
+			{ display: 'none', closing: false, inert: false, visible: false, hasSnapshot: false },
 		]);
 	});
 
@@ -538,12 +681,58 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			display: widget.style.display,
 			closing: widget.classList.contains('quick-input-widget-closing'),
 			inert: widget.inert,
+			opacitySnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-opacity'),
+			transformSnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-transform'),
 		}, {
 			animationCount: 0,
 			display: 'none',
 			closing: false,
 			inert: false,
+			opacitySnapshot: '',
+			transformSnapshot: '',
 		});
+	});
+
+	test('disposal clears an interrupted entrance snapshot', () => {
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		controller.dispose();
+
+		assert.deepStrictEqual({
+			display: widget.style.display,
+			inert: widget.inert,
+			opacitySnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-opacity'),
+			transformSnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-transform'),
+		}, { display: 'none', inert: false, opacitySnapshot: '', transformSnapshot: '' });
+	});
+
+	test('a settled entrance closes normally after an interrupted close is reopened', async () => {
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		quickpick.show();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [opening] = widget.getAnimations();
+		assert.ok(opening);
+		const finished = Event.toPromise(Event.fromDOMEventEmitter(opening, 'finish'), store.add(new DisposableStore()));
+		opening.finish();
+		await finished;
+		quickpick.hide();
+		const [closing] = widget.getAnimations();
+		assert.ok(closing);
+		closing.pause();
+		closing.currentTime = 0;
+		const { opacity, transform } = mainWindow.getComputedStyle(widget);
+
+		assert.deepStrictEqual({
+			opacity, transform,
+			opacitySnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-opacity'),
+			transformSnapshot: widget.style.getPropertyValue('--vscode-quick-input-close-transform'),
+		}, { opacity: '1', transform: 'matrix(1, 0, 0, 1, 0, 0)', opacitySnapshot: '', transformSnapshot: '' });
 	});
 
 	test('reopening discards the previous close animation callbacks and timeout', () => {

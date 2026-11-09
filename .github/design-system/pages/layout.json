@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"id": "layout",
+	"renderer": "foundations",
+	"content": "content/foundations/layout.json",
+	"sources": [
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		}
+	],
+	"sections": []
+}

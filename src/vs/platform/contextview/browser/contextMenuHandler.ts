@@ -10,13 +10,14 @@ import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { isPopoverDOMPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { contextViewMenuCloseAnimation, isPopoverDOMPosition } from '../../../base/browser/ui/contextview/contextview.js';
 import { getMenuActionGroupTitle } from '../../actions/common/actions.js';
 import { IContextViewService } from './contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
+import { motionTokenRegistry } from '../../theme/common/motionRegistry.js';
 
 
 export interface IContextMenuHandlerOptions {
@@ -58,7 +59,9 @@ export class ContextMenuHandler {
 			canRelayout: false,
 			anchorAlignment: delegate.anchorAlignment,
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
-			closeAnimation: delegate.closeAnimation,
+			closeAnimation: delegate.closeAnimation === contextViewMenuCloseAnimation
+				? { ...delegate.closeAnimation, duration: motionTokenRegistry.getNumber('motion.surface.exit.duration', 'duration') }
+				: delegate.closeAnimation,
 			layer: delegate.layer,
 			hostAsPopover: delegate.hostAsPopover,
 			render: (container, context) => {

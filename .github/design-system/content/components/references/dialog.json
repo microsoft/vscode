@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "dialog",
+	"className": "Dialog",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/dialog/dialog-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/dialog/dialog-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/dialog/dialog-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/dialog/dialog-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"detail",
+			"string?",
+			"Supporting explanation after the main message.",
+			"readonly detail?: string;"
+		],
+		[
+			"cancelId",
+			"number?",
+			"Identifies the cancellation button.",
+			"readonly cancelId?: number;"
+		],
+		[
+			"inputs",
+			"IDialogInputOptions[]?",
+			"Optional text fields.",
+			"readonly inputs?: IDialogInputOptions[];"
+		],
+		[
+			"show()",
+			"Promise<IDialogResult>",
+			"Shows the dialog and resolves with the chosen button and values.",
+			"async show(): Promise<IDialogResult>"
+		]
+	]
+}

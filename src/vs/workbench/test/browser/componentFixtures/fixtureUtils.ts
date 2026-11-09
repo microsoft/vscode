@@ -8,6 +8,7 @@
 import { defineFixture, defineFixtureGroup, defineFixtureVariants, FixtureInputControlOptions } from '@vscode/component-explorer';
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { z } from 'zod';
+export { z };
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
@@ -1109,6 +1110,8 @@ export interface ComponentFixtureContext {
 	fileIconTheme: IFileIconTheme;
 	/** Input including schema defaults; parse with the fixture's schema to narrow its type. */
 	readonly input: unknown;
+	/** Observes a schema input field without remounting the fixture. */
+	watchInput(key: string, listener: (value: unknown, input: unknown) => void): IDisposable;
 	/** Whether deterministic fixture focus overrides natural browser focus. */
 	readonly overrideFocus: boolean;
 	/** Whether the fixture is being explored rather than captured headlessly. */
@@ -1339,13 +1342,13 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						stylesheetOrderOverride.value = overrideStylesheetOrder(option);
 					}
 				};
-				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
-				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
-				context.watchInput('enableAnimations', value => {
+				disposableStore.add(context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input)));
+				disposableStore.add(context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input)));
+				disposableStore.add(context.watchInput('enableAnimations', value => {
 					const enabled = value === true;
 					container.classList.toggle('disable-animations', !enabled);
 					onDidChangeEnableAnimations.fire(enabled);
-				});
+				}));
 
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1380,6 +1383,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						theme,
 						fileIconTheme,
 						input: context.input,
+						watchInput: (key, listener) => context.watchInput(key, listener),
 						overrideFocus: input.overrideFocus,
 						isInteractive: context.host.kind !== 'headless',
 						onDidChangeEnableAnimations: onDidChangeEnableAnimations.event,

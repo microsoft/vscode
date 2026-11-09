@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "keybinding-label",
+	"className": "KeybindingLabel",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"set(keybinding, matches)",
+			"void",
+			"Displays a resolved binding with optional matching keys.",
+			"set(keybinding: ResolvedKeybinding | undefined, matches?: Matches)"
+		],
+		[
+			"renderUnboundKeybindings",
+			"boolean?",
+			"Allows display of an unbound shortcut.",
+			"renderUnboundKeybindings?: boolean;"
+		],
+		[
+			"disableTitle",
+			"boolean?",
+			"Disables the generated hover title.",
+			"disableTitle?: boolean;"
+		],
+		[
+			"element",
+			"HTMLElement",
+			"Root display element.",
+			"get element(): HTMLElement"
+		]
+	]
+}

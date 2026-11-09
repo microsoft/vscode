@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { constObservable } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -31,6 +32,10 @@ import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSess
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { TestThemeService } from '../../../../../../../platform/theme/test/common/testThemeService.js';
+import { SimulatedVoiceState } from '../../../../browser/voiceInputMode/voiceInputMode.js';
+import { VoiceState } from '../../../../browser/voiceClient/voiceSessionController.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,11 +76,8 @@ suite('ChatViewPane sessions refresh', () => {
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());
 		const reasons: (ChatSessionRefreshReason | undefined)[] = [];
-		const control = Object.assign(Object.create(AgentSessionsControl.prototype), {
-			agentSessionsService: {
-				model: { resolve: async (_provider: string | undefined, _onError: undefined, reason?: ChatSessionRefreshReason) => { reasons.push(reason); } },
-			},
-			dispose: () => { },
+		const control = Object.assign(toDisposable(() => { }), {
+			refresh: async (reason: ChatSessionRefreshReason = 'manual') => { reasons.push(reason); },
 			setVisible: () => { },
 		});
 		const toolbar = Object.assign(toDisposable(() => { }), { context: control });
@@ -296,6 +298,89 @@ suite('ChatViewPane session transitions', () => {
 			});
 		}));
 	}
+});
+suite('ChatViewPane voice glow', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('suspends sampling while reduced, hidden, or not the owner and resumes live state', async () => {
+		const lifetime = store.add(new DisposableStore());
+		const motionChanged = store.add(new Emitter<void>());
+		const visibilityChanged = store.add(new Emitter<boolean>());
+		let reduced = true;
+		let visible = true;
+		let samples = 0;
+		const resource = URI.parse('chat-session:/voice');
+		const target = observableValue<URI | undefined>('target', resource);
+		const connected = observableValue('connected', true);
+		const simulation = observableValue<SimulatedVoiceState | undefined>('simulation', undefined);
+		const input = dom.append(document.body, dom.$('div'));
+		input.style.cssText = 'position: fixed; top: 80px; left: 0; width: 200px; height: 80px;';
+		store.add(toDisposable(() => input.remove()));
+		const pane: { setupVoiceGlow(input: HTMLElement): void } = Object.assign(Object.create(ChatViewPane.prototype), {
+			_store: lifetime,
+			_currentSessionResource: constObservable(resource),
+			_focusedSessionResource: constObservable<URI | undefined>(undefined),
+			_widget: { viewModel: { sessionResource: resource } },
+			isBodyVisible: () => visible,
+			onDidChangeBodyVisibility: visibilityChanged.event,
+			voiceSessionController: {
+				isConnected: connected,
+				voiceState: observableValue<VoiceState>('state', 'listening'),
+				isMuted: constObservable(false),
+				targetSession: target,
+			},
+			voiceInputModeService: { simulatedVoiceState: simulation },
+			ttsPlaybackService: { get analyserNode() { samples++; return undefined; } },
+			micCaptureService: { analyserNode: undefined },
+			themeService: new TestThemeService(),
+			accessibilityService: new class extends TestAccessibilityService {
+				override onDidChangeReducedMotion = motionChanged.event;
+				override isMotionReduced() { return reduced; }
+			}(),
+		});
+		pane.setupVoiceGlow(input);
+		const sampleFor = async () => {
+			const before = samples;
+			await timeout(60);
+			return samples - before;
+		};
+		const initial = { samples: await sampleFor(), active: input.classList.contains('voice-active') };
+		reduced = false;
+		motionChanged.fire();
+		await retry(async () => assert.ok(samples > 1), 10, 100);
+		visible = false;
+		visibilityChanged.fire(visible);
+		const hidden = await sampleFor();
+		visible = true;
+		const beforeResume = samples;
+		visibilityChanged.fire(visible);
+		await retry(async () => assert.ok(samples > beforeResume), 10, 100);
+		target.set(URI.parse('chat-session:/other'), undefined);
+		const otherOwner = { samples: await sampleFor(), active: input.classList.contains('voice-active') };
+		simulation.set('listening', undefined);
+		const simulated = input.classList.contains('voice-active');
+		simulation.set('off', undefined);
+		const simulationOff = { samples: await sampleFor(), active: input.classList.contains('voice-active') };
+		simulation.set(undefined, undefined);
+		target.set(resource, undefined);
+		reduced = true;
+		motionChanged.fire();
+		const reducedAgain = await sampleFor();
+		connected.set(false, undefined);
+		const disconnectedActive = input.classList.contains('voice-active');
+		lifetime.dispose();
+		connected.set(true, undefined);
+		reduced = false;
+		motionChanged.fire();
+		assert.deepStrictEqual({
+			initial, hidden, otherOwner, simulated, simulationOff, reducedAgain, disconnectedActive,
+			disposedSamples: await sampleFor(), disposedActive: input.classList.contains('voice-active'),
+		}, {
+			initial: { samples: 0, active: true }, hidden: 0, otherOwner: { samples: 0, active: false },
+			simulated: true, simulationOff: { samples: 0, active: false }, reducedAgain: 0, disconnectedActive: false,
+			disposedSamples: 0, disposedActive: false,
+		});
+	});
 });
 
 suite('ChatViewPane managed permission rules', () => {

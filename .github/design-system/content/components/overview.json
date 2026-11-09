@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "components",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": ".github/design-system/guidance/overview.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {}
+}
