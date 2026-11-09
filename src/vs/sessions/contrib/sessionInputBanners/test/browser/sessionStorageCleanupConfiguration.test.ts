@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../browser/sessionStorageCleanupConfiguration.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING } from '../../browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 
 suite('SessionStorageCleanupConfiguration', () => {
 

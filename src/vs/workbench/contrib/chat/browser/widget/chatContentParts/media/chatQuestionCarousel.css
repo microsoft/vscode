@@ -17,6 +17,11 @@
 	position: relative;
 }
 
+/* maximized: raise the cap so long questions are easier to read */
+.interactive-session .chat-question-carousel-container.chat-question-carousel-maximized {
+	max-height: min(650px, 70vh);
+}
+
 .interactive-session .chat-question-carousel-container:focus {
 	outline: none;
 }
@@ -44,44 +49,41 @@
 .interactive-session .chat-question-carousel-container .chat-question-carousel-content {
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
 	min-height: 0;
 	overflow: hidden;
 
-	.chat-question-header-row {
-		display: flex;
-		flex-direction: column;
+	.chat-question-title-row {
+		min-width: 0;
+		flex-shrink: 0;
+	}
 
-		.chat-question-title-row {
-			min-width: 0;
-		}
+	.chat-question-title {
+		word-break: break-word;
+		white-space: normal;
+		user-select: text;
+		-webkit-user-select: text;
 
-		.chat-question-title {
-			word-break: break-word;
-			white-space: normal;
-			user-select: text;
-			-webkit-user-select: text;
-
-			.rendered-markdown {
-				p {
-					margin: 0;
-				}
+		.rendered-markdown {
+			p {
+				margin: 0;
 			}
 		}
+	}
 
-		.chat-question-header-actions {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			flex-shrink: 0;
-		}
+	.chat-question-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+	}
 
-		.chat-question-focus-terminal-container {
-			flex-shrink: 0;
-		}
+	.chat-question-focus-terminal-container {
+		flex-shrink: 0;
+	}
 
-		.chat-question-close-container {
-			flex-shrink: 0;
-		}
+	.chat-question-close-container {
+		flex-shrink: 0;
 	}
 }
 
@@ -108,8 +110,7 @@
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
 	.chat-question-carousel-content {
-		.chat-question-description,
-		.chat-question-input-scrollable,
+		.chat-question-body-scrollable,
 		.chat-question-validation-message {
 			display: none;
 		}
@@ -124,14 +125,25 @@
 .interactive-session .chat-question-carousel-container .chat-question-input-container {
 	display: flex;
 	flex-direction: column;
-	padding: 8px 16px;
 	min-width: 0;
 
-	&::after {
-		content: '';
-		display: block;
-		height: 8px;
-		flex-shrink: 0;
+	.chat-question-answers {
+		padding: 8px 16px 16px;
+	}
+
+	.chat-question-message,
+	.chat-question-detailed-message {
+		padding: 8px 16px 0;
+	}
+
+	.chat-question-message + .chat-question-answers,
+	.chat-question-detailed-message + .chat-question-answers {
+		padding-top: 0;
+	}
+
+	/* boolean questions are answered from the footer */
+	.chat-question-answers:empty {
+		display: none;
 	}
 
 	/* some hackiness to get the focus looking right */
@@ -283,32 +295,11 @@
 			height: fit-content;
 		}
 
-		.chat-question-freeform-textarea {
-			width: 100%;
-			min-height: 24px;
-			max-height: 200px;
-			padding: 3px 8px;
-			border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
-			background-color: var(--vscode-input-background);
-			color: var(--vscode-input-foreground);
-			border-radius: 4px;
-			resize: none;
-			font-family: var(--vscode-chat-font-family, inherit);
-			font-size: var(--vscode-chat-font-size-body-s);
-			box-sizing: border-box;
-			overflow-y: hidden;
-			align-content: center;
+		.chat-question-answer-editor {
+			flex: 1 1 0;
+			width: auto;
+			min-width: 0;
 		}
-
-		.chat-question-freeform-textarea:focus {
-			outline: 1px solid var(--vscode-focusBorder);
-			border-color: var(--vscode-focusBorder);
-		}
-
-		.chat-question-freeform-textarea::placeholder {
-			color: var(--vscode-input-placeholderForeground);
-		}
-
 	}
 
 	/* todo: change to use keybinding service so we don't have to recreate this */
@@ -327,24 +318,23 @@
 	flex-shrink: 0;
 }
 
-.interactive-session .chat-question-carousel-container .chat-question-header-row,
-.interactive-session .chat-question-carousel-container .chat-question-input-scrollable {
-	flex: 0 1 auto;
+/* the single scroll region below the pinned title row; the content is a clipped flex item so it scrolls instead of growing */
+.interactive-session .chat-question-carousel-container .chat-question-body-scrollable {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
 	min-height: 0;
 	overscroll-behavior: contain;
-}
-
-.interactive-session .chat-question-carousel-container .chat-question-header-row,
-.interactive-session .chat-question-carousel-container .chat-question-input-scrollable,
-.interactive-session .chat-question-carousel-container .chat-question-input-container {
 	box-sizing: border-box;
+
+	> .chat-question-input-container {
+		flex: 1 1 auto;
+		min-height: 0;
+		box-sizing: border-box;
+	}
 }
 
-.interactive-session .chat-question-carousel-container .chat-question-header-row {
-	overflow-y: auto;
-}
-
-/* footer with nav arrows, step indicator, and submit */
+/* footer with back button, step indicator, and the primary action */
 .interactive-session .chat-question-carousel-container .chat-question-footer-row {
 	display: flex;
 	justify-content: space-between;
@@ -376,27 +366,21 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
-	.chat-question-submit-hint {
-		font-size: var(--vscode-fontSize-body2);
-		color: var(--vscode-descriptionForeground);
-	}
-
-	.monaco-button.chat-question-submit-button {
-		background: var(--vscode-button-background) !important;
-		color: var(--vscode-button-foreground) !important;
+	/* compact round arrow-only state: as wide as the small button is tall */
+	.monaco-button.chat-question-submit-button-icon-only {
+		width: 22px;
 		height: 22px;
-		width: auto;
-		flex: 0 0 auto;
-		min-width: auto;
-		padding: 0 8px;
+		padding: 0;
+		border-radius: var(--vscode-cornerRadius-circle);
 	}
 
-	.monaco-button.chat-question-submit-button:hover:not(.disabled) {
-		background: var(--vscode-button-hoverBackground) !important;
+	.monaco-button.chat-question-submit-button-icon-only .codicon {
+		margin: 0;
 	}
 }
 
 /* user-select: text for elicitation dialog text areas */
+.interactive-session .chat-question-carousel-container .chat-question-message,
 .interactive-session .chat-question-carousel-container .chat-question-detailed-message,
 .interactive-session .chat-question-carousel-container .chat-question-description {
 	user-select: text;
@@ -679,4 +663,9 @@
 			margin-top: 0;
 		}
 	}
+}
+
+/* lets the primary button's text label take the swap animation's transform */
+.interactive-session .chat-question-carousel-container .chat-question-submit-button-content {
+	display: inline-block;
 }

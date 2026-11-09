@@ -21,7 +21,7 @@ import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip,
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',

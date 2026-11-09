@@ -6,7 +6,7 @@
 import type { Mutable } from '../../../../../base/common/types.js';
 import { LOCAL_MODEL_META_KEY, localTurnExecutions, type ILocalTurnExecution } from '../../localModel.js';
 import type { UsageInfo } from '../../state/protocol/common/state.js';
-import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, SessionMeta } from '../../state/sessionState.js';
+import type { IModelRoutedInfo, IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, SessionMeta } from '../../state/sessionState.js';
 
 function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -112,6 +112,8 @@ export interface UsageInfoMeta {
 	cost?: number;
 	/** The concrete model selected by Copilot Auto and the routing explanation. */
 	autoModeResolved?: IAutoModeResolvedInfo;
+	/** The model a host-side router picked for this turn. */
+	modelRouted?: IModelRoutedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		/** This turn's nano-AIU cost. */
@@ -211,6 +213,8 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (typeof meta.cost === 'number') { result.cost = meta.cost; }
 	const autoModeResolved = readAutoModeResolvedInfo(meta.autoModeResolved);
 	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
+	const modelRouted = readModelRoutedInfo(meta.modelRouted);
+	if (modelRouted) { result.modelRouted = modelRouted; }
 	const copilotUsage = meta.copilotUsage;
 	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
 		const rawUsage = copilotUsage as Record<string, unknown>;
@@ -283,6 +287,25 @@ function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undef
 	return totals.length > 0 ? totals : undefined;
 }
 
+
+function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Partial<Record<keyof IModelRoutedInfo, unknown>>;
+	if (typeof raw.router !== 'string' || typeof raw.chosenModel !== 'string') {
+		return undefined;
+	}
+	return {
+		router: raw.router,
+		chosenModel: raw.chosenModel,
+		...(typeof raw.preference === 'string' ? { preference: raw.preference } : {}),
+		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
+		...(typeof raw.switchedFrom === 'string' ? { switchedFrom: raw.switchedFrom } : {}),
+		...(raw.defaulted === true ? { defaulted: true } : {}),
+		...(raw.kept === true ? { kept: true } : {}),
+	};
+}
 
 function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {

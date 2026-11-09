@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuActionOptions, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -19,8 +19,9 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IWindowsConfiguration } from '../../../../platform/window/common/window.js';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from '../../../../base/common/verifier.js';
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import type { IEditorTransferVeto } from './editorTransferVeto.js';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -212,11 +213,26 @@ export interface IEditorPartsView {
 	createModalEditorPart(): Promise<IModalEditorPart>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
+
+	/** Tells the user why editors cannot move or copy to another group, such as with the group they are in. */
+	showTransferVeto(veto: IEditorTransferVeto): void;
 }
 
 /**
  * A helper to access and mutate editor groups within an editor part.
  */
+/** How editors are transferred to a group, which decides where they land (see `IEditorGroupsView.getTransferTarget`). */
+export const enum GroupTransferKind {
+	/** Into the group itself, such as merging a group or dropping editors into it. */
+	Merge,
+	/** As `moveGroup` moves a group beside it: in its grid within a part, else the target part adds it. */
+	MoveGroup,
+	/** As `copyGroup` copies a group beside it: the part of the group adds the copy. */
+	CopyGroup,
+	/** Into a group that the part of the group adds beside it, such as a split for dropped editors. */
+	AddGroup
+}
+
 export interface IEditorGroupsView {
 
 	readonly windowId: number;
@@ -236,6 +252,18 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group beside which {@link addGroup} adds a group asked for beside `location`: `location`, unless this view
+	 * adds its groups elsewhere, such as a compact auxiliary window, which adds them to the main window.
+	 */
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group where a transfer of the editors of `source` to `location` puts them, as the operation of `kind` runs:
+	 * `location` itself, or the group beside which the part that adds the group adds it (see {@link getAddGroupLocation}).
+	 */
+	getTransferTarget(kind: GroupTransferKind, source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -313,6 +341,18 @@ export interface IEditorGroupMenuIds {
 	readonly tabsBarContext?: MenuId;
 	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
 	readonly tabsBarAddTab?: MenuId;
+}
+
+/**
+ * The menu of an editor's own actions, with the context its actions show and run in, which the tab bar of its group
+ * shows in place of the group's editor actions, such as the actions of the title the editor renders itself.
+ */
+export interface IEditorPaneTitleMenu {
+	readonly menuId: MenuId;
+	/** The context the actions of the menu show in, such as the editor's own scope. */
+	readonly contextKeyService: IContextKeyService;
+	/** The options of the actions of the menu, such as the arguments their commands run with. */
+	readonly options: IMenuActionOptions;
 }
 
 /**

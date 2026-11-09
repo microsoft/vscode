@@ -1,3 +1,4 @@
+# pr.yml does not call this workflow for now: its macos-tests job is commented out (see there).
 on:
   workflow_call:
     inputs:

@@ -28,10 +28,9 @@ import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPol
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions policy update explanation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +50,7 @@ suite('Sessions policy update explanation', () => {
 		store.add(toDisposable(() => root.remove()));
 		const content = append(root, $('div'));
 		const fallbackFocusTarget = append(content, $('input', { 'aria-label': 'Session input' }));
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const fallbackFocusCalls: { sessionId: string | undefined; inert: boolean }[] = [];
 		const layoutEvent = store.add(new Emitter<{ width: number; height: number }>());
 		const layout = new class extends TestLayoutService {
@@ -80,13 +79,14 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
-		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession, focusActiveSession: () => services.get(ISessionsPartService).focusSession(activeSession.get()) }));
-		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override focusSession(session: IActiveSession | undefined): void {
-				fallbackFocusCalls.push({ sessionId: session?.sessionId, inert: content.inert });
+		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession,
+			focusActiveSession: () => {
+				fallbackFocusCalls.push({ sessionId: activeSession.get()?.sessionId, inert: content.inert });
 				fallbackFocusTarget.focus();
-			}
-		}());
+			},
+		}));
+		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		services.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly currentDefaultAccount = null;
 		}());
@@ -335,7 +335,7 @@ suite('Sessions policy update explanation', () => {
 	for (const unavailable of ['removed', 'disabled'] as const) {
 		test(`focuses the active Sessions view if the prior target is ${unavailable}`, () => {
 			const { content, updateInfo, activeSession, fallbackFocusTarget, fallbackFocusCalls } = setup(undefined);
-			activeSession.set(new class extends mock<IActiveSession>() { override readonly sessionId = 'active-session'; }(), undefined);
+			activeSession.set(new class extends mock<ITestSessionWithChat>() { override readonly sessionId = 'active-session'; }(), undefined);
 			const previous = append(content, $('button', undefined, 'Previous action'));
 			previous.focus();
 			updateInfo.set(info, undefined);

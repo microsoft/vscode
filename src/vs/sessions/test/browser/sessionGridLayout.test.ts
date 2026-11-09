@@ -11,13 +11,14 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
-import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
-import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../../workbench/browser/parts/sessions/sessionGridLayout.js';
+import { getSessionDropDirection } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/browser/parts/sessions/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
-import '../../browser/parts/media/chatCompositeBar.css';
-import '../../browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
