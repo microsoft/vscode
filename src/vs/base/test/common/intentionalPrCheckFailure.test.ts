@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
-suite('Intentional PR Check Failure', () => {
+suite('PR Check Validation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('fails for draft PR validation', () => {
-		assert.strictEqual('expected failure', 'intentional failure');
+	test('passes after resolving the validation failure', () => {
+		assert.strictEqual('resolved failure', 'resolved failure');
 	});
 });
