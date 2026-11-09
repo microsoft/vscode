@@ -6805,7 +6805,7 @@
     "setup:dotnet:win32": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.ps1 -OutFile dotnet-install.ps1; ./dotnet-install.ps1 -channel 10.0; Remove-Item dotnet-install.ps1\"",
     "extract-chat-lib": "tsx script/build/extractChatLib.ts",
     "create_venv": "tsx script/setup/createVenv.mts",
-    "package": "vsce package",
+    "package": "node ../../build/lib/copilotVsix.ts",
     "web": "vscode-test-web --headless --extensionDevelopmentPath=. .",
     "test:prompt": "mocha \"src/extension/completions-core/vscode-node/prompt/**/test/**/*.test.{ts,tsx}\"",
     "test:completions-core": "tsx src/extension/completions-core/vscode-node/extension/test/runTest.ts"

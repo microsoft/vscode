@@ -97,12 +97,14 @@ jobs:
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Minify JSON files
 
+      # vsce packages a staging folder (.build/copilot-vsix) with the files of extensions/copilot,
+      # after the steps above changed them, and the production dependencies in pnpm's hoisted
+      # layout, whichever layout pnpm installed them in.
       - script: |
           set -e
-          pnpm exec vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
-          cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          node build/lib/copilotVsix.ts -o $(Build.ArtifactStagingDirectory)/copilot-vsix/copilot-chat.vsix --allow-package-secrets sendgrid
+        workingDirectory: $(Build.SourcesDirectory)
         displayName: Package Copilot VSIX
 
       - template: common/publish-artifact.yml
