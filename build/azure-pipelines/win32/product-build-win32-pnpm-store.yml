@@ -8,8 +8,8 @@ parameters:
 # The dependency installation of product-build-win32-node-modules.yml, with the pnpm store restored
 # from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
 jobs:
-  - job: WindowsPnpmStore_${{ parameters.VSCODE_ARCH }}
-    displayName: Windows pnpm store (${{ upper(parameters.VSCODE_ARCH) }})
+  - job: WindowsNodeModules_${{ parameters.VSCODE_ARCH }}
+    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows

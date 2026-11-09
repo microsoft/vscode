@@ -7,8 +7,8 @@ parameters:
 # The dependency installation of product-build-linux-node-modules.yml, with the pnpm store restored
 # from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
 jobs:
-  - job: LinuxPnpmStore_${{ parameters.VSCODE_ARCH }}
-    displayName: Linux pnpm store (${{ upper(parameters.VSCODE_ARCH) }})
+  - job: LinuxNodeModules_${{ parameters.VSCODE_ARCH }}
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux

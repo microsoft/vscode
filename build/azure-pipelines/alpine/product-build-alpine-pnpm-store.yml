@@ -7,8 +7,8 @@ parameters:
 # Only the host's store is cached: the dependencies of `remote` are installed in the Alpine container
 # with its own store (see build/npm/postinstall.ts), which pnpm in the container would have to prune.
 jobs:
-  - job: LinuxAlpinePnpmStore_${{ parameters.VSCODE_ARCH }}
-    displayName: Linux Alpine pnpm store (${{ upper(parameters.VSCODE_ARCH) }})
+  - job: LinuxAlpine_${{ parameters.VSCODE_ARCH }}
+    displayName: Linux Alpine (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux

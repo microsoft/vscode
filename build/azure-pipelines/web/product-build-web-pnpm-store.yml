@@ -1,8 +1,8 @@
 # The dependency installation of product-build-web-node-modules.yml, with the pnpm store restored
 # from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
 jobs:
-  - job: WebPnpmStore
-    displayName: Web pnpm store
+  - job: WebNodeModules
+    displayName: Web
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux

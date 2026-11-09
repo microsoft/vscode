@@ -5,8 +5,8 @@ parameters:
 # The dependency installation of product-build-darwin-node-modules.yml, with the pnpm store restored
 # from the pipeline cache instead of the node_modules folders (see common/restore-pnpm-store.yml).
 jobs:
-  - job: macOSPnpmStore_${{ parameters.VSCODE_ARCH }}
-    displayName: macOS pnpm store (${{ upper(parameters.VSCODE_ARCH) }})
+  - job: macOSNodeModules_${{ parameters.VSCODE_ARCH }}
+    displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: AcesShared
       os: macOS
