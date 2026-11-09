@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, ExtensionBlockingScope, IDeprecationInfo, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, IDeprecationInfo, InstallOperation, StatisticType, WEB_EXTENSION_TAG } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -195,7 +195,7 @@ suite('Extension Gallery Service', () => {
 	] satisfies { name: string; deprecation: object | null | undefined; expected: IDeprecationInfo | undefined }[]) {
 		for (const route of ['query', 'latest', 'version'] as const) {
 			test(`Marketplace deprecation ${name} through ${route}`, async () => {
-				const raw = { ...rawLatestExtension(), deprecation };
+				const raw = { ...rawLatestExtension(), tags: [WEB_EXTENSION_TAG], deprecation };
 				const requestService = new RecordingRequestService(options => requestContext(200, options.type === 'POST' ? galleryQueryResponse([raw]) : raw));
 				const galleryService = createExtensionGalleryService(requestService);
 				const extensions = route === 'query'
