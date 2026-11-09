@@ -26,8 +26,8 @@ export type CheckScope =
 	| { readonly kind: 'files'; readonly files: readonly string[]; readonly reason: string };
 
 /**
- * Files that configure or implement ESLint for every file, so changing one lints the full repository.
- * Entries ending in `/` match a folder; other entries match a file.
+ * Files that configure or implement ESLint, or oxlint with the same rules, for every file, so changing one lints the
+ * full repository. Entries ending in `/` match a folder; other entries match a file.
  */
 const eslintFullCheckPaths = [
 	// Read by eslint.config.js.
@@ -47,6 +47,10 @@ const eslintFullCheckPaths = [
 	'build/filters.ts',
 	'build/eslint.ts',
 	'build/lib/changedFiles.ts',
+	// Convert eslint.config.js for oxlint, and run it.
+	'oxlint.config.ts',
+	'build/lib/oxlintConfig.ts',
+	'build/oxlint.ts',
 ];
 
 /** ESLint uses the closest configuration file to each linted file. */

@@ -110,6 +110,20 @@ rules: {
 
 In these cases make sure to update the `meta.schema` property on your rule with the JSON schema for the arguments. You can access these arguments using `context.options` in the rule `create` function
 
+# Running the rules with oxlint
+
+[oxlint](https://oxc.rs/docs/guide/usage/linter.html) can run the same rules as ESLint, to compare the two: `pnpm run oxlint` takes the same arguments as `pnpm run eslint` (files, or `--changed-since <ref>`) and reports in the same format, with ESLint's rule names. The `oxlint (comparison)` step of pull request CI runs it next to ESLint without failing the job.
+
+There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js` when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`.
+
+So that configuration and disable directives work in both linters, `eslint.config.js` uses the names oxlint reports:
+
+- `eslint-js/*` and `ts-eslint-js/*` are the ESLint and typescript-eslint rules that oxlint does not implement, such as `eslint-js/no-restricted-syntax` and `ts-eslint-js/naming-convention`. The adapters in `adapters/` load the original implementations for both linters. Add a rule there before using it.
+- `jsdoc-js/*` is `eslint-plugin-jsdoc`, because oxlint reserves `jsdoc` for its own implementation.
+- `@stylistic/*` replaces ESLint's deprecated formatting rules (`semi`, `no-extra-semi`, `comma-dangle`).
+
+A rule of a plugin that oxlint cannot load fails the conversion, and a rule that oxlint does not know fails oxlint, so a rule never silently stops running. Plugins must be modules: oxlint cannot load plugins defined inline in `eslint.config.js`. oxlint does not support configuring rules in comments (`/* eslint rule: "warn" */`).
+
 ## Agent host metadata boundary
 
 `local/code-no-private-agent-host-meta-import` keeps `src/vs/platform/agentHost/common/meta/copilotd/` and `meta/vscode/` private. Feature code must import domain helpers and portable types from top-level `meta/*.ts` modules, even for type-only imports. Top-level modules can adapt either private implementation; each private implementation can import only its own private folder. Files under `test/` directories may import raw metadata for parsing/vector tests, and `build/agentHost/generateCopilotMetadata.ts` may access the generated schema.

@@ -306,6 +306,14 @@ jobs:
         id: hygiene
         run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
 
+      # Compares oxlint with ESLint: it runs the rules of eslint.config.js (see oxlint.config.ts) on the same files and
+      # reports in the same format. It doesn't fail the job while the comparison runs.
+      - name: oxlint (comparison)
+        id: oxlint
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: pnpm run oxlint --changed-since $PR_BASE_SHA
+
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
