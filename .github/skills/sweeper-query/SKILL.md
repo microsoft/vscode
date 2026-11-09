@@ -19,9 +19,11 @@ assignee? open only?), prefer the defaults below and say which you used — ask 
 when the answer would be useless under every default.
 
 **Read-only, discovery only.** Never comment on, label, close, react to or edit any
-issue, and never write to the state repo. Do not hand the result to another skill or
-start implementing an issue from here; the deliverable is the list. If the user wants
-to act on a row, they say so in their own words and that is a separate task.
+issue, and never write to the state repo. This skill itself acts on nothing: it does
+not start implementing an issue and it does not pick the next step; the deliverable
+is the list (or, for one issue, the record). What happens next is the caller's call —
+the user in their own words, or a skill or agent that uses this one as its discovery
+step (section 6) — under the caller's own rules, never this skill's.
 
 ## 1. Pick the repository
 
@@ -140,6 +142,39 @@ Evidence as a list of cited locations. Two caveats go in every record answer: th
 record is as of its `reviewedAt` (`contentStale` on the index row means the issue has
 changed since), and evidence line numbers drift with main — point the reader at the
 cited FILE, and let them re-find the lines.
+
+## 6. Use from another skill or script
+
+This skill composes as instructions, not as a function: an agent that follows another
+skill (say, one that picks and implements bugs) loads this file beside it. Four rules
+keep the two compatible:
+
+- **The query stays read-only; the caller owns every action.** Nothing in this skill
+  comments, labels, closes or writes, whoever invokes it. A caller that acts on a
+  row does so under its own rules and its own identity.
+- **Machine mode.** When the result feeds a next step instead of a person, emit
+  `jq -c` JSON lines (one row per line, the fields the caller needs, `number` always),
+  no Markdown table, no prose, and no row cap unless the caller sets one — but still
+  state the envelope's `generatedAt` once, so the caller can record the snapshot.
+- **The caller re-checks live before acting.** The index is a review-time snapshot.
+  For each row it is about to act on, the caller verifies against GitHub (read-only):
+  the issue is still open, has no `security` label, has no open PR referencing it,
+  and the assignee has not changed. A row that fails any check is skipped, not fixed.
+- **Records one at a time, for the rows about to be worked.** The caller drills into
+  the record (section 5) only for the issue it is about to act on, when it needs the
+  brief under `## Auto-fix candidate` (or `## Plan brief`) — never for the whole set.
+
+The stable interfaces are the fetch recipe in section 2 (cache path, SHA validation),
+the record path in section 5, the ready-to-implement / ready-to-plan predicates in
+section 3, and the record's `## Auto-fix candidate` / `## Plan brief` sections. The
+machine-mode form of the implement-ready set, highest value first:
+
+```bash
+jq -c '[.rows[] | select(.currentState == null and .agentReadiness == "implement"
+        and .linkedPr == null and .skillPr == null and .dismissed != true and .lane == "bugs")]
+  | sort_by(-(.valueRaw // 0))
+  | .[] | {number, title, owner, labels, severity, valueRaw, reviewedAt, contentStale}' "$DIR/$FILE"
+```
 
 ## Worked examples
 
