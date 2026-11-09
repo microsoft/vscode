@@ -8,6 +8,12 @@
 	--modern-ui-connected-tab-shoulder-radius: calc(var(--vscode-cornerRadius-medium) + var(--vscode-strokeThickness));
 }
 
+/* Keep the perimeter stroke inside the card's rounded border-box clip. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part {
+	overflow: clip;
+	overflow-clip-margin: border-box;
+}
+
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .composite-bar-container > .composite-bar > .monaco-action-bar > .actions-container > .action-item > .tab-divider {
 	top: 50%;
 	left: 0;
@@ -43,6 +49,7 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > .header-or-footer.footer {
+	overflow: visible;
 	box-shadow: inset 0 var(--vscode-strokeThickness) var(--modern-ui-connected-tab-border);
 }
 
