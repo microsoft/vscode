@@ -11,7 +11,6 @@ import { ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter } 
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-// eslint-disable-next-line local/code-import-patterns
 import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from '../../../../../sessions/browser/sessionsSignInDialog.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
@@ -20,6 +19,7 @@ const providers = {
 	enterprise: { name: 'GHE' },
 	google: { name: 'Google' },
 	apple: { name: 'Apple' },
+	microsoft: { name: 'Microsoft' },
 };
 
 const footerContent = {
@@ -46,18 +46,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/signInDialog/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderSignInDialog(context, true, true, true),
 	}),
+	SignInWithMicrosoft: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderSignInDialog(context, false, true, true, true),
+	}),
 	SigningIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderSigningInDialog,
 	}),
 });
 
-function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean, allowContinueWithoutSignIn: boolean): void {
+function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean, allowContinueWithoutSignIn: boolean, showMicrosoftProvider = false): void {
 	const instantiationService = createDialogServices(context);
 	const presentation = createSessionsSignInDialogOptions(instantiationService.get(ICommandService), showReturnToVSCodeEditor, allowContinueWithoutSignIn);
 	const dialog = context.disposableStore.add(instantiationService.createInstance(ChatSetupDialog, context.container, {
 		title: presentation.dialogTitle,
-		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, providers),
+		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, showMicrosoftProvider, providers),
 		icon: presentation.dialogIcon,
 		disableCloseButton: presentation.disableCloseButton,
 		footer: getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://github.com/settings/copilot/features', footerContent),

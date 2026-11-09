@@ -5,24 +5,24 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackPRThreadResolverContribution } from '../../browser/agentFeedbackPRThreadResolver.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('AgentFeedbackPRThreadResolverContribution', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('agent-host-copilot:/session-1');
 	const file = URI.file('/workspace/a.ts');
 
 	let onDidChangeFeedback: Emitter<IAgentFeedbackChangeEvent>;
-	let resolvedThreads: string[];
+	let resolvedThreads: { threadId: string; prNumber: number | undefined }[];
 
 	function pr(id: string, state: AgentFeedbackState, threadId: string | undefined = `thread-${id}`): IAgentFeedback {
 		return {
@@ -33,6 +33,7 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 			sessionResource: session,
 			kind: AgentFeedbackKind.PRReview,
 			sourcePRReviewCommentId: threadId,
+			sourcePullRequest: { owner: 'owner', repo: 'repo', number: 42 },
 			state,
 		};
 	}
@@ -49,29 +50,27 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 		};
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
-			override async resolvePRReviewThread(_sessionResource: URI, threadId: string): Promise<void> {
-				resolvedThreads.push(threadId);
+			override async resolvePRReviewThread(_sessionResource: URI, threadId: string, pullRequest?: { readonly owner: string; readonly repo: string; readonly number: number }): Promise<void> {
+				resolvedThreads.push({ threadId, prNumber: pullRequest?.number });
 			}
 		};
 
 		store.add(new AgentFeedbackPRThreadResolverContribution(feedbackService, codeReviewService, new NullLogService()));
 	});
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves the GitHub thread when a submitted PR comment transitions to resolved', () => {
 		fire(pr('1', AgentFeedbackState.Submitted));
 		fire(pr('1', AgentFeedbackState.Resolved));
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 
 	test('resolves the GitHub thread when a submitted PR comment is deleted', () => {
 		fire(pr('1', AgentFeedbackState.Submitted));
 		fire(); // deleted
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 
 	test('does not resolve when an already-resolved PR comment is first observed (history replay)', () => {
@@ -108,6 +107,6 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 		fire(pr('1', AgentFeedbackState.Resolved));
 		fire(); // deleted after resolve
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 });

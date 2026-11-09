@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IManagedHover, IManagedHoverContentOrFactory } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatRequestOriginPart } from '../../../../browser/widget/chatContentParts/chatRequestOriginPart.js';
@@ -65,15 +67,27 @@ suite('ChatRequestOriginPart', () => {
 		});
 	});
 
-	test('distinguishes delegation from another chat in the same session', () => {
+	test('distinguishes delegation from another chat or session', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
 		instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() { });
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		const hoverContents: IManagedHoverContentOrFactory[] = [];
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+			override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>): IManagedHover {
+				hoverContents.push(args[2]);
+				return {
+					show: () => { },
+					hide: () => { },
+					update: () => { },
+					dispose: () => { },
+				};
+			}
+		});
 
-		const part = disposables.add(instantiationService.createInstance(
+		const chatPart = disposables.add(instantiationService.createInstance(
 			ChatRequestOriginPart,
 			URI.parse('agent-host-copilot:/session#target'),
 			{
@@ -82,13 +96,38 @@ suite('ChatRequestOriginPart', () => {
 				delegationScope: 'chat',
 			},
 		));
+		const sessionPart = disposables.add(instantiationService.createInstance(
+			ChatRequestOriginPart,
+			URI.parse('agent-host-copilot:/target-session'),
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/source-session?turn=turn-1'),
+				delegationScope: 'session',
+			},
+		));
 
 		assert.deepStrictEqual({
-			text: part.domNode.textContent,
-			ariaLabel: part.domNode.getAttribute('aria-label'),
+			chat: {
+				text: chatPart.domNode.textContent,
+				ariaLabel: chatPart.domNode.getAttribute('aria-label'),
+				hover: hoverContents[0],
+			},
+			session: {
+				text: sessionPart.domNode.textContent,
+				ariaLabel: sessionPart.domNode.getAttribute('aria-label'),
+				hover: hoverContents[1],
+			},
 		}, {
-			text: 'Sent from another chat',
-			ariaLabel: 'Sent from another chat. Select to open the source.',
+			chat: {
+				text: 'Sent from another chat',
+				ariaLabel: 'Sent from another chat. Select to open the source.',
+				hover: 'Open source chat',
+			},
+			session: {
+				text: 'Sent by another session',
+				ariaLabel: 'Sent by another session. Select to open the source.',
+				hover: 'Open source session',
+			},
 		});
 	});
 

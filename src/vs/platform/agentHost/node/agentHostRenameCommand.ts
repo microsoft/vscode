@@ -9,7 +9,7 @@ import type { URI } from '../common/state/protocol/common/state.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { extractLeadingSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 /** The generic, agent-agnostic `/rename` slash command name. */
@@ -52,7 +52,7 @@ export class AgentHostRenameCompletionProvider implements IAgentHostCompletionIt
 
 	constructor(private readonly _hasHistory: (session: URI) => boolean) { }
 
-	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, _token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const leading = extractLeadingSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];

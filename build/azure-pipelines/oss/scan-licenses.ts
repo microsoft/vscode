@@ -11,7 +11,7 @@
  *  Section 3: cgmanifest.json git components CG can't harvest from ClearlyDefined
  *  Section 4: Cargo.lock crates missing or stubbed in CG (crates.io + repo LICENSE)
  *  Section 5: Platform-specific binary packages (arch optionalDependencies)
- *  Section 6: OS-gated whole packages skipped by npm on the build host (lockfile)
+ *  Section 6: OS-gated or pnpm-skipped whole packages missing on the build host (lockfile)
  *  Section 7: Pre-built built-in extension deps (disk extensionsCG/<name>/, else
  *             self-fetched from the extension's public package-lock.json)
  *
@@ -30,6 +30,7 @@ import https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 import { parseArgs } from './utils.js';
+import { readPnpmLockfileImporters, readPnpmSkippedPackages, type PnpmLockfilePackageEntry } from './pnpm-lockfile.js';
 
 interface LicenseEntry {
 	name: string;
@@ -60,15 +61,34 @@ function validateCopyright(name: string, licenseText: string, source: string): v
 }
 
 /**
- * Find a LICENSE file in the given package directory.
+ * Picks the license file among the file names of a package directory, or returns `undefined` if
+ * there is none. A plain `LICENSE`/`LICENCE` file (optionally `.md`, `.txt`, …) wins. Otherwise a
+ * `LICENSE-<name>` file is used (`LICENSE-MIT`, `LICENSE-MIT.txt`, …), as `punycode` and `ignore`
+ * ship. With several, which happens for dual licenses (`MIT OR CC0-1.0` in `type-fest`, with
+ * `license-mit` and `license-cc0`), either license's text suffices: the MIT one is preferred,
+ * otherwise the first in case-insensitive order, so the choice doesn't depend on the directory
+ * listing order.
+ */
+export function pickLicenseFileName(fileNames: readonly string[]): string | undefined {
+	const plain = fileNames.find(f =>
+		/^license(\.md|\.txt|\.mit|\.bsd|\.apache)?$/i.test(f) ||
+		/^licence(\.md|\.txt)?$/i.test(f)
+	);
+	if (plain) {
+		return plain;
+	}
+	const named = fileNames
+		.filter(f => /^licen[cs]e-[a-z0-9]+(?:-[a-z0-9]+|\.[0-9]+)*(?:\.md|\.txt)?$/i.test(f))
+		.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+	return named.find(f => /^licen[cs]e-mit(?:\.md|\.txt)?$/i.test(f)) ?? named[0];
+}
+
+/**
+ * Find a LICENSE file in the given package directory (see {@link pickLicenseFileName}).
  */
 function findLicenseFile(pkgDir: string): string | undefined {
 	try {
-		const files = fs.readdirSync(pkgDir);
-		const licenseFile = files.find(f =>
-			/^license(\.md|\.txt|\.mit|\.bsd|\.apache)?$/i.test(f) ||
-			/^licence(\.md|\.txt)?$/i.test(f)
-		);
+		const licenseFile = pickLicenseFileName(fs.readdirSync(pkgDir));
 		return licenseFile ? path.join(pkgDir, licenseFile) : undefined;
 	} catch {
 		return undefined;
@@ -527,6 +547,50 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 	return packages;
 }
 
+/**
+ * Returns the packages installed in the node_modules folder `nmDir`, each as its name in a
+ * node_modules folder (scoped names included) and its folder: the top-level packages of `nmDir`,
+ * then, when pnpm installed `nmDir` with the isolated linker, the packages of its virtual store
+ * (`.pnpm`).
+ *
+ * With pnpm's hoisted linker, every package of an install root has a folder in its node_modules
+ * folders, and `.pnpm` holds no packages. With the isolated linker, the top level holds only the
+ * install root's direct dependencies (links into the store), and the packages are in
+ * `.pnpm/<id>/node_modules/<name>`, next to links to their dependencies. Callers keep the first
+ * folder that they find for a name, so the store's hoisting folder (`.pnpm/node_modules`, which
+ * links one version of each package) comes before the package folders of the store.
+ */
+export function collectInstalledPackages(nmDir: string): Array<{ name: string; dir: string }> {
+	const inFolder = (folder: string) => collectPackagesInNodeModules(folder).map(name => ({ name, dir: path.join(folder, ...name.split('/')) }));
+	const result = inFolder(nmDir);
+	const store = path.join(nmDir, '.pnpm');
+	if (!fs.existsSync(store)) {
+		return result;
+	}
+	result.push(...inFolder(path.join(store, 'node_modules')));
+	for (const id of fs.readdirSync(store).sort()) {
+		if (id === 'node_modules') {
+			continue;
+		}
+		result.push(...inFolder(path.join(store, id, 'node_modules')).filter(({ dir }) => !fs.lstatSync(dir).isSymbolicLink()));
+	}
+	return result;
+}
+
+/**
+ * Returns the node_modules folders nested in the packages of `nmDir`, at any depth.
+ */
+function collectNestedNodeModules(nmDir: string): string[] {
+	const result: string[] = [];
+	for (const pkgName of collectPackagesInNodeModules(nmDir)) {
+		const nested = path.join(nmDir, ...pkgName.split('/'), 'node_modules');
+		if (fs.existsSync(nested)) {
+			result.push(nested, ...collectNestedNodeModules(nested));
+		}
+	}
+	return result;
+}
+
 // =============================================================================
 // SECTION 5 helpers: Platform-binary (arch-specific npm package) enumeration.
 //
@@ -630,6 +694,24 @@ export function isOsGatedShippedElsewhere(osList: string[], hostPlatform: string
 		}
 	}
 	return false;
+}
+
+/**
+ * Returns why Section 6 seeds a lockfile package into the presence index, or `undefined` if it
+ * doesn't: its `os` constraint excludes the build host but includes a platform VS Code ships (see
+ * {@link isOsGatedShippedElsewhere}), or it is a production package that pnpm skipped installing on
+ * the host (`skipped`: the ids from `node_modules/.modules.yaml`). pnpm skips some packages whose
+ * lockfile entry records no `os`, such as `windows-foreground-love`, so the `os` check alone misses
+ * them.
+ */
+export function getSection6SeedReason(entry: Pick<PnpmLockfilePackageEntry, 'name' | 'version' | 'os' | 'dev'>, skipped: ReadonlySet<string>, hostPlatform: string): string | undefined {
+	if (entry.os && isOsGatedShippedElsewhere([...entry.os], hostPlatform)) {
+		return `os:[${entry.os.join(', ')}]`;
+	}
+	if (!entry.dev && skipped.has(`${entry.name}@${entry.version}`)) {
+		return `skipped by pnpm on ${hostPlatform}`;
+	}
+	return undefined;
 }
 
 /**
@@ -1111,24 +1193,27 @@ async function main(): Promise<void> {
 	let noLicense = 0;
 
 	// TODO(future): expand the scanner to walk EVERY node_modules folder in the
-	// repo (e.g. remote/node_modules, remote/web/node_modules, and nested
-	// node_modules), not just the extension + root roots below. The copilot
-	// extension folder has no node_modules, so it is naturally excluded. Walking
-	// all node_modules would make the presence index complete; until then the
+	// repo (e.g. remote/node_modules and nested node_modules), not just the
+	// extension + root roots below. The copilot extension folder has no
+	// node_modules, so it is naturally excluded. Walking all node_modules
+	// would make the presence index complete; until then the
 	// presence index is best-effort and the stale-override signal is warn-only.
 
-	for (const ext of extensions) {
-		const nmDirs = [
+	// `extensions` is a pnpm install root: with the hoisted layout most extension
+	// dependencies are in extensions/node_modules, after the extensions' own folders.
+	// Its nested node_modules folders come last, for packages that pnpm didn't
+	// hoist (e.g. `emmet`, whose name a workspace project has). With the isolated
+	// layout they are in the store of extensions/node_modules (see
+	// collectInstalledPackages).
+	for (const ext of [...extensions, '(extensions)']) {
+		const nmDirs = ext === '(extensions)' ? [path.join(extensionsDir, 'node_modules'), ...collectNestedNodeModules(path.join(extensionsDir, 'node_modules'))] : [
 			path.join(extensionsDir, ext, 'node_modules'),
 			path.join(extensionsDir, ext, 'server', 'node_modules'),
 			path.join(extensionsDir, ext, 'server', 'lib', 'node_modules'),
 		];
 
 		for (const nmDir of nmDirs) {
-			const packages = collectPackagesInNodeModules(nmDir);
-
-			for (const pkgName of packages) {
-				const pkgDir = path.join(nmDir, ...pkgName.split('/'));
+			for (const { name: pkgName, dir: pkgDir } of collectInstalledPackages(nmDir)) {
 				const pkgInfo = readPkgJson(pkgDir);
 				const resolvedName = pkgInfo?.name || pkgName;
 				const key = resolvedName.toLowerCase();
@@ -1193,10 +1278,7 @@ async function main(): Promise<void> {
 
 	const rootNmDir = path.join(repoRoot, 'node_modules');
 	if (fs.existsSync(rootNmDir)) {
-		const rootPackages = collectPackagesInNodeModules(rootNmDir);
-
-		for (const pkgName of rootPackages) {
-			const pkgDir = path.join(rootNmDir, ...pkgName.split('/'));
+		for (const { name: pkgName, dir: pkgDir } of collectInstalledPackages(rootNmDir)) {
 			const pkgInfo = readPkgJson(pkgDir);
 			const resolvedName = pkgInfo?.name || pkgName;
 			const key = resolvedName.toLowerCase();
@@ -1618,6 +1700,7 @@ async function main(): Promise<void> {
 		path.join(repoRoot, 'node_modules'),
 		path.join(repoRoot, 'remote', 'node_modules'),
 		path.join(repoRoot, 'build', 'node_modules'),
+		path.join(extensionsDir, 'node_modules'),
 	];
 	for (const ext of extensions) {
 		pbRoots.push(path.join(extensionsDir, ext, 'node_modules'));
@@ -1632,8 +1715,7 @@ async function main(): Promise<void> {
 	const pbSeedKeys = new Set<string>();
 	const pbSeedParents: Array<{ key: string; dir: string; optDeps: Record<string, unknown> }> = [];
 	for (const root of pbRoots) {
-		for (const pkgName of collectPackagesInNodeModules(root)) {
-			const dir = path.join(root, ...pkgName.split('/'));
+		for (const { name: pkgName, dir } of collectInstalledPackages(root)) {
 			const ck = pkgName.toLowerCase();
 			if (!pbOnDisk.has(ck)) {
 				pbOnDisk.set(ck, dir);
@@ -1823,10 +1905,14 @@ async function main(): Promise<void> {
 	// even though it ships in the win32 product. The legacy OSS tool caught these
 	// because it walked the lockfile, not the installed tree.
 	//
-	// Fix: read the package-lock.json files (the manifest of EVERY dependency,
+	// Fix: read the pnpm-lock.yaml files (the manifest of EVERY dependency,
 	// installed or not) and seed any package that (a) will not install on the
-	// host but (b) ships on a platform we target into the presence index. The
-	// cglicenses.json override then supplies the human-authored license text; if
+	// host but (b) ships on a platform we target into the presence index. A
+	// package qualifies by its `os` field, or because pnpm skipped a production
+	// package on the host (`skipped` in node_modules/.modules.yaml): pnpm skips
+	// some packages whose lockfile entry records no `os`, such as
+	// windows-foreground-love. The cglicenses.json override then supplies the
+	// human-authored license text; if
 	// no override exists the package surfaces as "present but unlicensed" (loud,
 	// shift-left) instead of vanishing (silent). Arch-suffixed binaries
 	// (@img/sharp-win32-x64, @esbuild/linux-x64, ...) are NOT handled here -
@@ -1839,10 +1925,14 @@ async function main(): Promise<void> {
 	console.log('=========================================================================');
 
 	const hostPlatform = process.platform;
+	// The root project of the root, remote and build install roots (the root
+	// lockfile also records the workspace members, e.g. extensions, which are
+	// covered elsewhere).
 	const s6LockFiles = [
-		path.join(repoRoot, 'package-lock.json'),
-		path.join(repoRoot, 'remote', 'package-lock.json'),
-		path.join(repoRoot, 'build', 'package-lock.json'),
+		path.join(repoRoot, 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'remote', 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'build', 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'extensions', 'pnpm-lock.yaml'),
 	];
 	let s6Seeded = 0;
 	let s6AlreadyResolved = 0;
@@ -1852,24 +1942,26 @@ async function main(): Promise<void> {
 		if (!fs.existsSync(lockPath)) {
 			continue;
 		}
-		let lock: { packages?: Record<string, { version?: string; os?: unknown }> };
+		let rootPackages: PnpmLockfilePackageEntry[];
 		try {
-			lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+			rootPackages = readPnpmLockfileImporters(lockPath).get('.') ?? [];
 		} catch (err) {
 			console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
 			continue;
 		}
-		const pkgs = lock.packages || {};
-		for (const lockKey of Object.keys(pkgs)) {
-			const meta = pkgs[lockKey];
-			if (!isOsGatedShippedElsewhere(meta?.os as string[], hostPlatform)) {
+		let skipped: Set<string>;
+		try {
+			skipped = readPnpmSkippedPackages(path.dirname(lockPath));
+		} catch (err) {
+			console.warn(`  WARN: could not read the packages pnpm skipped in ${path.dirname(lockPath)}: ${(err as Error).message}`);
+			skipped = new Set();
+		}
+		for (const meta of rootPackages) {
+			const reason = getSection6SeedReason(meta, skipped, hostPlatform);
+			if (!reason) {
 				continue;
 			}
-			const nmIdx = lockKey.lastIndexOf('node_modules/');
-			if (nmIdx < 0) {
-				continue; // the root project entry, not a dependency
-			}
-			const name = lockKey.slice(nmIdx + 'node_modules/'.length);
+			const name = meta.name;
 			if (!name) {
 				continue;
 			}
@@ -1892,10 +1984,10 @@ async function main(): Promise<void> {
 			}
 			noLicenseSeen.set(key, { name, version: meta?.version || '' });
 			s6Seeded++;
-			console.log(`  SEEDED (os:[${(meta!.os as string[]).join(', ')}]): ${name}@${meta?.version || ''}`);
+			console.log(`  SEEDED (${reason}): ${name}@${meta?.version || ''}`);
 		}
 	}
-	console.log(`  Section 6 seeded ${s6Seeded} os-gated package(s) into the presence index ` +
+	console.log(`  Section 6 seeded ${s6Seeded} os-gated or skipped package(s) into the presence index ` +
 		`(${s6AlreadyResolved} already licensed, ${s6AlreadyPresent} already present).`);
 
 	// =========================================================================

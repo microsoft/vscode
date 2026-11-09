@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { getRandomTestPath } from './testUtils.js';
@@ -145,5 +146,19 @@ suite('snapshot', () => {
 			new Array(10).fill('long string'.repeat(10)),
 			{ [Symbol.for('debug.description')]() { return `Range [1 -> 5]`; } },
 		]);
+	});
+
+	test('cleans up mismatch artifacts after a passing assertion', async () => {
+		const ctx = makeContext({
+			file: 'foo/bar',
+			fullTitle: () => 'hello world!'
+		});
+		const snapshotName = 'hello_world_.traffic.snap';
+		await fs.promises.writeFile(join(testDir, snapshotName), '{ cool: true }');
+		await assertThrowsAsync(() => ctx.assert({ cool: false }, { name: 'traffic' }));
+		await ctx.assert({ cool: true }, { name: 'traffic' });
+		await ctx.removeOldSnapshots();
+
+		assert.deepStrictEqual(await fs.promises.readdir(testDir), [snapshotName]);
 	});
 });

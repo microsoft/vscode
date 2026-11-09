@@ -490,7 +490,7 @@ async function processResourceRequest(
 		};
 
 		if (entry.etag) {
-			headers['ETag'] = entry.etag;
+			headers.ETag = entry.etag;
 			headers['Cache-Control'] = 'no-cache';
 		}
 		if (entry.mtime) {

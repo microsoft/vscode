@@ -240,7 +240,9 @@ export function toValuesTree(properties: IStringDictionary<unknown>, conflictRep
 	const root = Object.create(null);
 
 	for (const key in properties) {
-		addToValueTree(root, key, properties[key], conflictReporter);
+		if (Object.hasOwn(properties, key)) {
+			addToValueTree(root, key, properties[key], conflictReporter);
+		}
 	}
 
 	return root;

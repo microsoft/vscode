@@ -44,6 +44,7 @@ function handleRequest(fn: string, args: unknown[]): unknown {
 }
 
 function queryTodos(dbPath: string): TodoItem[] {
+	// eslint-disable-next-line local/code-no-sync-fs -- The parent awaits worker RPC; this dedicated SQLite worker can block on the existence check without blocking the extension-host event loop.
 	if (!existsSync(dbPath)) {
 		return [];
 	}

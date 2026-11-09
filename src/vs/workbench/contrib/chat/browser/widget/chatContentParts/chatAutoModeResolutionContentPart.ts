@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { autoModeRoutingDetail, autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { autoModeRoutingHover, autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -15,41 +14,56 @@ import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatThinkingStyleContentPart } from './chatThinkingStyleContentPart.js';
 
 /**
- * Explains Auto's routing decision. Shows "Routing task…" until the router
- * answers, then "Routed task", which expands to name the chosen model.
+ * Explains Auto's routing decision on one line, so the chosen model is
+ * readable without a click.
  */
 export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentPart {
 
 	private readonly isRouting: boolean;
 
+	/** Whether this is a resolved model-router line, which stays out of the completed-steps disclosure. */
+	get keepVisible(): boolean {
+		return !!this.content.router && !this.isRouting;
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'autoModeResolution';
+	}
+
 	constructor(
 		private readonly content: IChatAutoModeResolutionPart,
 		context: IChatContentPartRenderContext,
-		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService);
+		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isRouting = !content.resolved;
 		this.setThinkingActive(this.isRouting);
+		// The title says everything, so this is a status line, not a disclosure.
+		this.setExpandable(false);
 		if (this.isRouting) {
-			// Nothing to explain yet, so this is a status line rather than a disclosure.
-			this.setExpandable(false);
 			this.setShimmerTitle(autoModeRoutingTitle(content));
+		}
+		const reason = autoModeRoutingHover(content);
+		const button = this._collapseButton?.element;
+		if (reason && button) {
+			// The hover holds the reason, so the line joins the tab order and Enter or Space can show it.
+			button.tabIndex = 0;
+			button.setAttribute('role', 'button');
+			button.setAttribute('aria-label', `${autoModeRoutingTitle(content)}. ${reason}`);
+			this._register(hoverService.setupDelayedHover(button, { content: reason, appearance: { showPointer: true } }, { setupKeyboardEvents: true }));
 		}
 	}
 
+	protected override shouldPrepareContentAnimation(): boolean {
+		return false;
+	}
+
 	protected override initContent(): HTMLElement {
-		const body = this.createThinkingBody();
-		const detail = autoModeRoutingDetail(this.content);
-		if (detail) {
-			const row = this.createThinkingRow();
-			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(detail)));
-			row.appendChild(rendered.element);
-			body.appendChild(row);
-		}
-		return body;
+		// Never reached: the row does not expand, so its body is never built.
+		return this.createThinkingBody();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -61,6 +75,10 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		if (this.isRouting && element.isComplete) {
 			return false;
 		}
-		return other.resolved?.id === this.content.resolved?.id;
+		return other.resolved?.id === this.content.resolved?.id
+			&& other.resolved?.reason === this.content.resolved?.reason
+			&& other.preference === this.content.preference
+			&& other.effort === this.content.effort
+			&& other.switchedFrom === this.content.switchedFrom;
 	}
 }

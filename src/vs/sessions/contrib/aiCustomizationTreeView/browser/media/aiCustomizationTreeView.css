@@ -65,9 +65,9 @@
 	display: flex;
 	align-items: center;
 	height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-transform: uppercase;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -84,7 +84,7 @@
 	align-items: center;
 	height: 22px;
 	line-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .ai-customization-view .ai-customization-category .icon {

@@ -46,6 +46,7 @@ export function fakeAPIChoice(
 			serverExperiments: 'dummy',
 			deploymentId: 'dummy',
 			gitHubRequestId: 'dummy',
+			copilotServiceRequestId: 'dummy',
 			completionId: 'dummy',
 			created: 0
 		},

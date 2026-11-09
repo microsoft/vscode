@@ -15,6 +15,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../chat/common/tools/toolResultCompressor.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
@@ -36,13 +37,11 @@ import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOu
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { registerTerminalCompressors } from './tools/terminalOutputCompressor.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 import { isNumber } from '../../../../../base/common/types.js';
 
 // #region Services
 
-registerSingleton(IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime, InstantiationType.Delayed);
 registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
 
 // #endregion Services
@@ -144,20 +143,19 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		// #endregion
 
-		// Re-register run_in_terminal tool when sandbox-related settings change,
-		// so the tool description and input schema stay in sync with the current
-		// sandbox state.
+		// Keep the tool description and input schema in sync with sandbox and approval settings.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
+				e.affectsConfiguration(ChatConfiguration.DefaultPermissionLevel) ||
+				e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove) ||
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
-				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ||
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork) ||
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) ||
 				e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains) ||
 				e.affectsConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem)
 			) {
 				this._registerRunInTerminalTool();
 			}

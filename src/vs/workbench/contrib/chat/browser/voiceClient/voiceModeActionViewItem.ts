@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
+import { IVoiceSessionController } from './voiceSessionController.js';
 import { addMicButtonContextMenuListener, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 
 /**
@@ -46,6 +47,7 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IVoiceSessionController private readonly _voiceSessionController: IVoiceSessionController,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 	}
@@ -61,6 +63,6 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		return getVoiceModeHoverContent(this.getTooltip() ?? '');
+		return getVoiceModeHoverContent(this.getTooltip() ?? '', this._voiceSessionController.isUsingGptLive);
 	}
 }

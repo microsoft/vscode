@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { ThinkingData } from '../../../platform/thinking/common/thinking';
+import { ThinkingData, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -53,6 +53,11 @@ export interface IToolCallRound {
 	phase?: string;
 	/** The model ID. */
 	modelId?: string;
+	/**
+	 * The API protocol that produced this round's `thinking`. Identifies the origin of any
+	 * encrypted reasoning, which may only be replayed to the API that issued it.
+	 */
+	originApi?: ThinkingOriginApi;
 }
 
 export interface InternalToolReference extends vscode.ChatLanguageModelToolReference {

@@ -53,7 +53,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 				const codeParts = [part];
 				while (i + 1 < this.parts.length) {
 					const nextPart = this.parts[i + 1];
-					if (nextPart.kind !== 'code' || nextPart.title) {
+					if (nextPart.kind !== 'code' || nextPart.title || nextPart.languageId !== part.languageId) {
 						break;
 					}
 					codeParts.push(nextPart);

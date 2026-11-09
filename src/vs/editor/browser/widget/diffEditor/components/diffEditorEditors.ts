@@ -46,6 +46,10 @@ export class DiffEditorEditors extends Disposable {
 
 	public readonly isFocused;
 
+	public getContentHeight(): number {
+		return Math.max(this.modified.getContentHeight(), this.original.getContentHeight());
+	}
+
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
 		private readonly modifiedEditorElement: HTMLElement,
@@ -123,10 +127,9 @@ export class DiffEditorEditors extends Disposable {
 
 		this._register(editor.onDidContentSizeChange(e => {
 			const width = this.original.getContentWidth() + this.modified.getContentWidth() + OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
-			const height = Math.max(this.modified.getContentHeight(), this.original.getContentHeight());
 
 			this._onDidContentSizeChange.fire({
-				contentHeight: height,
+				contentHeight: this.getContentHeight(),
 				contentWidth: width,
 				contentHeightChanged: e.contentHeightChanged,
 				contentWidthChanged: e.contentWidthChanged

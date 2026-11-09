@@ -11,26 +11,63 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { isOrganizationPromptFile } from '../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
+
+/** Browser-only grouping for skills already enumerated by a host. */
+interface ICustomizationSkillBundle {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly namePrefix: string;
+}
+
+export interface ICustomizationSkillItem extends ICustomizationItem {
+	readonly skillBundle?: ICustomizationSkillBundle;
+}
+
+/** Browser-only marker for hook actions already enumerated by a host. */
+export interface ICustomizationHookItem extends ICustomizationItem {
+	readonly isHookAction?: boolean;
+}
+
+/**
+ * Identifies who supplied a customization within its scope.
+ * Items sharing an origin `id` are shown together under one separator.
+ */
+export interface IAICustomizationListItemOrigin {
+	readonly kind: 'plugin' | 'extension' | 'vscode' | 'harness' | 'account';
+	readonly id: string;
+	/** Display label. Optional for `harness`, which uses the active harness name. */
+	readonly label?: string;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -47,8 +84,13 @@ export interface IAICustomizationListItem {
 	readonly disabled: boolean;
 	/** When set, overrides `source` for display grouping purposes. */
 	readonly groupKey?: string;
+	/** Who this customization applies to; the primary display grouping. Derived from `source` when omitted. */
+	readonly scope?: AICustomizationScope;
+	/** Supplier within the scope, used to subgroup items. Undefined for files authored directly in the scope. */
+	readonly origin?: IAICustomizationListItemOrigin;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
+	readonly skillBundle?: ICustomizationSkillBundle;
 	/** When set, overrides the formatted name for display. */
 	readonly displayName?: string;
 	/** When set, shows a small inline badge next to the item name. */
@@ -57,6 +99,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
@@ -70,7 +114,7 @@ export interface IAICustomizationListItem {
 	/** When true, this syncable item is currently selected for syncing. */
 	readonly synced?: boolean;
 	nameMatches?: IMatch[];
-	descriptionMatches?: IMatch[];
+	secondaryTextMatches?: IMatch[];
 }
 
 /**
@@ -90,6 +134,13 @@ export interface IAICustomizationItemSource extends IDisposable {
 // #endregion
 
 // #region Utilities
+
+/**
+ * Returns the scope a list item is grouped under.
+ */
+export function getCustomizationListItemScope(item: Pick<IAICustomizationListItem, 'scope' | 'source'>): AICustomizationScope {
+	return item.scope ?? AICustomizationScopes.fromSource(item.source);
+}
 
 /**
  * Returns true if the given extension identifier matches the default
@@ -124,7 +175,7 @@ export function getFriendlyName(filename: string): string {
  * when parsing fails.
  */
 export async function expandHookFileItems(
-	hookFileItems: readonly ICustomizationItem[],
+	hookFileItems: readonly ICustomizationHookItem[],
 	workspaceService: IAICustomizationWorkspaceService,
 	fileService: IFileService,
 	pathService: IPathService,
@@ -135,6 +186,10 @@ export async function expandHookFileItems(
 	const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 	for (const item of hookFileItems) {
+		if (item.isHookAction || !hasReadableCustomizationContent(item.uri)) {
+			items.push(item);
+			continue;
+		}
 		let parsedHooks = false;
 		try {
 			const content = await fileService.readFile(item.uri);
@@ -156,9 +211,17 @@ export async function expandHookFileItems(
 							description: truncatedCmd || localize('hookUnset', "(unset)"),
 							enabled: item.enabled,
 							groupKey: item.groupKey,
+							scope: item.scope,
+							origin: item.origin,
+							delivery: item.delivery,
 							source: item.source,
 							extensionId: item.extensionId,
+							extensionLabel: item.extensionLabel,
 							pluginUri: item.pluginUri,
+							pluginLabel: item.pluginLabel,
+							status: item.status,
+							statusMessage: item.statusMessage,
+							disabledReason: item.disabledReason,
 							userInvocable: item.userInvocable,
 						});
 					}
@@ -197,27 +260,31 @@ export class AICustomizationItemNormalizer {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
+	normalizeItem(item: ICustomizationSkillItem & ICustomizationHookItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
+		const scope = this.inferScope(item, source, isBuiltin);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
 		const isWorkspaceItem = source === AICustomizationSources.local;
 
 		return {
-			id: `${item.uri.toString()}${duplicateSuffix}`,
+			id: item.isHookAction && item.itemKey ? item.itemKey : `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
-			filename: item.uri.scheme === Schemas.file
+			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
 			source,
+			scope,
+			origin: this.inferOrigin(item, source, scope, pluginUri, extensionId),
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
 			pluginUri,
-			displayName: item.name,
+			skillBundle: item.skillBundle,
+			displayName: item.skillBundle && item.name.startsWith(item.skillBundle.namePrefix) ? item.name.slice(item.skillBundle.namePrefix.length) : item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
 			typeIcon: promptType === PromptsType.instructions && source ? sourceToIcon(source) : undefined,
@@ -229,7 +296,7 @@ export class AICustomizationItemNormalizer {
 	}
 
 	private inferStorageAndGroup(item: ICustomizationItem): { source: AICustomizationSource; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
-		const groupKey = item.groupKey;
+		const groupKey = isLegacyDeliveryGroupKey(item.groupKey) ? undefined : item.groupKey;
 		const hasBuiltinStorage = item.source === AICustomizationSources.builtin;
 		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
@@ -250,97 +317,58 @@ export class AICustomizationItemNormalizer {
 		}
 		return { source: item.source, groupKey, isBuiltin, pluginUri: item.pluginUri, extensionId: item.extensionId };
 	}
-}
 
-// #endregion
-
-// #region Built-in skills
-
-/**
- * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
- * into an item provider's items, deduped by URI so a copy the provider
- * re-discovered is replaced by the authoritative entry, and tagged
- * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI, same
- * name) are preserved.
- *
- * `enabled` is derived from `getDisabledPromptFiles` alone, so a built-in that
- * the wire dropped from the agent-host bundle stays listed as disabled and can
- * be re-enabled. This is the restore path that `isUserToggleableCustomization`
- * guards, and it is why that predicate must stay in sync with what this merges
- * back. See "Enabling and Disabling Built-in Skills" in
- * `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
- *
- * A workbench that uses the base `PromptsService` contributes no built-in
- * skills, so `builtinPaths` is empty and the items are returned unchanged.
- */
-export async function mergeBuiltinSkills(
-	items: readonly IAICustomizationListItem[],
-	promptType: PromptsType,
-	promptsService: IPromptsService,
-	workspaceService: IAICustomizationWorkspaceService,
-	itemNormalizer: AICustomizationItemNormalizer,
-): Promise<IAICustomizationListItem[]> {
-	const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
-	if (builtinPaths.length === 0) {
-		return [...items];
+	private inferScope(item: ICustomizationItem, source: AICustomizationSource, isBuiltin: boolean | undefined): AICustomizationScope {
+		if (item.scope) {
+			return item.scope;
+		}
+		// Organization customizations are fetched for the signed-in user; the
+		// organization is a tag, not a scope.
+		if (item.origin?.kind === 'account' || this.getOrganizationName(item) !== undefined) {
+			return AICustomizationScopes.user;
+		}
+		// The default chat extension's own customizations ship with VS Code.
+		if (isBuiltin) {
+			return AICustomizationScopes.application;
+		}
+		return AICustomizationScopes.fromSource(source);
 	}
 
-	const builtinUris = new ResourceMap<typeof builtinPaths[number]>();
-	for (const p of builtinPaths) {
-		builtinUris.set(p.uri, p);
-	}
-
-	// Drop provider items that are the same URI as a built-in (the provider
-	// re-discovered the bundled copy by scanning disk).
-	const deduped = items.filter(item => !builtinUris.has(item.uri));
-
-	const uiIntegrations = workspaceService.getSkillUIIntegrations();
-	const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
-
-	// Collect names of user/workspace skills so we can hide the built-in
-	// copy once the user has added an override at either level.
-	const overriddenNames = new Set<string>();
-	for (const item of deduped) {
-		if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
-			if (item.name) {
-				overriddenNames.add(item.name);
+	private inferOrigin(item: ICustomizationItem, source: AICustomizationSource, scope: AICustomizationScope, pluginUri: URI | undefined, extensionId: string | undefined): IAICustomizationListItemOrigin | undefined {
+		if (item.origin) {
+			return { kind: item.origin.kind, id: `${item.origin.kind}:${item.origin.label ?? ''}`, label: item.origin.label };
+		}
+		if (pluginUri) {
+			return { kind: 'plugin', id: `plugin:${pluginUri.toString()}`, label: item.pluginLabel ?? basename(pluginUri) };
+		}
+		const organization = this.getOrganizationName(item);
+		if (organization !== undefined) {
+			return { kind: 'account', id: `account:${organization}`, label: organization };
+		}
+		if (extensionId) {
+			if (isChatExtensionItem(new ExtensionIdentifier(extensionId), this.productService)) {
+				return { kind: 'vscode', id: 'vscode:' };
 			}
+			return { kind: 'extension', id: `extension:${extensionId.toLowerCase()}`, label: item.extensionLabel ?? extensionId };
 		}
+		if (source === AICustomizationSources.builtin || scope === AICustomizationScopes.application) {
+			return { kind: 'vscode', id: 'vscode:' };
+		}
+		return undefined;
 	}
 
-	// Append authoritative built-in entries (excluding any that have been
-	// overridden by a workspace or user copy with the same name).
-	const uriUseCounts = new ResourceMap<number>();
-	for (const item of deduped) {
-		uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
-	}
-	const appended: IAICustomizationListItem[] = [];
-	const disabledPromptFiles = promptsService.getDisabledPromptFiles(PromptsType.skill);
-	for (const p of builtinPaths) {
-		const name = p.name ?? basename(p.uri);
-		if (overriddenNames.has(name)) {
-			continue;
+	/**
+	 * Organization customizations are cached by the default chat extension
+	 * under a `/github/<organization>/` folder.
+	 */
+	private getOrganizationName(item: ICustomizationItem): string | undefined {
+		if (!item.extensionId || !isOrganizationPromptFile(item.uri, new ExtensionIdentifier(item.extensionId), this.productService)) {
+			return undefined;
 		}
-		const folderName = basename(dirname(p.uri));
-		const uiTooltip = uiIntegrations.get(folderName);
-		const builtinItem: ICustomizationItem = {
-			uri: p.uri,
-			type: PromptsType.skill,
-			name,
-			description: p.description,
-			source: AICustomizationSources.builtin,
-			groupKey: BUILTIN_STORAGE,
-			enabled: !disabledPromptFiles.has(p.uri),
-			badge: uiTooltip ? uiIntegrationBadge : undefined,
-			badgeTooltip: uiTooltip,
-			extensionId: undefined,
-			pluginUri: undefined,
-			userInvocable: true,
-		};
-		appended.push(itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
+		const segments = item.uri.path.split('/');
+		const githubIndex = segments.lastIndexOf('github');
+		return githubIndex >= 0 ? segments[githubIndex + 1] || undefined : undefined;
 	}
-
-	return [...deduped, ...appended];
 }
 
 // #endregion
@@ -414,7 +442,7 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 
 		const normalized = this.itemNormalizer.normalizeItems(providerItems, promptType);
 		if (promptType === PromptsType.skill) {
-			return mergeBuiltinSkills(normalized, promptType, this.promptsService, this.workspaceService, this.itemNormalizer);
+			return this.mergeBuiltinSkills(normalized, promptType);
 		}
 		return normalized;
 	}
@@ -425,6 +453,74 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}
 
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
+	/**
+	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
+	 * into the provider's items. The provider may re-discover the bundled
+	 * copies when scanning disk — those duplicates are dropped (deduped by
+	 * URI) and replaced with the authoritative built-in entry tagged
+	 * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI,
+	 * same name) are preserved and hide the built-in copy.
+	 *
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
+	 */
+	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
+		if (builtinPaths.length === 0) {
+			return [...items];
+		}
+
+		const builtinUris = new ResourceMap<typeof builtinPaths[number]>();
+		for (const p of builtinPaths) {
+			builtinUris.set(p.uri, p);
+		}
+
+		// Drop provider items that are the same URI as a built-in (the provider
+		// re-discovered the bundled copy by scanning disk).
+		const deduped = items.filter(item => !builtinUris.has(item.uri));
+
+		// Collect names of user/workspace skills so we can hide the built-in
+		// copy once the user has added an override at either level.
+		const overriddenNames = new Set<string>();
+		for (const item of deduped) {
+			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
+				if (item.name) {
+					overriddenNames.add(item.name);
+				}
+			}
+		}
+
+		// Append authoritative built-in entries (excluding any that have been
+		// overridden by a workspace or user copy with the same name).
+		const uriUseCounts = new ResourceMap<number>();
+		for (const item of deduped) {
+			uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
+		}
+		const appended: IAICustomizationListItem[] = [];
+		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(PromptsType.skill);
+		for (const p of builtinPaths) {
+			const name = p.name ?? basename(p.uri);
+			if (overriddenNames.has(name)) {
+				continue;
+			}
+			const builtinItem: ICustomizationItem = {
+				uri: p.uri,
+				type: PromptsType.skill,
+				name,
+				description: p.description,
+				source: AICustomizationSources.builtin,
+				groupKey: BUILTIN_STORAGE,
+				enabled: !disabledPromptFiles.has(p.uri),
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			};
+			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
+		}
+
+		return [...deduped, ...appended];
 	}
 
 	private async addSkillDescriptionFallbacks(items: readonly ICustomizationItem[]): Promise<readonly ICustomizationItem[]> {
@@ -478,13 +574,9 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		readonly sessionResource: URI,
 		private readonly itemProvider: ICustomizationItemProvider,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
-		// Built-in skills are merged in from the prompts service, so their
-		// enable/disable state changes must refresh the list too.
-		this.onDidAICustomizationItemsChange = Event.any(this.itemProvider.onDidChange, this.promptsService.onDidChangeSkills);
+		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
 
 		// Invalidate cache when the provider changes
 		this._register(this.itemProvider.onDidChange(() => {
@@ -512,11 +604,7 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 
 	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await this.fetchProviderItems();
-		const normalized = this.itemNormalizer.normalizeItems(allItems, promptType);
-		if (promptType === PromptsType.skill) {
-			return mergeBuiltinSkills(normalized, promptType, this.promptsService, this.workspaceService, this.itemNormalizer);
-		}
-		return normalized;
+		return this.itemNormalizer.normalizeItems(allItems, promptType);
 	}
 
 	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -11,19 +14,59 @@ import { PromptLaunchersAICustomizationWelcomePage } from '../../../browser/aiCu
 import { ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 
 suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('welcome submission delegates harness selection without inserting init', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const calls: { query: string; options: Parameters<IWelcomePageCallbacks['prefillChat']>[1] }[] = [];
+		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
+			parent,
+			{ showGettingStartedBanner: true },
+			new class extends mock<IWelcomePageCallbacks>() {
+				override prefillChat(query: string, options?: Parameters<IWelcomePageCallbacks['prefillChat']>[1]): void {
+					calls.push({ query, options });
+				}
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly managementSections = [];
+			}(),
+			new class extends mock<IHoverService>() {
+				override setupManagedHover(): ReturnType<IHoverService['setupManagedHover']> {
+					return new class extends mock<ReturnType<IHoverService['setupManagedHover']>>() {
+						override dispose(): void { }
+					}();
+				}
+			}(),
+			'Copilot',
+		));
+		const input = page.container.querySelector<HTMLInputElement>('.welcome-prompts-input')!;
+		input.value = 'Prefer concise commits.';
+		input.dispatchEvent(new mainWindow.Event('input'));
+		page.container.querySelector<HTMLButtonElement>('.welcome-prompts-input-submit')!.click();
+		assert.deepStrictEqual(calls, [{
+			query: 'Prefer concise commits.',
+			options: { isPartialQuery: false, newChat: true, generateCustomizations: true },
+		}]);
+	});
+
 	test('migration card has one native interactive target', () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
-		const migratedCategories: CustomizationMigrationCategoryId[] = [];
+		let reviewedMigrations = false;
 		const callbacks: IWelcomePageCallbacks = {
 			selectSection() { },
 			selectSectionWithMarketplace() { },
+			openMarketplaceItem() { },
 			closeEditor() { },
-			migrateCustomizations: categoryId => migratedCategories.push(categoryId),
+			async createCustomization() { },
+			reviewMigrations: () => reviewedMigrations = true,
 			prefillChat() { },
 		};
 		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
@@ -31,44 +74,98 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			{ showGettingStartedBanner: false },
 			callbacks,
 			{} as ICommandService,
-			{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
+			{ isSessionsWindow: true, managementSections: [] } as unknown as IAICustomizationWorkspaceService,
 			{} as IHoverService,
-			'Copilot [Agent Host]',
+			'Copilot',
 		));
 		const category: ICustomizationMigrationCategorySummary = {
 			id: CustomizationMigrationCategoryId.UserData,
-			label: 'Migrate User Data Customizations',
+			label: 'VS Code Profile Customizations',
 			description: 'Move customizations.',
 			actionLabel: 'Migrate...',
 			actionAriaLabel: 'Migrate User Data customizations',
 			count: 1,
 		};
 
-		try {
-			page.setMigrationCategories([category]);
-			const card = parent.querySelector<HTMLElement>('.welcome-prompts-migration-card');
-			const action = card?.querySelector<HTMLButtonElement>('.welcome-prompts-card-action');
-			card?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-			action?.click();
-			page.focus();
+		store.add(toDisposable(() => parent.remove()));
+		page.setMigrationCategories([category]);
+		const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
+		parent.classList.add('ai-customization-management-editor');
+		parent.style.setProperty('--vscode-inputValidation-warningForeground', 'rgb(1, 2, 3)');
+		card?.click();
+		page.focus();
 
-			assert.deepStrictEqual({
-				cardRole: card?.getAttribute('role'),
-				cardTabIndex: card?.getAttribute('tabindex'),
-				buttonCount: card?.querySelectorAll('button').length,
-				actionTagName: action?.tagName,
-				focusedAction: document.activeElement === action,
-				migratedCategories,
-			}, {
-				cardRole: null,
-				cardTabIndex: null,
-				buttonCount: 1,
-				actionTagName: 'BUTTON',
-				focusedAction: true,
-				migratedCategories: [CustomizationMigrationCategoryId.UserData],
-			});
-		} finally {
-			parent.remove();
-		}
+		assert.deepStrictEqual({
+			cardTagName: card?.tagName,
+			buttonCount: card?.querySelectorAll('button').length,
+			focusedCard: document.activeElement === card,
+			actionColor: mainWindow.getComputedStyle(card!.querySelector('.welcome-prompts-card-action-label')!).color,
+			reviewedMigrations,
+		}, {
+			cardTagName: 'BUTTON',
+			buttonCount: 0,
+			focusedCard: true,
+			actionColor: 'rgb(1, 2, 3)',
+			reviewedMigrations: true,
+		});
+	});
+
+	test('category cards are single native navigation targets', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const selectedSections: AICustomizationManagementSection[] = [];
+		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
+			parent,
+			{ showGettingStartedBanner: false },
+			{
+				selectSection: section => selectedSections.push(section),
+				selectSectionWithMarketplace() { },
+				openMarketplaceItem() { },
+				closeEditor() { },
+				async createCustomization() { },
+				reviewMigrations() { },
+				prefillChat() { },
+			},
+			{} as ICommandService,
+			{
+				isSessionsWindow: true,
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+				],
+			} as unknown as IAICustomizationWorkspaceService,
+			{} as IHoverService,
+			'Copilot',
+		));
+
+		store.add(toDisposable(() => parent.remove()));
+		page.rebuildCards(new Set([
+			AICustomizationManagementSection.Agents,
+			AICustomizationManagementSection.Skills,
+			AICustomizationManagementSection.Instructions,
+			AICustomizationManagementSection.Hooks,
+			AICustomizationManagementSection.McpServers,
+			AICustomizationManagementSection.Plugins,
+			AICustomizationManagementSection.Tools,
+		]));
+		const cards = [...parent.querySelectorAll<HTMLButtonElement>('.welcome-prompts-navigation-card')];
+		const card = cards.find(candidate => candidate.getAttribute('aria-label') === 'Open Agents');
+		card?.click();
+		assert.deepStrictEqual({
+			cardLabels: cards.map(candidate => candidate.querySelector('.welcome-prompts-card-label')?.textContent),
+			tagName: card?.tagName,
+			nestedButtons: card?.querySelectorAll('button').length,
+			selectedSections,
+		}, {
+			cardLabels: ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks', 'Tools'],
+			tagName: 'BUTTON',
+			nestedButtons: 0,
+			selectedSections: [AICustomizationManagementSection.Agents],
+		});
 	});
 });

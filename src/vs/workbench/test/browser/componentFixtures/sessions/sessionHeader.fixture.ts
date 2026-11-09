@@ -8,19 +8,16 @@ import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHeader.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IMockSessionOptions {
 	readonly title: string;
@@ -29,13 +26,20 @@ interface IMockSessionOptions {
 	readonly supportsRename?: boolean;
 }
 
-function createMockSession(options: IMockSessionOptions): IActiveSession {
+function createMockSession(options: IMockSessionOptions): ITestSessionWithChat {
 	const capabilities: ISessionCapabilities = {
 		supportsMultipleChats: false,
 		supportsRename: options.supportsRename ?? true,
 	};
+	const chat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse(`vscode-chat://chat/${Math.random().toString(36).slice(2)}`);
+		override readonly title: IObservable<string> = constObservable(options.title);
+		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly capabilities = constObservable({ canRename: options.supportsRename ?? true, canArchive: false, canDelete: false });
+	}();
 
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
 		override readonly capabilities = constObservable(capabilities);
@@ -44,6 +48,8 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
 		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly mainChat: IObservable<IChat> = constObservable(chat);
+		override readonly activeChat: IObservable<IChat> = constObservable(chat);
 		override readonly icon = Codicon.account;
 	}();
 }
@@ -70,16 +76,17 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): void {
+function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async renameSession() { }
+				override async renameChat() { }
 			}());
 		},
 	});
@@ -89,14 +96,27 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 	container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
 	container.style.backgroundColor = 'var(--session-view-background)';
 
+	let headerHost = container;
+	if (withBackground) {
+		container.classList.add('agent-sessions-workbench');
+		const sessionsPart = document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
+		sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
+		container.appendChild(sessionsPart);
+		headerHost = sessionsPart;
+	}
+
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
-	header.setSession(session);
-	container.appendChild(header.element);
+	header.setSession(testPaneContentOf(session, () => { }));
+	headerHost.appendChild(header.element);
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionHeader_Default: defineComponentFixture({
 		render: ctx => renderHeader(ctx, createMockSession({ title: 'Fix login bug' })),
+	}),
+	SessionHeader_Background: defineComponentFixture({
+		render: ctx => renderHeader(ctx, createMockSession({ title: 'Fix login bug' }), true),
 	}),
 	SessionHeader_InProgress: defineComponentFixture({
 		render: ctx => renderHeader(ctx, createMockSession({

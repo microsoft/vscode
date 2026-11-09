@@ -32,10 +32,12 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry?: { feedback?: { enabled?: boolean } };
 	chat?: {
 		extensionUnification?: { enabled?: boolean };
+		agentSessions?: { migrateLegacyCopilotCli?: boolean };
 		agentHost?: {
 			enabled?: boolean;
 			claudeAgent?: { enabled?: boolean };
 			codexAgent?: { enabled?: boolean };
+			computerUse?: { enabled?: boolean };
 			otel?: {
 				enabled?: boolean;
 				exporterType?: string;
@@ -68,7 +70,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'accessibility.verbosity.debug',
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
+		'chat.agentSessions.migrateLegacyCopilotCli',
 		'chat.agentHost.claudeAgent.enabled',
+		'chat.agentHost.computerUse.enabled',
 		'chat.editor.codex.preferAgentHost',
 		'chat.agentHost.otel.enabled',
 		'chat.agentHost.otel.exporterType',
@@ -92,7 +96,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
+	private readonly agentSessionsMigrateLegacyCopilotCli = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
+	private readonly agentHostComputerUseEnabled = new ChangeObserver('boolean');
 	private readonly editorCodexPreferAgentHost = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelExporterType = new ChangeObserver('string');
@@ -195,6 +201,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Agent provider registration and implementation preferences are read at spawn.
 		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));
 		processChanged(this.editorCodexPreferAgentHost.handleChange(config.chat?.editor?.codex?.preferAgentHost));
+
+		// The Copilot runtime registers its Computer Use plugin when it starts, and chats keep the tools they started with.
+		processChanged(this.agentHostComputerUseEnabled.handleChange(config.chat?.agentHost?.computerUse?.enabled));
+
+		// The legacy Copilot CLI migration gate is snapshotted at startup by both the
+		// renderer and the shared agent-host process, so a change only applies after a restart.
+		processChanged(this.agentSessionsMigrateLegacyCopilotCli.handleChange(config.chat?.agentSessions?.migrateLegacyCopilotCli));
 
 		// Agent Host OTel: settings are forwarded as env vars when the agent host
 		// child process is spawned (see `electronAgentHostStarter.ts`). The child

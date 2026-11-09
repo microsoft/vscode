@@ -5,7 +5,24 @@
 
 import { type AgentProvider } from './agent.js';
 
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
+export const CLOUD_SANDBOX_TASK_SCHEME = 'cloud-sandbox-task';
+
+/** Identifies the Copilot agent family without changing the host's provider ID or implying runtime capabilities. */
+export function isCopilotAgentHostProvider(provider: AgentProvider | undefined): boolean {
+	return provider === 'copilotcli' || provider === 'copilot';
+}
+
+/** Identifies local and remote Copilot agent-host session types, preserving their existing URI schemes. */
+export function isCopilotAgentHostSessionType(sessionType: string): boolean {
+	if (sessionType === CLOUD_SANDBOX_TASK_SCHEME) {
+		return true;
+	}
+	const provider = parseAgentHostHarness(sessionType);
+	return provider !== undefined && isCopilotAgentHostProvider(provider)
+		&& (!isRemoteAgentHostSessionType(sessionType) || parseRemoteAgentHostSessionTypeAuthority(sessionType, provider) !== undefined);
+}
 
 /**
  * Builds the unique per-connection identifier for a remote agent host.
@@ -71,6 +88,35 @@ export function parseRemoteAgentHostHarness(sessionType: string): string | undef
 	const lastDash = sessionType.lastIndexOf('-');
 	const harness = sessionType.slice(lastDash + 1);
 	return harness || undefined;
+}
+
+/**
+ * Extracts the logical harness/provider from a local or remote agent-host session type.
+ */
+export function parseAgentHostHarness(sessionType: string): string | undefined {
+	if (sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+		return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
+	}
+	return parseRemoteAgentHostHarness(sessionType);
+}
+
+/**
+ * Translates the session type of a window's own agent host to the session type
+ * of another window that connects to the same host as the remote agent host
+ * with `connectionAuthority`. An editor window of a VS Code remote reaches the
+ * agent host on its remote machine as its own agent host, while the Agents
+ * Window connects to that host as a remote agent host.
+ */
+export function toRemoteAgentHostSessionType(sessionType: string, connectionAuthority: string): string | undefined {
+	const provider = sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX) ? sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) : undefined;
+	return provider ? remoteAgentHostSessionTypeId(connectionAuthority, provider) : undefined;
+}
+
+/** The inverse of {@link toRemoteAgentHostSessionType}. */
+export function toLocalAgentHostSessionType(sessionType: string, connectionAuthority: string): string | undefined {
+	const prefix = remoteAgentHostSessionTypeAuthorityPrefix(connectionAuthority);
+	const provider = connectionAuthority && sessionType.startsWith(prefix) ? sessionType.slice(prefix.length) : undefined;
+	return provider ? `${LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX}${provider}` : undefined;
 }
 
 /**

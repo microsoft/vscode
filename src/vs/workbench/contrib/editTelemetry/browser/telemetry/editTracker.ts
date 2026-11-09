@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableSignal, runOnChange, IReader } from '../../../../../base/common/observable.js';
 import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
@@ -21,6 +22,9 @@ export type ExternalEditCorrelationPolicy = 'suppress' | 'reattribute';
 export class DocumentEditSourceTracker<T = void> extends Disposable {
 	private _edits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
+	private _coarseDiffCount = 0;
+
+	public get coarseDiffCount(): number { return this._coarseDiffCount; }
 
 	private readonly _update = observableSignal(this);
 	private readonly _documentStore = this._register(new DisposableStore());
@@ -40,40 +44,46 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 	) {
 		super();
 
-		this._documentStore.add(runOnChange(this._doc.value, (_val, _prevVal, edits) => {
-			let eComposed = AnnotatedStringEdit.compose(edits.map(e => e.edit));
-			if (eComposed.replacements.every(e => e.data.source.category === 'external')) {
-				if (this._edits.isEmpty() && !this._externalEditCorrelation) {
-					// Ignore initial external edits
-				} else {
-					if (this._externalEditCorrelation) {
-						const observationId = this._externalEditCorrelation.register(_prevVal.value, _val.value);
-						this._externalObservationIds.add(observationId);
-						if (this._edits.isEmpty()) {
-							this._ignoredInitialExternalObservationIds.add(observationId);
-						}
-						const resolution = this._externalEditCorrelation.getResolution?.(observationId);
-						if (resolution) {
-							this._resolveExternalObservation(resolution);
-						} else if (this._externalEditCorrelationPolicy === 'suppress' && this._externalEditCorrelation.isSuppressed(observationId)) {
-							this._suppressedExternalObservationIds.add(observationId);
-						}
-						const key = `${EXTERNAL_OBSERVATION_KEY_PREFIX}${observationId}`;
-						eComposed = eComposed.mapData(replacement => new EditKeySourceData(key, replacement.data.source, replacement.data.representative));
-					}
-					// queue pending external edits
-					this._pendingExternalEdits = this._pendingExternalEdits.compose(eComposed);
-				}
-			} else {
-				if (!this._pendingExternalEdits.isEmpty()) {
-					this._applyEdit(this._pendingExternalEdits);
-					this._pendingExternalEdits = AnnotatedStringEdit.empty;
-				}
-				this._applyEdit(eComposed);
+		void this._doc.waitForQueue(() => {
+			if (this._documentStore.isDisposed) {
+				return;
 			}
+			this._documentStore.add(runOnChange(this._doc.value, (_val, _prevVal, edits) => {
+				this._coarseDiffCount += edits.reduce((sum, edit) => sum + (edit.coarseDiffCount ?? 0), 0);
+				let eComposed = AnnotatedStringEdit.compose(edits.map(e => e.edit));
+				if (eComposed.replacements.every(e => e.data.source.category === 'external')) {
+					if (this._edits.isEmpty() && !this._externalEditCorrelation) {
+						// Ignore initial external edits
+					} else {
+						if (this._externalEditCorrelation) {
+							const observationId = this._externalEditCorrelation.register(_prevVal.value, _val.value);
+							this._externalObservationIds.add(observationId);
+							if (this._edits.isEmpty()) {
+								this._ignoredInitialExternalObservationIds.add(observationId);
+							}
+							const resolution = this._externalEditCorrelation.getResolution?.(observationId);
+							if (resolution) {
+								this._resolveExternalObservation(resolution);
+							} else if (this._externalEditCorrelationPolicy === 'suppress' && this._externalEditCorrelation.isSuppressed(observationId)) {
+								this._suppressedExternalObservationIds.add(observationId);
+							}
+							const key = `${EXTERNAL_OBSERVATION_KEY_PREFIX}${observationId}`;
+							eComposed = eComposed.mapData(replacement => new EditKeySourceData(key, replacement.data.source, replacement.data.representative));
+						}
+						// queue pending external edits
+						this._pendingExternalEdits = this._pendingExternalEdits.compose(eComposed);
+					}
+				} else {
+					if (!this._pendingExternalEdits.isEmpty()) {
+						this._applyEdit(this._pendingExternalEdits);
+						this._pendingExternalEdits = AnnotatedStringEdit.empty;
+					}
+					this._applyEdit(eComposed);
+				}
 
-			this._update.trigger(undefined);
-		}));
+				this._update.trigger(undefined);
+			}));
+		}).catch(onUnexpectedError);
 		if (this._externalEditCorrelation) {
 			if (this._externalEditCorrelation.onDidResolve) {
 				this._register(this._externalEditCorrelation.onDidResolve(resolution => this._resolveExternalObservation(resolution)));
@@ -103,8 +113,8 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		this._externalObservationIds.clear();
 	}
 
-	public stopTracking(): void {
-		this._documentStore.clear();
+	public stopTracking(): Promise<void> {
+		return this._doc.waitForQueue(() => this._documentStore.dispose());
 	}
 
 	public async waitForExternalEditCorrelations(timeoutMs: number): Promise<void> {

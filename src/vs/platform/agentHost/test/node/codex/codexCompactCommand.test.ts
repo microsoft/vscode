@@ -19,7 +19,7 @@ suite('CodexCompactCompletionProvider', () => {
 
 	function run(text: string, channel = codexSession, hasHistory = true) {
 		const provider = new CodexCompactCompletionProvider(() => hasHistory);
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel, text, offset: text.length }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel, text, offset: text.length }, { chat: undefined }, CancellationToken.None);
 	}
 
 	test('offers /compact with command metadata for Codex sessions with history', async () => {

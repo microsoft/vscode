@@ -38,7 +38,7 @@ pub enum Method {
 }
 
 /// Serialization is given to the RpcBuilder and defines how data gets serialized
-/// when callinth methods.
+/// when calling methods.
 pub trait Serialization: Send + Sync + 'static {
 	fn serialize(&self, value: impl Serialize) -> Vec<u8>;
 	fn deserialize<P: DeserializeOwned>(&self, b: &[u8]) -> Result<P, AnyError>;

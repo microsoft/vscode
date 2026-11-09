@@ -27,7 +27,7 @@ function toChange(element: IElement): Change {
 	const type = element.attributes['data-tooltip'] || '';
 
 	const actionElementList = findElements(element, e => /\baction-label\b/.test(e.className));
-	const actions = actionElementList.map(e => e.attributes['title']);
+	const actions = actionElementList.map(e => e.attributes.title);
 
 	return {
 		name: name.textContent || '',

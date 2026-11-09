@@ -24,35 +24,66 @@ const mcpActivationEventPrefix = 'onMcpCollection:';
 export const mcpActivationEvent = (contributedCollectionId: string) =>
 	mcpActivationEventPrefix + contributedCollectionId;
 
-export const enum DiscoverySource {
+export const enum ExternalDiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
+	Copilot = 'copilot',
 	Windsurf = 'windsurf',
 	CursorGlobal = 'cursor-global',
 	CursorWorkspace = 'cursor-workspace',
 }
 
 export const allDiscoverySources = Object.keys({
-	[DiscoverySource.ClaudeDesktop]: true,
-	[DiscoverySource.Windsurf]: true,
-	[DiscoverySource.CursorGlobal]: true,
-	[DiscoverySource.CursorWorkspace]: true,
-} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+	[ExternalDiscoverySource.ClaudeDesktop]: true,
+	[ExternalDiscoverySource.Copilot]: true,
+	[ExternalDiscoverySource.Windsurf]: true,
+	[ExternalDiscoverySource.CursorGlobal]: true,
+	[ExternalDiscoverySource.CursorWorkspace]: true,
+} satisfies Record<ExternalDiscoverySource, true>) as ExternalDiscoverySource[];
 
-export const discoverySourceLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+/**
+ * Default enablement for each {@link ExternalDiscoverySource}. The Copilot CLI
+ * user configuration is on by default because MCP server migration moves user
+ * servers there; other applications' configurations remain opt-in.
+ */
+export const defaultDiscoverySourceEnablement: Readonly<Record<ExternalDiscoverySource, boolean>> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: false,
+	[ExternalDiscoverySource.Copilot]: true,
+	[ExternalDiscoverySource.Windsurf]: false,
+	[ExternalDiscoverySource.CursorGlobal]: false,
+	[ExternalDiscoverySource.CursorWorkspace]: false,
 };
-export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
+
+/**
+ * Returns whether a discovery source is enabled by a `chat.mcp.discovery.enabled`
+ * value. The legacy boolean form applies to every source; sources not set in the
+ * object form use {@link defaultDiscoverySourceEnablement}.
+ */
+export function isDiscoverySourceEnabled(value: unknown, discoverySource: ExternalDiscoverySource): boolean {
+	if (typeof value === 'boolean') {
+		return value;
+	}
+	const enabled = value && typeof value === 'object' ? (value as Partial<Record<ExternalDiscoverySource, unknown>>)[discoverySource] : undefined;
+	return typeof enabled === 'boolean' ? enabled : defaultDiscoverySourceEnablement[discoverySource];
+}
+
+export const discoverySourceLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[ExternalDiscoverySource.Copilot]: localize('mcp.discovery.source.copilot', "GitHub Copilot CLI"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+};
+export const discoverySourceSettingsLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[ExternalDiscoverySource.Copilot]: localize('mcp.discovery.source.copilot.config', "GitHub Copilot CLI configuration (`mcp-config.json` in `COPILOT_HOME`, or `~/.copilot/mcp-config.json` when unset)"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
 };
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
+export const mcpWorkspaceRootConfig = 'chat.mcp.workspaceRootConfig.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
 /**
@@ -151,6 +182,61 @@ const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
 	}
 });
 
+const mcpSandboxSchema = (allowGrants: boolean): IJSONSchema => ({
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		network: {
+			description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				...(allowGrants && {
+					allowedDomains: {
+						description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
+						type: 'array',
+						items: { type: 'string' },
+						default: []
+					},
+				}),
+				deniedDomains: {
+					description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		},
+		filesystem: {
+			description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				denyRead: {
+					description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				},
+				...(allowGrants && {
+					allowWrite: {
+						description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
+						type: 'array',
+						items: { type: 'string' },
+						default: []
+					},
+				}),
+				denyWrite: {
+					description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		}
+	}
+});
+
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -165,6 +251,10 @@ export const mcpStdioServerSchema: IJSONSchema = {
 			type: 'boolean',
 			default: false,
 			description: localize('app.mcp.json.sandboxEnabled', "Whether to run the server in a sandboxed environment.")
+		},
+		sandbox: {
+			...mcpSandboxSchema(true),
+			description: localize('app.mcp.json.serverSandbox', "Sandbox filesystem and network permissions for this server only. Root-level sandbox deny rules also apply. Dialog approvals are saved here. Requires sandboxEnabled on macOS or Linux.")
 		},
 		command: {
 			type: 'string',
@@ -201,6 +291,56 @@ export const mcpStdioServerSchema: IJSONSchema = {
 	}
 };
 
+export const mcpRemoteServerSchema: IJSONSchema = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['url'],
+	examples: [httpSchemaExamples['my-mcp-server']],
+	properties: {
+		type: {
+			type: 'string',
+			enum: ['http', 'sse'],
+			description: localize('app.mcp.json.type', "The type of the server.")
+		},
+		transport: {
+			type: 'string',
+			enum: ['http', 'sse'],
+			description: localize('app.mcp.json.transport', "The HTTP transport to preserve when sharing this configuration with other MCP clients."),
+		},
+		url: {
+			type: 'string',
+			format: 'uri',
+			pattern: '^https?:\\/\\/.+',
+			patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
+			description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
+		},
+		headers: {
+			type: 'object',
+			description: localize('app.mcp.json.headers', "Additional headers sent to the server. These headers are not sent to a different origin, including across redirects."),
+			additionalProperties: { type: 'string' },
+		},
+		oauth: {
+			type: 'object',
+			description: localize('app.mcp.json.oauth', "OAuth configuration for authenticating with the server."),
+			additionalProperties: false,
+			minProperties: 1,
+			properties: {
+				clientId: {
+					type: 'string',
+					minLength: 1,
+					markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. When `enterpriseManaged` is `true`, this is the **resource** authorization server's client ID (the client trusted by the protected resource), not the IdP's. To set the matching client secret, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
+				},
+				enterpriseManaged: {
+					type: 'boolean',
+					default: false,
+					markdownDescription: localize('app.mcp.json.oauth.enterpriseManaged', "(Preview) When set to `true`, this MCP server authenticates through the SSO issuer configured by `#mcp.enterpriseManagedAuth.idp#` using OAuth Identity Assertion Authorization Grant (ID-JAG). After a one-time sign-in, subsequent enterprise-managed servers connect silently. The IdP issuer and client credentials are read from the `#mcp.enterpriseManagedAuth.idp#` setting; the `clientId` on this server entry is passed to the resource authorization server.")
+				}
+			}
+		},
+		...mcpDevModeProps(false),
+	}
+};
+
 export const mcpServerSchema: IJSONSchema = {
 	id: mcpSchemaId,
 	type: 'object',
@@ -210,55 +350,8 @@ export const mcpServerSchema: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		sandbox: {
-			description: localize('app.mcp.json.sandbox', "Sandbox config that determines file system and network access. Sandboxing is enabled when sandboxEnabled property is set at the server level on Mac OS and Linux only."),
-			type: 'object',
-			additionalProperties: false,
-			properties: {
-				network: {
-					description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
-					type: 'object',
-					additionalProperties: false,
-					properties: {
-						allowedDomains: {
-							description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						deniedDomains: {
-							description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						}
-					}
-				},
-				filesystem: {
-					description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
-					type: 'object',
-					additionalProperties: false,
-					properties: {
-						denyRead: {
-							description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						allowWrite: {
-							description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						denyWrite: {
-							description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						}
-					}
-				}
-			}
+			...mcpSandboxSchema(false),
+			description: localize('app.mcp.json.sandbox', "Sandbox deny rules shared by all servers in this file. Allow rules are only supported in a server's sandbox property; root-level allow rules are ignored. Sandboxing requires sandboxEnabled at the server level on macOS or Linux.")
 		},
 		servers: {
 			examples: [
@@ -267,50 +360,7 @@ export const mcpServerSchema: IJSONSchema = {
 			],
 			additionalProperties: {
 				oneOf: [
-					mcpStdioServerSchema, {
-						type: 'object',
-						additionalProperties: false,
-						required: ['url'],
-						examples: [httpSchemaExamples['my-mcp-server']],
-						properties: {
-							type: {
-								type: 'string',
-								enum: ['http', 'sse'],
-								description: localize('app.mcp.json.type', "The type of the server.")
-							},
-							url: {
-								type: 'string',
-								format: 'uri',
-								pattern: '^https?:\\/\\/.+',
-								patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
-								description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
-							},
-							headers: {
-								type: 'object',
-								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
-								additionalProperties: { type: 'string' },
-							},
-							oauth: {
-								type: 'object',
-								description: localize('app.mcp.json.oauth', "OAuth configuration for authenticating with the server."),
-								additionalProperties: false,
-								minProperties: 1,
-								properties: {
-									clientId: {
-										type: 'string',
-										minLength: 1,
-										markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. When `enterpriseManaged` is `true`, this is the **resource** authorization server's client ID (the client trusted by the protected resource), not the IdP's. To set the matching client secret, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
-									},
-									enterpriseManaged: {
-										type: 'boolean',
-										default: false,
-										markdownDescription: localize('app.mcp.json.oauth.enterpriseManaged', "(Preview) When set to `true`, this MCP server authenticates through the SSO issuer configured by `#mcp.enterpriseManagedAuth.idp#` using OAuth Identity Assertion Authorization Grant (ID-JAG). After a one-time sign-in, subsequent enterprise-managed servers connect silently. The IdP issuer and client credentials are read from the `#mcp.enterpriseManagedAuth.idp#` setting; the `clientId` on this server entry is passed to the resource authorization server.")
-									}
-								}
-							},
-							...mcpDevModeProps(false),
-						}
-					},
+					mcpStdioServerSchema, mcpRemoteServerSchema,
 				]
 			}
 		},
@@ -390,4 +440,3 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	},
 	renderer: new SyncDescriptor(McpServerDefinitionsProviderRenderer),
 });
-

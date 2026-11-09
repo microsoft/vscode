@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-icon {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.artifact-details-list {
+	min-width: 0;
+}
+
+.artifact-details-list > .monaco-list,
+.artifact-details-list > .monaco-list > .monaco-scrollable-element {
+	background-color: transparent;
+}
+
+.artifact-details-list .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.artifact-details-list .artifact-details-item {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-content: center;
+	align-items: start;
+	gap: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size60);
+	height: 100%;
+	box-sizing: border-box;
+	min-width: 0;
+}
+
+.artifact-details-item-labels {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: var(--vscode-spacing-size160);
+}
+
+.artifact-details-item-label,
+.artifact-details-item-description {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.artifact-details-item-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.artifact-details-item-description[hidden] {
+	display: none;
+}
+
+.artifact-details-item-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+}
+
+.artifact-details-item-icon .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+/* Row actions float at the end of the row while it is hovered, focused, or selected. */
+.artifact-details-list .artifact-details-item.has-actions {
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+}
+
+.artifact-details-item-actions {
+	display: none;
+	align-self: center;
+}
+
+.artifact-details-list .monaco-list-row:is(:hover, .hovered, :focus-within, .focused, .selected) .artifact-details-item.has-actions .artifact-details-item-actions {
+	display: flex;
+}

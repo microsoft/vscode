@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI as ProtocolURI } from './state/sessionState.js';
+import type { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IAgentHostChangesetSubscriptionService = createDecorator<IAgentHostChangesetSubscriptionService>('agentHostChangesetSubscriptionService');
@@ -16,7 +17,13 @@ export interface IAgentHostChangesetSubscriptionService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Returns the set of changeset URIs currently subscribed for `session`.
+	 * Fires with the owner URI after each actual subscription-set membership change.
+	 * Consumers read the current set to retain resources only while their changesets are observed.
+	 */
+	readonly onDidChangeSessionSubscriptions: Event<ProtocolURI>;
+
+	/**
+	 * Returns explicit changeset URIs and the session URI for implicit summary interest.
 	 * Empty when the session has no active changeset subscribers.
 	 */
 	getSessionSubscriptions(session: ProtocolURI): ReadonlySet<ProtocolURI>;

@@ -205,13 +205,13 @@ function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, custo
 
 }
 
-export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI): Promise<void> {
+export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI, contents?: string): Promise<void> {
 	const ignoreService = accessor.get(IIgnoreService);
 	const promptPathRepresentationService = accessor.get(IPromptPathRepresentationService);
-	if (await ignoreService.isCopilotIgnored(uri)) {
+	if (await ignoreService.isCopilotIgnored(uri, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(uri)} is configured to be ignored by Copilot`);
 	}
-	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath)) {
+	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(realPath)} is configured to be ignored by Copilot`);
 	}
 }
@@ -299,7 +299,8 @@ async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: U
 		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	const isInsideWorkspace = getFolder(resolvedUri) !== undefined;
+	const resolvedWorkspaceFolder = normalizePath(URI.file(await realpath(workspaceFolder.fsPath)));
+	const isInsideWorkspace = extUriBiasedIgnorePathCase.isEqualOrParent(resolvedUri, resolvedWorkspaceFolder) || getFolder(resolvedUri) !== undefined;
 	return { needsConfirmation: !isInsideWorkspace, realPath: resolvedUri };
 }
 

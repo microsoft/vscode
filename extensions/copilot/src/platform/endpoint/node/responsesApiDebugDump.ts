@@ -36,6 +36,7 @@ class ResponsesStreamDumper implements IResponsesStreamDumper {
 		const timestamp = new Date();
 		try {
 			const prettyData = JSON.stringify({ ...responseStreamEvent, type: undefined }, null, 2);
+			// eslint-disable-next-line local/code-no-sync-fs -- This developer-only dumper is compile-time disabled in product builds; synchronous appends preserve SSE order when explicitly enabled for debugging.
 			fs.appendFileSync(this.filePath, `${timestamp.toISOString()} ${responseStreamEvent.type}\n${prettyData}\n\n`);
 		} catch {
 			// Swallow write errors so debugging never breaks real functionality.
@@ -58,9 +59,11 @@ export function createResponsesStreamDumper(requestId: string, logService: ILogS
 		// dedicated (gitignored) subfolder so dumps don't pollute `dist/`.
 		const repoRoot = path.resolve(__dirname, '..', '..', '..');
 		const dumpDir = path.join(repoRoot, '.responses-stream-dumps');
+		// eslint-disable-next-line local/code-no-sync-fs -- This developer-only dumper is compile-time disabled in product builds; its synchronous factory must create the directory before returning a usable writer.
 		fs.mkdirSync(dumpDir, { recursive: true });
 		const ts = new Date().toISOString().replace(/[:.]/g, '-');
 		const filePath = path.join(dumpDir, `responses-stream-${ts}-${requestId.slice(0, 4)}.log`);
+		// eslint-disable-next-line local/code-no-sync-fs -- This developer-only dumper is compile-time disabled in product builds; its header must be written before the SSE callback can append events.
 		fs.writeFileSync(filePath, `# Responses API SSE stream dump\n# requestId=${requestId}\n# started=${new Date().toISOString()}\n\n`);
 		logService.info(`[responsesAPI] Dumping SSE stream to ${filePath}`);
 		return new ResponsesStreamDumper(filePath);

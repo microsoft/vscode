@@ -204,6 +204,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
+	clearCommands(): void {
+		if (this._commands.length > 0) {
+			this._onCommandInvalidated.fire(this._commands.splice(0));
+		}
+	}
+
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
 	}

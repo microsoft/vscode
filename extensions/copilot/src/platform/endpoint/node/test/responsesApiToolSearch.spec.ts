@@ -516,7 +516,7 @@ describe('OpenAIResponsesProcessor tool search events', () => {
 		const ds = new DisposableStore();
 		const services = createPlatformServices(ds);
 		const accessor = services.createTestingAccessor();
-		return accessor.get(IInstantiationService).createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, 'req-123', 'gh-req-456', '', undefined);
+		return accessor.get(IInstantiationService).createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, 'req-123', 'gh-req-456', 'svc-req-789', '', undefined);
 	}
 
 	function collectDeltas(processor: OpenAIResponsesProcessor, events: any[]): IResponseDelta[] {

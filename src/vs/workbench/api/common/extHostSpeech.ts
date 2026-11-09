@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
@@ -16,6 +16,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 	private readonly proxy: MainThreadSpeechShape;
 
 	private readonly providers = new Map<number, vscode.SpeechProvider>();
+	private readonly voiceLiveSessionProviders = new Map<number, vscode.VoiceLiveSessionProvider>();
 	private readonly sessions = new Map<number, CancellationTokenSource>();
 	private readonly synthesizers = new Map<number, vscode.TextToSpeechSession>();
 
@@ -63,18 +64,17 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
-		const disposables = new DisposableStore();
-
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
 		const textToSpeech = await provider.provideTextToSpeechSession(cts.token, language ? { language } : undefined);
-		if (!textToSpeech) {
+		if (!textToSpeech || cts.token.isCancellationRequested) {
 			return;
 		}
 
 		this.synthesizers.set(session, textToSpeech);
 
+		const disposables = new DisposableStore();
 		disposables.add(textToSpeech.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -128,6 +128,13 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.sessions.delete(session);
 	}
 
+	async $createVoiceLiveSession(handle: number, sdp: string | undefined, token: CancellationToken): Promise<vscode.VoiceLiveSessionResult | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return await this.voiceLiveSessionProviders.get(handle)?.provideVoiceLiveSession(sdp, token) ?? undefined;
+	}
+
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {
 		const handle = ExtHostSpeech.ID_POOL++;
 
@@ -137,6 +144,18 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		return toDisposable(() => {
 			this.proxy.$unregisterProvider(handle);
 			this.providers.delete(handle);
+		});
+	}
+
+	registerVoiceLiveSessionProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.VoiceLiveSessionProvider): IDisposable {
+		const handle = ExtHostSpeech.ID_POOL++;
+
+		this.voiceLiveSessionProviders.set(handle, provider);
+		this.proxy.$registerVoiceLiveSessionProvider(handle, identifier, { extension, displayName: extension.value });
+
+		return toDisposable(() => {
+			this.proxy.$unregisterProvider(handle);
+			this.voiceLiveSessionProviders.delete(handle);
 		});
 	}
 }

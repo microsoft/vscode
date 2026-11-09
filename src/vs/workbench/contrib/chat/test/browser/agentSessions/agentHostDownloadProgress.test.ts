@@ -10,9 +10,12 @@ import { type ProgressParams } from '../../../../../../platform/agentHost/common
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
+import { getNotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
+import { withAgentHostDebugLogsProgress } from '../../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
 
 interface IRecordedProgress {
-	title: string | undefined;
+	title: IProgressNotificationOptions['title'];
+	telemetry: IProgressNotificationOptions['telemetry'];
 	readonly steps: IProgressStep[];
 	dismissed: boolean;
 	/** Resolves once the backing notification promise settles (i.e. is dismissed). */
@@ -24,7 +27,7 @@ class RecordingProgressService {
 	readonly opened: IRecordedProgress[] = [];
 
 	withProgress(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<unknown>): Promise<unknown> {
-		const record: IRecordedProgress = { title: options.title, steps: [], dismissed: false, settled: Promise.resolve() };
+		const record: IRecordedProgress = { title: options.title, telemetry: options.telemetry, steps: [], dismissed: false, settled: Promise.resolve() };
 		this.opened.push(record);
 		const result = task({ report: step => { record.steps.push(step); } });
 		record.settled = result.then(() => { record.dismissed = true; }, () => { record.dismissed = true; });
@@ -60,35 +63,61 @@ suite('AgentHostDownloadProgress', () => {
 	test('determinate download opens one notification, reports percent, dismisses on terminal frame', async () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude Agent' }));
 
 		// The terminal frame resolves the notification promise asynchronously.
 		await progressService.opened[0].settled;
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message), dismissed: o.dismissed })),
-			[{ title: 'Downloading Claude agent', steps: ['0%', '50%'], dismissed: true }],
+			[{ title: 'Downloading Claude Agent', steps: ['0%', '50%'], dismissed: true }],
 		);
 	});
 
 	test('indeterminate download (no total) reports megabytes received', () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex agent' }));
+		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex Agent' }));
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })),
-			[{ title: 'Downloading Codex agent', steps: ['5.0 MB'] }],
+			[{ title: 'Downloading Codex Agent', steps: ['5.0 MB'] }],
 		);
+	});
+
+	test('policy loading is indeterminate without percentages or byte counts', async () => {
+		const { controller, progressService } = create();
+		controller.handleProgress(frame({ progressToken: 'policy', progress: 0, message: 'Loading your organization\'s managed settings' }));
+		assert.deepStrictEqual(progressService.opened.map(record => ({ title: record.title, steps: record.steps, dismissed: record.dismissed })), [
+			{ title: 'Loading your organization\'s managed settings', steps: [], dismissed: false },
+		]);
+		controller.handleProgress(frame({ progressToken: 'policy', progress: 1, total: 1 }));
+		await progressService.opened[0].settled;
+		assert.strictEqual(progressService.opened[0].dismissed, true);
 	});
 
 	test('no notification when AI features are disabled', () => {
 		const { controller, progressService } = create(true);
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
 
 		assert.strictEqual(progressService.opened.length, 0);
+	});
+
+	test('does not open a second notification for caller-owned debug-log export progress', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress({ channel: 'ahp-root://root', ...withAgentHostDebugLogsProgress({ progressToken: 'export', progress: 0, message: 'Collecting logs' }) });
+		controller.handleProgress({ channel: 'ahp-root://root', ...withAgentHostDebugLogsProgress({ progressToken: 'export', progress: 10, total: 100, message: 'Compressing logs' }) });
+		assert.deepStrictEqual(progressService.opened, []);
+	});
+	test('host messages, tokens and non-VS Code channel URIs never determine telemetry identity', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 0, message: 'private title' });
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 1, message: 'changed private title' });
+		assert.deepStrictEqual(progressService.opened.map(record => getNotificationTelemetrySource(record.telemetry)), [
+			{ origin: 'core', notificationId: 'agentHost.progress', extensionId: 'none' }
+		]);
 	});
 });

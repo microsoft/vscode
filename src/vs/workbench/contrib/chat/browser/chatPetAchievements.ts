@@ -16,7 +16,6 @@ export const ChatPetAchievementIds = {
 	AgentsWindowOpened: 'agentsWindowOpened',
 	CreatePullRequest: 'createPullRequest',
 	AgentEditKept: 'agentEditKept',
-	SessionArchived: 'sessionArchived',
 	AgentChangesReviewed: 'agentChangesReviewed',
 	ChatReferenceOpened: 'chatReferenceOpened',
 	UsefulOutputCopied: 'usefulOutputCopied',
@@ -27,6 +26,7 @@ export const ChatPetAchievementIds = {
 	McpServerPresent: 'mcpServerPresent',
 	InstructionPresent: 'instructionPresent',
 	ImageRequest: 'imageRequest',
+	Blobby: 'blobby',
 } as const;
 
 export type ChatPetAchievementId = typeof ChatPetAchievementIds[keyof typeof ChatPetAchievementIds];
@@ -45,8 +45,7 @@ export const ChatPetAccessoryIds = {
 	FirefighterHelmet: 'firefighterHelmet',
 	Crown: 'crown',
 	ArtistBeret: 'artistBeret',
-	RiceHat: 'riceHat',
-	SantaHat: 'santaHat',
+	BambooHat: 'bambooHat',
 	StrawHat: 'strawHat',
 	WhiteChefHat: 'whiteChefHat',
 	WizardHat: 'wizardHat',
@@ -61,6 +60,7 @@ export interface IChatPetAccessory {
 	readonly atlasCellSize?: 64 | 96;
 	readonly eyeAccessoryMirrorsWithFacing?: boolean;
 	readonly coversAntennae?: boolean;
+	readonly hasAnimatedPropeller?: boolean;
 }
 
 export interface IChatPetAchievement {
@@ -68,13 +68,14 @@ export interface IChatPetAchievement {
 	readonly title: string;
 	readonly description: string;
 	readonly hint: string;
-	readonly accessories: readonly [IChatPetAccessory];
+	readonly accessories: readonly [] | readonly [IChatPetAccessory];
+	readonly colorCustomization?: boolean;
 	readonly enabled: boolean;
 }
 
 export type ChatPetAchievementPresentation =
 	| { readonly locked: true; readonly id: ChatPetAchievementId; readonly hint: string; readonly rewardLabels: readonly string[] }
-	| { readonly locked: false; readonly id: ChatPetAchievementId; readonly title: string; readonly description: string; readonly accessories: readonly IChatPetAccessory[] };
+	| { readonly locked: false; readonly id: ChatPetAchievementId; readonly title: string; readonly description: string; readonly accessories: readonly IChatPetAccessory[]; readonly rewardLabels: readonly string[] };
 
 const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 	{
@@ -186,6 +187,7 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 			atlasName: 'propeller-hat',
 			atlasCellSize: 96,
 			coversAntennae: true,
+			hasAnimatedPropeller: true,
 		}],
 	},
 	{
@@ -217,29 +219,15 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 		}],
 	},
 	{
-		id: ChatPetAchievementIds.SessionArchived,
-		title: localize('chatPet.achievement.sessionArchived.title', "Wrapped Up"),
-		description: localize('chatPet.achievement.sessionArchived.description', "You archived an agent session."),
-		hint: localize('chatPet.achievement.sessionArchived.hint', "Finished work deserves a tidy ending."),
-		enabled: true,
-		accessories: [{
-			id: ChatPetAccessoryIds.SantaHat,
-			label: localize('chatPet.accessory.santaHat', "Santa Hat"),
-			atlasName: 'santa-hat',
-			atlasCellSize: 96,
-			coversAntennae: true,
-		}],
-	},
-	{
 		id: ChatPetAchievementIds.AgentChangesReviewed,
 		title: localize('chatPet.achievement.agentChangesReviewed.title', "Trust but Verify"),
 		description: localize('chatPet.achievement.agentChangesReviewed.description', "You opened agent changes for review."),
 		hint: localize('chatPet.achievement.agentChangesReviewed.hint', "Take a closer look before keeping the changes."),
 		enabled: true,
 		accessories: [{
-			id: ChatPetAccessoryIds.RiceHat,
-			label: localize('chatPet.accessory.riceHat', "Rice Hat"),
-			atlasName: 'rice-hat',
+			id: ChatPetAccessoryIds.BambooHat,
+			label: localize('chatPet.accessory.bambooHat', "Bamboo Hat"),
+			atlasName: 'bamboo-hat',
 			atlasCellSize: 96,
 			coversAntennae: true,
 		}],
@@ -285,6 +273,15 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 			atlasCellSize: 96,
 			coversAntennae: true,
 		}],
+	},
+	{
+		id: ChatPetAchievementIds.Blobby,
+		title: localize('chatPet.achievement.blobby.title', "True Name"),
+		description: localize('chatPet.achievement.blobby.description', "Blob the Builder? Blobby McBlobface? Nope, my name is Blobby."),
+		hint: localize('chatPet.achievement.blobby.hint', "This little blob has a name. Try calling it in Chat."),
+		enabled: true,
+		accessories: [],
+		colorCustomization: true,
 	},
 ];
 
@@ -432,6 +429,7 @@ export function getChatPetCustomizationAchievementIds(
 }
 
 export function getChatPetAchievementPresentation(achievement: IChatPetAchievement, unlocked: boolean): ChatPetAchievementPresentation {
+	const rewardLabels = getChatPetAchievementRewardLabels(achievement);
 	return unlocked
 		? {
 			locked: false,
@@ -439,13 +437,20 @@ export function getChatPetAchievementPresentation(achievement: IChatPetAchieveme
 			title: achievement.title,
 			description: achievement.description,
 			accessories: achievement.accessories,
+			rewardLabels,
 		}
 		: {
 			locked: true,
 			id: achievement.id,
 			hint: achievement.hint,
-			rewardLabels: achievement.accessories.map(accessory => accessory.label),
+			rewardLabels,
 		};
+}
+
+export function getChatPetAchievementRewardLabels(achievement: IChatPetAchievement): readonly string[] {
+	return achievement.colorCustomization
+		? [localize('chatPet.achievement.colorCustomization', "Color Customization")]
+		: achievement.accessories.map(accessory => accessory.label);
 }
 
 export function getUnlockedChatPetAccessories(unlockedAchievements: readonly ChatPetAchievementId[]): readonly IChatPetAccessory[] {
