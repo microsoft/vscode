@@ -162,7 +162,7 @@ export class AgentSessionsPicker {
 			.sort(sorter.compare.bind(sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const groupedSessions = groupAgentSessionsByDate(sessions);
+		const groupedSessions = groupAgentSessionsByDate(sessions, filter.sortResults());
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
 				items.push({ type: 'separator', label: group.label });
