@@ -9,8 +9,9 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { suite, test, type TestContext } from 'node:test';
-import { prepareCloudSandbox, raiseCloudSandboxFileLimit, finishCloudSandbox } from '../../npm/cloudSandbox.ts';
+import { prepareCloudSandbox, prepareCloudSandboxPnpm, raiseCloudSandboxFileLimit, finishCloudSandbox } from '../../npm/cloudSandbox.ts';
 import { isExpectedElectronInstalled } from '../electronVersion.ts';
+import { getPnpmCommand } from '../pnpm.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const packages = [
@@ -26,12 +27,35 @@ function fixture(t: TestContext): string {
 	const directory = fs.mkdtempSync(path.join(parent, 'cloud-sandbox-test-'));
 	t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 	fs.writeFileSync(path.join(directory, '.nvmrc'), '24.18.0\n');
-	fs.writeFileSync(path.join(directory, '.npmrc'), 'target="43.7.7"\nms_build_id="15553055"\n');
+	fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({
+		nativeBuild: { runtime: 'electron', target: '43.7.7', disturl: 'https://electronjs.org/headers', msBuildId: '15553055' },
+	}));
 	fs.mkdirSync(path.join(directory, 'host-bin'));
 	for (const executable of ['node', 'npm', 'npx']) {
 		fs.writeFileSync(path.join(directory, 'host-bin', executable), '', { mode: 0o755 });
 	}
 	return directory;
+}
+
+function copyRepositoryFile(root: string, file: string): void {
+	fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+	fs.copyFileSync(path.join(repositoryRoot, file), path.join(root, file));
+}
+
+/**
+ * Lets the cloud sandbox setup run the fixture's `build/npm/preinstall.ts` through `pnpm run preinstall`.
+ */
+function addPreinstallScript(root: string): void {
+	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+	fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ ...packageJson, scripts: { preinstall: 'node build/npm/preinstall.ts' } }));
+	fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
+}
+
+/**
+ * Environment variables that put node-gyp's header cache inside the fixture `root`.
+ */
+function headerCacheEnv(root: string): NodeJS.ProcessEnv {
+	return { HOME: root, USERPROFILE: root, LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CACHE_HOME: path.join(root, 'cache-home') };
 }
 
 suite('Cloud Sandbox install setup', () => {
@@ -445,9 +469,68 @@ suite('Cloud Sandbox install setup', () => {
 		assert.throws(() => prepareCloudSandbox({ ...options, arch: 'x64' }), /complete Node.js version/);
 	});
 
+	test('provides the pinned pnpm next to Node only when PATH selects another version', t => {
+		if (process.platform === 'win32') {
+			t.skip('The sandbox links pnpm with POSIX symlinks.');
+			return;
+		}
+		const root = fixture(t);
+		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ packageManager: 'pnpm@11.28.8' }));
+		const directory = path.join(root, '.local/share/vscode-cloud-sandbox/pnpm-11.28.8');
+		const installedPnpm = path.join(directory, 'node_modules/.bin/pnpm');
+		const linkedPnpm = path.join(root, 'host-bin/pnpm');
+		let hostVersion = '11.28.8';
+		const calls: { command: string; args: readonly string[] }[] = [];
+		const options = {
+			root, home: root, platform: 'linux' as const,
+			env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
+			run: (command: string, args: readonly string[]) => {
+				calls.push({ command, args });
+				if (command === 'npm') {
+					fs.mkdirSync(path.dirname(installedPnpm), { recursive: true });
+					fs.writeFileSync(installedPnpm, '', { mode: 0o755 });
+					return '';
+				}
+				assert.equal(command, 'pnpm');
+				return fs.existsSync(linkedPnpm) && fs.readlinkSync(linkedPnpm) === installedPnpm ? '11.28.8\n' : `${hostVersion}\n`;
+			},
+		};
+		prepareCloudSandboxPnpm(options);
+		const matching = {
+			calls: calls.splice(0),
+			installed: fs.existsSync(path.join(root, '.local')),
+			hostBin: fs.readdirSync(path.join(root, 'host-bin')).sort(),
+		};
+		hostVersion = '10.0.0';
+		prepareCloudSandboxPnpm(options);
+		assert.deepStrictEqual({
+			matching,
+			mismatching: {
+				calls,
+				link: fs.readlinkSync(linkedPnpm),
+				hostBin: fs.readdirSync(path.join(root, 'host-bin')).sort(),
+			},
+		}, {
+			matching: {
+				calls: [{ command: 'pnpm', args: ['--version'] }],
+				installed: false,
+				hostBin: ['node', 'npm', 'npx'],
+			},
+			mismatching: {
+				calls: [
+					{ command: 'pnpm', args: ['--version'] },
+					{ command: 'npm', args: ['install', '--prefix', directory, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', 'pnpm@11.28.8'] },
+					{ command: 'pnpm', args: ['--version'] },
+				],
+				link: installedPnpm,
+				hostBin: ['node', 'npm', 'npx', 'pnpm'],
+			},
+		});
+	});
+
 	test('checks browser downloads on cached installs without repeating Playwright OS setup', t => {
 		const root = fixture(t);
-		const playwright = path.join(root, 'node_modules', 'playwright');
+		const playwright = path.join(root, 'node_modules', '@playwright', 'test');
 		fs.mkdirSync(playwright, { recursive: true });
 		fs.writeFileSync(path.join(playwright, 'package.json'), '{"version":"1.56.0"}');
 		const calls: { command: string; args: readonly string[] }[] = [];
@@ -464,8 +547,8 @@ suite('Cloud Sandbox install setup', () => {
 		finishCloudSandbox(options);
 		finishCloudSandbox({ ...options, env: { GITHUB_ENVIRONMENT_ID: 'replacement' } });
 		assert.deepStrictEqual(calls, [true, false, true, true].flatMap(withDeps => [
-			{ command: 'npm', args: ['run', 'electron', '--', 'x64'] },
-			{ command: 'npm', args: ['exec', '--', 'playwright', 'install', ...(withDeps ? ['--with-deps'] : [])] },
+			{ command: 'pnpm', args: ['run', 'electron', 'x64'] },
+			{ command: 'pnpm', args: ['exec', 'playwright', 'install', ...(withDeps ? ['--with-deps'] : [])] },
 		]));
 	});
 
@@ -481,8 +564,8 @@ suite('Cloud Sandbox install setup', () => {
 		const root = fixture(t);
 		const versionFile = path.join(root, '.build/electron/version');
 		fs.mkdirSync(path.dirname(versionFile), { recursive: true });
-		fs.mkdirSync(path.join(root, 'node_modules/playwright'), { recursive: true });
-		fs.writeFileSync(path.join(root, 'node_modules/playwright/package.json'), '{"version":"1.56.0"}');
+		fs.mkdirSync(path.join(root, 'node_modules/@playwright/test'), { recursive: true });
+		fs.writeFileSync(path.join(root, 'node_modules/@playwright/test/package.json'), '{"version":"1.56.0"}');
 		const results = [];
 		for (const version of ['43.7.7', 'v43.7.7\n', '43.7.6', undefined]) {
 			if (version === undefined) {
@@ -494,7 +577,7 @@ suite('Cloud Sandbox install setup', () => {
 			finishCloudSandbox({
 				root, platform: 'linux', arch: 'x64', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
 				run: (command, args) => {
-					assert.equal(command, 'npm');
+					assert.equal(command, 'pnpm');
 					calls.push([...args]);
 					if (args.includes('electron') && version?.trim().replace(/^v/, '') === '43.7.7') {
 						throw new Error('Cached Electron must not need the network');
@@ -505,17 +588,17 @@ suite('Cloud Sandbox install setup', () => {
 			results.push({ expectedInstalled: isExpectedElectronInstalled(root), calls });
 		}
 		assert.deepStrictEqual(results, [
-			{ expectedInstalled: true, calls: [['exec', '--', 'playwright', 'install', '--with-deps']] },
-			{ expectedInstalled: true, calls: [['exec', '--', 'playwright', 'install']] },
-			{ expectedInstalled: false, calls: [['run', 'electron', '--', 'x64'], ['exec', '--', 'playwright', 'install']] },
-			{ expectedInstalled: false, calls: [['run', 'electron', '--', 'x64'], ['exec', '--', 'playwright', 'install']] },
+			{ expectedInstalled: true, calls: [['exec', 'playwright', 'install', '--with-deps']] },
+			{ expectedInstalled: true, calls: [['exec', 'playwright', 'install']] },
+			{ expectedInstalled: false, calls: [['run', 'electron', 'x64'], ['exec', 'playwright', 'install']] },
+			{ expectedInstalled: false, calls: [['run', 'electron', 'x64'], ['exec', 'playwright', 'install']] },
 		]);
 	});
 
 	test('retries Playwright OS setup after failure rather than caching success', t => {
 		const root = fixture(t);
-		fs.mkdirSync(path.join(root, 'node_modules', 'playwright'), { recursive: true });
-		fs.writeFileSync(path.join(root, 'node_modules', 'playwright', 'package.json'), '{"version":"1.56.0"}');
+		fs.mkdirSync(path.join(root, 'node_modules', '@playwright', 'test'), { recursive: true });
+		fs.writeFileSync(path.join(root, 'node_modules', '@playwright', 'test', 'package.json'), '{"version":"1.56.0"}');
 		const calls: string[][] = [];
 		const options = {
 			root, platform: 'linux' as const, env: { GITHUB_ENVIRONMENT_ID: 'environment' },
@@ -524,7 +607,7 @@ suite('Cloud Sandbox install setup', () => {
 					calls.push([...args]);
 					throw new Error('Playwright prerequisites failed');
 				}
-				assert.equal(command, 'npm');
+				assert.equal(command, 'pnpm');
 				return '';
 			},
 		};
@@ -535,22 +618,22 @@ suite('Cloud Sandbox install setup', () => {
 			calls,
 			saved: fs.existsSync(path.join(root, '.build', 'cloud-sandbox-playwright-deps')),
 		}, {
-			calls: Array.from({ length: 2 }, () => ['exec', '--', 'playwright', 'install', '--with-deps']),
+			calls: Array.from({ length: 2 }, () => ['exec', 'playwright', 'install', '--with-deps']),
 			saved: false,
 		});
 	});
 
-	test('the startup hook prepares cold npm install and npm ci before dependency scripts', t => {
+	test('the startup hook prepares cold pnpm install and pnpm install --frozen-lockfile before dependency scripts', t => {
 		const root = fixture(t);
 		const npmDirectory = path.join(root, 'build/npm');
-		fs.mkdirSync(npmDirectory, { recursive: true });
-		for (const name of ['fast-install.ts', 'preinstall.ts', 'postinstall.ts']) {
-			fs.copyFileSync(path.join(repositoryRoot, 'build/npm', name), path.join(npmDirectory, name));
+		for (const file of ['build/npm/preinstall.ts', 'build/npm/postinstall.ts', 'build/npm/nodeGypHeaders.ts', 'build/npm/pnpm/nativeBuildEnv.ts', 'build/lib/pnpm.ts', 'build/npm/headers/v8-source-location.h', 'build/npm/headers/v8config.h']) {
+			copyRepositoryFile(root, file);
 		}
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			import fs from 'node:fs';
 			export function isCloudSandbox() { return Boolean(process.env.GITHUB_ENVIRONMENT_ID); }
 			export function prepareCloudSandbox() { fs.appendFileSync('calls', 'prepare\\n'); return process.execPath; }
+			export function prepareCloudSandboxPnpm() { fs.appendFileSync('calls', 'pnpm\\n'); }
 			export function raiseCloudSandboxFileLimit(pid) {
 				if (!Number.isSafeInteger(pid) || pid <= 1) { throw new Error('Invalid limit target'); }
 				fs.appendFileSync('calls', 'limit\\n');
@@ -559,76 +642,79 @@ suite('Cloud Sandbox install setup', () => {
 			export function finishCloudSandbox() { fs.appendFileSync('calls', 'finish\\n'); }
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
-		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), 'export const dirs = [];');
-		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), `
-			export const root = process.cwd(), stateFile = root + '/node_modules/.postinstall-state',
-				stateContentsFile = root + '/node_modules/.postinstall-state-contents', forceInstallMessage = '';
-			export function isUpToDate() { return true; }
-			export function computeState() { return {}; }
-			export function computeContents() { return {}; }
+		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), `
+			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], standaloneRoots = [], dirs = [''];
 		`);
 		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
 			name: 'sandbox-install-test', version: '1.0.0', type: 'module',
 			scripts: {
 				preinstall: 'node build/npm/preinstall.ts',
 				postinstall: 'node build/npm/postinstall.ts',
-				'install-fast': 'node build/npm/fast-install.ts',
 			},
+			nativeBuild: { runtime: 'electron', target: '43.7.7', disturl: 'https://electronjs.org/headers' },
 		}));
-		fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
-			name: 'sandbox-install-test', version: '1.0.0', lockfileVersion: 3,
-			packages: { '': { name: 'sandbox-install-test', version: '1.0.0', hasInstallScript: true } },
-		}));
+		// pnpm passes npm_config_node_gyp on when it is set, instead of its bundled node-gyp. The preinstall installs the headers with it.
+		const nodeGyp = path.join(root, 'node-gyp.mjs');
+		const headersInstalled = path.join(root, 'headers-installed');
+		fs.writeFileSync(nodeGyp, `
+			import fs from 'node:fs';
+			import { getNodeGypHeadersDirectory } from './build/npm/nodeGypHeaders.ts';
+			fs.mkdirSync(getNodeGypHeadersDirectory(process.argv.at(-1)), { recursive: true });
+			fs.writeFileSync(${JSON.stringify(headersInstalled)}, '');
+			fs.appendFileSync(${JSON.stringify(path.join(root, 'calls'))}, 'headers\\n');
+		`);
+		// Like the repository, run root lifecycle scripts on every install, don't install before running scripts and trust the native dependency's build.
+		fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'optimisticRepeatInstall: false\nverifyDepsBeforeRun: false\nallowBuilds:\n  \'sandbox-native-test@file:native\': true\n');
+		const pnpm = getPnpmCommand();
+		// Settings of a pnpm that runs these tests (e.g. `pnpm run test`) reach them as environment variables.
+		const inheritedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(npm|pnpm)_config_/i.test(key)));
+		const env = {
+			...inheritedEnv, GITHUB_ENVIRONMENT_ID: '', VSCODE_SKIP_NODE_VERSION_CHECK: '', npm_config_user_agent: '',
+			// The preinstall checks for Visual Studio on Windows; any existing folder passes.
+			vs2026_install: root,
+			pnpm_config_offline: 'true', pnpm_config_store_dir: path.join(root, 'store'), pnpm_config_cache_dir: path.join(root, 'cache'),
+			npm_config_node_gyp: nodeGyp,
+			// node-gyp's header cache, where the preinstall overlays the custom headers.
+			...headerCacheEnv(root),
+		};
+		const options = { cwd: root, encoding: 'utf8' as const, timeout: 30_000, shell: pnpm.shell, env };
+		// Keep lockfiles current, so that installs also succeed where CI makes them frozen by default.
+		const updateLockfile = (cwd: string) => {
+			const result = spawnSync(pnpm.command, [...pnpm.args, 'install', '--lockfile-only'], { ...options, cwd });
+			assert.equal(result.status, 0, result.stdout + result.stderr);
+		};
+		updateLockfile(root);
 		const git = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
 		assert.equal(git.status, 0, git.stderr);
+		fs.mkdirSync(path.join(root, 'remote'));
+		fs.writeFileSync(path.join(root, 'remote', 'package.json'), '{}');
+		// The postinstall links .claude/CLAUDE.md and .claude/skills to these.
+		fs.mkdirSync(path.join(root, '.github'));
+		fs.writeFileSync(path.join(root, '.github', 'copilot-instructions.md'), '');
+		fs.mkdirSync(path.join(root, '.agents', 'skills'), { recursive: true });
 		const results = [];
-		for (const args of [['install'], ['ci'], ['run', 'install-fast']]) {
-			const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', [...args, '--offline', '--no-audit', '--no-fund'], {
-				cwd: root, encoding: 'utf8', timeout: 30_000, shell: process.platform === 'win32',
-				env: { ...process.env, GITHUB_ENVIRONMENT_ID: '', npm_config_cache: path.join(root, 'cache'), npm_config_userconfig: path.join(root, 'user.npmrc'), VSCODE_FORCE_INSTALL: '', VSCODE_SKIP_NODE_VERSION_CHECK: '' },
-			});
+		for (const args of [['install'], ['install', '--frozen-lockfile']]) {
+			const result = spawnSync(pnpm.command, [...pnpm.args, ...args], options);
 			assert.equal(result.status, 0, result.stdout + result.stderr);
 			results.push(fs.readFileSync(path.join(root, 'calls'), 'utf8'));
 			fs.unlinkSync(path.join(root, 'calls'));
 		}
-		assert.deepStrictEqual(results, ['finish\n', 'finish\n', 'finish\n']);
+		assert.deepStrictEqual(results, ['headers\nfinish\n', 'headers\nfinish\n']);
 
 		if (process.platform === 'win32') {
-			return; // The cold sandbox path is Linux-only and preinstall checks the host's Visual Studio on Windows.
+			return; // The cold sandbox path is Linux-only.
 		}
-		const gyp = path.join(npmDirectory, 'gyp');
-		fs.mkdirSync(gyp, { recursive: true });
-		const gypPackage = {
-			name: 'sandbox-gyp-test', version: '1.0.0', type: 'module',
-			scripts: { install: 'node install.ts' },
-		};
-		fs.writeFileSync(path.join(gyp, 'package.json'), JSON.stringify(gypPackage));
-		fs.writeFileSync(path.join(gyp, 'package-lock.json'), JSON.stringify({
-			name: gypPackage.name, version: '1.0.0', lockfileVersion: 3,
-			packages: { '': { name: gypPackage.name, version: '1.0.0', hasInstallScript: true } },
-		}));
-		fs.writeFileSync(path.join(gyp, 'install.ts'), `
-			import fs from 'node:fs';
-			fs.mkdirSync('node_modules/.bin', { recursive: true });
-			fs.writeFileSync('node_modules/.bin/node-gyp', '');
-			fs.appendFileSync(${JSON.stringify(path.join(root, 'calls'))}, 'headers\\n');
-		`);
-		fs.writeFileSync(path.join(root, '.npmrc'), '');
-		fs.mkdirSync(path.join(root, 'remote'));
-		fs.writeFileSync(path.join(root, 'remote', '.npmrc'), '');
-		fs.mkdirSync(path.join(root, '.github'));
-		fs.writeFileSync(path.join(root, '.github', 'copilot-instructions.md'), '');
-		fs.mkdirSync(path.join(root, '.agents', 'skills'), { recursive: true });
 		const native = path.join(root, 'native');
 		fs.mkdirSync(native);
+		// pnpm copies the dependency into node_modules, where Node.js does not strip TypeScript types.
 		fs.writeFileSync(path.join(native, 'package.json'), JSON.stringify({
 			name: 'sandbox-native-test', version: '1.0.0', type: 'module',
-			scripts: { install: 'node install.ts' },
+			scripts: { install: 'node install.js' },
 		}));
-		fs.writeFileSync(path.join(native, 'install.ts'), `
+		fs.writeFileSync(path.join(native, 'install.js'), `
 			import fs from 'node:fs';
 			const log = ${JSON.stringify(path.join(root, 'calls'))};
-			if (!fs.existsSync(${JSON.stringify(path.join(gyp, 'node_modules/.bin/node-gyp'))})) {
+			if (!fs.existsSync(${JSON.stringify(headersInstalled)})) {
 				throw new Error('Native prerequisite not prepared before dependency installation');
 			}
 			fs.appendFileSync(log, 'native\\n');
@@ -636,30 +722,26 @@ suite('Cloud Sandbox install setup', () => {
 		const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 		packageJson.dependencies = { 'sandbox-native-test': 'file:./native' };
 		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(packageJson));
-		const options = {
-			cwd: root, encoding: 'utf8' as const, timeout: 30_000,
-			env: {
-				...process.env, GITHUB_ENVIRONMENT_ID: '', VSCODE_FORCE_INSTALL: '', VSCODE_SKIP_NODE_VERSION_CHECK: '',
-				npm_config_cache: path.join(root, 'cache'), npm_config_userconfig: path.join(root, 'user.npmrc'),
-				npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false',
-			},
-		};
-		const coldInstall = spawnSync('npm', ['install'], options);
-		assert.notEqual(coldInstall.status, 0);
-		assert.match(coldInstall.stderr, /Native prerequisite not prepared/);
+		updateLockfile(root);
+		fs.unlinkSync(headersInstalled);
+		// pnpm runs the root preinstall, which installs the headers, before the install scripts of dependencies.
+		const coldInstall = spawnSync(pnpm.command, [...pnpm.args, 'install'], options);
+		assert.equal(coldInstall.status, 0, coldInstall.stdout + coldInstall.stderr);
+		assert.deepStrictEqual(fs.readFileSync(path.join(root, 'calls'), 'utf8').split('\n').filter(Boolean), ['headers', 'native', 'finish']);
+		fs.unlinkSync(path.join(root, 'calls'));
 		fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
 
 		const hook = JSON.parse(fs.readFileSync(path.join(repositoryRoot, '.github/hooks/cloud-sandbox.json'), 'utf8')) as {
 			hooks: { sessionStart: { bash: string }[] };
 		};
-		fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
+		copyRepositoryFile(root, 'build/npm/cloudSandboxSetup.ts');
 		const hookCommand = hook.hooks.sessionStart[0].bash;
 		const hookOptions = {
 			...options,
-			env: { ...options.env, HOME: root, GITHUB_ENVIRONMENT_ID: 'test-environment' },
+			env: { ...env, HOME: root, GITHUB_ENVIRONMENT_ID: 'test-environment' },
 		};
 		// Simulate the Linux sandbox while keeping these offline fixtures runnable on macOS.
-		const installCommands = [['install'], ['ci'], ['run', 'install-fast', '--', '--force']];
+		const installCommands = [['install'], ['install', '--frozen-lockfile']];
 		for (const [index, args] of installCommands.entries()) {
 			const startup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
 			assert.equal(startup.status, 0, startup.stdout + startup.stderr);
@@ -668,20 +750,21 @@ suite('Cloud Sandbox install setup', () => {
 				agent: process.pid, setupIsSeparateProcess: true,
 			});
 			fs.unlinkSync(path.join(root, 'limit-targets'));
-			const installAfterStartup = spawnSync('npm', args, options);
+			const installAfterStartup = spawnSync(pnpm.command, [...pnpm.args, ...args], options);
 			assert.equal(installAfterStartup.status, 0, installAfterStartup.stdout + installAfterStartup.stderr);
+			// The setup runs the preinstall once per fingerprint; every install runs it again.
 			assert.deepStrictEqual(fs.readFileSync(path.join(root, 'calls'), 'utf8').split('\n').filter(Boolean), [
-				...(index === 0 ? ['prepare'] : []), 'limit', 'limit', ...(index === 0 ? ['headers'] : []),
-				'native', ...(args.includes('install-fast') ? ['headers'] : []), 'finish',
+				...(index === 0 ? ['prepare', 'pnpm'] : []), 'limit', 'limit', ...(index === 0 ? ['headers'] : []), 'headers', 'native', 'finish',
 			]);
 			fs.unlinkSync(path.join(root, 'calls'));
 			fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
 		}
 		fs.unlinkSync(path.join(root, '.build/cloud-sandbox-setup'));
-		fs.writeFileSync(path.join(gyp, 'install.ts'), 'throw new Error("Header setup failed");');
+		// node-gyp failures are retried with delays (see nodeGypHeaders.test.ts); a Node.js version check failure is not.
+		fs.writeFileSync(path.join(root, '.nvmrc'), '24.999.0\n');
 		const failedStartup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
 		assert.notEqual(failedStartup.status, 0);
-		assert.match(failedStartup.stderr, /Header setup failed/);
+		assert.match(failedStartup.stdout + failedStartup.stderr, /Please use Node\.js v24\.999\.0/);
 		assert.ok(!failedStartup.stdout.includes('prerequisites are ready'));
 	});
 
@@ -740,36 +823,40 @@ suite('Cloud Sandbox install setup', () => {
 		}
 		const root = fixture(t);
 		const npmDirectory = path.join(root, 'build/npm');
-		fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
 		fs.mkdirSync(path.join(root, 'remote'));
-		fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
-		for (const file of ['package.json', 'package-lock.json']) {
-			fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
-		}
-		const selectedNode = path.join(root, 'selected-node');
+		fs.writeFileSync(path.join(root, 'remote/package.json'), '{}');
+		// pnpm runs the preinstall with the first node on PATH.
+		const selectedNode = path.join(root, 'selected', 'node');
+		fs.mkdirSync(path.dirname(selectedNode));
 		const quote = (value: string) => `'${value.replaceAll('\'', '\'\\\'\'')}'`;
 		fs.writeFileSync(selectedNode, `#!/bin/sh
 export SELECTED_NODE_EXECUTED=1
 exec ${quote(process.execPath)} "$@"
 `, { mode: 0o755 });
-		fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
-		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), 'export const root = process.cwd();');
+		copyRepositoryFile(root, 'build/npm/cloudSandboxSetup.ts');
+		copyRepositoryFile(root, 'build/npm/nodeGypHeaders.ts');
+		copyRepositoryFile(root, 'build/lib/pnpm.ts');
+		addPreinstallScript(root);
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			export function isCloudSandbox() { return true; }
 			export function prepareCloudSandbox() { return ${JSON.stringify(selectedNode)}; }
+			export function prepareCloudSandboxPnpm({ env }) {
+				if (env.PATH.split(${JSON.stringify(path.delimiter)})[0] !== ${JSON.stringify(path.dirname(selectedNode))}) {
+					throw new Error('pnpm must be provided next to the selected Node executable');
+				}
+			}
 			export function raiseCloudSandboxFileLimit() {}
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'preinstall.ts'), `
 			import assert from 'node:assert/strict';
 			import fs from 'node:fs';
+			import { getNodeGypHeadersDirectory } from './nodeGypHeaders.ts';
 			assert.equal(process.env.SELECTED_NODE_EXECUTED, '1');
-			assert.equal(process.env.PATH.split(${JSON.stringify(path.delimiter)})[0], ${JSON.stringify(root)});
-			fs.mkdirSync('build/npm/gyp/node_modules/.bin', { recursive: true });
-			fs.writeFileSync('build/npm/gyp/node_modules/.bin/node-gyp', '');
+			fs.mkdirSync(getNodeGypHeadersDirectory('43.7.7'), { recursive: true });
 		`);
 		const result = spawnSync(process.execPath, [path.join(npmDirectory, 'cloudSandboxSetup.ts')], {
 			cwd: root, encoding: 'utf8', timeout: 10_000,
-			env: { ...process.env, HOME: root, USERPROFILE: root, GITHUB_ENVIRONMENT_ID: 'environment' },
+			env: { ...process.env, ...headerCacheEnv(root), GITHUB_ENVIRONMENT_ID: 'environment' },
 		});
 		assert.deepStrictEqual({
 			status: result.status,
@@ -782,14 +869,12 @@ exec ${quote(process.execPath)} "$@"
 		test(`concurrent sessions serialize setup and reuse success (initial failure: ${failFirst})`, async t => {
 			const root = fixture(t);
 			const npmDirectory = path.join(root, 'build/npm');
-			fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
 			fs.mkdirSync(path.join(root, 'remote'));
-			fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
-			for (const file of ['package.json', 'package-lock.json']) {
-				fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
-			}
-			fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
-			fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), 'export const root = process.cwd();');
+			fs.writeFileSync(path.join(root, 'remote/package.json'), '{}');
+			copyRepositoryFile(root, 'build/npm/cloudSandboxSetup.ts');
+			copyRepositoryFile(root, 'build/npm/nodeGypHeaders.ts');
+			copyRepositoryFile(root, 'build/lib/pnpm.ts');
+			addPreinstallScript(root);
 			fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 				import fs from 'node:fs';
 				export function isCloudSandbox() { return true; }
@@ -800,10 +885,12 @@ exec ${quote(process.execPath)} "$@"
 					fs.unlinkSync('mutation');
 					return process.execPath;
 				}
+				export function prepareCloudSandboxPnpm() { fs.appendFileSync('calls', 'pnpm\\n'); }
 				export function raiseCloudSandboxFileLimit() { fs.appendFileSync('calls', 'limit\\n'); }
 			`);
 			fs.writeFileSync(path.join(npmDirectory, 'preinstall.ts'), `
 				import fs from 'node:fs';
+				import { getNodeGypHeadersDirectory } from './nodeGypHeaders.ts';
 				fs.appendFileSync('calls', 'headers\\n');
 				fs.writeFileSync('mutation', 'headers', { flag: 'wx' });
 				try {
@@ -812,8 +899,7 @@ exec ${quote(process.execPath)} "$@"
 						fs.unlinkSync('fail-once');
 						throw new Error('Header setup failed once');
 					}
-					fs.mkdirSync('build/npm/gyp/node_modules/.bin', { recursive: true });
-					fs.writeFileSync('build/npm/gyp/node_modules/.bin/node-gyp', '');
+					fs.mkdirSync(getNodeGypHeadersDirectory('43.7.7'), { recursive: true });
 				} finally {
 					fs.unlinkSync('mutation');
 				}
@@ -823,7 +909,7 @@ exec ${quote(process.execPath)} "$@"
 			}
 			const options = {
 				cwd: root,
-				env: { ...process.env, HOME: root, USERPROFILE: root, GITHUB_ENVIRONMENT_ID: 'environment' },
+				env: { ...process.env, ...headerCacheEnv(root), GITHUB_ENVIRONMENT_ID: 'environment' },
 			};
 			const start = () => new Promise<{ code: number | null; output: string }>((resolve, reject) => {
 				const child = spawn(process.execPath, ['build/npm/cloudSandboxSetup.ts', '--agent-pid', String(process.pid)], { ...options, timeout: 10_000 });
@@ -839,20 +925,23 @@ exec ${quote(process.execPath)} "$@"
 			const expectedSetups = failFirst ? 2 : 1;
 			assert.deepStrictEqual({
 				prepares: calls().filter(call => call === 'prepare').length,
+				pnpms: calls().filter(call => call === 'pnpm').length,
 				headers: calls().filter(call => call === 'headers').length,
 				limits: calls().filter(call => call === 'limit').length,
 				mutationLeft: fs.existsSync(path.join(root, 'mutation')),
 				lockLeft: fs.existsSync(path.join(root, '.local/share/vscode-cloud-sandbox/setup.lock')),
 				completed: fs.existsSync(path.join(root, '.build/cloud-sandbox-setup')),
 			}, {
-				prepares: expectedSetups, headers: expectedSetups, limits: 6,
+				prepares: expectedSetups, pnpms: expectedSetups, headers: expectedSetups, limits: 6,
 				mutationLeft: false, lockLeft: false, completed: true,
 			});
 
-			// Changes to setup inputs or missing header dependencies must invalidate completion.
+			// Changes to setup inputs or missing headers must invalidate completion.
 			fs.appendFileSync(path.join(npmDirectory, 'preinstall.ts'), '\n// Changed setup input\n');
 			assert.equal((await start()).code, 0);
-			fs.unlinkSync(path.join(npmDirectory, 'gyp/node_modules/.bin/node-gyp'));
+			for (const cache of ['Library', 'local-app-data', 'cache-home']) {
+				fs.rmSync(path.join(root, cache), { recursive: true, force: true });
+			}
 			assert.equal((await start()).code, 0);
 			assert.deepStrictEqual({
 				prepares: calls().filter(call => call === 'prepare').length,

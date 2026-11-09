@@ -21,4 +21,4 @@ goto loop1
 
 "%ROOT_DIR%\node.exe" %INSPECT% "%ROOT_DIR%\out\server-main.js" %RESTVAR%
 
-endlocal
+endlocal & exit /b %errorlevel%

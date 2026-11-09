@@ -6,18 +6,8 @@
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('Customization marketplace install telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +45,7 @@ suite('Customization marketplace install telemetry', () => {
 	});
 
 	test('reports success, error, and cancellation across both surfaces without error content', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		await runCustomizationMarketplaceInstallWithTelemetry(
 			telemetryService,
 			{ surface: 'marketplace', customizationType: 'skill', installKind: 'skill', origin: 'curatedSection' },

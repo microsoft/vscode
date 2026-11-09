@@ -17,11 +17,31 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
-import { Menus } from '../../../../browser/menus.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -57,51 +77,96 @@ suite('BaseLayoutController', () => {
 	}
 
 	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function describeWorkingSetRestore() {
 		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
 
-	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
-		const registration = BaseLayoutController.registerSidePaneToggleAction();
-		try {
-			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
-			const titleBar = find(Menus.TitleBarSessionMenu)[0];
-			const activityBar = find(Menus.SessionActivityBar)[0];
-			const appearance = find(MenuId.MenubarAppearanceMenu)[0];
-			// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
-			const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
-			const scenarios: Record<string, Record<string, ContextKeyValue>> = {
-				layoutActions: base,
-				layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
-				activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
-				// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
-				editorMaximized: { ...base, editorMaximized: true },
-				phoneLayout: { ...base, sessionsIsPhoneLayout: true },
-			};
-			const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
-			const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
-				...(shows(titleBar, values) ? ['titleBar'] : []),
-				...(shows(activityBar, values) ? ['activityBar'] : []),
-			]]));
+	test('the side panel\'s command, run in a chat window, toggles the editor of that window, never the side panel of the main window, whatever key the user binds to it', () => {
+		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.SideBySide);
+		const chatWindow = new class extends mock<IChatWindow>() {
+			override readonly layoutMode = layoutMode;
+			override setLayoutMode(mode: ChatWindowLayoutMode) { layoutMode.set(mode, undefined); }
+			override showEditor() { layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined); }
+		}();
+		const active: { window: IChatWindow | undefined } = { window: chatWindow };
+		const sidePaneToggles: boolean[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override get activeWindow() { return active.window; }
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override toggleSidePane() { sidePaneToggles.push(true); return true; }
+		}());
+		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const run = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)!.handler(accessor));
 
-			assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
-				titleBar: { group: 'navigation', order: 11 },
-				activityBar: { group: '1_sidePanel', order: 0 },
-				appearance: { group: '2_workbench_layout', order: 2 },
-				placement: {
-					layoutActions: ['activityBar'],
-					layoutActionsOff: ['titleBar'],
-					activityBarOff: ['titleBar'],
-					editorMaximized: ['titleBar'],
-					phoneLayout: ['titleBar'],
-				},
-			});
-		} finally {
-			registration.dispose();
-		}
+		run();
+		const hidden = layoutMode.get();
+		run();
+		const shown = layoutMode.get();
+		active.window = undefined;
+		run();
+
+		// A user's key for the command, such as Cmd+I in the Agents window, runs it in a chat window, where it is enabled even
+		// while the main window shows a custom view.
+		const chatWindowValues: Record<string, ContextKeyValue> = { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide, [CustomViewVisibleContext.key]: true };
+		const chatWindowContext: IContext = { getValue: <T extends ContextKeyValue>(key: string) => chatWindowValues[key] as T | undefined };
+		const userKeybinding = new ResolvedKeybindingItem(createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyI, OS), TOGGLE_SIDE_PANEL_COMMAND_ID, null, IsSessionsWindowContext, false, null, false);
+		const resolved = new KeybindingResolver([], [userKeybinding], () => { }).resolve(chatWindowContext, [], userKeybinding.chords[0]);
+		const precondition = CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID) && MenuRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)?.precondition;
+
+		assert.deepStrictEqual({
+			hidden, shown, sidePaneToggles,
+			resolved: resolved.kind === ResultKind.KbFound ? resolved.commandId : undefined,
+			enabledInChatWindow: precondition?.evaluate(chatWindowContext),
+		}, {
+			hidden: ChatWindowLayoutMode.ChatOnly,
+			shown: ChatWindowLayoutMode.SideBySide,
+			sidePaneToggles: [true],
+			resolved: TOGGLE_SIDE_PANEL_COMMAND_ID,
+			enabledInChatWindow: true,
+		});
+	});
+
+	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
+		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
+		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
+		const titleBar = find(AgentsWindowMenus.TitleBarSessionMenu)[0];
+		const activityBar = find(Menus.SessionActivityBar)[0];
+		const appearance = find(MenuId.MenubarAppearanceMenu)[0];
+		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
+		const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
+			layoutActions: base,
+			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
+			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
+			editorMaximized: { ...base, editorMaximized: true },
+			phoneLayout: { ...base, sessionsIsPhoneLayout: true },
+		};
+		const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+		const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
+			...(shows(titleBar, values) ? ['titleBar'] : []),
+			...(shows(activityBar, values) ? ['activityBar'] : []),
+		]]));
+
+		assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
+			titleBar: { group: 'navigation', order: 11 },
+			activityBar: { group: '1_sidePanel', order: 0 },
+			appearance: { group: '2_workbench_layout', order: 2 },
+			placement: {
+				layoutActions: ['activityBar'],
+				layoutActionsOff: ['titleBar'],
+				activityBarOff: ['titleBar'],
+				editorMaximized: ['titleBar'],
+				phoneLayout: ['titleBar'],
+			},
+		});
 	});
 
 	// --- [B1] Panel visibility ---
@@ -354,6 +419,120 @@ suite('BaseLayoutController', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: committed });
 
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] carries a draft\'s remembered panel view when replaced by another draft', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.activeSessionObs.set(draft2, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B2] replaces an active new draft session without wiping working set or open editors', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+		harness.activeSessionObs.set(draft2, undefined);
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.applyWorkingSetCalls.filter(call => call === 'empty').length,
+			0,
+			'replacing an active draft with a new draft must not apply an empty working set'
+		);
+	});
+
+	test('[B2] switching away discards an empty untitled editor bound to a file path instead of saving it into the working set', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources.map(r => r.toString()), [untitled.toString()]);
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`]);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
+	});
+
+	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: 'hello' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [untitled.toString(), regular.toString()]);
+	});
+
+	test('[B2] a state flush keeps an empty untitled editor bound to a file path open in the active session', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true }))];
+		harness.visibleEditorsList = [{}];
+
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
 	});
 
 	test('[B6] a same-resource draft promotion does not block the committed session\'s next outgoing working-set save', async () => {
@@ -705,6 +884,46 @@ suite('BaseLayoutController', () => {
 			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
 			settled: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false },
 			applies: ['empty'],
+		});
+	});
+
+	test('[R16] a held-back restore settles when its session switches to a chat with another workspace, and a later same-session switch does not restore again', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+		const main = session2.activeChat.get();
+		const peer = { ...addPeerChat(session2, URI.parse('session:2#peer')), workspace: constObservable(undefined) };
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+
+		// Session 2's restore waits for its main chat's workspace, which the folders never get: the user switches to a chat without one.
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		const whileHydrating = describeWorkingSetRestore();
+		setActiveChat(session2, peer);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+		const settled = { restore: describeWorkingSetRestore(), applies: harness.applyWorkingSetCalls.length };
+
+		// Back to the main chat, whose workspace now arrives: the session's working set stays, rather than restoring again.
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		setActiveChat(session2, main);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileHydrating, settled, appliesAfterSwitchBack: harness.applyWorkingSetCalls.length }, {
+			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
+			settled: { restore: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false }, applies: 1 },
+			appliesAfterSwitchBack: 1,
 		});
 	});
 

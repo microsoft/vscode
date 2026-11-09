@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -14,8 +15,14 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionsService, IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -25,6 +32,8 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -66,6 +75,41 @@ suite('AgentSessions', () => {
 
 		function registerContribution(type: string): void {
 			disposables.add(mockChatSessionsService.registerChatSessionContribution({ type, name: type, displayName: type, description: type }));
+		}
+
+		function recordRefreshReasons(): (ChatSessionRefreshReason | undefined)[] {
+			const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh(_token, reason) {
+					reasons.push(reason);
+				},
+			}));
+			return reasons;
+		}
+
+		function createSessionsControl(model: AgentSessionsModel): AgentSessionsControl {
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+			});
+			instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion = observableValue(this, 0);
+				override hasPendingResponse = () => false;
+			});
+			return disposables.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+				source: 'test',
+				overrideStyles: {},
+				filter: {
+					onDidChange: Event.None, exclude: () => false,
+					getExcludes: () => ({ providers: [], states: [], archived: false, read: false, repositoryGroupCapped: true }),
+					isDefault: () => true, reset: () => { },
+				},
+				createNewChat: () => { },
+				getHoverPosition: () => HoverPosition.BELOW,
+				trackActiveEditorSession: () => false,
+			}));
 		}
 
 		setup(() => {
@@ -113,6 +157,61 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('hides automation sessions from discovery while preserving direct lookup', async () => {
+			return runWithFakedTimers({}, async () => {
+				const ordinary = makeSimpleSessionItem('ordinary', { label: 'Ordinary Session' });
+				const automation = makeSimpleSessionItem('automation', {
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const controller = new StaticChatSessionItemController([ordinary, automation]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
+		test('deduplicates legacy Automation twins before filtering discovery', async () => {
+			return runWithFakedTimers({}, async () => {
+				const legacy = makeSimpleSessionItem('shared', {
+					resource: URI.parse('copilotcli:/shared'),
+					label: 'Legacy Automation Twin',
+				});
+				const automation = makeSimpleSessionItem('shared', {
+					resource: URI.parse('agent-host-copilotcli:/shared'),
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const ordinary = makeSimpleSessionItem('ordinary', {
+					resource: URI.parse('agent-host-copilotcli:/ordinary'),
+					label: 'Ordinary Session',
+				});
+				mockChatSessionsService.registerChatSessionItemController('copilotcli', new StaticChatSessionItemController([legacy]));
+				mockChatSessionsService.registerChatSessionItemController('agent-host-copilotcli', new StaticChatSessionItemController([automation, ordinary]));
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					legacyLookup: viewModel.getSession(legacy.resource)?.label,
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					legacyLookup: 'Legacy Automation Twin',
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
 		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
 			return runWithFakedTimers({}, async () => {
 				// Two providers registered only as item controllers (no static
@@ -133,6 +232,33 @@ suite('AgentSessions', () => {
 				await viewModel.resolve('type-eh');
 
 				assert.deepStrictEqual(viewModel.sessions.map(s => s.resource.toString()), ['type-agenthost://ah-1']);
+			});
+		});
+
+		test('keeps rows of a provider that registered while a sibling provider was still activating', async () => {
+			return runWithFakedTimers({}, async () => {
+				const activated = new DeferredPromise<void>();
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-cloud', {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					refresh: () => activated.p,
+				}));
+				viewModel = createViewModel();
+				// Registration reads the provider's items once its initial refresh completes, which
+				// waits for its extension to activate.
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: 'type-cloud' });
+				await timeout(1_000);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-agenthost', new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })])));
+				await viewModel.resolve('type-agenthost');
+				const beforeActivation = viewModel.sessions.map(s => s.resource.toString());
+
+				activated.complete();
+				await viewModel.resolve('type-cloud');
+
+				assert.deepStrictEqual({ beforeActivation, afterActivation: viewModel.sessions.map(s => s.resource.toString()) }, {
+					beforeActivation: ['type-agenthost://ah-1'],
+					afterActivation: ['type-agenthost://ah-1'],
+				});
 			});
 		});
 
@@ -327,25 +453,248 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should respond to onDidChangeItemsProviders event', async () => {
-			return runWithFakedTimers({}, async () => {
-				const chatSessionType = chatSessionTestType;
-				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+		for (const initialRefreshPending of [false, true]) {
+			test(`reads a registered provider without refreshing it again (initial refresh ${initialRefreshPending ? 'pending' : 'complete'})`, async () => {
+				return runWithFakedTimers({}, async () => {
+					const initialRefresh = new DeferredPromise<void>();
+					const initialItem = makeSimpleSessionItem('session-1', { label: 'Initial' });
+					const resolvedLabels: (string | undefined)[] = [];
+					let refreshCount = 0;
+					const controller = new class extends StaticChatSessionItemController {
+						override async refresh(): Promise<void> {
+							if (++refreshCount === 1) {
+								await initialRefresh.p;
+								this.setItems([initialItem]);
+							} else {
+								this.setItems([{ ...initialItem, label: 'Updated' }]);
+							}
+						}
+					}([]);
+					mockChatSessionsService.resolveChatSessionItem = async () => {
+						const item = mockChatSessionsService.getRegisteredChatSessionItemProviders().includes(chatSessionTestType) ? controller.items[0] : undefined;
+						resolvedLabels.push(item?.label);
+						return item;
+					};
 
-				mockChatSessionsService.registerChatSessionItemController(chatSessionType, controller);
+					viewModel = createViewModel();
+					viewModel.observeSession(initialItem.resource);
+					const registration = disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+					if (!initialRefreshPending) {
+						await initialRefresh.complete();
+					}
+
+					const resolving = Event.toPromise(viewModel.onWillResolve);
+					const registered = Event.toPromise(viewModel.onDidResolve);
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					if (initialRefreshPending) {
+						await resolving;
+						await initialRefresh.complete();
+					}
+					await registered;
+					const afterRegistration = { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels: [...resolvedLabels] };
+
+					await viewModel.resolve(chatSessionTestType);
+					const afterExplicitRefresh = { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels: [...resolvedLabels] };
+
+					const removed = Event.toPromise(viewModel.onDidResolve);
+					registration.dispose();
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await removed;
+
+					assert.deepStrictEqual({
+						afterRegistration,
+						afterExplicitRefresh,
+						afterRemoval: { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels },
+					}, {
+						afterRegistration: { refreshCount: 1, labels: ['Initial'], resolvedLabels: [undefined, 'Initial'] },
+						afterExplicitRefresh: { refreshCount: 2, labels: ['Updated'], resolvedLabels: [undefined, 'Initial', 'Updated'] },
+						afterRemoval: { refreshCount: 2, labels: [], resolvedLabels: [undefined, 'Initial', 'Updated', undefined] },
+					});
+				});
+			});
+		}
+
+		for (const trigger of ['explicit', 'availability']) {
+			test(`preserves an ${trigger} refresh across a coalesced provider notification`, async () => {
+				return runWithFakedTimers({}, async () => {
+					let refreshCount = 0;
+					const controller = new class extends StaticChatSessionItemController {
+						override async refresh(): Promise<void> {
+							this.setItems([makeSimpleSessionItem('session-1', { label: `Refresh ${++refreshCount}` })]);
+						}
+					}([]);
+
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+					viewModel = createViewModel();
+
+					const refreshed = Event.toPromise(viewModel.onDidResolve);
+					if (trigger === 'explicit') {
+						void viewModel.resolve(chatSessionTestType);
+					} else {
+						mockChatSessionsService.fireDidChangeAvailability();
+					}
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await refreshed;
+					const afterRefresh = { refreshCount, labels: viewModel.sessions.map(session => session.label) };
+
+					const reread = Event.toPromise(viewModel.onDidResolve);
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await reread;
+
+					assert.deepStrictEqual({
+						afterRefresh,
+						afterNotification: { refreshCount, labels: viewModel.sessions.map(session => session.label) },
+					}, {
+						afterRefresh: { refreshCount: 2, labels: ['Refresh 2'] },
+						afterNotification: { refreshCount: 2, labels: ['Refresh 2'] },
+					});
+				});
+			});
+		}
+
+		test('initial model resolution uses an automatic refresh', () => runWithFakedTimers({}, async () => {
+			const reasons = recordRefreshReasons();
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() { }());
+			const service = disposables.add(instantiationService.createInstance(AgentSessionsService));
+			await Event.toPromise(service.model.onDidResolve);
+
+			assert.deepStrictEqual(reasons, ['initial', 'automatic']);
+		}));
+
+		for (const source of ['availability', 'workspace', 'trust'] as const) {
+			test(`${source} changes use automatic refresh without changing explicit refresh`, () => runWithFakedTimers({}, async () => {
+				const reasons = recordRefreshReasons();
+				const workspaceChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+				const trustChanged = disposables.add(new Emitter<boolean>());
+				instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+					override readonly onDidChangeWorkspaceFolders = workspaceChanged.event;
+				}());
+				instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+					override readonly onDidChangeTrust = trustChanged.event;
+				}());
 				viewModel = createViewModel();
 
-				const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
+				const refreshed = Event.toPromise(viewModel.onDidResolve);
+				if (source === 'availability') {
+					mockChatSessionsService.fireDidChangeAvailability();
+				} else if (source === 'workspace') {
+					workspaceChanged.fire({ added: [], removed: [], changed: [] });
+				} else {
+					trustChanged.fire(true);
+				}
+				await refreshed;
+				await viewModel.resolve(chatSessionTestType);
 
-				// Trigger event - this should automatically call resolve
-				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType });
+				assert.deepStrictEqual(reasons, ['initial', 'automatic', 'manual']);
+			}));
+		}
 
-				// Wait for the sessions to be resolved
-				await sessionsChangedPromise;
+		for (const order of [['automatic', 'manual'], ['manual', 'automatic']] as const) {
+			test(`manual refresh takes precedence when coalescing ${order.join(' then ')}`, () => runWithFakedTimers({}, async () => {
+				const reasons = recordRefreshReasons();
+				viewModel = createViewModel();
+				const control = createSessionsControl(viewModel);
+				const refreshes = order.map(reason => control.refresh(reason));
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+				await Promise.all(refreshes);
 
-				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.deepStrictEqual(reasons, ['initial', 'manual']);
+			}));
+		}
+
+		test('automatic control refresh still refreshes providers without a freshness policy', () => runWithFakedTimers({}, async () => {
+			let refreshCount = 0;
+			registerContribution(chatSessionTestType);
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() { refreshCount++; },
+			}));
+			viewModel = createViewModel();
+			const control = createSessionsControl(viewModel);
+			await control.refresh('automatic');
+			await control.refresh('automatic');
+			await control.refresh();
+
+			assert.strictEqual(refreshCount, 4);
+		}));
+
+		for (const followUpRefresh of [false, true]) {
+			test(`preserves manual refresh errors consumed by a queued reread${followUpRefresh ? ' with a later successful refresh' : ''}`, () => runWithFakedTimers({}, async () => {
+				const runningStarted = new DeferredPromise<void>();
+				const finishRunning = new DeferredPromise<void>();
+				const queuedStarted = new DeferredPromise<void>();
+				const finishQueued = new DeferredPromise<void>();
+				const refreshError = new Error('refresh failed');
+				const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					async refresh(_token, reason) {
+						reasons.push(reason);
+						if (reasons.length === 2) {
+							void runningStarted.complete();
+							await finishRunning.p;
+						} else if (reasons.length === 3) {
+							void queuedStarted.complete();
+							await finishQueued.p;
+							throw refreshError;
+						}
+					},
+				}));
+				viewModel = createViewModel();
+
+				const running = viewModel.resolve(chatSessionTestType);
+				await runningStarted.p;
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+				await timeout(501);
+
+				const manual = viewModel.resolve(chatSessionTestType, error => { throw error; });
+				const settled = Promise.allSettled([running, manual]);
+				await finishRunning.complete();
+				await queuedStarted.p;
+				const followUp = followUpRefresh ? viewModel.resolve(chatSessionTestType, error => { throw error; }) : undefined;
+				await finishQueued.complete();
+				await followUp;
+				const results = await settled;
+
+				assert.deepStrictEqual({ reasons, results }, {
+					reasons: followUpRefresh ? ['initial', 'manual', 'manual', 'manual'] : ['initial', 'manual', 'manual'],
+					results: [
+						{ status: 'fulfilled', value: undefined },
+						{ status: 'rejected', reason: refreshError },
+					],
+				});
+			}));
+		}
+
+		test('reports coalesced refresh errors once to each caller', () => runWithFakedTimers({}, async () => {
+			const refreshError = new Error('refresh failed');
+			let refreshCount = 0;
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() {
+					if (++refreshCount > 1) {
+						throw refreshError;
+					}
+				},
+			}));
+			viewModel = createViewModel();
+			const firstErrors: unknown[] = [];
+			const secondErrors: unknown[] = [];
+
+			await Promise.all([
+				viewModel.resolve(chatSessionTestType, error => firstErrors.push(error)),
+				viewModel.resolve(chatSessionTestType, error => secondErrors.push(error)),
+			]);
+
+			assert.deepStrictEqual({ refreshCount, firstErrors, secondErrors }, {
+				refreshCount: 2,
+				firstErrors: [refreshError],
+				secondErrors: [refreshError],
 			});
-		});
+		}));
 
 		test('should respond to onDidChangeAvailability event', async () => {
 			return runWithFakedTimers({}, async () => {
@@ -1762,6 +2111,26 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('migrates cross-scheme state only through an explicit controller-owned identity', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				const previous = URI.parse('previous-provider:/conversation');
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new StaticChatSessionItemController([makeItem(previous)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				viewModel.sessions[0].setRead(false);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new class extends StaticChatSessionItemController {
+					getPreviousSessionResource(): URI { return previous; }
+				}([makeItem(newUri)]));
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual({ resource: session.resource.toString(), pinned: session.isPinned(), read: session.isRead() }, {
+					resource: newUri.toString(), pinned: true, read: false,
+				});
+			});
+		});
+
 		test('ignores legacyResource with a different scheme', async () => {
 			return runWithFakedTimers({}, async () => {
 				const { newUri } = uris();
@@ -1862,6 +2231,68 @@ suite('AgentSessions', () => {
 					await viewModel.resolve(undefined);
 
 					assert.deepStrictEqual(pinnedRows(), [{ resource: twinUri.toString(), pinned: false }]);
+				});
+			});
+
+			test('lists one local row through discovery, adoption, refresh and legacy provider removal', async () => {
+				return runWithFakedTimers({}, async () => {
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					const hostController = new StaticChatSessionItemController([]);
+					const legacyRegistration = disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, hostController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					const rows = () => viewModel.sessions.map(session => session.resource.toString());
+					await viewModel.resolve(undefined);
+					const beforeDiscovery = rows();
+
+					hostController.setItems([{ ...makeItem(twinUri), metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } }]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const discovered = rows();
+					await viewModel.resolve(COPILOT_CLI_EH_SCHEME);
+					const staleLegacyRefresh = rows();
+
+					hostController.setItems([makeItem(twinUri)]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const adopted = rows();
+					legacyRegistration.dispose();
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({
+						beforeDiscovery, discovered, staleLegacyRefresh, adopted, legacyProviderRemoved: rows(),
+					}, {
+						beforeDiscovery: [legacyUri.toString()],
+						discovered: [legacyUri.toString()],
+						staleLegacyRefresh: [legacyUri.toString()],
+						adopted: [twinUri.toString()],
+						legacyProviderRemoved: [twinUri.toString()],
+					});
+				});
+			});
+
+			test('shows the live, archived legacy row instead of its un-opened twin', async () => {
+				return runWithFakedTimers({}, async () => {
+					/** The real host owns archive state for the twin, which it reads from the legacy marker. */
+					class ArchivingController extends StaticChatSessionItemController {
+						setChatSessionItemArchived(): void { }
+					}
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					await viewModel.resolve(undefined);
+					viewModel.sessions[0].setArchived(true);
+
+					// The extension host is still running the conversation when the host discovers the un-opened twin.
+					legacyController.setItems([makeItem(legacyUri, { status: ChatSessionStatus.InProgress })]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new ArchivingController([
+						{ ...makeItem(twinUri), archived: false, metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } },
+					])));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(viewModel.sessions.map(session => ({
+						resource: session.resource.toString(),
+						status: session.status,
+						archived: session.isArchived(),
+					})), [{ resource: legacyUri.toString(), status: ChatSessionStatus.InProgress, archived: true }]);
 				});
 			});
 

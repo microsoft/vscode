@@ -292,11 +292,11 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		assert.deepStrictEqual(events, [
 			{
 				name: 'agentHost.legacyCopilotCliMigrationOpen', error: false,
-				data: { source: 'open', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'sessionNotSurfaced', errorCode: undefined, errorMessage: undefined },
+				data: { source: 'open', entry: 'legacyRow', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'sessionNotSurfaced', errorCode: undefined, errorMessage: undefined },
 			},
 			{
 				name: 'agentHost.legacyCopilotCliMigrationOpen', error: true,
-				data: { source: 'restore', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'resolveFailed', errorCode: '-32603', errorMessage: 'resolution failed for [REDACTED: session]; backend [REDACTED: session]; id [REDACTED: session]' },
+				data: { source: 'restore', entry: 'legacyRow', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'resolveFailed', errorCode: '-32603', errorMessage: 'resolution failed for [REDACTED: session]; backend [REDACTED: session]; id [REDACTED: session]' },
 			},
 		]);
 	});

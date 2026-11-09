@@ -6,48 +6,58 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { connectWithProgress, RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
 import { NotificationChangeType } from '../../../../../../workbench/common/notifications.js';
 import { ICommandService, CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
-import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/services/sessions/common/session.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { Menus } from '../../../../../browser/menus.js';
-import '../../browser/missionControlAgentHostContribution.js';
-import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import '../../browser/missionControlAgentHost.contribution.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { getVisibleRemoteKinds, RemoteKind } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Tunnels uses the standard remote icon', () => {
+	test('Dev Tunnels uses the standard remote icon', () => {
 		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);
 	});
 
@@ -61,8 +71,33 @@ suite('Remote Agent Host actions', () => {
 			const command = MenuRegistry.getMenuItems(Menus.SessionWorkspaceManage).filter(isIMenuItem).find(item => item.command.id === id)?.command;
 			const title = command?.shortTitle ?? command?.title;
 			return typeof title === 'string' ? title : title?.value;
-		}), ['Environments...', 'Tunnels...', 'SSH...', 'WSL...']);
+		}), ['GitHub Environments...', 'Dev Tunnels...', 'SSH...', 'WSL...']);
 	});
+
+	for (const environmentsEnabled of [false, true]) {
+		test(`Remotes sections match the registered Environment picker order (environments: ${environmentsEnabled})`, () => {
+			const configuration = new TestConfigurationService({
+				[RemoteAgentHostsEnabledSettingId]: true,
+				[GitHubEnvironmentsEnabledSettingId]: environmentsEnabled,
+				'chat.disableAIFeatures': false,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const context = store.add(new ContextKeyService(configuration));
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			GitHubEnvironmentsAvailableContext.bindTo(context).set(environmentsEnabled);
+			SessionWorkspacePickerGroupContext.bindTo(context).set(SESSION_WORKSPACE_GROUP_REMOTE);
+			const menus = store.add(new MenuService(new class extends mock<ICommandService>() { }(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
+			const kinds = new Map<string, RemoteKind>([
+				[RemoteAgentHostCommandIds.connectViaMissionControl, 'environment'],
+				[RemoteAgentHostCommandIds.connectViaTunnel, 'tunnel'],
+				[RemoteAgentHostCommandIds.connectViaWSL, 'wsl'],
+				[RemoteAgentHostCommandIds.connectViaSSH, 'ssh'],
+			]);
+			const pickerKinds = menus.getMenuActions(Menus.SessionWorkspaceManage, context)
+				.flatMap(([, actions]) => actions.flatMap(action => kinds.has(action.id) ? [kinds.get(action.id)!] : []));
+			assert.deepStrictEqual(getVisibleRemoteKinds(OS, environmentsEnabled), pickerKinds);
+		});
+	}
 
 	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider', 'empty-workspace'] as const) {
 		test(`Mission Control environment selection opens its folder picker: ${outcome}`, async () => {
@@ -99,15 +134,15 @@ suite('Remote Agent Host actions', () => {
 				}
 			}());
 			instantiation.stub(ISessionsProvidersService, { getProviders: () => outcome === 'missing-provider' ? [] : [provider] });
-			instantiation.stub(ISessionsService, {
-				activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+			instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 				openNewSession: async () => {
 					calls.push({ openNewSession: true });
 					return { session: undefined, trustDeclined: false };
 				},
-			});
+			}));
 			instantiation.stub(ISessionsPartService, {
-				getSessionView: () => upcastPartial<SessionView>({
+				getActiveSessionView: () => upcastPartial<SessionView>({
 					selectWorkspace: (uri, options) => {
 						assert.strictEqual(getSessionCreationEnvironments([provider])[0]?.id, provider.id);
 						calls.push({ selected: uri.toString(), providerId: options?.providerId });
@@ -154,17 +189,17 @@ suite('Remote Agent Host actions', () => {
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(ISessionsProvidersService, { getProviders: () => [provider] });
-		instantiation.stub(ISessionsService, {
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+		instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 			openNewSession: async () => {
 				calls.push('open');
 				opening.complete();
 				await opened.p;
 				return { session: undefined, trustDeclined: false };
 			},
-		});
+		}));
 		instantiation.stub(ISessionsPartService, {
-			getSessionView: () => upcastPartial<SessionView>({
+			getActiveSessionView: () => upcastPartial<SessionView>({
 				selectWorkspace: () => { calls.push('select'); return 'applied'; },
 			}),
 		});

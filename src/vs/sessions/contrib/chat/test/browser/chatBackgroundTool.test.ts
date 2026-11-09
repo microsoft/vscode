@@ -23,13 +23,14 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 class WritableConfigurationService extends TestConfigurationService {
 	override updateValue(key: string, value: unknown): Promise<void> {
@@ -87,7 +88,7 @@ suite('Sessions - Set Chat Background tool', () => {
 		const configurationService = new WritableConfigurationService({ [AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const themeService = new TestThemeService();
-		const backgroundService = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		const backgroundService = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
 		const workspace = constObservable(workingDirectory && upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ workingDirectory })] }));
 		const managementService = upcastPartial<ISessionsManagementService>({
 			getSessionForChatResource: resource => isEqual(resource, chatResource)
@@ -133,7 +134,7 @@ suite('Sessions - Set Chat Background tool', () => {
 	test('blocks all operations when disabled without clearing the configured background', async () => {
 		const t = setup();
 		const original = URI.file('/work/original.png');
-		await t.backgroundService.setBackground(original);
+		await t.backgroundService.setBackground(original, 'backgroundPicker');
 		await t.configurationService.setUserConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, false);
 		const errors = [];
 		for (const parameters of [{ preset: 'none' }, { preset: 'codicons' }, { layout: 'stretch' }, { image: '/work/new.png' }]) {
@@ -161,7 +162,7 @@ suite('Sessions - Set Chat Background tool', () => {
 			await measured.p;
 		});
 		await t.writeFile(URI.file('/work/new.png'), 'image:64x64');
-		await t.backgroundService.setBackground(URI.file('/work/original.png'));
+		await t.backgroundService.setBackground(URI.file('/work/original.png'), 'backgroundPicker');
 		const image = t.invoke({ image: 'new.png', layout: 'stretch' });
 		await measuring.p;
 		const queued = t.invoke({ preset: 'none' });
@@ -219,12 +220,12 @@ suite('Sessions - Set Chat Background tool', () => {
 		const light = URI.joinPath(importFolder, 'previous-light.png');
 		await t.writeFile(light, 'image:20x20');
 		await t.writeFile(URI.file('/work/new.png'), 'image:64x64');
-		await t.backgroundService.setBackground(dark);
-		await t.backgroundService.setBackgroundImageLayout('top');
+		await t.backgroundService.setBackground(dark, 'backgroundPicker');
+		await t.backgroundService.setBackgroundImageLayout('top', 'layoutPicker');
 		const pending = t.invoke({ image: 'new.png', layout: 'stretch' });
 		await measuring.p;
 		t.themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
-		await t.backgroundService.setBackgroundImageLayout('bottom');
+		await t.backgroundService.setBackgroundImageLayout('bottom', 'layoutPicker');
 		await t.configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, light.fsPath);
 		sinon.stub(t.configurationService, 'updateValue').callsFake(async (key, value) => {
 			await t.configurationService.setUserConfiguration(key, value);
@@ -361,6 +362,37 @@ suite('Sessions - Set Chat Background tool', () => {
 		});
 	});
 
+	test('sets bundled koi presets without importing images and describes them for undo', async () => {
+		const t = setup(undefined);
+		const dark = await t.invoke({ preset: 'koi-dark' });
+		const layout = await t.invoke({ layout: 'center' });
+		t.themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
+		const light = await t.invoke({ preset: 'koi-light' });
+		const removed = await t.invoke({ preset: 'none' });
+
+		assert.deepStrictEqual({
+			results: [dark, layout, light, removed].map(({ message, output }) => ({ message, output })),
+			darkSetting: t.configurationService.getValue(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING),
+			store: await t.listStore(),
+		}, {
+			results: [{
+				message: 'Set the chat background to Koi Dark',
+				output: { colorScheme: 'dark', background: { kind: 'koi-dark', layout: 'repeat' }, previous: { kind: 'none' } },
+			}, {
+				message: 'Changed the chat background layout',
+				output: { colorScheme: 'dark', background: { kind: 'koi-dark', layout: 'center' }, previous: { kind: 'koi-dark', layout: 'repeat' } },
+			}, {
+				message: 'Set the chat background to Koi Light',
+				output: { colorScheme: 'light', background: { kind: 'koi-light', layout: 'repeat' }, previous: { kind: 'none' } },
+			}, {
+				message: 'Removed the chat background',
+				output: { colorScheme: 'light', background: { kind: 'none' }, previous: { kind: 'koi-light', layout: 'repeat' } },
+			}],
+			darkSetting: 'koi-dark',
+			store: [],
+		});
+	});
+
 	test('rejects invalid requests with actionable errors and leaves the background unchanged', async () => {
 		const t = setup();
 		await t.writeFile(URI.file('/work/notes.txt'), 'text');
@@ -396,7 +428,7 @@ suite('Sessions - Set Chat Background tool', () => {
 			errors: [
 				'Pass "image", "preset", or "layout".',
 				'"image" must be a non-empty file path.',
-				'"preset" must be one of: codicons, none.',
+				'"preset" must be one of: codicons, koi-light, koi-dark, none.',
 				'"layout" must be one of: repeat, stretch, center, top, top-right, top-left, bottom, bottom-right, bottom-left, left, right.',
 				'Pass either "image" or "preset", not both.',
 				'"layout" applies only to images; omit it when passing "preset".',

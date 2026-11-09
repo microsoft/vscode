@@ -184,7 +184,7 @@ export class BrowserEditorInput extends EditorInput {
 		return this._associatedResource;
 	}
 
-	/** The saved session request, which may differ from the model's session under current restrictions. */
+	/** The saved session request, which may differ from the model's session under current restrictions, such as a host that cannot proxy browsers. A network whose proxy fails to start fails the view instead. */
 	get session(): IBrowserViewSessionRequest | undefined {
 		return this._initialData.session;
 	}

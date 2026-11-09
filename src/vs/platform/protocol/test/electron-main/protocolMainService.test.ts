@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ipcRenderer } from 'electron';
-import { Schemas } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -96,5 +97,45 @@ suite('ProtocolMainService', () => {
 				secFetchMode: 'cors',
 			},
 		});
+	});
+
+	test('opts trusted editor and Agents shell documents into JavaScript stack sampling', async () => {
+		const roots = {
+			appRoot: URI.file('/stack-policy-test/app').fsPath,
+			extensionsPath: URI.file('/stack-policy-test/extensions').fsPath,
+			globalStorageHome: URI.file('/stack-policy-test/storage').fsPath,
+			workspaceStorageHome: URI.file('/stack-policy-test/workspaces').fsPath,
+		};
+		const cases = [
+			{ path: join(roots.appRoot, 'out/vs/code/electron-browser/workbench/workbench.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/code/electron-browser/workbench/workbench-dev.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions-dev.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/other.html'), expected: false },
+			{ path: join(roots.extensionsPath, 'extension/sessions.html'), expected: false },
+			{ path: join(roots.globalStorageHome, 'sessions-dev.html'), expected: false },
+			{ path: join(roots.appRoot, 'extensions/example/sessions.html'), expected: false },
+		];
+		const results = await Promise.all(cases.map(async testCase => {
+			const response: { status: number; headers?: Record<string, string>; errors: string[] } = await ipcRenderer.invoke(
+				'vscode:test-file-resource', FileAccess.uriToBrowserUri(URI.file(testCase.path)).toString(true), roots);
+			return { status: response.status, policy: response.headers?.['Document-Policy'], errors: response.errors };
+		}));
+		assert.deepStrictEqual(results, cases.map(testCase => ({
+			status: 200, policy: testCase.expected ? 'include-js-call-stacks-in-crash-reports' : undefined, errors: [],
+		})));
+	});
+
+	test('collects a JavaScript stack from an Agents shell document', async function () {
+		this.timeout(15_000);
+		const roots = {
+			appRoot: URI.file('/stack-sampling-test/app').fsPath,
+			extensionsPath: URI.file('/stack-sampling-test/extensions').fsPath,
+			globalStorageHome: URI.file('/stack-sampling-test/storage').fsPath,
+			workspaceStorageHome: URI.file('/stack-sampling-test/workspaces').fsPath,
+		};
+		const resource = URI.file(join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions-dev.html'));
+		const response: { stack: string } = await ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), roots, { sampleStack: true });
+		assert.ok(response.stack.includes('stackSamplingProbe'), `Expected the sampled JavaScript frame, got ${response.stack}`);
 	});
 });

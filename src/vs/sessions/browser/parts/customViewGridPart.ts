@@ -13,10 +13,10 @@ import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { ICustomViewDescriptor } from '../../../workbench/contrib/sessions/browser/customView.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { CustomViewNode } from './customViewNode.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**

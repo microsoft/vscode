@@ -122,8 +122,23 @@
 	padding-right: var(--vscode-spacing-size80);
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
+/* The last shown actions of a window with layout actions, such as a chat window, keep the inset of the main window's last
+ * actions to the window's edge: its layout actions, or the actions before them while those show in its Session Activity Bar. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
+	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
+}
+
+.monaco-workbench:not(.fullscreen) .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
+	padding-right: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions, .titlebar-last-actions) {
 	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container .monaco-button {
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size80);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
@@ -139,9 +154,9 @@
 	margin-left: 5px;
 }
 
-/* Add spacing between the session action group and the right layout actions. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
-	margin-left: 4px;
+/* Add spacing between the session action group and the layout actions that follow it. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions) {
+	margin-left: var(--vscode-spacing-size40);
 }
 
 /* Toggled action buttons in session actions toolbar */
@@ -189,7 +204,7 @@
 	align-items: center;
 }
 
-.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
+.monaco-workbench.mac:not(.web) .part.titlebar:not(.titlebar-fullscreen) > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
 	padding-left: var(--vscode-spacing-size160);
 }
 

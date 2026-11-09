@@ -8,31 +8,71 @@ import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/action
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { Menus } from '../../../browser/menus.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
-import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
-import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';
+import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
 export const COMPOSER_SESSION_CONTROLS_ACTION_ID = 'sessions.newChatComposer.sessionControls';
 
-/** The experimental composer layout moves the session controls into the input toolbar. */
-const ExperimentalComposerLayout = ContextKeyExpr.and(
-	ContextKeyExpr.has(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-	ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
-);
+export class SendInBackgroundAction extends Action2 {
+	constructor() {
+		super({
+			id: SEND_IN_BACKGROUND_COMMAND_ID,
+			title: localize2('sessionsSharedChatInput.sendInBackground', "Send in Background"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				ChatContextKeys.enabled,
+				ChatInputSupportsBackgroundContext,
+				ChatContextKeys.inputHasSendableContent,
+				ChatContextKeys.inputBlocked.negate(),
+				ChatContextKeys.chatSessionOptionsValid,
+			),
+			keybinding: [{
+				primary: KeyMod.Alt | KeyCode.Enter,
+				when: ChatContextKeys.inChatInput,
+				weight: KeybindingWeight.SessionsContrib,
+			}, {
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true)),
+				weight: KeybindingWeight.SessionsContrib,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			await SharedChatInputComposer.getBackgroundComposer(widget)?.submit(true);
+		}
+	}
+}
+
+registerAction2(SendInBackgroundAction);
 
 MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
 	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
@@ -63,7 +103,7 @@ registerAction2(class extends Action2 {
 			id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
 			title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
 			f1: false,
-			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0, when: ExperimentalComposerLayout },
+			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
 		});
 	}
 	override run(): void { /* rendered by the action view item */ }
@@ -87,9 +127,8 @@ class ComposerBusyActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Hosts the session controls toolbar inside the input toolbar, for the
- * experimental composer layout. The nested pickers own pointer and keyboard
- * input, and focus moves into them.
+ * Hosts the session controls toolbar inside the input toolbar.
+ * The nested pickers own pointer and keyboard input, and focus moves into them.
  */
 class ComposerSessionControlsActionViewItem extends BaseActionViewItem {
 	private _controls: HTMLElement | undefined;
@@ -155,4 +194,5 @@ export class SharedChatInputComposerContribution extends Disposable implements I
 	}
 }
 
-registerWorkbenchContribution2(SharedChatInputComposerContribution.ID, SharedChatInputComposerContribution, WorkbenchPhase.AfterRestored);
+// Register before restoration: adding a factory later does not refresh existing toolbars.
+registerWorkbenchContribution2(SharedChatInputComposerContribution.ID, SharedChatInputComposerContribution, WorkbenchPhase.BlockRestore);

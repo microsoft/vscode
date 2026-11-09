@@ -24,6 +24,7 @@ import { WebviewInput } from './webviewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { Part } from '../../../browser/part.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { isHTMLElement } from '../../../../base/browser/dom.js';
 
@@ -191,7 +192,8 @@ export class WebviewEditor extends EditorPane {
 		// Check if this editor is inside a modal editor
 		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
-		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+		const editorPart = this._editorGroupsService.getPart(this.group);
+		this._clippingContainer = isModal ? undefined : (editorPart instanceof Part ? editorPart.getContainer() : undefined) ?? this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
 		this._webviewVisibleDisposables.clear();
 

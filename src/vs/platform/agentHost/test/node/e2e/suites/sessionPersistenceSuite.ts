@@ -513,7 +513,6 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 	// Reuse the documented Copilot/Windows tool-history restart limitation.
 	const restoredToolHistoryEnabled = !(context.isWindows && config.provider === 'copilotcli') || context.runKnownIssueTests;
-	// Claude's documented turn-anchor defect also prevents recording a provider-backed fork.
 	const forkHistoryEnabled = config.supportsChatFork && (config.supportsChatForkE2E || (RECORDING && context.runKnownIssueTests));
 	const restoredForkHistoryEnabled = forkHistoryEnabled && peerChatPersistenceEnabled;
 

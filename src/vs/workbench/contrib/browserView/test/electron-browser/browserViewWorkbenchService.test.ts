@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
@@ -22,14 +22,26 @@ import { INativeWorkbenchEnvironmentService } from '../../../../services/environ
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
 
 suite('BrowserViewWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(remoteAuthority?: string) {
+	/** Statuses of connected hosts that can, or cannot, proxy browsers. */
+	function hostStatuses(proxySupported: Record<string, boolean>): Pick<IBrowserViewNetworkResolver, 'getNetworkStatus' | 'onDidChangeNetworkStatus'> {
+		return {
+			getNetworkStatus: ({ authority }) => ({ label: authority, connected: proxySupported[authority] !== undefined, proxySupported: proxySupported[authority] }),
+			onDidChangeNetworkStatus: Event.None,
+		};
+	}
+
+	function createService(remoteAuthority?: string, editorGroupsService?: IEditorGroupsService) {
 		const disposables = store.add(new DisposableStore());
 		const events = store.add(new Emitter<BrowserViewEvent>());
 		const creationOptions: IBrowserViewCreateOptions[] = [];
@@ -86,10 +98,14 @@ suite('BrowserViewWorkbenchService', () => {
 		}));
 		const configurationService = new TestConfigurationService({ workbench: { browser: { enableRemoteProxy: true } } });
 		instantiationService.stub(IConfigurationService, configurationService);
+		if (editorGroupsService) {
+			instantiationService.stub(IEditorGroupsService, editorGroupsService);
+		}
 		const service = store.add(instantiationService.createInstance(BrowserViewWorkbenchService));
 		instantiationService.stub(IBrowserViewWorkbenchService, service);
 		const workspaceTrustService = instantiationService.get(IWorkspaceTrustManagementService);
-		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing };
+		const unattendedRestartService = instantiationService.get(IUnattendedRestartService);
+		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing, unattendedRestartService };
 	}
 
 	function info(id: string, presentation = BrowserViewPresentation.Listed): IBrowserViewInfo {
@@ -106,6 +122,114 @@ suite('BrowserViewWorkbenchService', () => {
 			}
 		};
 	}
+
+	test('without a configured placement, opens in the active group of the window the open was requested from, not of the window that appears to have focus', async () => {
+		const group = (id: number) => upcastPartial<IEditorGroup>({ id, editors: [] });
+		const focusedWindowGroup = group(1);
+		const sourceWindowGroup = group(2);
+		const explicitGroup = group(3);
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: focusedWindowGroup,
+			// The editor parts of a window, by an element of it.
+			getPart: (container: unknown) => upcastPartial<IEditorPart>({ activeGroup: container === mainWindow.document.body ? sourceWindowGroup : focusedWindowGroup }),
+		}));
+		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
+
+		assert.deepStrictEqual({
+			fromSourceWindow: id(await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			activeFromSourceWindow: id(await service.getPreferredGroup(ACTIVE_GROUP, mainWindow.vscodeWindowId)),
+			unknownWindow: id(await service.getPreferredGroup(undefined, -1)),
+			withoutSource: id(await service.getPreferredGroup(undefined)),
+			explicit: id(await service.getPreferredGroup(explicitGroup, mainWindow.vscodeWindowId)),
+		}, {
+			fromSourceWindow: 2,
+			activeFromSourceWindow: 2,
+			unknownWindow: undefined,
+			withoutSource: undefined,
+			explicit: 3,
+		});
+	});
+
+	test('does not open in a locked active group of the window the open was requested from, but in an unlocked group of its part, or a new one, or, for a part other than the main part of its window, in that main part', async () => {
+		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked, editors: [] });
+		const locked = group(1, true);
+		const unlocked = group(2, false);
+		const created = group(3, false);
+		const addedBeside: number[] = [];
+		// `isWindowMainPart`: the part of the locked group is the main part of its window, else another part of it, such as one that holds terminals
+		const makeService = (groups: IEditorGroup[], isWindowMainPart = true, windowMainPartGroups = [group(4, false)]) => {
+			const windowMainPart: IEditorPart = upcastPartial<IEditorPart>({
+				activeGroup: windowMainPartGroups[0],
+				getGroups: () => windowMainPartGroups,
+				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
+			});
+			const part = upcastPartial<IEditorPart>({
+				activeGroup: locked,
+				getGroups: () => groups,
+				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
+			});
+			return createService(undefined, upcastPartial<IEditorGroupsService>({
+				activeGroup: group(9, false),
+				parts: isWindowMainPart ? [part] : [windowMainPart, part],
+				mainPart: isWindowMainPart ? part : windowMainPart,
+				getPart: (candidate: IEditorGroup) => windowMainPartGroups.includes(candidate) ? windowMainPart : part,
+			})).service;
+		};
+		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
+
+		assert.deepStrictEqual({
+			withUnlockedGroup: id(await makeService([locked, unlocked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroups: id(await makeService([locked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroupsOfAnotherPart: id(await makeService([locked], false).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: id(await makeService([locked], false, [group(5, true)]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			addedBeside,
+		}, {
+			withUnlockedGroup: 2,
+			onlyLockedGroups: 3,
+			// Not split, such as a part that holds terminals: the main part of the window takes it
+			onlyLockedGroupsOfAnotherPart: 4,
+			// Nor in a locked group of that main part: a new group beside it
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: 3,
+			addedBeside: [1, 5],
+		});
+	});
+
+	test('does not open in a group of the window the open was requested from that shows only a view with its own title, such as a chat, but in the main part of that window', async () => {
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: chatGroup,
+			parts: [windowMainPart],
+			mainPart: windowMainPart,
+			getPart: () => upcastPartial<IEditorPart>({ activeGroup: chatGroup }),
+		}));
+
+		const preferred = await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId);
+
+		assert.strictEqual(typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, 2);
+	});
+
+	test('opening to the side while a group that shows only a view with its own title, such as a chat, is active adds the side group beside the main part of its window, not beside the chat', async () => {
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
+		const addedBeside: number[] = [];
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: chatGroup,
+			groups: [windowMainPartGroup, chatGroup],
+			parts: [windowMainPart],
+			mainPart: windowMainPart,
+			addGroup: (location: IEditorGroup | number) => {
+				addedBeside.push(typeof location === 'number' ? location : location.id);
+				return upcastPartial<IEditorGroup>({ id: 3, lock: () => { } });
+			},
+		}));
+
+		const preferred = await service.getPreferredGroup(SIDE_GROUP);
+
+		assert.deepStrictEqual({ preferred: typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, addedBeside }, { preferred: 3, addedBeside: [2] });
+	});
 
 	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {
 		const { service, events } = createService();
@@ -166,7 +290,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const [restoredSerialized, restoredScreenshot] = serializeBrowserViewInfo(restored);
 		events.fire([{ type: 'snapshot', windowId: 1, views: [restoredSerialized] }, [restoredScreenshot]]);
 
-		const externalModel = await service.createExternalBrowserView('https://example.test/preview', 'canvas');
+		const externalModel = store.add(await service.createExternalBrowserView('https://example.test/preview', 'canvas'));
 		const externalRequests: string[] = [];
 		store.add(externalModel.onDidRequestOpenExternal(url => externalRequests.push(url)));
 		events.fire([{ type: 'changed', windowId: 1, id: externalModel.id, event: 'onDidRequestOpenExternal', data: 'http://localhost:3000/details' }, []]);
@@ -177,26 +301,47 @@ suite('BrowserViewWorkbenchService', () => {
 		const listedInput = service.getKnownBrowserViews().get('listed-page');
 		assert.ok(listedInput);
 
-		try {
-			assert.deepStrictEqual({
-				creationPresentations: creationOptions.map(options => options.presentation),
-				creationUrls: creationOptions.map(options => options.initialUrl),
-				openSources: creationOptions.map(options => options.openSource),
-				loadedUrls,
-				externalRequests,
-				knownIds: [...service.getKnownBrowserViews().keys()],
-			}, {
-				creationPresentations: [BrowserViewPresentation.Unlisted],
-				creationUrls: [undefined],
-				openSources: ['canvas'],
-				loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
-				externalRequests: ['http://localhost:3000/details'],
-				knownIds: ['listed-page'],
-			});
-		} finally {
-			listedInput.dispose();
-			externalModel.dispose();
-		}
+		store.add(toDisposable(() => listedInput.dispose()));
+		assert.deepStrictEqual({
+			creationPresentations: creationOptions.map(options => options.presentation),
+			creationUrls: creationOptions.map(options => options.initialUrl),
+			openSources: creationOptions.map(options => options.openSource),
+			loadedUrls,
+			externalRequests,
+			knownIds: [...service.getKnownBrowserViews().keys()],
+		}, {
+			creationPresentations: [BrowserViewPresentation.Unlisted],
+			creationUrls: [undefined],
+			openSources: ['canvas'],
+			loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
+			externalRequests: ['http://localhost:3000/details'],
+			knownIds: ['listed-page'],
+		});
+	});
+
+	test('blocks unattended restarts while a page is live', async () => {
+		const { service, events, unattendedRestartService } = createService();
+		const results: (readonly string[])[] = [];
+		const check = async () => results.push((await unattendedRestartService.canRestartUnattended()).blockers);
+
+		const restored = store.add(service.getOrCreateLazy({ id: 'restored', url: 'https://saved.example/' }));
+		await check();
+
+		const [serialized, screenshot] = serializeBrowserViewInfo(info('page'));
+		events.fire([{ type: 'created', windowId: 1, data: { info: serialized } }, [screenshot]]);
+		const page = store.add(service.getKnownBrowserViews().get('page')!);
+		await check();
+		page.dispose();
+		await check();
+
+		const canvas = await service.createExternalBrowserView('https://example.test/canvas', 'canvas');
+		await check();
+		canvas.dispose();
+		await check();
+
+		restored.dispose();
+		await Promise.resolve();
+		assert.deepStrictEqual(results, [[], ['browser.livePage'], [], ['browser.livePage'], []]);
 	});
 
 	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {
@@ -220,55 +365,66 @@ suite('BrowserViewWorkbenchService', () => {
 		return proxyInfo;
 	}
 
-	test('binds views to their resolved network and storage partition', async () => {
+	test('binds views to their resolved network and storage partition, and uses the local network for hosts that cannot proxy', async () => {
 		const { service, events, creationOptions, windowConfigurations } = createService('ssh-remote+other');
 		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
 		const proxyCalls: string[] = [];
 		const proxyInfo = registerProxyProvider(service, proxyCalls);
-		let affinity: string | undefined = 'repo';
-		store.add(service.registerNetworkResolver({ resolveNetwork: () => ({ authority: 'host' }), resolveStorageAffinity: () => affinity }));
+		let next: { readonly network: IBrowserViewNetwork; readonly storageAffinity?: string } = { network: { authority: 'capable' }, storageAffinity: 'repo' };
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => next.network, resolveStorageAffinity: () => next.storageAffinity, ...hostStatuses({ capable: true, legacy: false }) }));
 
 		const remote = store.add(service.getOrCreateLazy({ id: 'remote', url: 'http://remote/' }));
-		affinity = undefined;
+		next = { network: { authority: 'capable' } };
 		const workspaceless = store.add(service.getOrCreateLazy({ id: 'workspaceless', url: 'http://workspaceless/' }));
+		next = { network: { authority: 'legacy' }, storageAffinity: 'repo' };
+		const fallback = store.add(service.getOrCreateLazy({ id: 'fallback', url: 'http://fallback/' }));
 		const local = store.add(service.getOrCreateLazy({ id: 'local', session: {} }));
-		const [remoteModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), local.resolve()]);
+		const [remoteModel, , fallbackModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), fallback.resolve(), local.resolve()]);
+		const automationHold = await service.acquireNetwork({ authority: 'legacy' });
 		const networkProxies = windowConfigurations.at(-1)?.networkProxies;
 		remote.dispose();
 		workspaceless.dispose();
+		automationHold.dispose();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			sessions: Object.fromEntries(creationOptions.map(options => [options.initialUrl ?? 'none', options.session])),
-			savedSessions: [remote, local].map(input => input.serialize().session),
-			modelNetwork: remoteModel.network,
+			savedSessions: [remote, fallback, local].map(input => input.serialize().session),
+			modelNetworks: [remoteModel.network, fallbackModel.network],
+			automationNetwork: automationHold.object,
 			networkProxies,
 			proxyCalls,
 		}, {
 			sessions: {
-				'http://remote/': { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } },
-				'http://workspaceless/': { scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } },
+				// The window's own workspace storage belongs to its own network; others use a partition of it, or in-memory storage.
+				'http://remote/': { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } },
+				'http://workspaceless/': { scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'capable' } },
+				'http://fallback/': { scope: BrowserViewStorageScope.Workspace },
 				'none': { scope: BrowserViewStorageScope.Workspace },
 			},
+			// Views save the complete session they were opened for, even when they cannot use it.
 			savedSessions: [
-				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } },
+				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } },
+				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'legacy' } },
 				{ scope: BrowserViewStorageScope.Workspace },
 			],
-			modelNetwork: { authority: 'host' },
-			networkProxies: { host: proxyInfo },
-			proxyCalls: ['acquire host', 'release host'],
+			modelNetworks: [{ authority: 'capable' }, undefined],
+			automationNetwork: undefined,
+			networkProxies: { capable: proxyInfo },
+			proxyCalls: ['acquire capable', 'release capable'],
 		});
 	});
 
 	test('uses configured storage only when the saved session has no scope', async () => {
 		const { service, events, creationOptions, configurationService } = createService('ssh-remote+other');
 		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => undefined, ...hostStatuses({ capable: true }) }));
 		registerProxyProvider(service, []);
 		await configurationService.setUserConfiguration('workbench.browser.dataStorage', BrowserViewStorageScope.Global);
 
-		const savedSession = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
+		const savedSession = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } } as const;
 		const restored = store.add(service.getOrCreateLazy({ id: 'restored', url: 'http://restored/', session: savedSession }));
-		const requested = store.add(service.getOrCreateLazy({ id: 'requested', url: 'http://requested/', session: { affinity: 'repo', network: { authority: 'host' } } }));
+		const requested = store.add(service.getOrCreateLazy({ id: 'requested', url: 'http://requested/', session: { affinity: 'repo', network: { authority: 'capable' } } }));
 		await Promise.all([restored.resolve(), requested.resolve()]);
 		restored.dispose();
 
@@ -287,6 +443,97 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('fails tabs saved on another remote in windows without a network resolver', async () => {
+		const { service, events, creationOptions } = createService('ssh-remote+here');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		const input = store.add(service.getOrCreateLazy({ id: 'saved', session: { scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+elsewhere' } } }));
+		const outcome = await input.resolve().then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({ outcome, created: creationOptions.length }, {
+			outcome: 'This page was opened for another remote (ssh-remote+elsewhere). Open it again from a window connected to that remote.',
+			created: 0,
+		});
+	});
+
+	test('waits for a host to report whether it can proxy browsers', async () => {
+		const { service, events, creationOptions } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		const onDidChangeNetworkStatus = store.add(new Emitter<void>());
+		let proxySupported: boolean | undefined = undefined;
+		store.add(service.registerNetworkResolver({
+			resolveNetwork: () => ({ authority: 'host' }),
+			getNetworkStatus: ({ authority }) => ({ label: authority, connected: true, proxySupported }),
+			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
+		}));
+
+		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
+		const model = input.resolve();
+		await timeout(0);
+		const createdBeforeReport = creationOptions.length;
+		proxySupported = false;
+		onDidChangeNetworkStatus.fire();
+		await model;
+
+		assert.deepStrictEqual({ createdBeforeReport, session: creationOptions[0].session, saved: input.serialize().session }, {
+			createdBeforeReport: 0,
+			// A host that cannot proxy browsers leaves the view on the local network, without changing the saved request.
+			session: { scope: BrowserViewStorageScope.Workspace },
+			saved: { scope: BrowserViewStorageScope.Workspace, network: { authority: 'host' } },
+		});
+	});
+
+	test('embedded views require their owner\'s network instead of falling back to the local network', async () => {
+		const embed = async (proxySupported: boolean, enableRemoteProxy: boolean) => {
+			const { service, events, creationOptions, configurationService } = createService();
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			const proxyCalls: string[] = [];
+			registerProxyProvider(service, proxyCalls);
+			store.add(service.registerNetworkResolver({ resolveNetwork: () => ({ authority: 'host' }), ...hostStatuses({ host: proxySupported }) }));
+			await configurationService.setUserConfiguration('workbench.browser.enableRemoteProxy', enableRemoteProxy);
+			const outcome = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' }).then(model => {
+				model.dispose();
+				return 'created';
+			}, (error: Error) => error.message);
+			return { outcome, sessions: creationOptions.map(options => options.session), proxyCalls };
+		};
+
+		assert.deepStrictEqual({
+			supported: await embed(true, true),
+			proxyDisabled: await embed(true, false),
+			hostUnsupported: await embed(false, true),
+		}, {
+			supported: { outcome: 'created', sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }], proxyCalls: ['acquire host', 'release host'] },
+			proxyDisabled: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+			hostUnsupported: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+		});
+	});
+
+	test('embedded views use the network their owner had when requested, and fail for unknown owners', async () => {
+		const { service, events, creationOptions, publishing } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		let ownerNetwork: IBrowserViewNetwork | null | undefined = { authority: 'host' };
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => ownerNetwork, ...hostStatuses({ host: true }) }));
+
+		// The owner goes away while the window configuration is still being published.
+		const published = new DeferredPromise<void>();
+		publishing.value = published.p;
+		const created = service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' });
+		ownerNetwork = null;
+		published.complete();
+		(await created).dispose();
+		publishing.value = undefined;
+		const unknownOwner = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'gone' })
+			.then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({ sessions: creationOptions.map(options => options.session), unknownOwner }, {
+			sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }],
+			unknownOwner: 'The required remote network is unavailable.',
+		});
+	});
+
 	test('applies current restrictions without changing the saved session request', async () => {
 		const requested = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		for (const scenario of [
@@ -296,6 +543,7 @@ suite('BrowserViewWorkbenchService', () => {
 		]) {
 			const { service, events, creationOptions, configurationService, workspaceTrustService } = createService(scenario.remote);
 			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			store.add(service.registerNetworkResolver({ resolveNetwork: () => undefined, ...hostStatuses({ host: true }) }));
 			registerProxyProvider(service, []);
 			await workspaceTrustService.setWorkspaceTrust(scenario.trusted);
 			await configurationService.setUserConfiguration('workbench.browser.enableRemoteProxy', scenario.proxy);

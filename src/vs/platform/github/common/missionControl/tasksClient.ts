@@ -6,7 +6,7 @@
 import { isNumber } from '../../../../base/common/types.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
-import { parse } from '../client/schema.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
@@ -24,7 +24,16 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => parseSessionFeedConnection(response.data));
+		}, signal, response => {
+			try {
+				return parseSessionFeedConnection(response.data);
+			} catch (error) {
+				if (error instanceof SchemaError) {
+					throw new GitHubRequestError('Invalid session feed connection metadata', 'schema', response.status);
+				}
+				throw error;
+			}
+		});
 	}
 
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
@@ -173,6 +182,8 @@ const parseSessionFeedConnection = parse.copyObject<SessionFeedConnection>({
 	group: parse.nonEmptyString,
 	expires_at: parse.dateTime,
 	reconnect_after: parse.dateTime,
+	expires_in: parse.optional(parse.nonNegativeInteger),
+	reconnect_in: parse.optional(parse.nonNegativeInteger),
 	frame_schema_version: parse.exact(1),
 });
 

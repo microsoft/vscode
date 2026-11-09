@@ -130,7 +130,7 @@ export interface IActionListItemInlineToggle {
 	/** Current checked state of the switch. */
 	readonly checked: boolean;
 	/** Invoked when the user flips the switch. */
-	readonly onChange: (checked: boolean) => void;
+	readonly onChange: (checked: boolean) => void | Promise<void>;
 	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
 	readonly title?: string;
 	/** Show an information icon after the label to draw attention to the hover. */
@@ -144,6 +144,8 @@ export interface IActionListItem<T> {
 	readonly kind: ActionListItemKind;
 	readonly group?: { kind?: unknown; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
+	/** Let users navigate to an unavailable action to hear why it is disabled. */
+	readonly focusableWhenDisabled?: boolean;
 	readonly label?: string;
 	/** Icon beside the label, separate from the selection indicator. */
 	readonly labelIcon?: ThemeIcon;
@@ -596,6 +598,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				// Callers use `title` to say why a switch is unavailable, so it names the
 				// control for a screen reader too rather than only appearing on hover.
 				ariaLabel: toggleConfig.title ?? toggleConfig.label,
+				// A standalone toggle's row hover already explains the switch, so a
+				// second hover on the switch would show the same text twice.
+				title: element.standaloneToggle && element.hover?.content ? false : undefined,
 				checked: toggleConfig.checked,
 				disabled: toggleConfig.disabled,
 			}));
@@ -615,6 +620,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', !!element.disabled);
+		data.container.ariaDisabled = element.disabled || element.standaloneToggle?.disabled ? 'true' : null;
 		if (element.hover !== undefined) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead
 			data.container.title = '';
@@ -908,6 +914,9 @@ export interface IActionListOptions {
 
 	/** Optional "Learn more" link rendered inline after {@link headerText}, opened via the opener service. */
 	readonly headerLink?: IActionListHeaderLink;
+
+	/** Replaces its label in {@link headerText} with an independently focusable action link, reached with Shift+Tab from the list. */
+	readonly headerAction?: IAction;
 
 	/** Optional dismiss ("x") button on the header banner; invoked on click, and the banner is removed. */
 	readonly headerDismiss?: () => void;
@@ -1203,8 +1212,8 @@ export class ActionListWidget<T> extends Disposable {
 									? localize('actionList.inlineToggle.on', "{0}, on", toggleConfig.label)
 									: localize('actionList.inlineToggle.off', "{0}, off", toggleConfig.label));
 						}
-						if (element.disabled) {
-							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+						if (element.standaloneToggle?.disabled && element.standaloneToggle.title) {
+							label = localize('actionList.standaloneToggle.disabledReason', "{0}, {1}", label, stripNewlines(element.standaloneToggle.title));
 						}
 						if (element.submenuActions?.length) {
 							label = localize('actionList.submenuHint', "{0}, use right arrow to access options", label);
@@ -1418,45 +1427,13 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// Create footer text
+		const describedBy: string[] = [];
 		if (this._options?.footerText) {
 			this._footerContainer = document.createElement('div');
 			this._footerContainer.className = 'action-list-footer';
-			this._footerContainer.textContent = this._options.footerText;
 			this._footerContainer.id = `action-list-footer-${generateUuid()}`;
-			this._list.getHTMLElement().setAttribute('aria-describedby', this._footerContainer.id);
-			const action = this._options.footerAction;
-			if (action) {
-				const nameIndex = this._options.footerText.lastIndexOf(action.label);
-				if (nameIndex >= 0) {
-					this._footerContainer.textContent = this._options.footerText.slice(0, nameIndex);
-					const label = dom.$('span', undefined, action.label);
-					const link = this._register(this._instantiationService.createInstance(Link, this._footerContainer, {
-						label,
-						href: '#',
-						title: action.tooltip,
-					}, { opener: () => { void action.run(); } }));
-					link.enabled = action.enabled;
-					const linkElement = label.parentElement!;
-					linkElement.setAttribute('aria-label', action.tooltip || action.label);
-					linkElement.setAttribute('aria-haspopup', 'dialog');
-					this._footerContainer.append(this._options.footerText.slice(nameIndex + action.label.length));
-					this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
-						if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
-							dom.EventHelper.stop(e, true);
-							linkElement.focus();
-						}
-					}, true));
-					this._register(dom.addDisposableListener(linkElement, 'keydown', e => {
-						if (e.key === 'Escape') {
-							dom.EventHelper.stop(e, true);
-							this.hide(true);
-						} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-							dom.EventHelper.stop(e, true);
-							this._list.domFocus();
-						}
-					}));
-				}
-			}
+			describedBy.push(this._footerContainer.id);
+			this._renderTextWithActionLink(this._footerContainer, this._options.footerText, this._options.footerAction, 'after');
 		}
 
 		// Create header banner
@@ -1470,7 +1447,12 @@ export class ActionListWidget<T> extends Disposable {
 				icon.setAttribute('aria-hidden', 'true');
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
-			text.textContent = this._options.headerText;
+			if (this._options.headerAction) {
+				// The link announces its action rather than the linked text, so the list announces the banner text.
+				text.id = `action-list-header-${generateUuid()}`;
+				describedBy.unshift(text.id);
+			}
+			this._renderTextWithActionLink(text, this._options.headerText, this._options.headerAction, 'before');
 
 			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
 			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => {
@@ -1485,7 +1467,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (this._options.headerLink) {
 				const { label, uri } = this._options.headerLink;
 				// Trailing space so the link reads as a continuation of the banner text.
-				text.textContent += ' ';
+				text.append(' ');
 				this._register(this._instantiationService.createInstance(Link, text, { label, href: uri.toString(true) }, {}));
 			}
 
@@ -1516,6 +1498,9 @@ export class ActionListWidget<T> extends Disposable {
 					}
 				}));
 			}
+		}
+		if (describedBy.length) {
+			this._list.getHTMLElement().setAttribute('aria-describedby', describedBy.join(' '));
 		}
 
 		this._applyFilter();
@@ -1850,6 +1835,47 @@ export class ActionListWidget<T> extends Disposable {
 		return this._headerContainer;
 	}
 
+	/**
+	 * Renders `text`, replacing the last occurrence of the action's label with an independently
+	 * focusable link. Keyboard users reach the link from the list with Tab when it is rendered
+	 * `after` the list, or with Shift+Tab when it is rendered `before` it.
+	 */
+	private _renderTextWithActionLink(container: HTMLElement, text: string, action: IAction | undefined, position: 'before' | 'after'): void {
+		const nameIndex = action ? text.lastIndexOf(action.label) : -1;
+		if (!action || nameIndex < 0) {
+			container.append(text);
+			return;
+		}
+		container.append(text.slice(0, nameIndex));
+		const label = dom.$('span', undefined, action.label);
+		const link = this._register(this._instantiationService.createInstance(Link, container, {
+			label,
+			href: '#',
+			title: action.tooltip,
+		}, { opener: () => { void action.run(); } }));
+		link.enabled = action.enabled;
+		const linkElement = label.parentElement!;
+		linkElement.setAttribute('aria-label', action.tooltip || action.label);
+		linkElement.setAttribute('aria-haspopup', 'dialog');
+		container.append(text.slice(nameIndex + action.label.length));
+		const isPlainTab = (e: KeyboardEvent, shiftKey: boolean) => e.key === 'Tab' && e.shiftKey === shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
+			if (isPlainTab(e, position === 'before') && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
+				dom.EventHelper.stop(e, true);
+				linkElement.focus();
+			}
+		}, true));
+		this._register(dom.addDisposableListener(linkElement, 'keydown', e => {
+			if (e.key === 'Escape') {
+				dom.EventHelper.stop(e, true);
+				this.hide(true);
+			} else if (isPlainTab(e, position === 'after')) {
+				dom.EventHelper.stop(e, true);
+				this._list.domFocus();
+			}
+		}));
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._filterInput;
 	}
@@ -1859,7 +1885,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private focusCondition(element: IActionListItem<unknown>): boolean {
-		return !element.disabled && element.kind === ActionListItemKind.Action;
+		return element.kind === ActionListItemKind.Action && (!element.disabled || element.focusableWhenDisabled === true);
 	}
 
 	private _setKeyboardNavigation(keyboardNavigation: boolean | undefined): void {
@@ -2188,6 +2214,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._filterInput.value = '';
 			this._filterText = '';
 			this._applyOrUpdateFilter();
+			this._options?.onDidChangeFilter?.('');
 			return true;
 		}
 		return false;
@@ -2318,8 +2345,9 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
+		// Moving it unnecessarily would blur the focused search input.
 		const listParent = this.domNode.parentElement;
-		if (listParent && this._filterContainer?.parentElement === listParent) {
+		if (listParent && this._filterContainer?.parentElement === listParent && this._filterContainer.nextSibling !== this.domNode) {
 			listParent.insertBefore(this._filterContainer, this.domNode);
 		}
 		this._layoutSubmenu?.();
@@ -2528,7 +2556,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
-		if (!this.focusCondition(element)) {
+		if (element.disabled || element.kind !== ActionListItemKind.Action) {
 			return;
 		}
 
@@ -2546,6 +2574,10 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const element = e.elements[0];
+		if (element.disabled) {
+			this._list.setSelection([]);
+			return;
+		}
 		if (element.standaloneToggle) {
 			this._list.setSelection([]);
 			const toggle = this._standaloneToggles.get(element);
@@ -2583,7 +2615,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			return;
 		}
-		if (element.item && this.focusCondition(element)) {
+		if (element.item && element.kind === ActionListItemKind.Action) {
 			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
 			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
 		} else {

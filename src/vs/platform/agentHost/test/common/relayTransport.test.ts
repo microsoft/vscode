@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -67,7 +66,7 @@ class RecordingLogService extends NullLogService {
 
 suite('RelayTransport', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockChannel: MockRelayChannel;
 
 	setup(() => {
@@ -75,8 +74,6 @@ suite('RelayTransport', () => {
 		disposables.add({ dispose: () => mockChannel.dispose() });
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('receives messages matching connectionId', () => {
 		const transport = disposables.add(new RelayTransport('conn-1', mockChannel, undefined, new NullLogService(), '[SSHRelayTransport]', AgentHostClientConnectionKind.SSH));
@@ -232,7 +229,7 @@ suite('RelayTransport', () => {
 
 suite('ReconnectingRelayTransport', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockChannel: MockRelayChannel;
 
 	setup(() => {
@@ -240,8 +237,6 @@ suite('ReconnectingRelayTransport', () => {
 		disposables.add({ dispose: () => mockChannel.dispose() });
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('adopts and routes messages only for its established connectionId', async () => {
 		const transport = disposables.add(new ReconnectingRelayTransport(

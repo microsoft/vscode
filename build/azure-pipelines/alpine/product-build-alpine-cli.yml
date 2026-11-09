@@ -20,12 +20,21 @@ jobs:
   variables:
     VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
   templateContext:
+    # Defender for Linux can fold the 1ES PT antimalware scan of the outputs into a scan of system
+    # folders (/opt, /usr/lib) that started before the job, which blocks it for 45-55 min, so the
+    # job times out before publishing the outputs. A scan that times out completes the step with
+    # issues and the outputs are published. Until that's fixed the cap is 2 min, which also stops
+    # some scans that aren't blocked (up to 6 min).
+    sdl:
+      antimalwareScan:
+        scanTimeoutInMinutes: '2'
     outputs:
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_$(VSCODE_ARCH)_cli.tar.gz
           artifactName: vscode_cli_alpine_$(VSCODE_ARCH)_cli
           displayName: Publish vscode_cli_alpine_$(VSCODE_ARCH)_cli artifact
+          condition: and(succeeded(), ne(variables['CLI_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) CLI"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -34,14 +43,14 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_alpine_$(VSCODE_ARCH).tar.gz
           artifactName: unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
           displayName: Publish unsigned Copilot shim
+          condition: and(succeeded(), ne(variables['COPILOT_SHIM_PUBLISHED'], 'true'))
           sbomEnabled: false
   steps:
     - template: ../common/checkout.yml@self
 
-    - task: NodeTool@0
-      inputs:
-        versionSource: fromFile
-        versionFilePath: .nvmrc
+    - template: ../common/setup-node.yml@self
+      parameters:
+        os: linux
 
     - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get GitHub token"
@@ -72,9 +81,11 @@ jobs:
       condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
       displayName: Setup NPM Authentication
 
+    - template: ../common/install-pnpm.yml@self
+
     - script: |
         set -e
-        npm ci
+        pnpm install --frozen-lockfile
       workingDirectory: build
       env:
         GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -158,3 +169,16 @@ jobs:
             GITHUB_TOKEN: "$(github-token-code-oss)"
             SYSROOT_ARCH: arm64
             IS_MUSL: "1"
+
+    - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          CLI_PUBLISHED vscode_cli_alpine_$(VSCODE_ARCH)_cli
+          COPILOT_SHIM_PUBLISHED unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

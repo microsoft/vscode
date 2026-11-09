@@ -7,7 +7,6 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, isCancellationError, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -98,7 +97,7 @@ class TestChatService extends mock<IChatService>() {
 }
 
 suite('InlineChatSessionResolver', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let chatSessionsService: TestChatSessionsService;
@@ -115,12 +114,6 @@ suite('InlineChatSessionResolver', () => {
 		instantiationService.stub(IChatService, chatService);
 		resolver = instantiationService.createInstance(InlineChatSessionResolver);
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses a local session without consulting Agent Host when disabled', async () => {
 		configurationService.agentHostEnabled = false;

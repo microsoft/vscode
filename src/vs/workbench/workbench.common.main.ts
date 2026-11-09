@@ -62,7 +62,6 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
-import './services/workspaces/common/canonicalUriService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
@@ -133,6 +132,7 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/lifecycle/common/unattendedRestart.js';
 import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
@@ -395,7 +395,6 @@ import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
-import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';

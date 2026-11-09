@@ -14,7 +14,7 @@ import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
-import { agentsPanelBackground } from './common/theme.js';
+import { agentsPanelBackground } from '../workbench/contrib/sessions/common/theme.js';
 import './common/sizes.js';
 import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
@@ -67,7 +67,6 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import '../workbench/services/workspaces/common/editSessionIdentityService.js';
-import '../workbench/services/workspaces/common/canonicalUriService.js';
 import '../workbench/services/extensions/browser/extensionUrlHandler.js';
 import '../workbench/services/keybinding/common/keybindingEditing.js';
 import '../workbench/services/decorations/browser/decorationsService.js';
@@ -138,6 +137,7 @@ import '../workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import '../workbench/services/treeSitter/browser/treeSitter.contribution.js';
 import '../workbench/services/userActivity/common/userActivityService.js';
 import '../workbench/services/userActivity/browser/userActivityBrowser.js';
+import '../workbench/services/lifecycle/common/unattendedRestart.js';
 import '../workbench/services/userAttention/browser/userAttentionBrowser.js';
 import '../workbench/services/editor/browser/editorPaneService.js';
 import '../workbench/services/editor/common/customEditorLabelService.js';
@@ -148,7 +148,6 @@ import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import '../platform/agentHost/browser/agentHostEnablementService.js';
-import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
@@ -234,6 +233,7 @@ import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import '../workbench/contrib/chatWindow/browser/chatWindow.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Voice Mode (voice UI actions, settings and context keys)
@@ -333,8 +333,11 @@ import { IExtensionsWorkbenchService } from '../workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from '../workbench/contrib/extensions/browser/extensionsWorkbenchService.js';
 import { IExtensionRecommendationNotificationService } from '../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { NullExtensionRecommendationNotificationService } from './services/extensionRecommendations/common/extensionRecommendationNotificationService.js';
+import { IExtensionRecommendationsService } from '../workbench/services/extensionRecommendations/common/extensionRecommendations.js';
+import { NullExtensionRecommendationsService } from './services/extensionRecommendations/common/extensionRecommendationsService.js';
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
 registerSingleton(IExtensionRecommendationNotificationService, NullExtensionRecommendationNotificationService, InstantiationType.Delayed);
+registerSingleton(IExtensionRecommendationsService, NullExtensionRecommendationsService, InstantiationType.Delayed);
 
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
@@ -466,13 +469,14 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/sessionsPartContent.registration.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
-import './services/sessions/browser/sessionsService.js';
+import './services/sessions/browser/sessionsServices.registration.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
-import './services/customView/browser/customViewService.js';
-import './services/activity/common/sessionActivityBarActivityService.js';
+import './services/customView/browser/customViewService.registration.js';
+import './services/activity/common/sessionActivityBarActivityService.registration.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
@@ -482,18 +486,16 @@ import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/chat/browser/sideChatProvider.contribution.js';
+import './contrib/chatWindow/browser/chatWindow.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
-import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostForkActions.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
-import './services/sessions/browser/sessionsListModelService.js';
-import './services/sessions/browser/sessionGroupsService.js';
-import './services/sessions/browser/sessionComparisonService.js';
-import './services/sessions/browser/sessionSectionOrderService.js';
-import './services/agentHostFilter/browser/agentHostFilterService.js';
+import './contrib/canvases/browser/pinnedCanvases.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
@@ -513,6 +515,8 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/canvases/browser/windowCanvases.contribution.js';
+import './contrib/inboxOne/browser/inboxOne.contribution.js';
 import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
@@ -523,6 +527,6 @@ import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribut
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 import './contrib/getStarted/browser/getStarted.contribution.js';
+import './contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.js';
 
-import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

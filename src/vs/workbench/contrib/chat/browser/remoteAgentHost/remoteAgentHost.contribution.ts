@@ -6,8 +6,8 @@
 import { localize } from '../../../../../nls.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { RemoteAgentHostsEnabledSettingId, WorkspaceRemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -19,7 +19,7 @@ import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './c
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
 import './missionControlEnvironmentActions.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { MissionControlSharingService } from './missionControlSharingService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
@@ -72,6 +72,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
+		[WorkspaceRemoteAgentHostsSettingId]: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					address: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
+					name: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.name', "A display name for this remote agent host.") },
+					connectionToken: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
+				},
+				required: ['address', 'name'],
+			},
+			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts that editor windows connect to while this workspace is open. Their agents become available in Chat, and their sessions are listed there. Editor windows don't connect to the hosts in `#chat.remoteAgentHosts#`; those belong to the Agents window. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
+			default: [],
+			scope: ConfigurationScope.WINDOW,
+			restricted: true,
+			tags: ['experimental', 'advanced'],
+		},
 		[GitHubEnvironmentsEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('githubEnvironments.enabled', "Enable sharing this machine as a GitHub environment and discovering and connecting to your other shared machines through Mission Control."),
@@ -103,13 +120,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[MissionControlUseLocalCredentialsSettingId]: {
 			type: 'boolean',
-			description: localize('missionControl.useLocalCredentials', "Use the OAuth token already available on this host for work started by a remote client through Mission Control, instead of the remote client's token. Remote clients must still authenticate as the same GitHub account. Requests use the host account's permissions and usage allowance. Changing this setting disconnects existing Mission Control clients."),
+			description: localize('missionControl.useLocalCredentials', "Use this host's GitHub and Copilot credentials for Mission Control sessions, including repository operations and restored background work, instead of the remote client's credentials. Remote clients must still authenticate as the same GitHub account. Requests use the host account's permissions and usage allowance. Changing this setting disconnects existing Mission Control clients."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 			ignoreSync: true,
 			experiment: { mode: 'auto' },
+			agentHost: { key: MissionControlUseLocalCredentialsConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',

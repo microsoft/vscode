@@ -8,19 +8,23 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
-import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
-import '../../browser/media/sessionsViewPane.css';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
 	readonly mainContainer: HTMLElement;
@@ -32,8 +36,9 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 }) => void;
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
-	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
-	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly sessionsService: { readonly slotPanes: IObservable<readonly ISessionGridPane[]> };
+	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
@@ -51,10 +56,13 @@ suite('Sessions - SessionsViewPane', () => {
 	test('offers and selects environment grouping in the mobile sheet', async () => {
 		const container = mainWindow.document.createElement('div');
 		const selected = new DeferredPromise<SessionsGrouping>();
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const host = {
 			layoutService: { mainContainer: container },
-			currentGrouping: SessionsGrouping.Environment,
+			grouping: SessionsGrouping.Environment,
 			currentSorting: SessionsSorting.Created,
+			configurationService,
 			setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
 			setSorting: () => assert.fail('Expected grouping selection'),
 		};
@@ -68,6 +76,69 @@ suite('Sessions - SessionsViewPane', () => {
 
 		assert.deepStrictEqual({ checked, selected: await selected.p }, { checked: 'true', selected: SessionsGrouping.Environment });
 	});
+
+	test('suspends saved inbox grouping while disabled without losing the choice', async () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsViewPane.grouping', SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.USER);
+		const host = {
+			currentGrouping: SessionsGrouping.Inbox,
+			configurationService,
+			storageService,
+			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			updateHeaderLayout: () => { },
+		};
+		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
+		const initial = host.grouping;
+		assert.throws(() => setGrouping.call(host, SessionsGrouping.Inbox), /Enable sessions.list.inboxEnabled/);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const enabled = host.grouping;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+		const disabled = host.grouping;
+		const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const restored = host.grouping;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+		setGrouping.call(host, SessionsGrouping.Workspace);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		assert.deepStrictEqual({ initial, enabled, disabled, saved, restored, changed: host.grouping }, {
+			initial: SessionsGrouping.Workspace,
+			enabled: SessionsGrouping.Inbox,
+			disabled: SessionsGrouping.Workspace,
+			saved: SessionsGrouping.Inbox,
+			restored: SessionsGrouping.Inbox,
+			changed: SessionsGrouping.Workspace,
+		});
+	});
+
+	for (const { enabled, hidden } of [{ enabled: false, hidden: false }, { enabled: true, hidden: false }, { enabled: true, hidden: true }]) {
+		test(`mobile inbox option respects enablement (${enabled}) and hidden AI (${hidden})`, async () => {
+			const container = mainWindow.document.createElement('div');
+			const selected = new DeferredPromise<SessionsGrouping>();
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const host = {
+				layoutService: { mainContainer: container },
+				grouping: SessionsGrouping.Workspace,
+				currentSorting: SessionsSorting.Created,
+				configurationService,
+				chatEntitlementService: { sentiment: { hidden } },
+				setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
+				setSorting: () => assert.fail('Expected grouping selection'),
+			};
+			const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+			openSheet.call(host);
+			const options = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')];
+			const inbox = options.find(row => row.textContent?.trim() === 'Inbox Mode');
+			const workspace = options.find(row => row.textContent?.trim() === 'Group by Workspace')!;
+			(inbox ?? workspace).click();
+			assert.deepStrictEqual({ offered: !!inbox, selected: await selected.p }, {
+				offered: enabled && !hidden,
+				selected: enabled && !hidden ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+			});
+		});
+	}
 
 	test('selects control and treatment presentations only when AI UI is visible on desktop', () => {
 		assert.deepStrictEqual({
@@ -286,34 +357,31 @@ suite('Sessions - SessionsViewPane', () => {
 			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
 		};
 
-		try {
-			registerEditorTabHeightClass.call(host);
-			const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
+		disposables.add(toDisposable(() => workbench.remove()));
+		registerEditorTabHeightClass.call(host);
+		const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			tabHeight = 'compact';
-			editorPartOptionsChanged.fire();
-			const compactHeight = mainWindow.getComputedStyle(headerRow).height;
+		tabHeight = 'compact';
+		editorPartOptionsChanged.fire();
+		const compactHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			tabHeight = 'default';
-			editorPartOptionsChanged.fire();
-			const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
+		tabHeight = 'default';
+		editorPartOptionsChanged.fire();
+		const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			assert.deepStrictEqual({
-				defaultHeight,
-				compactHeight,
-				restoredHeight,
-				flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
-				hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
-			}, {
-				defaultHeight: '32px',
-				compactHeight: '28px',
-				restoredHeight: '32px',
-				flexShrink: '0',
-				hasCompactClass: false,
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			defaultHeight,
+			compactHeight,
+			restoredHeight,
+			flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
+			hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
+		}, {
+			defaultHeight: '32px',
+			compactHeight: '28px',
+			restoredHeight: '32px',
+			flexShrink: '0',
+			hasCompactClass: false,
+		});
 	});
 
 	test('hides session details only when an active comparison participant is opened', () => {
@@ -348,11 +416,13 @@ suite('Sessions - SessionsViewPane', () => {
 			sessionComparisonService: {
 				getComparisonForSession: () => currentComparison,
 			},
-			sessionsService: { visibleSessions },
+			sessionsService: { slotPanes: visibleSessions.map(sessions => sessions.map(session => upcastPartial<ISessionGridPane>({ session: constObservable(session) }))) },
 			layoutService: {
-				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
 				setPartHidden: () => { },
+			},
+			hostLayoutService: {
+				sidePane: { hideSidePane: () => hideSidePaneCalls++ },
 			},
 		};
 

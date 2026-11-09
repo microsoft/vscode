@@ -103,6 +103,39 @@ suite('AgentInstructionsLocator', () => {
 		accessor?.dispose();
 	});
 
+	test.each([
+		{ enabled: true, trusted: true, gitEntry: 'directory', includesParent: true },
+		{ enabled: true, trusted: true, gitEntry: 'file', includesParent: true },
+		{ enabled: false, trusted: true, gitEntry: 'directory', includesParent: false },
+		{ enabled: true, trusted: false, gitEntry: 'directory', includesParent: false },
+		{ enabled: true, trusted: true, gitEntry: 'missing', includesParent: false },
+	])('resolves discovery roots (enabled: $enabled, trusted: $trusted, .git: $gitEntry)', async ({ enabled, trusted, gitEntry, includesParent }) => {
+		const gitUri = URI.joinPath(parentFolderUri, '.git');
+		if (gitEntry === 'directory') {
+			fileSystem.mockDirectory(gitUri, []);
+		} else if (gitEntry === 'file') {
+			fileSystem.mockFile(gitUri, 'gitdir: ../main/.git/worktrees/feature');
+		}
+		workspaceService.setTrusted(parentFolderUri, trusted);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, enabled);
+
+		expect(await locator.getWorkspaceFolderRoots()).toEqual(includesParent ? [rootFolderUri, parentFolderUri] : [rootFolderUri]);
+	});
+
+	test('resolves trusted parents of an explicit working directory instead of workspace folders', async () => {
+		const workingDirectory = URI.joinPath(parentFolderUri, 'other/nested');
+		fileSystem.mockDirectory(URI.joinPath(parentFolderUri, '.git'), []);
+		workspaceService.setTrusted(parentFolderUri, true);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+		const roots = await locator.getWorkspaceFolderRoots([workingDirectory]);
+		expect(roots.map(root => root.toString())).toEqual([
+			workingDirectory,
+			URI.joinPath(parentFolderUri, 'other'),
+			parentFolderUri,
+		].map(root => root.toString()));
+	});
+
 	test('should collect parent folder copilot-instructions.md and AGENTS.md when includeWorkspaceFolderParents is enabled', async () => {
 		await mockFiles(fileSystem, [
 			// `.git/HEAD` marks the parent folder as a repository root for the parent walk.

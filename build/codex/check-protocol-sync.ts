@@ -7,7 +7,7 @@
 // (src/vs/platform/agentHost/node/codex/protocol/generated/**) is byte-for-byte what the
 // generation script produces for the codex version pinned in the repo-root package.json
 // devDependencies (@openai/codex). Guards against hand-edited or stale generated files:
-// the committed client must be reproducible by `npm run codex:gen-protocol`.
+// the committed client must be reproducible by `pnpm run codex:gen-protocol`.
 //
 // Usage:
 //   node build/codex/check-protocol-sync.ts
@@ -166,7 +166,7 @@ function main(): void {
 
 	if (binVersion !== devDep) {
 		fail(`The vendored codex binary is ${binVersion} but package.json pins @openai/codex ${devDep}. ` +
-			`Run \`npm ci\` so the freshness check regenerates with the dev-dependency version.`);
+			`Run \`pnpm install\` so the freshness check regenerates with the dev-dependency version.`);
 	}
 
 	// Regenerate into a throwaway dir using the dev-dependency binary; never touch the working tree.
@@ -180,7 +180,7 @@ function main(): void {
 			console.error(`  ${diffs.length} file(s) differ:`);
 			for (const d of diffs.slice(0, 40)) { console.error(`    ${d}`); }
 			if (diffs.length > 40) { console.error(`    …and ${diffs.length - 40} more.`); }
-			console.error(`\n  Regenerate with:  npm run codex:gen-protocol`);
+			console.error(`\n  Regenerate with:  pnpm run codex:gen-protocol`);
 			console.error(`  (ensure ${VERSION_FILE_REL} and the @openai/codex devDependency are both ${devDep} first.)`);
 			process.exit(1);
 		}
@@ -190,7 +190,7 @@ function main(): void {
 
 	if (pinned !== devDep) {
 		fail(`${VERSION_FILE_REL} is ${pinned} but the generated client matches @openai/codex ${devDep}. ` +
-			`Bump ${VERSION_FILE_REL} to ${devDep} so \`npm run codex:gen-protocol\` stays reproducible.`);
+			`Bump ${VERSION_FILE_REL} to ${devDep} so \`pnpm run codex:gen-protocol\` stays reproducible.`);
 	}
 
 	console.log(`\n✓ Codex protocol client matches \`codex app-server generate-ts\` for @openai/codex ${devDep}.`);

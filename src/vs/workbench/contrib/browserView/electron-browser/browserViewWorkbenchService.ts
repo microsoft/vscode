@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewSessionRequest } from '../common/browserView.js';
+import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,11 +15,13 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
-import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { getWindowMainPart, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -30,7 +32,7 @@ import { contrastBorder, descriptionForeground, focusBorder } from '../../../../
 import { buttonForeground, buttonBackground, inputPlaceholderForeground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, toolbarHoverBackground, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
-import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { findGroup, handOffFromSelfTitledEditor } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -48,13 +50,16 @@ import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
-export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 /** How long creation waits for the local extension host to provide network proxies. */
 const NETWORK_PROXY_PROVIDER_TIMEOUT_MS = 30_000;
+
+/** How long creation waits for a network's host to report whether it supports proxying. */
+const NETWORK_SUPPORT_TIMEOUT_MS = 10_000;
 
 /** A network in use, and its proxy once started. */
 interface INetworkProxyEntry {
@@ -97,6 +102,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _browserViewsReady = new DeferredPromise<void>();
 
 	private _networkResolver: IBrowserViewNetworkResolver | undefined;
+	private readonly _onDidChangeNetworkStatus = this._register(new Emitter<void>());
+	readonly onDidChangeNetworkStatus: Event<void> = this._onDidChangeNetworkStatus.event;
 	private _networkProxyProvider: IBrowserViewNetworkProxyProvider | undefined;
 	private readonly _onDidRegisterNetworkProxyProvider = this._register(new Emitter<void>());
 	/** Proxies of the remote networks in use, keyed by authority. */
@@ -155,11 +162,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
+
+		// A restart reloads every live page, which loses its state (e.g. form input or an ephemeral login)
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this._remoteEvents.size > 0 ? 'browser.livePage' : undefined
+		}));
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
@@ -241,6 +255,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._isNetworkProxyEnabled()) {
 			return undefined;
 		}
+		return this._resolveNetwork(owner) ?? undefined;
+	}
+
+	/** The owner's network, whether or not views may use it; `null` when the owner is unknown. */
+	private _resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined {
 		if (this._networkResolver) {
 			return this._networkResolver.resolveNetwork(owner);
 		}
@@ -248,14 +267,25 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return remoteAuthority ? { authority: remoteAuthority } : undefined;
 	}
 
-	async acquireNetwork(network: IBrowserViewNetwork): Promise<IDisposable> {
+	async acquireNetwork(network: IBrowserViewNetwork): Promise<IReference<IBrowserViewNetwork | undefined>> {
+		if (!await this._isNetworkSupported(network)) {
+			return { object: undefined, dispose: () => { } };
+		}
 		const reference = this._acquireNetworkReference(network.authority);
 		try {
 			await this._whenNetworkProxyReady(reference.object);
 		} catch (error) {
 			this.logService.error(`[BrowserViewWorkbenchService] Failed to start proxy for network ${network.authority}.`, error);
 		}
-		return reference;
+		return { object: network, dispose: () => reference.dispose() };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		if (network.authority === this.environmentService.remoteAuthority) {
+			// The window's remote connection always supports proxying.
+			return { label: this.labelService.getHostLabel(Schemas.vscodeRemote, network.authority) || network.authority, connected: true, proxySupported: true };
+		}
+		return this._networkResolver?.getNetworkStatus(network) ?? { label: network.authority, connected: false, proxySupported: undefined };
 	}
 
 	registerNetworkResolver(resolver: IBrowserViewNetworkResolver): IDisposable {
@@ -263,9 +293,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			throw new Error('A browser network resolver is already registered');
 		}
 		this._networkResolver = resolver;
+		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
+		this._onDidChangeNetworkStatus.fire();
 		return toDisposable(() => {
+			statusListener.dispose();
 			if (this._networkResolver === resolver) {
 				this._networkResolver = undefined;
+				this._onDidChangeNetworkStatus.fire();
 			}
 		});
 	}
@@ -321,7 +355,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
-	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined> {
 		// "Open to side" requests are routed into the dedicated side group.
 		if (preferredGroup === SIDE_GROUP) {
 			return this._getOrCreateDedicatedGroup('sideGroup');
@@ -345,7 +379,37 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this.editorGroupsService.mainPart.activeGroup;
 		}
 
-		return preferredGroup;
+		// The active group of the window the open was requested from, rather than of the window that appears to have focus.
+		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+	}
+
+	/**
+	 * The active group of the window `windowId`, among the editor parts of that window. As for the active group when the
+	 * editor group finder chooses it: not one that shows only a view with its own title, such as a chat, whose window's
+	 * main part takes the editor instead, nor a locked one.
+	 */
+	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
+		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
+		return window ? this._avoidLockedGroup(handOffFromSelfTitledEditor(this.editorGroupsService.getPart(window.document.body).activeGroup, this.editorGroupsService)) : undefined;
+	}
+
+	/**
+	 * An explicit group is not checked for locks when editors open in it, so a locked group is replaced the way the
+	 * editor group finder does for the active group: by an unlocked group of its part, or else a new group beside it.
+	 */
+	private _avoidLockedGroup(group: IEditorGroup): IEditorGroup {
+		if (!group.isLocked) {
+			return group;
+		}
+		const part = this.editorGroupsService.getPart(group);
+		const unlocked = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked);
+		if (unlocked) {
+			return unlocked;
+		}
+		// A part of locked groups other than the main part of its window, such as one that holds terminals, is not split
+		// for it: the main part of the window takes it.
+		const windowMainPart = getWindowMainPart(this.editorGroupsService, group.windowId);
+		return windowMainPart !== part ? this._avoidLockedGroup(windowMainPart.activeGroup) : part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**
@@ -361,8 +425,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 
 		if (placement === 'sideGroup') {
+			// Beside the active group, or beside the group it hands editors off to, such as while a chat is active.
 			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			const group = this.editorGroupsService.addGroup(handOffFromSelfTitledEditor(this.editorGroupsService.activeGroup, this.editorGroupsService), direction);
 			// Lock the group so that other (non-browser) editors are not opened
 			// into it. Browser tabs still open here because we target it directly.
 			group.lock(true);
@@ -446,15 +511,23 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
+		// proxying is disabled, rather than silently load from the local network. It is resolved before any
+		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
+		const requestedNetwork = networkOwner && this._resolveNetwork(networkOwner);
+		const unavailable = () => new Error(localize('browser.requiredNetworkUnavailable', "The required remote network is unavailable."));
+		if (requestedNetwork === null) {
+			throw unavailable();
+		}
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const { session, network } = await this._resolveViewSession({
-			scope: BrowserViewStorageScope.Ephemeral,
-			network: networkOwner && this.resolveNetwork(networkOwner),
-		});
+		const { session, network } = await this._resolveViewSession({ scope: BrowserViewStorageScope.Ephemeral, network: requestedNetwork });
+		if (requestedNetwork && !network) {
+			throw unavailable();
+		}
 		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
 		let model: IBrowserViewModel;
 		try {
@@ -563,13 +636,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return toBrowserViewSessionOptions(scope, request.affinity, request.network);
 	}
 
-	/** Apply workspace trust, proxy availability, and workspace storage isolation to a requested session. */
+	/** Apply workspace trust, proxy availability (including hosts that cannot proxy browsers), and workspace storage isolation to a requested session. */
 	private async _resolveViewSession(requested: BrowserViewSessionSelector): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
 		if (typeof requested === 'string') {
 			return { session: requested, network: undefined };
 		}
-		const network = this._isNetworkProxyEnabled() ? getBrowserViewSessionNetwork(requested) : undefined;
-		let affinity = requested.scope === BrowserViewStorageScope.Workspace || requested.scope === BrowserViewStorageScope.Agent ? requested.affinity : undefined;
+		const requestedNetwork = getBrowserViewSessionNetwork(requested);
+		const network = requestedNetwork && this._isNetworkProxyEnabled() && await this._isNetworkSupported(requestedNetwork) ? requestedNetwork : undefined;
+		let affinity = getBrowserViewSessionAffinity(requested);
 		let scope = requested.scope;
 		if (scope === BrowserViewStorageScope.Global || scope === BrowserViewStorageScope.Workspace) {
 			await this.workspaceTrustManagementService.workspaceTrustInitialized;
@@ -585,6 +659,28 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 		return { session: toBrowserViewSessionOptions(scope, affinity, network), network };
+	}
+
+	/**
+	 * Whether a network's host can proxy browsers. Hosts known not to support
+	 * it use the local network; hosts whose support is not yet known (for
+	 * example, still connecting) are given time to report it, and are
+	 * otherwise used, so a view never silently uses the local network.
+	 */
+	private async _isNetworkSupported(network: IBrowserViewNetwork): Promise<boolean> {
+		if (!this._networkResolver && network.authority !== this.environmentService.remoteAuthority) {
+			// Without a resolver, the window's remote is the only network it can reach, and nothing would report on others.
+			throw new Error(localize('browser.unknownNetwork', "This page was opened for another remote ({0}). Open it again from a window connected to that remote.", network.authority));
+		}
+		if (this.getNetworkStatus(network).proxySupported === undefined) {
+			const reported = Event.toPromise(Event.filter(this.onDidChangeNetworkStatus, () => this.getNetworkStatus(network).proxySupported !== undefined));
+			try {
+				await raceTimeout(reported, NETWORK_SUPPORT_TIMEOUT_MS);
+			} finally {
+				reported.cancel();
+			}
+		}
+		return this.getNetworkStatus(network).proxySupported !== false;
 	}
 
 	private _isNetworkProxyEnabled(): boolean {

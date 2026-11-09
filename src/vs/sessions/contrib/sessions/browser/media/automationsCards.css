@@ -69,6 +69,7 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
+.automations-disabled-section,
 .automations-history-state,
 .automations-history {
 	width: 100%;
@@ -159,7 +160,8 @@
 	transform-origin: center;
 }
 
-.automations-ownership-section[open] .automations-ownership-chevron {
+.automations-ownership-section[open] .automations-ownership-chevron,
+.automations-disabled-section[open] .automations-ownership-chevron {
 	transform: rotate(90deg);
 }
 
@@ -482,6 +484,18 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
+.automations-cards-partial-state-content {
+	min-width: 0;
+}
+
+.automations-cards-partial-state-message {
+	display: inline;
+}
+
+.automations-cards-partial-state-content > .automations-manage-remotes-link {
+	margin-left: var(--vscode-spacing-size80);
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;
@@ -504,6 +518,11 @@
 .automations-cards-partial-state-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
+}
+
+/* Disabled automations */
+.automations-disabled-section {
+	margin-top: var(--vscode-spacing-size240);
 }
 
 /* Starter templates */

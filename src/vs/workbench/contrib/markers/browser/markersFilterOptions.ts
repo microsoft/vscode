@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFilter, matchesFuzzy, matchesFuzzy2 } from '../../../../base/common/filters.js';
-import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from '../../../../base/common/glob.js';
+import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parseExcludeExpression } from '../../../../base/common/glob.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { relativePath } from '../../../../base/common/resources.js';
@@ -23,10 +23,10 @@ export class ResourceGlobMatcher {
 		rootExpressions: { root: URI; expression: IExpression }[],
 		uriIdentityService: IUriIdentityService
 	) {
-		this.globalExpression = parse(globalExpression);
+		this.globalExpression = parseExcludeExpression(globalExpression).matches;
 		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI; expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parseExcludeExpression(expression.expression).matches });
 		}
 	}
 

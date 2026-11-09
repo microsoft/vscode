@@ -7,6 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
@@ -20,7 +21,7 @@ import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentH
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
 
-export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot");
+export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot Cloud");
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -75,6 +76,7 @@ export function createCloudSandboxConnectionCustomization(
 	};
 	return {
 		requiresWorkspaceTrust: false,
+		inputPlaceholder: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
@@ -85,7 +87,12 @@ export function createCloudSandboxConnectionCustomization(
 			const authentication = await resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
 			return request.target ? { ...authentication, target: request.target } : authentication;
 		},
-		renewAuthentication: userLocal ? undefined : resource => resolveAuthentication(resource.resource, resource.scopes_supported, true),
+		renewAuthentication: async resource => {
+			if (userLocal && resource.resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+				return undefined;
+			}
+			return resolveAuthentication(resource.resource, resource.scopes_supported, true);
+		},
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER || (userLocal && provider === 'copilotcli') ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
 		retainConsumedSteeringMessages: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER,

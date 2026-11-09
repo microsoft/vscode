@@ -9,18 +9,19 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { AutoOpenBarrier, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -243,6 +244,41 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual({ result, icon: instance.icon }, { result: undefined, icon: Codicon.rocket });
 		});
 
+		for (const reset of [true, false]) {
+			test(`terminal color picker uses neutral selection and supports ${reset ? 'reset' : 'cancellation'}`, async () => {
+				const instantiationService = createTerminalInstantiationService();
+				const accepted = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+				const hidden = store.add(new Emitter<IQuickInputHideEvent>());
+				const picker = upcastPartial<IQuickPick<IQuickPickItem, { useSeparators: true }>>({
+					onDidHide: hidden.event,
+					onDidAccept: accepted.event,
+					show() { },
+					hide() { },
+					dispose() { },
+				});
+				instantiationService.stub(IQuickInputService, 'createQuickPick', () => picker);
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, { icon: Codicon.rocket, color: 'terminal.ansiRed' }));
+				await instance.xtermReadyPromise;
+				const result = instance.changeColor();
+				const resetItem = picker.items.find((item): item is IQuickPickItem => item.type !== 'separator' && item.id === undefined)!;
+				if (reset) {
+					picker.selectedItems = [resetItem];
+					accepted.fire({ inBackground: false });
+				} else {
+					hidden.fire({ reason: QuickInputHideReason.Gesture });
+				}
+				deepStrictEqual({
+					result: await result,
+					resetLabel: resetItem.label,
+					color: instance.shellLaunchConfig.color,
+				}, {
+					result: undefined,
+					resetLabel: 'Reset to default',
+					color: reset ? undefined : 'terminal.ansiRed',
+				});
+			});
+		}
+
 		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
 			const instance = await createTerminalInstance();
 			const container = document.createElement('div');
@@ -263,22 +299,19 @@ suite('Workbench - TerminalInstance', () => {
 				// Use a separate sandbox to observe scrollbar disposal after the default sandbox is torn down.
 				const sandbox = createSandbox();
 				const additions = sandbox.spy(instance.store, 'add');
-				try {
+				store.add(toDisposable(() => sandbox.restore()));
+				await instance.toggleSizeToContentWidth();
+				ok(instance.domElement.classList.contains('fixed-dims'));
+				const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
+				ok(scrollbar instanceof DomScrollableElement);
+				const disposal = sandbox.spy(scrollbar, 'dispose');
+				if (removeBeforeDispose) {
 					await instance.toggleSizeToContentWidth();
-					ok(instance.domElement.classList.contains('fixed-dims'));
-					const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
-					ok(scrollbar instanceof DomScrollableElement);
-					const disposal = sandbox.spy(scrollbar, 'dispose');
-					if (removeBeforeDispose) {
-						await instance.toggleSizeToContentWidth();
-					}
-					strictEqual(instance.isDisposed, false);
-					strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
-					instance.dispose();
-					strictEqual(disposal.callCount, 1);
-				} finally {
-					sandbox.restore();
 				}
+				strictEqual(instance.isDisposed, false);
+				strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
+				instance.dispose();
+				strictEqual(disposal.callCount, 1);
 			});
 		}
 
@@ -480,6 +513,34 @@ suite('Workbench - TerminalInstance', () => {
 			});
 		});
 
+		test('shows a custom pty\'s process titles like local process names', async () => {
+			// Agent host terminals report their host's titles this way, see getProcessTitle in agentHostPty.ts.
+			const instance = await createTerminalInstance(undefined, undefined, { customPtyImplementation: () => store.add(new TestTerminalChildProcess(false)) });
+			const titles: string[] = [];
+			for (const title of ['npm run watch', '/usr/bin/zsh']) {
+				await instance.rename(title, TitleEventSource.Process);
+				titles.push(instance.title);
+			}
+			deepStrictEqual(titles, ['npm', 'zsh']);
+		});
+
+		test('the screen reader label of a terminal names the remote host it runs on', async () => {
+			const labels: string[] = [];
+			const expected: string[] = [];
+			for (const hostLabel of [undefined, 'devbox']) {
+				const instance = await createTerminalInstance(undefined, undefined, { hostLabel });
+				const container = document.createElement('div');
+				document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				instance.attachToElement(container);
+				instance.setVisible(true);
+				await instance.rename('zsh', TitleEventSource.Process);
+				labels.push(instance.xterm!.raw.textarea!.getAttribute('aria-label')!.split('\n')[0]);
+				expected.push(`Terminal ${instance.instanceId}, zsh${hostLabel ? ` on ${hostLabel}` : ''}`);
+			}
+			deepStrictEqual(labels, expected);
+		});
+
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
 			const instance = await createTerminalInstance() as TerminalInstance;
 			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
@@ -671,15 +732,14 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
-			try {
-				deepStrictEqual(
-					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-					{ result: false, defaultPrevented: true }
-				);
-			} finally {
+			store.add(toDisposable(() => {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}
+			}));
+			deepStrictEqual(
+				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+				{ result: false, defaultPrevented: true }
+			);
 		});
 
 		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
@@ -697,15 +757,14 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
-			try {
-				deepStrictEqual(
-					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-					{ result: false, defaultPrevented: true }
-				);
-			} finally {
+			store.add(toDisposable(() => {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}
+			}));
+			deepStrictEqual(
+				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+				{ result: false, defaultPrevented: true }
+			);
 		});
 	});
 	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
@@ -917,6 +976,12 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Local' } }));
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
+		});
+		test('should resolve host', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${host}', description: '${host}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { hostLabel: 'devbox' } }));
+			strictEqual(terminalLabelComputer.title, 'devbox');
+			strictEqual(terminalLabelComputer.description, 'devbox');
 		});
 		test('should resolve process', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });

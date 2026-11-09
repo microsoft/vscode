@@ -9,7 +9,8 @@ import { EditorPartModalVisibleContext } from '../../../../../workbench/common/c
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 
 export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | undefined {
 	return ContextKeyExpr.and(
@@ -38,5 +39,17 @@ export function createNewSessionViewWorkspaceStep(options: { requireSelection?: 
 		openTarget: true,
 		allowTargetInteraction: true,
 		advanceWhen: requireSelection ? SessionHasWorkspaceContext : undefined,
+	};
+}
+
+/** Workspace step copy that contrasts the Agents window with a classic editor window, which is locked to one folder. */
+export function getNewSessionViewMentalModelWorkspaceCopy(): Pick<ISpotlightStep, 'title' | 'description' | 'selectedContent'> {
+	return {
+		title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.title', "Pick a project for this session"),
+		description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.description', "Unlike a normal VS Code window, you aren't locked to one folder. Point this session to any folder. Each session can work on a different folder without opening a new window."),
+		selectedContent: {
+			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.title', "Pick a project for this session"),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.description', "We've selected your current project to get you started. You can point each new session to any folder without opening a new window."),
+		},
 	};
 }

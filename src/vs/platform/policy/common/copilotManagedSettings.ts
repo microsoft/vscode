@@ -18,9 +18,17 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
-/** The temporary harness control does not contribute general presence-based governance. */
+/** Whether `key` is `block` or one of its nested keys. */
+function isManagedSettingInBlock(key: string, block: string): boolean {
+	return key === block || key.startsWith(`${block}.`);
+}
+
+/**
+ * The temporary harness control and informational organization communication do not contribute
+ * general presence-based governance.
+ */
 export function isManagedSettingGovernanceActive(key: string): boolean {
-	return key !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY && !key.startsWith(`${COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY}.`);
+	return !isManagedSettingInBlock(key, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY) && !isManagedSettingInBlock(key, communicationBlockKey);
 }
 
 /** Detect raw governance without counting the Local-only harness control or its containing object. */
@@ -135,6 +143,13 @@ export const COPILOT_SANDBOX_DENIED_PATHS_KEY = 'sandbox.userPolicy.filesystem.d
 /** Managed-settings key that restricts developer tool access from the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAccess';
 
+/**
+ * Organization help page that clients link to wherever they would otherwise only tell users to
+ * contact their administrator. Informational only: it never restricts behavior or counts as
+ * governance. Read it through {@link getManagedSupportUrl}, which validates it.
+ */
+export const COPILOT_COMMUNICATION_SUPPORT_URL_KEY = 'communication.support.url';
+
 /** Auto startup default, read as one atomic value across managed delivery channels. */
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 
@@ -173,6 +188,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	[COPILOT_FUSION_TIER_KEY]: { type: 'string' },
+	[COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
 	'telemetry.capture.responses': { type: 'boolean' },
@@ -250,9 +266,19 @@ export const COPILOT_OTEL_HEADERS_KEY = 'telemetry.headers';
  */
 const telemetryBlockKey = 'telemetry';
 
-/** Whether a canonical bag key belongs to the telemetry block. */
-function isTelemetrySettingKey(key: string): boolean {
-	return key === telemetryBlockKey || key.startsWith(`${telemetryBlockKey}.`);
+/** The organization communication block, which, like telemetry, is selected whole from one channel. */
+const communicationBlockKey = 'communication';
+
+/**
+ * Blocks selected in their entirety from the highest-priority channel that supplies them, matching
+ * the runtime's composition: omitted leaves never inherit from a weaker managed source. A block key
+ * itself, with the value `{}`, is a presence marker for an empty block, not a policy setting.
+ */
+export const MANAGED_SETTINGS_WHOLE_BLOCK_KEYS: readonly string[] = [telemetryBlockKey, communicationBlockKey];
+
+/** The whole block a canonical bag key belongs to, if any. */
+export function getManagedSettingsWholeBlock(key: string): string | undefined {
+	return MANAGED_SETTINGS_WHOLE_BLOCK_KEYS.find(block => isManagedSettingInBlock(key, block));
 }
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
@@ -317,6 +343,26 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	getManagedSettingValue(_key: string): ManagedSettingValue | undefined {
 		return undefined;
 	}
+}
+
+/**
+ * The organization's support page from effective managed settings, or `undefined` when unset or
+ * invalid. Like the runtime, accepts only an absolute `http` or `https` URL with a host and no
+ * surrounding whitespace, so clients never render a dangerous link. Returns the URL as a string so
+ * that opening it preserves it exactly.
+ */
+export function getManagedSupportUrl(service: Pick<IManagedSettingsService, 'getManagedSettingValue'>): string | undefined {
+	const value = service.getManagedSettingValue(COPILOT_COMMUNICATION_SUPPORT_URL_KEY);
+	if (typeof value !== 'string' || value.trim() !== value) {
+		return undefined;
+	}
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		return undefined;
+	}
+	return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname ? url.href : undefined;
 }
 
 /** Non-empty or malformed managed deny lists require runtime enforcement; rule interpretation remains runtime-owned. */
@@ -587,12 +633,12 @@ export interface IManagedSettingResolution {
 
 /** The result of resolving managed settings across the delivery channels. */
 export interface IManagedSettingsPick {
-	/** The effective bag, excluding telemetry leaves found only in weaker managed sources. */
+	/** The effective bag, excluding whole-block leaves found only in weaker managed sources. */
 	readonly values: ManagedSettingsData;
 	/** Per-key provenance: how each key resolved and which channels were overridden. */
 	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
-	/** Telemetry keys supplied only by weaker blocks, retained for diagnostics but never applied. */
-	readonly suppressedTelemetry: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
+	/** Whole-block keys supplied only by weaker blocks, retained for diagnostics but never applied. */
+	readonly excludedBlockContributions: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
 	/** The channels that supplied at least one *winning* key, in precedence order. */
 	readonly activeSources: readonly ManagedSettingsChannel[];
 }
@@ -603,8 +649,9 @@ export interface IManagedSettingsPick {
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
- * empty or unrecognized server/file object blocks; native delivery observes declared flat keys only.
+ * a lower channel. Telemetry and organization communication instead select the highest-priority
+ * block in its entirety, including empty or unrecognized server/file object blocks; native delivery
+ * observes declared flat keys only.
  * Omitted leaves cannot inherit from a weaker managed source.
  * Sandbox enablement is force-on-wins; bypass, access and credential authentication are deny-wins so UI consumers
  * cannot discard a sandbox restriction from another channel.
@@ -620,8 +667,8 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 
 	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
-	const suppressedTelemetry = new Map<string, IManagedSettingsContribution[]>();
-	let telemetrySource: ManagedSettingsChannel | undefined;
+	const excludedBlockContributions = new Map<string, IManagedSettingsContribution[]>();
+	const blockSources = new Map<string, ManagedSettingsChannel>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
 		if (!bag) {
@@ -635,12 +682,14 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 				continue;
 			}
 			const existing = resolutions.get(key);
-			if (isTelemetrySettingKey(key)) {
-				telemetrySource ??= channel;
-				if (channel !== telemetrySource && !existing) {
-					const contributions = suppressedTelemetry.get(key) ?? [];
+			const block = getManagedSettingsWholeBlock(key);
+			if (block) {
+				const blockSource = blockSources.get(block) ?? channel;
+				blockSources.set(block, blockSource);
+				if (channel !== blockSource && !existing) {
+					const contributions = excludedBlockContributions.get(key) ?? [];
 					contributions.push({ channel, value });
-					suppressedTelemetry.set(key, contributions);
+					excludedBlockContributions.set(key, contributions);
 					continue;
 				}
 			}
@@ -668,7 +717,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
 		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
 		values: Object.fromEntries(entries),
-		suppressedTelemetry,
+		excludedBlockContributions,
 		resolutions,
 		// Preserve precedence order for a stable, readable report.
 		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),
@@ -865,8 +914,9 @@ function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: st
  *   `PolicyConfiguration` parses the JSON back into the object-typed setting on read.
  *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source, autoUpdate? } }`
  *   map to the policy-backed marketplace dict.
- * - Telemetry blocks with no representable leaves retain a JSON `{}` anchor under `telemetry`,
- *   so an empty or future-only block still takes precedence over lower managed sources.
+ * - Telemetry and organization communication blocks with no representable leaves retain a JSON
+ *   `{}` anchor under the block key, so an empty or future-only block still takes precedence over
+ *   lower managed sources.
  *
  * Malformed marketplace entries are dropped (with an optional warning via {@link onWarn}) rather
  * than throwing, so a bad enterprise settings file degrades gracefully instead of blocking startup.
@@ -877,10 +927,12 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
 	// `telemetry.resourceAttributes`), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
-	const hasTelemetryBlock = Object.hasOwn(parsed, telemetryBlockKey) && isObject(parsed[telemetryBlockKey]);
-	if (!hasTelemetryBlock) {
-		// A scalar named telemetry is not a block (nor a serialized presence anchor in raw input).
-		delete scalarRest[telemetryBlockKey];
+	const presentBlocks = MANAGED_SETTINGS_WHOLE_BLOCK_KEYS.filter(block => Object.hasOwn(parsed, block) && isObject(parsed[block]));
+	for (const block of MANAGED_SETTINGS_WHOLE_BLOCK_KEYS) {
+		if (!presentBlocks.includes(block)) {
+			// A scalar named like a block is not a block (nor a serialized presence anchor in raw input).
+			delete scalarRest[block];
+		}
 	}
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
@@ -895,8 +947,10 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 		}
 	}
 
-	if (hasTelemetryBlock && !Object.keys(result).some(isTelemetrySettingKey)) {
-		result[telemetryBlockKey] = '{}';
+	for (const block of presentBlocks) {
+		if (!Object.keys(result).some(key => isManagedSettingInBlock(key, block))) {
+			result[block] = '{}';
+		}
 	}
 
 	// Preserve future permission keys even when their values contain no scalar leaves.

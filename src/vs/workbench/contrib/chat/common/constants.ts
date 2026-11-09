@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -17,6 +17,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { getChatSessionType, getNewChatSessionResource } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService, isTemporaryDefaultToLocalHarnessEnabled } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { localize } from '../../../../nls.js';
 
@@ -47,6 +49,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -60,7 +63,7 @@ export enum ChatConfiguration {
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
-	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
+	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
 	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -68,8 +71,10 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	PasteAsAttachmentThreshold = 'chat.pasteAsAttachmentThreshold',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	InlineAttachmentsEnabled = 'chat.inlineAttachments.enabled',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
+	AssistedPermissionsInstructions = 'chat.permissions.assisted.instructions',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
@@ -98,8 +103,8 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
-	PersistentProgress = 'chat.experimental.persistentProgress',
-	PersistentProgressVerbosity = 'chat.experimental.persistentProgressVerbosity',
+	PersistentProgress = 'chat.persistentProgress',
+	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -156,6 +161,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -463,8 +469,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Returns the effective default session type for a new chat in the VS Code
  * editor window.
  *
- * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
- * when the agent host is enabled and either `chat.defaultToCopilotHarness` is opted in or the
+ * When the agent host is enabled and either `chat.defaultToCopilotHarness` is enabled or the
  * agent sandbox is enforced by policy, Agent Host Copilot CLI is the default. It falls back to
  * the local harness when enabled, or to the first visible non-local provider.
  */
@@ -478,9 +483,6 @@ export function getComputedDefaultSessionType(
 ): string {
 	if (managedPolicyRequiresAgentHost) {
 		return SessionType.AgentHostCopilot;
-	}
-	if (isVirtualWorkspace(workspace)) {
-		return localChatSessionType;
 	}
 
 	if (agentHostEnabled && isCopilotHarnessDefault(configurationService, managedSandboxEnforced)) {
@@ -523,17 +525,30 @@ export function isNewChatSessionTypeUsable(
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
 	if (isAgentHostTarget(sessionType)) {
-		return agentHostEnabled;
+		// Remote agent hosts are per-window; require that this window registered the host's contribution.
+		return agentHostEnabled
+			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
+			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
+			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
+			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
+}
+
+/**
+ * Whether the session type belongs to a local Agent Host provider (Claude or Codex) that policy
+ * disables. Saved chats of such a provider stay readable, but it cannot start new chats, so new-chat
+ * resolution must not select it.
+ */
+export function isLocalAgentHostSessionTypeDisabledByPolicy(sessionType: string, configurationService: IConfigurationService): boolean {
+	return sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)
+		&& isLocalAgentHostProviderDisabledByPolicy(sessionType.slice(LOCAL_AGENT_HOST_SCHEME_PREFIX.length), configurationService);
 }
 
 /** Why a new chat session type was selected. */
 export type SessionTypeSelectionReason =
 	/** A caller explicitly chose the session type. */
 	| 'explicitOverride'
-	/** The session type was automatically set to Local in a virtual workspace. */
-	| 'virtualWorkspace'
 	/** The user's last usable session type was restored. */
 	| 'rememberedSelection'
 	/** The current session's usable type was preserved. */
@@ -583,15 +598,14 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
-	if (managedPolicyRequiresAgentHost && (!options?.explicitOverride || options.explicitOverride === localChatSessionType)) {
+	// A harness disabled by policy can only show saved chats read-only, so an explicit request for
+	// it falls through to the regular resolution instead of opening an unusable new chat.
+	const explicitOverride = options?.explicitOverride && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
+	if (managedPolicyRequiresAgentHost && (!explicitOverride || explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
-	if (options?.explicitOverride) {
-		return { sessionType: options.explicitOverride, selectionReason: 'explicitOverride' };
-	}
-
-	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
+	if (explicitOverride) {
+		return { sessionType: explicitOverride, selectionReason: 'explicitOverride' };
 	}
 
 	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
@@ -674,7 +688,7 @@ export function recordUserSelectedSessionType(
 
 /**
  * Whether new editor and panel chats should default to the Agent Host Copilot SDK. Enterprises
- * whose managed settings mandate the SDK sandbox floor get this behavior without opting into
+ * whose managed settings mandate the SDK sandbox floor get this behavior regardless of
  * `chat.defaultToCopilotHarness`.
  */
 function isCopilotHarnessDefault(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
@@ -754,13 +768,7 @@ function getVisibleNonLocalEditorChatSessionTypes(
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
-export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
-
-/** Removes workbench chat selectors without rewriting the session's authority or other query fields. */
-export function getAgentHostSessionResource(resource: URI): URI {
-	const query = resource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
-	return resource.with({ query, fragment: '' });
-}
+export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from '../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

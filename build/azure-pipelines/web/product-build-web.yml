@@ -19,16 +19,16 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz
           artifactName: vscode_web_linux_standalone_archive-unsigned
           displayName: Publish web archive
+          condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
           sbomPackageName: "VS Code Linux x64 Web (Standalone)"
           sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: linux
 
       - template: ../distro/download-distro.yml@self
 
@@ -43,20 +43,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts web $(node -p process.arch) > .build/packagelockhash
-        displayName: Prepare node_modules cache key
-
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
-        retryCountOnTaskFailure: 2
-
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      - template: ../common/restore-pnpm-store.yml@self
+        parameters:
+          keyArgs: web
+          os: linux
 
       - script: |
           set -e
@@ -74,6 +64,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+
       - task: NuGetAuthenticate@1
         displayName: Setup NuGet Authentication
 
@@ -82,22 +74,20 @@ jobs:
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
         displayName: Setup system services
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/npm/preinstall.ts
+      - script: pnpm run preinstall
         displayName: Install Electron headers
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -106,22 +96,23 @@ jobs:
           FOUNDRY_LOCAL_NUGET_MODE: dotnet
           FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      # NuGetAuthenticate@1 exposes its access token to all later steps as the
+      # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it
+      # to logs. Only installing dependencies needs it, so clear it now.
+      - script: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+        displayName: Clear package feed credentials
+        condition: always()
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      - template: ../common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -131,26 +122,26 @@ jobs:
       - script: node build/npm/electronTypes.ts
         displayName: Prepare Electron types
 
-      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX (background)
 
       - template: ../common/mixin-vscode-capi.yml@self
 
-      - script: npm run gulp core-ci
+      - script: pnpm run gulp core-ci
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
-      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
 
       - script: |
           set -e
-          npm run gulp vscode-web-min-ci
+          pnpm run gulp vscode-web-min-ci
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz"
           mkdir -p $(dirname $ARCHIVE_PATH)
           tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
@@ -197,3 +188,14 @@ jobs:
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
             node build/azure-pipelines/upload-nlsmetadata.ts
         displayName: Upload NLS Metadata
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          WEB_ARCHIVE_PUBLISHED vscode_web_linux_standalone_archive-unsigned
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

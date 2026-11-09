@@ -5,19 +5,19 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackPRThreadResolverContribution } from '../../browser/agentFeedbackPRThreadResolver.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('AgentFeedbackPRThreadResolverContribution', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('agent-host-copilot:/session-1');
 	const file = URI.file('/workspace/a.ts');
 
@@ -58,8 +58,6 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 		store.add(new AgentFeedbackPRThreadResolverContribution(feedbackService, codeReviewService, new NullLogService()));
 	});
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves the GitHub thread when a submitted PR comment transitions to resolved', () => {
 		fire(pr('1', AgentFeedbackState.Submitted));

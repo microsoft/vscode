@@ -41,7 +41,9 @@
       "supported": "limited",
       "description": "%workspaceTrust%",
       "restrictedConfigurations": [
-        "markdown.styles"
+        "markdown.styles",
+        "markdown.copyFiles.destination",
+        "markdown.copyFiles.overwriteBehavior"
       ]
     }
   },
@@ -1477,6 +1479,12 @@
             "description": "%configuration.markdown.editor.highlightActiveBlock%",
             "scope": "resource"
           },
+          "markdown.editor.renderWhitespace": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.markdown.editor.renderWhitespace%",
+            "scope": "resource"
+          },
           "markdown.editor.quickSuggestions": {
             "type": "boolean",
             "default": false,
@@ -1962,6 +1970,9 @@
         "selector": [
           {
             "filenamePattern": "*.{md,mkd,mkdn,mdwn,mdown,markdown,markdn,mdtxt,mdtext,litcoffee,ron,ronn,workbook}"
+          },
+          {
+            "filenamePattern": "*.txt"
           }
         ]
       }
@@ -1993,17 +2004,15 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-136",
+    "@vscode/markdown-editor": "0.0.2-153",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",
     "katex": "^0.16.33",
     "markdown-it": "^14.2.0",
-    "mermaid": "^11.15.0",
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",
-    "punycode": "^2.3.1",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0",
@@ -2011,19 +2020,23 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@vscode/hubrpc": "0.0.2-20",
-    "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "^14.1.2",
+    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "@types/picomatch": "^2.3.0",
-    "zod": "4.4.3",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
+    "@vscode/hubrpc": "0.0.2-20",
     "@vscode/markdown-it-katex": "^1.1.1",
+    "json5": "^2.2.3",
     "lodash.throttle": "^4.1.1",
+    "mocha": "^10.8.2",
+    "playwright": "^1.61.1",
+    "tslib": "^2.6.3",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "0.5.0"
+    "vscode-markdown-languageservice": "0.5.0",
+    "zod": "4.4.3"
   },
   "repository": {
     "type": "git",

@@ -32,13 +32,14 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatResponseViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { logResponseSelectionWidgetAction } from '../../../../common/sessionsTelemetry.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../common/constants.js';
+import { logResponseSelectionWidgetAction } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -292,13 +293,14 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
 		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
 			status: constObservable(SessionStatus.Completed),
 			isArchived: constObservable(false),
 			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
 			chats: constObservable([chat, sideChat]),
+			activeChat: constObservable(chat),
 		});
 
 		const callOrder: string[] = [];
@@ -319,12 +321,15 @@ suite('ResponseSelectionSideChatController', () => {
 				callOrder.push(`send:${sentChat.resource.toString()}:${sendOptions.query}`);
 			}),
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			visibleSessions: constObservable([session]),
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			gridShown: constObservable([session]),
+			activeSession: constObservable(session),
+			navigationRequest: constObservable(undefined),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
 		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
 			getSessionView: () => undefined,
 		}));
@@ -650,6 +655,39 @@ suite('ResponseSelectionSideChatController', () => {
 
 		setSelection('hello world');
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('follows the selection in the window its chat shows in when it was created before it showed there', () => {
+		const { controller, widget, transcriptDomNode, store } = setup();
+		// The chat shows in another window after it was created, as a chat in an auxiliary window does.
+		const frame = dom.getActiveDocument().createElement('iframe');
+		dom.getActiveDocument().body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const frameWindow = frame.contentWindow! as Window & typeof globalThis & { getSelection: () => Selection | null };
+		frameWindow.document.body.appendChild(widget.domNode);
+		const textNode = transcriptDomNode.querySelector('.chat-markdown-part')!.firstChild as Text;
+		const range = frameWindow.document.createRange();
+		range.setStart(textNode, 0);
+		range.setEnd(textNode, textNode.data.length);
+		frameWindow.getSelection = () => upcastPartial<Selection>({
+			toString: () => textNode.data,
+			isCollapsed: false,
+			anchorNode: textNode,
+			anchorOffset: 0,
+			focusNode: textNode,
+			focusOffset: textNode.data.length,
+			rangeCount: 1,
+			getRangeAt: () => range,
+		});
+		const hidden = () => inputDomNode(controller).style.display === 'none';
+
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+		const beforeFocus = hidden();
+		// Selecting in it with the keyboard moves the focus into it first.
+		transcriptDomNode.dispatchEvent(new frameWindow.FocusEvent('focusin', { bubbles: true }));
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+
+		assert.deepStrictEqual({ beforeFocus, afterFocus: hidden() }, { beforeFocus: true, afterFocus: false });
 	});
 
 	test('hides the input again once the selection is cleared', () => {

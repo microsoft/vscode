@@ -17,7 +17,8 @@ import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -30,7 +31,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -43,14 +44,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities, EditorsOrder, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
+import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry, ITextDiffEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -60,29 +61,41 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { Menus } from '../../../../browser/menus.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MoveModalEditorToMainWindowAction } from '../../../../../workbench/browser/parts/editor/editorCommands.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { SideBySideEditorInput } from '../../../../../workbench/common/editor/sideBySideEditorInput.js';
+import { IView } from '../../../../../workbench/common/views.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
 import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
-import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { createEditorParts, registerTestEditor, TestEnvironmentService, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 
 // Import editor contribution to trigger action registration.
-import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
+import { OpenModalEditorInEditorAction, SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
 import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 import '../../../../browser/media/workbench.css';
-import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+
+/** The editor parts of a Files tab of the main window: no part other than the main part. */
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
@@ -92,10 +105,10 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 }
 
 function registerEmptyFileEditorActions() {
-	if (MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
+	if (MenuRegistry.getMenuItems(AgentsWindowMenus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
 		return Disposable.None;
 	}
-	return MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+	return MenuRegistry.appendMenuItem(AgentsWindowMenus.EmptyFileEditorActions, {
 		command: {
 			id: NEW_UNTITLED_FILE_COMMAND_ID,
 			title: 'New File',
@@ -138,6 +151,11 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The actions run in the main window: no chat window has focus. */
+	function stubNoChatWindow(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+	}
 
 	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
@@ -279,38 +297,35 @@ suite('Sessions - Editor Contribution', () => {
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
 		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
 		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
-		try {
-			const getBorders = () => {
-				const frame = mainWindow.getComputedStyle(group, '::after');
-				return {
-					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
-					frameWidth: frame.borderWidth,
-					frameColor: frame.borderColor,
-					frameRadius: frame.borderRadius,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getBorders = () => {
+			const frame = mainWindow.getComputedStyle(group, '::after');
+			return {
+				outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+				frameWidth: frame.borderWidth,
+				frameColor: frame.borderColor,
+				frameRadius: frame.borderRadius,
 			};
-			const borders = [];
-			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
-			for (const theme of themes) {
-				workbench.classList.add(theme);
-				workbench.classList.remove('noauxiliarybar');
-				const docked = getBorders();
-				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: getBorders() });
-				workbench.classList.remove(theme);
-			}
-			assert.deepStrictEqual(borders, themes.map(theme => {
-				const expected = {
-					outerBorder: 'rgba(0, 0, 0, 0)',
-					frameWidth: '1px',
-					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
-					frameRadius: '7px',
-				};
-				return { theme, docked: expected, editorOnly: expected };
-			}));
-		} finally {
-			workbench.remove();
+		};
+		const borders = [];
+		const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+		for (const theme of themes) {
+			workbench.classList.add(theme);
+			workbench.classList.remove('noauxiliarybar');
+			const docked = getBorders();
+			workbench.classList.add('noauxiliarybar');
+			borders.push({ theme, docked, editorOnly: getBorders() });
+			workbench.classList.remove(theme);
 		}
+		assert.deepStrictEqual(borders, themes.map(theme => {
+			const expected = {
+				outerBorder: 'rgba(0, 0, 0, 0)',
+				frameWidth: '1px',
+				frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
+				frameRadius: '7px',
+			};
+			return { theme, docked: expected, editorOnly: expected };
+		}));
 	});
 
 	test('matches the chat separator with and without the theme border class', () => {
@@ -342,87 +357,84 @@ suite('Sessions - Editor Contribution', () => {
 		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
 		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
 
-		try {
-			const getSidePanelSeparatorStyles = () => {
-				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
-				return {
-					color: style.backgroundColor,
-					leftInset: style.left,
-					rightInset: style.right,
-					width: style.height,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getSidePanelSeparatorStyles = () => {
+			const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+			return {
+				color: style.backgroundColor,
+				leftInset: style.left,
+				rightInset: style.right,
+				width: style.height,
 			};
-			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
-			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
-			const chatSeparatorStyles = {
-				color: chatTabsRowStyle.borderBottomColor,
-				leftInset: chatBarStyle.paddingLeft,
-				rightInset: chatBarStyle.paddingRight,
-				width: chatTabsRowStyle.borderBottomWidth,
-			};
-			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
-			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+		};
+		const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+		const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+		const chatSeparatorStyles = {
+			color: chatTabsRowStyle.borderBottomColor,
+			leftInset: chatBarStyle.paddingLeft,
+			rightInset: chatBarStyle.paddingRight,
+			width: chatTabsRowStyle.borderBottomWidth,
+		};
+		const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+		const withoutThemeBorderClass = getSidePanelSeparatorStyles();
 
-			tabsAndActionsContainer.classList.add('tabs-border-bottom');
-			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
-			const withThemeBorderClass = getSidePanelSeparatorStyles();
+		tabsAndActionsContainer.classList.add('tabs-border-bottom');
+		tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+		const withThemeBorderClass = getSidePanelSeparatorStyles();
 
-			workbench.classList.add('hc-black');
-			const highContrast = getSidePanelSeparatorStyles();
-			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
-			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
-			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+		workbench.classList.add('hc-black');
+		const highContrast = getSidePanelSeparatorStyles();
+		const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+		const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+		const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
 
-			assert.deepStrictEqual({
-				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
-				withoutThemeBorderClass,
-				withThemeBorderClass,
-				chatSeparatorStyles,
-				highContrast,
-				highContrastChatColor,
-				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
-				modal: {
-					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
-					leftInset: modalSeparatorStyle.left,
-					rightInset: modalSeparatorStyle.right,
-				},
-			}, {
-				expectedColorIsTransparent: false,
-				withoutThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				withThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				chatSeparatorStyles: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrast: {
-					color: 'rgb(255, 255, 255)',
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrastChatColor: 'rgb(255, 255, 255)',
-				hasDuplicateTitleSeparator: false,
-				modal: {
-					borderColor: 'transparent',
-					leftInset: '0px',
-					rightInset: '0px',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+			withoutThemeBorderClass,
+			withThemeBorderClass,
+			chatSeparatorStyles,
+			highContrast,
+			highContrastChatColor,
+			hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+			modal: {
+				borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+				leftInset: modalSeparatorStyle.left,
+				rightInset: modalSeparatorStyle.right,
+			},
+		}, {
+			expectedColorIsTransparent: false,
+			withoutThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			withThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			chatSeparatorStyles: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrast: {
+				color: 'rgb(255, 255, 255)',
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrastChatColor: 'rgb(255, 255, 255)',
+			hasDuplicateTitleSeparator: false,
+			modal: {
+				borderColor: 'transparent',
+				leftInset: '0px',
+				rightInset: '0px',
+			},
+		});
 	});
 
 	for (const connected of [false, true]) {
@@ -457,39 +469,36 @@ suite('Sessions - Editor Contribution', () => {
 				return style.content !== 'none' && style.display !== 'none';
 			};
 
-			try {
-				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-					workbench.classList.add(theme);
-					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
-					const states = [false, true, false].map(compact => {
-						workbench.classList.toggle('modern-ui-compact', compact);
-						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
-						return {
-							separator: hasSeparator(row),
-							pinnedSeparator: hasSeparator(pinnedRow),
-							unpinnedSeparator: hasSeparator(unpinnedRow),
-							singleSeparator: hasSeparator(singleRow),
-							modalSeparator: hasSeparator(modalRow),
-							capBorder: mainWindow.getComputedStyle(fill).borderTop,
-							detailsTopBorder: detailsFrame.borderTopWidth,
-							detailsSideBorder: detailsFrame.borderLeftWidth,
-						};
-					});
+			store.add(toDisposable(() => workbench.remove()));
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const states = [false, true, false].map(compact => {
+					workbench.classList.toggle('modern-ui-compact', compact);
+					const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+					return {
+						separator: hasSeparator(row),
+						pinnedSeparator: hasSeparator(pinnedRow),
+						unpinnedSeparator: hasSeparator(unpinnedRow),
+						singleSeparator: hasSeparator(singleRow),
+						modalSeparator: hasSeparator(modalRow),
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						detailsTopBorder: detailsFrame.borderTopWidth,
+						detailsSideBorder: detailsFrame.borderLeftWidth,
+					};
+				});
 
-					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
-						separator: true,
-						pinnedSeparator: false,
-						unpinnedSeparator: true,
-						singleSeparator: true,
-						modalSeparator: true,
-						capBorder,
-						detailsTopBorder: '0px',
-						detailsSideBorder: compact ? '1px' : '0px',
-					})), theme);
-					workbench.classList.remove(theme);
-				}
-			} finally {
-				workbench.remove();
+				assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+					separator: true,
+					pinnedSeparator: false,
+					unpinnedSeparator: true,
+					singleSeparator: true,
+					modalSeparator: true,
+					capBorder,
+					detailsTopBorder: '0px',
+					detailsSideBorder: compact ? '1px' : '0px',
+				})), theme);
+				workbench.classList.remove(theme);
 			}
 		});
 	}
@@ -545,6 +554,8 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		});
 		const changesTab = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/1')));
 		const filesTab = store.add(instantiationService.createInstance(EmptyFileEditorInput, undefined));
@@ -567,13 +578,14 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 7);
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				workspace: constObservable(sessionWorkspace),
 				activeChat: constObservable({
 					workspace: constObservable(chatWorkspace),
 				}),
-			} as IActiveSession);
+			} as ITestSessionWithChat);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -585,6 +597,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -844,7 +857,7 @@ suite('Sessions - Editor Contribution', () => {
 		const ctrlCmdP = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!.getHashCode();
 		const rule = KeybindingsRegistry.getDefaultKeybindings()
 			.find(item => item.command === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID && item.keybinding?.getHashCode() === ctrlCmdP);
-		const menuItem = MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions)
+		const menuItem = MenuRegistry.getMenuItems(AgentsWindowMenus.EmptyFileEditorActions)
 			.find(item => isIMenuItem(item) && item.command.id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID);
 		assert.ok(menuItem && isIMenuItem(menuItem));
 		const states = [true, false, undefined].map(focused => {
@@ -1385,6 +1398,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewBrowserTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1436,6 +1450,7 @@ suite('Sessions - Editor Contribution', () => {
 				}
 			});
 
+			stubNoChatWindow(instantiationService);
 			await new OpenBrowserAction().run(instantiationService);
 			return calls;
 		};
@@ -1505,8 +1520,8 @@ suite('Sessions - Editor Contribution', () => {
 		const result: Record<string, { readonly listed: boolean; readonly sameWhenAsAddTab?: boolean }> = {};
 		for (const [name, action] of Object.entries(actions)) {
 			const items = Array.isArray(action.desc.menu) ? action.desc.menu : [action.desc.menu];
-			const addTab = items.find(item => item?.id === Menus.SessionsEditorTabsBarAddTab);
-			const list = items.find(item => item?.id === Menus.SessionsEmptyEditorGroupAddTab);
+			const addTab = items.find(item => item?.id === AgentsWindowMenus.SessionsEditorTabsBarAddTab);
+			const list = items.find(item => item?.id === AgentsWindowMenus.SessionsEmptyEditorGroupAddTab);
 			result[name] = list
 				? { listed: true, sameWhenAsAddTab: list.when?.serialize() === addTab?.when?.serialize() && list.order === addTab?.order }
 				: { listed: false };
@@ -1644,8 +1659,8 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, noOtherEditorParts));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1657,6 +1672,29 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('the Files tab of a part of another window, such as a chat window, closes while that part shows, whatever the main window shows', () => {
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			// The editor area of the main window is hidden
+			override isVisible(): boolean { return false; }
+		};
+		const partVisible = { value: true };
+		const mainPart = upcastPartial<IEditorPart>({ groups: [] });
+		let input: EmptyFileEditorInput | undefined = undefined;
+		const chatWindowPart = upcastPartial<IEditorPart>({
+			groups: [upcastPartial<IEditorGroup>({
+				contains: (editor: unknown) => editor === input,
+				scopedContextKeyService: upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => partVisible.value as T }),
+			})],
+		});
+		input = store.add(new EmptyFileEditorInput(undefined, layoutService, upcastPartial<IEditorGroupsService>({ mainPart, parts: [mainPart, chatWindowPart] })));
+		const closable = () => !input!.hasCapability(EditorInputCapabilities.CannotClose);
+		const whileShown = closable();
+		partVisible.value = false;
+
+		assert.deepStrictEqual({ whileShown, whileHidden: closable() }, { whileShown: true, whileHidden: false });
+	});
+
 	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -1666,7 +1704,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1701,7 +1739,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, noOtherEditorParts));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
@@ -1724,7 +1762,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, noOtherEditorParts));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);
@@ -1746,6 +1784,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewSearchTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(invoked, [openNewSearchEditor]);
@@ -1756,8 +1795,9 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(true)) } as ITestSessionWithChat);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1769,6 +1809,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
@@ -1779,8 +1820,9 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:new');
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(false)) } as ITestSessionWithChat);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1792,6 +1834,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 2 }]);
@@ -1801,8 +1844,9 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		let opened = false;
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(): Promise<undefined> {
@@ -1811,6 +1855,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
@@ -1825,12 +1870,13 @@ suite('Sessions - Editor Contribution', () => {
 		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
 		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				resource,
-				isCreated: constObservable(true),
+				...withCreatedStatus(constObservable(true)),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
-			} as unknown as IActiveSession);
+			} as unknown as ITestSessionWithChat);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1851,6 +1897,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 
@@ -2033,5 +2080,186 @@ suite('Sessions - Editor Contribution', () => {
 		assert.deepStrictEqual(layoutService.shownParts, []);
 		assert.deepStrictEqual(layoutService.maximizedStates, [true, false]);
 		assert.strictEqual(layoutService.panelVisible, true);
+	});
+
+	suite('Open in Editor Area of a modal editor', () => {
+
+		const VETO = 'Cannot leave its window';
+
+		/** Records what the action changes around the move: the setting, the layout, the changes it reopens and the dialogs it shows. */
+		function stubServices(instantiationService: TestInstantiationService, log: string[], changesView?: ChangesViewPane): void {
+			instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
+				override async updateValue(key: string, value: unknown): Promise<void> { log.push(`set ${key} ${value}`); }
+			}());
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override setPartHidden(hidden: boolean, part: Parts): void { log.push(`${hidden ? 'hide' : 'show'} ${part}`); }
+				override setEditorMaximized(maximized: boolean): void { log.push(`maximized ${maximized}`); }
+			}());
+			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+				override async error(message: string): Promise<void> { log.push(`veto: ${message}`); }
+			}());
+			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override getViewWithId<T extends IView>(): T | null { return changesView ? changesView as IView as T : null; }
+			}());
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/changed') })]);
+			}());
+		}
+
+		/**
+		 * Runs the action on real parts with the real move command: a modal editor, maximized, with a first editor (the one
+		 * navigation through changes reopens and closes) and, if given, a later one, recording what the action changes.
+		 */
+		async function runOnParts(options: { readonly navigation: boolean; readonly later?: 'canGo' | 'cannotGo' }) {
+			const disposables = store.add(new DisposableStore());
+			disposables.add(registerTestEditor('modalEditorInEditorAreaEditor', [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], 'modalEditorInEditorAreaInput'));
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const modal = await parts.createModalEditorPart();
+			if (!modal.maximized) {
+				modal.toggleMaximized(); // the size a modal editor last had carries over to the next one
+			}
+			const navigation = options.navigation ? { total: 1, current: 0, navigate: () => { } } : undefined;
+			await modal.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/first'), 'modalEditorInEditorAreaInput')), { pinned: true, modal: { navigation } });
+			if (options.later) {
+				const later = disposables.add(new TestFileEditorInput(URI.file('/later'), 'modalEditorInEditorAreaInput'));
+				if (options.later === 'cannotGo') {
+					later.setMoveDisabled(VETO);
+				}
+				await modal.activeGroup.openEditor(later, { pinned: true, inactive: true });
+			}
+			const events: string[] = [];
+			for (const part of [modal, parts.mainPart]) {
+				disposables.add(part.onDidAddGroup(() => events.push('add')));
+				disposables.add(part.onDidRemoveGroup(() => events.push('remove')));
+				disposables.add(part.onDidActivateGroup(() => events.push('activate')));
+				disposables.add(part.onDidChangeGroupIndex(() => events.push('index')));
+			}
+
+			// Once the parts exist with the services they use, the action records what it changes around them
+			const log: string[] = [];
+			stubServices(instantiationService, log, upcastPartial<ChangesViewPane>({ openChanges: async resource => { log.push(`open changes ${resource?.path}`); } }));
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R> {
+					log.push(`run ${id}`);
+					const moved = await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+					log.push(`moved ${moved}`);
+					return moved as R;
+				}
+			}());
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override setPartHidden(hidden: boolean, part: Parts): void { log.push(`${hidden ? 'hide' : 'show'} ${part}`); }
+				override setEditorMaximized(maximized: boolean): void { log.push(`maximized ${maximized}`); }
+			}());
+			const focusedGroup = parts.activeGroup;
+			disposables.add(parts.mainPart.activeGroup.onDidFocus(() => log.push('focus main')));
+
+			await instantiationService.invokeFunction(accessor => new OpenModalEditorInEditorAction().run(accessor));
+
+			const editorsOf = (group: IEditorGroup) => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path);
+			const modalOpen = parts.activeModalEditorPart === modal;
+			const result = {
+				log: [...log],
+				modalOpen,
+				modalEditors: modalOpen ? editorsOf(modal.activeGroup) : [],
+				mainEditors: editorsOf(parts.mainPart.activeGroup),
+				activeGroupUnchanged: parts.activeGroup === focusedGroup,
+				events: [...events],
+			};
+			if (modalOpen) {
+				await modal.close();
+			}
+
+			return result;
+		}
+
+		test('with a later editor that cannot go, changes nothing: no editor, setting, layout, focus or group event, and one dialog', async () => {
+			assert.deepStrictEqual(await runOnParts({ navigation: false, later: 'cannotGo' }), {
+				log: [`veto: ${VETO}`], modalOpen: true, modalEditors: ['/first', '/later'], mainEditors: [], activeGroupUnchanged: true, events: [],
+			});
+		});
+
+		test('navigating changes with a later editor that cannot go changes nothing either', async () => {
+			assert.deepStrictEqual(await runOnParts({ navigation: true, later: 'cannotGo' }), {
+				log: [`veto: ${VETO}`], modalOpen: true, modalEditors: ['/first', '/later'], mainEditors: [], activeGroupUnchanged: true, events: [],
+			});
+		});
+
+		test('navigating changes with only the changes editor reopens the changes, which closes the modal editor, and still maximizes and focuses', async () => {
+			const result = await runOnParts({ navigation: true });
+			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen }, {
+				// The modal editor gives focus back to the main window as it closes, before the action focuses it
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'focus main', 'maximized true', 'focus main'],
+				modalOpen: false,
+			});
+		});
+
+		test('navigating changes with a later editor that can go moves it, then maximizes and focuses', async () => {
+			const result = await runOnParts({ navigation: true, later: 'canGo' });
+			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen, mainEditors: result.mainEditors }, {
+				// The move focuses the main window as its editors arrive and as the modal editor closes
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus main', 'focus main', 'moved true', 'maximized true', 'focus main'],
+				modalOpen: false,
+				mainEditors: ['/later'],
+			});
+		});
+
+		/** Runs the action on a modal editor whose editors can go, with the move command answering `moved`, recording what the action does. */
+		async function runAllowed(options: { navigation?: boolean; moved: boolean }): Promise<string[]> {
+			const log: string[] = [];
+			const modalGroup = new class extends mock<IEditorGroup>() {
+				override readonly id = 2;
+				override readonly editors = [store.add(new TestFileEditorInput(URI.file('/ordinary'), 'modalEditorInEditorAreaInput'))];
+				override readonly activeEditor = this.editors[0];
+				override readonly activeEditorPane = options.navigation ? new class extends mock<IVisibleEditorPane>() {
+					override readonly options = { modal: { navigation: { total: 1, current: 0, navigate: () => { } } } };
+				}() : undefined;
+				override async closeEditor(): Promise<boolean> { log.push('close first editor'); return true; }
+			}();
+			const modalPart = new class extends mock<IModalEditorPart>() {
+				override readonly activeGroup = modalGroup;
+				override readonly maximized = true;
+				override getGroups() { return [modalGroup]; }
+			}();
+			const mainGroup = new class extends mock<IEditorGroup>() {
+				override readonly id = 1;
+				override focus(): void { log.push('focus'); }
+			}();
+			const mainPart = new class extends mock<IEditorPart>() {
+				override readonly activeGroup = mainGroup;
+			}();
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly activeModalEditorPart = modalPart;
+				override readonly mainPart = mainPart;
+				override get activeGroup() { return mainGroup; }
+			}());
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R> {
+					log.push(`run ${id}`);
+					return options.moved as R;
+				}
+			}());
+			stubServices(instantiationService, log, upcastPartial<ChangesViewPane>({ openChanges: async resource => { log.push(`open changes ${resource?.path}`); } }));
+
+			await instantiationService.invokeFunction(accessor => new OpenModalEditorInEditorAction().run(accessor));
+
+			return log;
+		}
+
+		test('with editors that can go, opens them in the editor area, maximized as the modal editor was, and focused', async () => {
+			assert.deepStrictEqual(await runAllowed({ moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+		});
+
+		test('with navigation through changes, reopens the changes editor at the current change, as before', async () => {
+			assert.deepStrictEqual(await runAllowed({ navigation: true, moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'close first editor', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+		});
+
+		test('neither maximizes nor focuses when the move command refuses after all', async () => {
+			assert.deepStrictEqual(await runAllowed({ moved: false }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`]);
+		});
 	});
 });

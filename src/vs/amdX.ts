@@ -35,6 +35,7 @@ class AMDModuleImporter {
 	private readonly _isRenderer = typeof document === 'object';
 
 	private readonly _defineCalls: DefineCall[] = [];
+	private _define: ((id: any, dependencies: any, callback: any) => void) | undefined;
 	private _state = AMDModuleImporterState.Uninitialized;
 	private _amdPolicy: Pick<TrustedTypePolicy, 'name' | 'createScriptURL'> | undefined;
 
@@ -52,7 +53,7 @@ class AMDModuleImporter {
 
 		this._state = AMDModuleImporterState.InitializedInternal;
 
-		globalThis.define = (id: any, dependencies: any, callback: any) => {
+		const define = (id: any, dependencies: any, callback: any) => {
 			if (typeof id !== 'string') {
 				callback = dependencies;
 				dependencies = id;
@@ -67,8 +68,15 @@ class AMDModuleImporter {
 			// }
 			this._defineCalls.push(new DefineCall(id, dependencies, callback));
 		};
+		define.amd = true;
+		this._define = define;
 
-		globalThis.define.amd = true;
+		// Scripts run asynchronously in renderers and web workers, so `define` stays global there. In node.js,
+		// `_nodeJSLoadScript` runs them synchronously and makes `define` global only meanwhile: with a global AMD
+		// `define`, UMD packages that are imported later register with it instead of exporting their API.
+		if (this._isRenderer || this._isWebWorker) {
+			globalThis.define = define;
+		}
 
 		if (this._isRenderer) {
 			this._amdPolicy = globalThis._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
@@ -191,7 +199,17 @@ class AMDModuleImporter {
 			const scriptSource = module.wrap(content.replace(/^#!.*/, ''));
 			const script = new vm.Script(scriptSource);
 			const compileWrapper = script.runInThisContext();
-			compileWrapper.apply();
+			const previousDefine = globalThis.define;
+			globalThis.define = this._define;
+			try {
+				compileWrapper.apply();
+			} finally {
+				if (previousDefine === undefined) {
+					delete globalThis.define;
+				} else {
+					globalThis.define = previousDefine;
+				}
+			}
 			return this._defineCalls.pop();
 		} catch (error) {
 			throw error;

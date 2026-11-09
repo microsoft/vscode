@@ -21,18 +21,14 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionArtifact, SessionArtifactKind } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../contrib/sessions/common/github/types.js';
+import { ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
-import { SessionCustomizationKind } from '../../../../contrib/chat/common/sessionChatCustomizations.js';
+import { SessionCustomizationKind } from '../../../../common/sessionChatCustomizations.js';
 
 const pullRequests: readonly IGitHubPullRequest[] = [{
 	number: 335583,
@@ -122,6 +118,23 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
+/**
+ * Artifacts that sit next to the {@link resources} references. A chat shows each resource once, so every artifact
+ * points to a different resource than its reference.
+ */
+function generatedResources(): ISessionArtifact[] {
+	return resources(true).map(item => {
+		const id = `artifact-${item.id}`;
+		switch (item.id) {
+			case 'commit': return { ...item, id, commitHash: 'def5678', link: URI.parse('https://github.com/microsoft/vscode/commit/def5678') };
+			case 'website': return { ...item, id, link: URI.parse('https://code.visualstudio.com/docs/copilot/overview') };
+			case 'settings': return { ...item, id, uri: URI.parse('vscode://settings/chat.agent') };
+			case 'ado': return { ...item, id, link: URI.parse('https://dev.azure.com/example/project/_workitems/edit/43') };
+			default: return { ...item, id, uri: item.uri?.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) };
+		}
+	});
+}
+
 type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'commitUrl' | 'commitPending' | 'customizations';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
@@ -136,7 +149,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
 			: dedicatedCollection
 				? authored
-				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...generatedResources()];
 	const session = createMockSession({
 		artifacts: entries, removableArtifacts: true,
 		customizations: scenario === 'customizations' ? [
@@ -191,9 +204,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			},
 			additionalServices: reg => {
 				reg.define(IContextMenuService, ContextMenuService);
-				reg.define(ISessionsService, class extends mock<ISessionsService>() {
-					override setActive(): void { }
-				});
+				reg.define(ISessionsService, class extends mock<ISessionsService>() { });
 				const gitHubService = createFixtureGitHubService(
 					pullRequests.map(pullRequest => ({ owner: 'microsoft', repo: 'vscode', pullRequest })),
 					issues.map(issue => ({ owner: 'microsoft', repo: 'vscode', issue })),

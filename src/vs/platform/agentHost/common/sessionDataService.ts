@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
 import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
-import type { FileEditKind, Message } from './state/sessionState.js';
+import type { FileEditKind, MarkdownResponsePart, Message, ReasoningResponsePart, ResponsePartKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -97,6 +97,9 @@ export interface IReviewedFileRecord {
 }
 
 // ---- Session database ---------------------------------------------------
+
+/** Ordered response text with stable reasoning-run identities and references to provider-owned tool results. */
+export type StoredAssistantResponsePart = MarkdownResponsePart | ReasoningResponsePart | { readonly kind: ResponsePartKind.ToolCall; readonly toolCallId: string };
 
 /** A host-persisted turn that is absent from the provider transcript. */
 export interface IPersistedTurnRecord {
@@ -265,6 +268,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * SDK envelope id — resolve as well as live ones.
 	 */
 	getTurnUsages(): Promise<Map<string, string>>;
+
+	/** Records a response's observed part ordering and reasoning timings with the owning turn's pruning lifecycle. */
+	setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void>;
+
+	/** Reads recorded parts keyed by durable provider response id, after all previously submitted writes. */
+	getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>>;
 
 	/**
 	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
@@ -452,6 +461,13 @@ export interface ISessionDatabase extends IDisposable {
 	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
 
 	/**
+	 * Return the stored terminal output sizes in bytes for the given tool calls
+	 * with a single lookup, without loading their content. Tool calls without
+	 * stored output are absent from the result.
+	 */
+	getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>>;
+
+	/**
 	 * Read terminal output for a tool invocation.
 	 * Returns `undefined` if no output exists for the given tool call.
 	 */
@@ -466,48 +482,52 @@ export interface ISessionDatabase extends IDisposable {
 	/** Reads one embedded resource's bytes and stored MIME type on demand. */
 	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
 
-	// ---- Session metadata ------------------------------------------------
+	// ---- Metadata (session-global unless a turn is specified) -------------
+
+	/** Reads a key across own turns, keyed by host and provider event ids, after previously submitted writes. */
+	getTurnMetadata(key: string): Promise<Map<string, string>>;
 
 	/**
-	 * Read a metadata value by key.
+	 * Read a metadata value by key in the given turn, or session-global when omitted.
 	 * Returns `undefined` if no value has been stored for the key.
 	 */
-	getMetadata(key: string): Promise<string | undefined>;
+	getMetadata(key: string, turnId?: string): Promise<string | undefined>;
 
 	/**
 	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
 	 */
-	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
+	getMetadataObject<T extends Record<string, unknown>>(obj: T, turnId?: string): Promise<{ [K in keyof T]: string | undefined }>;
 
 	/** Gets every metadata value whose key starts with `prefix`. */
-	getMetadataByPrefix(prefix: string): Promise<Record<string, string>>;
+	getMetadataByPrefix(prefix: string, turnId?: string): Promise<Record<string, string>>;
 
 	/** Sets `set` and deletes `remove` in one transaction. */
-	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void>;
+	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void>;
 
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
+	 * Turn-scoped writes lazily create the owner and follow its deletion/remapping lifecycle.
 	 */
-	setMetadata(key: string, value: string): Promise<void>;
+	setMetadata(key: string, value: string, turnId?: string): Promise<void>;
 
 	/** Atomically replaces a metadata value using its latest stored value. */
-	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
+	updateMetadata(key: string, update: (value: string | undefined) => string, turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically store multiple metadata key-value pairs.
 	 */
-	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+	setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically delete metadata keys.
 	 */
-	deleteMetadata(keys: readonly string[]): Promise<void>;
+	deleteMetadata(keys: readonly string[], turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically stores metadata values only when `key` is absent. Values named
 	 * by `copies` are read from their source keys and copied when present.
 	 */
-	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>, turnId?: string): Promise<boolean>;
 
 	/**
 	 * Atomically stores metadata and advances the durable catalog relay snapshot.
@@ -540,7 +560,7 @@ export interface ISessionDatabase extends IDisposable {
 	getChatDraft(chat: URI): Promise<Message | undefined>;
 
 	/**
-	 * Bulk-remaps turn IDs using the provided old→new mapping.
+	 * Bulk-remaps turn IDs using an old host ID or provider event ID → new host ID mapping.
 	 * Used after copying a database file for a forked session. The copy is
 	 * another chat's database, so the source's foreign rows, other chats'
 	 * host-persisted turns and the row owner are dropped from it.

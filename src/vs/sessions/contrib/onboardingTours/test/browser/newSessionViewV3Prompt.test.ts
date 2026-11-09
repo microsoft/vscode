@@ -19,16 +19,16 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
-import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
+import { IGitHubRecentUserWork } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { INewSessionPromptRunnerOptions, NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestAssignmentService extends NullWorkbenchAssignmentService {
 	constructor(private readonly _treatments: Partial<Record<string, string>>) {
@@ -191,6 +191,24 @@ suite('NewSessionViewV3Prompt', () => {
 					timedOutStage: 'none',
 				},
 			}],
+		});
+	});
+
+	test('lets another tour show prompt options under its own scenario id', async () => {
+		const result = await runPrompt({ 'onb.newSessionViewV3.variation': 'prompt' }, {}, undefined, {
+			runnerOptions: { scenarioId: 'test.otherTour', variation: 'options' },
+			promptOptionInteractions: [0],
+		});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			events: result.telemetry.map(event => ({ name: event.name, scenarioId: event.data?.scenarioId, configuredVariation: event.data?.configuredVariation })),
+		}, {
+			animation: undefined,
+			events: [
+				{ name: 'onboarding.promptStrategy', scenarioId: 'test.otherTour', configuredVariation: 'options' },
+				{ name: 'onboarding.promptOptionInteraction', scenarioId: 'test.otherTour', configuredVariation: undefined },
+			],
 		});
 	});
 
@@ -861,10 +879,11 @@ suite('NewSessionViewV3Prompt', () => {
 
 	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionType = 'copilotcli';
 			override readonly isCreated = constObservable(false);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly workspace = workspace;
 		}();
 		let gitServiceCalled = false;
@@ -872,9 +891,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			}(),
+			constObservable<ITestSessionWithChat | undefined>(activeSession),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -923,15 +940,13 @@ suite('NewSessionViewV3Prompt', () => {
 		const secondWorkspace = createWorkspace(URI.file('C:\\second'), 'second');
 		const firstSession = createSession(firstWorkspace);
 		const secondSession = createSession(secondWorkspace);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', firstSession);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', firstSession);
 		const requests: { owner: string; repo: string }[] = [];
 		let prompt: string | undefined;
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-			}(),
+			activeSession,
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -994,6 +1009,7 @@ async function runPrompt(
 		readonly suppressPromptOptionUpdatesAfter?: number;
 		readonly refreshPromptOptionsAgain?: boolean;
 		readonly promptOptionInteractions?: readonly (number | 'close')[];
+		readonly runnerOptions?: INewSessionPromptRunnerOptions;
 	} = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
@@ -1014,7 +1030,7 @@ async function runPrompt(
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+		readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({
@@ -1114,7 +1130,7 @@ async function runPrompt(
 	const runner = new NewSessionViewV3PromptRunner(
 		new TestAssignmentService(treatments) as IWorkbenchAssignmentService,
 		new TestConfigurationService(configuration),
-		sessionsService,
+		sessionsService.activeSession,
 		composerService,
 		gitService,
 		new MissingFileService(),
@@ -1122,6 +1138,7 @@ async function runPrompt(
 		telemetryService,
 		new NullLogService(),
 		{ totalMs: options.totalMs ?? 100, summaryMs: options.summaryMs ?? 20, linkageMs: 20, reviewMs: 20 },
+		options.runnerOptions,
 	);
 
 	await runner.run(CancellationToken.None);
@@ -1194,11 +1211,12 @@ function createWorkspace(uri: URI, repo: string, includeGitHubInfo = true): ISes
 	};
 }
 
-function createSession(workspace: ISessionWorkspace): IActiveSession {
-	return new class extends mock<IActiveSession>() {
+function createSession(workspace: ISessionWorkspace): ITestSessionWithChat {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly providerId = 'test';
 		override readonly sessionType = 'test';
 		override readonly isCreated = constObservable(false);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly workspace = constObservable(workspace);
 	}();
 }

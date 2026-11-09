@@ -405,6 +405,7 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
+                  - smoke-wsl-kerberos-proxy
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
@@ -545,28 +546,3 @@ extends:
                   - smoke-agents-kerberos-pac-proxy
 
 
-      - stage: node_modules
-        dependsOn: []
-        jobs:
-          - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-              VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
-          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-            parameters:
-              NPM_ARCH: arm64
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-            parameters:
-              NPM_ARCH: arm
-              VSCODE_ARCH: armhf
-          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
