@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { getLocalModelStopNowId, ILocalModelService } from '../../../../../../services/agentHost/common/localModelService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
-import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { runLocalModelErrorAction } from '../../../agentSessions/agentHost/localModelErrorActions.js';
 import { formatLocalModelBytes, getLocalModelDrainingStreams, getLocalModelLoad, isLocalModelReload, LocalModelEntryPath, logLocalModelFlow } from '../../../agentSessions/agentHost/localModelSetupFlow.js';
 import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
@@ -114,6 +114,8 @@ export interface ILocalModelPickerHost {
 	readonly selectedModelId: string | undefined;
 	/** The chat's model configuration, for the thinking level of a direct model. */
 	readonly configurationAccess?: IModelConfigurationAccess;
+	/** Whether the chat's Auto model, which is not among `models`, is presented as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 	select(model: ILanguageModelChatMetadataAndIdentifier): void;
 	showDetails(familyId: string): void;
 }
@@ -584,8 +586,7 @@ function isLocalModelNotDownloaded(family: ILocalModelFamilyV1): boolean {
  */
 function buildFamilyRow(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, host: ILocalModelPickerHost | undefined): IActionListItem<IActionWidgetDropdownAction> {
 	const model = family.install ? host?.models.find(candidate => isDirectModelOf(candidate, family)) : undefined;
-	const autoModelFusion = !!host?.models.some(candidate => isAutoLanguageModel(candidate) && candidate.metadata.autoModelFusion);
-	const row = getFamilyRowState(family, readiness, status, !!model, autoModelFusion);
+	const row = getFamilyRowState(family, readiness, status, !!model, host?.autoModelFusion);
 	const summary = getLocalModelConfigSummary(family, status, model, host?.configurationAccess);
 	const slot = getLocalModelDownloadSlot(family, readiness, status);
 	const showDetails = () => host?.showDetails(family.familyId);
