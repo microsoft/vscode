@@ -471,6 +471,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			try {
 				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
+					rootState: this._agentHostService.rootState.value,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),
 					authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -517,6 +518,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
+				rootState: this._agentHostService.rootState.value,
 				logPrefix: '[AgentHost]',
 				isCurrent: () => this._isAuthenticationCurrent(generation),
 				authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -543,6 +545,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._agentHostService.setAuthenticationPending(true);
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
+			rootState: this._agentHostService.rootState.value,
 			challengeReason: reason,
 			logPrefix: '[AgentHost]',
 			isCurrent: () => this._isAuthenticationCurrent(generation),
@@ -596,6 +599,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
+			rootState: this._agentHostService.rootState.value,
 			logPrefix: '[AgentHost]',
 			preferredSessionId,
 			isCurrent: () => this._isAuthenticationCurrent(generation),

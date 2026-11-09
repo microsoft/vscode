@@ -47,6 +47,7 @@ suite('Copilot Entra authentication', () => {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
 			override async authenticate() { return false; }
+			override validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) { bridge.validateAuthentication(params, connection); }
 			override handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) { return bridge.authenticate(params, connection); }
 		}();
 		const tokenProvider = bridge.options.tokenProvider;
@@ -56,7 +57,7 @@ suite('Copilot Entra authentication', () => {
 			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600,
 			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, ...(label !== undefined ? { label } : {}) }),
 		});
-		const authenticate = (params: AuthenticateParams) => authentication.authenticate(params, [provider], undefined, connection.token);
+		const authenticate = (params: AuthenticateParams, lifetime = connection.token) => authentication.authenticate(params, [provider], undefined, lifetime);
 		const signIn = async (label?: string) => {
 			assert.deepStrictEqual(await acquire(identity), { kind: 'unavailable' });
 			assert.deepStrictEqual(await authenticate(credential(undefined, undefined, undefined, label)), { authenticated: true });
@@ -191,6 +192,81 @@ suite('Copilot Entra authentication', () => {
 		await f.acquire({ ...request, skipCachedAccessToken: true });
 		await f.acquire(request);
 		assert.strictEqual(f.bridge.authenticationRequired.get()?.reason, AuthRequiredReason.Expired);
+	});
+
+	test('a second live client cannot replay the token challenged at the host', async () => {
+		const f = fixture();
+		await f.signIn();
+		const request = tokenRequest();
+		await f.acquire(request);
+		const credential = f.credential(copilotEntraResources.get(copilotEntraEmuAudience), request.scopes);
+		await f.authenticate(credential);
+		await f.acquire({ ...request, skipCachedAccessToken: true });
+		const secondClient = store.add(new CancellationTokenSource());
+		const replay = await f.authenticate(credential, secondClient.token);
+		assert.deepStrictEqual({
+			replay,
+			retry: await f.acquire(request),
+			reason: f.bridge.authenticationRequired.get()?.reason,
+			identity: await f.acquire(identity),
+		}, {
+			replay: { authenticated: false }, retry: { kind: 'unavailable' },
+			reason: AuthRequiredReason.Expired, identity: { kind: 'identity', accountId: 'selected' },
+		});
+	});
+
+	test('an unchanged cache-bypass flag accepts a replacement once, then challenges a later rejection', async () => {
+		const f = fixture();
+		await f.signIn();
+		const request = { ...tokenRequest(), skipCachedAccessToken: true };
+		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
+		await f.acquire(request);
+		await f.authenticate({ ...f.credential(resource, request.scopes), token: 'first-replacement' });
+		const first = await f.acquire(request);
+		const challengedAgain = await f.acquire(request);
+		await f.authenticate({ ...f.credential(resource, request.scopes), token: 'second-replacement' });
+		assert.deepStrictEqual({ first, challengedAgain, second: await f.acquire(request) }, {
+			first: { kind: 'token', accountId: 'selected', accessToken: 'first-replacement' },
+			challengedAgain: { kind: 'unavailable' },
+			second: { kind: 'token', accountId: 'selected', accessToken: 'second-replacement' },
+		});
+	});
+
+	test('a non-owner withdrawal preserves authority and canonical credentials before any provider mutation', async () => {
+		const f = fixture();
+		await f.signIn();
+		const secondClient = store.add(new CancellationTokenSource());
+		let providerMutations = 0;
+		const observer = new class extends mock<IAgent>() {
+			override getProtectedResources() { return []; }
+			override async handleAuthenticationToken() { providerMutations++; return false; }
+		}();
+		await assert.rejects(f.authentication.authenticate({
+			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: '',
+		}, [f.provider, observer], undefined, secondClient.token), /own.*Microsoft/i);
+		assert.deepStrictEqual({
+			providerMutations,
+			identity: await f.acquire(identity),
+			stored: f.authentication.getAuthToken({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] }),
+		}, {
+			providerMutations: 0,
+			identity: { kind: 'identity', accountId: 'selected' },
+			stored: 'synthetic-resource-credential',
+		});
+	});
+
+	test('a delayed withdrawal from a still-connected old owner cannot revoke a replacement authority', async () => {
+		const f = fixture();
+		await f.signIn();
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		const replacement = store.add(new CancellationTokenSource());
+		await f.acquire(identity);
+		await f.authenticate(f.credential(undefined, undefined, 'replacement'), replacement.token);
+		await assert.rejects(f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }), /own.*Microsoft/i);
+		assert.deepStrictEqual({
+			identity: await f.acquire(identity),
+			storedAccount: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+		}, { identity: { kind: 'identity', accountId: 'replacement' }, storedAccount: 'replacement' });
 	});
 
 	test('a credential that expires in the shared store produces an expired challenge', async () => {

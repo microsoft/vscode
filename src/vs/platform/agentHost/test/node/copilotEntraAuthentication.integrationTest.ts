@@ -58,6 +58,7 @@ suite('Copilot Entra authentication transport', () => {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
 			override async authenticate() { return false; }
+			override validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) { bridge.validateAuthentication(params, connection); }
 			override handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) { return bridge.authenticate(params, connection); }
 		}();
 		const service = new class extends mock<IAgentService>() {
@@ -149,6 +150,14 @@ suite('Copilot Entra authentication transport', () => {
 				token: 'synthetic-graph-credential', expiresIn: 3600,
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
 			});
+			const nonOwner = new TestProtocolClient(server.boundPort);
+			store.add(toDisposable(() => nonOwner.close()));
+			await nonOwner.connect();
+			await nonOwner.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-non-owner', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
+			await assert.rejects(nonOwner.call('authenticate', {
+				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: '',
+			}), /own.*Microsoft/i);
+			nonOwner.close();
 			const result = await completeWithoutCredential();
 			assert.ok(result, 'Missing resource credentials must complete without waiting for a negative AHP reply');
 			await client.waitForNotification(n => n.method === 'auth/required' && JSON.stringify(n.params).includes(copilotEntraEmuAudience));

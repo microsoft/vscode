@@ -2339,8 +2339,11 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	/** Read with the publication reader when resources change independently of the model catalog. */
-	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
+	/** Client-owned execution may require different credentials from the shared runtime. */
+	getProtectedResources(reader?: IReader, scope?: 'shared' | 'client'): ProtectedResourceMetadata[];
+
+	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
+	validateAuthentication?(params: AuthenticateParams, connectionToken?: CancellationToken): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;

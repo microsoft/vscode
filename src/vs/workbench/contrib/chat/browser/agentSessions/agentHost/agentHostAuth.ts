@@ -21,8 +21,8 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
-import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources, isCopilotEntraAuthenticationResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -345,7 +345,7 @@ export class AgentHostAuthenticationRecovery {
 	}
 
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
-		const key = protectedResourceAuthenticationKey(resource) + (isCopilotEntraResource(resource) ? `:${options.challengeReason ?? AuthRequiredReason.Required}` : '');
+		const key = protectedResourceAuthenticationKey(resource) + (isCopilotEntraAuthenticationResource(resource, options.rootState) ? `:${options.challengeReason ?? AuthRequiredReason.Required}` : '');
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
 			return pendingRecovery;
@@ -367,7 +367,7 @@ export class AgentHostAuthenticationRecovery {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const commandService = accessor.get(ICommandService);
-		if (isCopilotEntraResource(resource)) {
+		if (isCopilotEntraAuthenticationResource(resource, options.rootState)) {
 			await recoverCopilotEntraAuthentication(authenticationService, defaultAccountService, logService, resource, options);
 			return;
 		}
@@ -613,6 +613,7 @@ export interface IAgentHostAuthenticateRequest {
 
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
+	readonly rootState?: RootState | Error;
 	readonly logPrefix: string;
 	readonly challengeReason?: AuthRequiredReason;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
@@ -724,10 +725,12 @@ export async function resolveProtectedResourceAuthentication(
 	accessor: ServicesAccessor,
 	resource: ProtectedResourceMetadata,
 	logPrefix: string,
+	rootState?: RootState | Error,
 ): Promise<IAgentHostAuthenticateRequest | undefined> {
 	const logService = accessor.get(ILogService);
 	const resolution = await resolveSessionForProtectedResource(accessor.get(IAuthenticationService), accessor.get(IDefaultAccountService), logService, resource, {
 		logPrefix,
+		rootState,
 		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
 	});
 	if (resolution.kind === 'unavailable') {
@@ -880,7 +883,7 @@ function removedSessionsCouldSatisfyResource(removedSessions: readonly Pick<Auth
 }
 
 async function revokeCopilotEntraAuthentication(resource: ProtectedResourceMetadata, providerId: string, removedSessions: readonly Pick<AuthenticationSession, 'id'>[], options: IAgentHostAuthenticationOptions): Promise<boolean> {
-	if (providerId !== 'microsoft' || !isCopilotEntraResource(resource)) {
+	if (providerId !== 'microsoft' || !isCopilotEntraAuthenticationResource(resource, options.rootState)) {
 		return false;
 	}
 	const scopes = resource.scopes_supported ?? [];
@@ -961,12 +964,12 @@ async function authenticateProtectedResourceWithServices(
 }
 
 function canRevokeCopilotEntraAuthentication(resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): boolean {
-	return !isCopilotEntraResource(resource) || options.authTokenCache?.getSessionId(resource.resource, resource.scopes_supported) !== undefined;
+	return !isCopilotEntraAuthenticationResource(resource, options.rootState) || options.authTokenCache?.getSessionId(resource.resource, resource.scopes_supported) !== undefined;
 }
 
 async function revokeChangedCopilotEntraAccount(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<boolean> {
 	const forwardedAccount = options.authTokenCache?.getAccountId(resource.resource, resource.scopes_supported);
-	if (!isCopilotEntraResource(resource) || forwardedAccount === undefined) {
+	if (!isCopilotEntraAuthenticationResource(resource, options.rootState) || forwardedAccount === undefined) {
 		return false;
 	}
 	const defaultAccount = defaultAccountService.currentDefaultAccount;
@@ -993,10 +996,10 @@ async function resolveSessionForProtectedResource(
 	defaultAccountService: IDefaultAccountService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession' | 'rootState'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
-	if (isCopilotEntraResource(resource)) {
+	if (isCopilotEntraAuthenticationResource(resource, options.rootState)) {
 		return resolveCopilotEntraSession(authenticationService, defaultAccountService, resource, rejectedSession);
 	}
 	const resolution = await resolveAuthenticationSessionForResource(
@@ -1063,7 +1066,11 @@ function isCurrentCopilotEntraAccount(defaultAccount: IDefaultAccount | null, id
 }
 
 async function resolveCopilotEntraSession(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, rejectedSession: RejectedAuthenticationSession | null): Promise<AuthenticationSessionResolution> {
-	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccountService.currentDefaultAccount, resource);
+	const defaultAccount = defaultAccountService.currentDefaultAccount;
+	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccount, resource);
+	if (defaultAccountService.currentDefaultAccount !== defaultAccount) {
+		throw new CancellationError();
+	}
 	if (!identity) {
 		return { kind: 'signedOut', accountMismatch: true };
 	}
@@ -1073,8 +1080,8 @@ async function resolveCopilotEntraSession(authenticationService: IAuthentication
 		clientId: copilotEntraClientId,
 		silent: true,
 	}, true);
-	if (!isCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity)) {
-		return { kind: 'signedOut', accountMismatch: true };
+	if (defaultAccountService.currentDefaultAccount !== defaultAccount) {
+		throw new CancellationError();
 	}
 	const selection = selectAuthenticationSession(sessions.filter(session => rejectedSession === null || session.accessToken !== rejectedSession.accessToken), resource.scopes_supported ?? [], {
 		accountId: identity.account.id,
@@ -1227,7 +1234,7 @@ async function forceAuthenticationInteractively(
 	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
 	try {
 		const scopes = resource.scopes_supported ?? [];
-		if (isCopilotEntraResource(resource)) {
+		if (isCopilotEntraAuthenticationResource(resource, options.rootState)) {
 			return await forceCopilotEntraAuthenticationInteractively(authenticationService, defaultAccountService, resource, options, data, challengedToken);
 		}
 		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {

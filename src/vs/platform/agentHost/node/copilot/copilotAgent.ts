@@ -2630,13 +2630,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
+	getProtectedResources(reader?: IReader, scope: 'shared' | 'client' = 'shared'): ProtectedResourceMetadata[] {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
 			this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
-			...this._entraAuthentication?.getProtectedResources(reader) ?? [],
+			...(scope === 'shared' ? this._entraAuthentication?.getProtectedResources(reader) ?? [] : []),
 		];
+	}
+
+	validateAuthentication(params: AuthenticateParams, connectionToken?: CancellationToken): void {
+		this._entraAuthentication?.validateAuthentication(params, connectionToken);
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {

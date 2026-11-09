@@ -12,8 +12,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { copilotEntraAuthenticationMeta } from '../../../../../../platform/agentHost/common/meta/agentHostCopilotAuthentication.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ProtectedResourceMetadata, RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -33,6 +34,8 @@ class MicrosoftAuthentication extends mock<IAuthenticationService>() {
 	readonly interactiveStarted = new DeferredPromise<void>();
 	pending: DeferredPromise<readonly AuthenticationSession[]> | undefined;
 	pendingStarted: DeferredPromise<void> | undefined;
+	pendingIdentity: DeferredPromise<readonly AuthenticationSession[]> | undefined;
+	pendingIdentityStarted: DeferredPromise<void> | undefined;
 
 	override async getOrActivateProviderIdForServer(): Promise<string> {
 		return 'microsoft';
@@ -41,6 +44,10 @@ class MicrosoftAuthentication extends mock<IAuthenticationService>() {
 	override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>): Promise<readonly AuthenticationSession[]> {
 		this.calls.push(args);
 		if (args[1] === undefined) {
+			this.pendingIdentityStarted?.complete();
+			if (this.pendingIdentity) {
+				return this.pendingIdentity.p;
+			}
 			return this.sessions.map(session => ({ ...session, scopes: [], accessToken: 'account-list-placeholder' }));
 		}
 		this.pendingStarted?.complete();
@@ -61,6 +68,10 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		resource: copilotEntraDiscoveryResource,
 		authorization_servers: [copilotEntraAuthorizationServer],
 		scopes_supported: ['User.Read'],
+	};
+	const rootState: RootState = {
+		agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }],
+		_meta: copilotEntraAuthenticationMeta(),
 	};
 	const selected: AuthenticationSession = {
 		id: 'selected',
@@ -88,7 +99,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		instantiation.stub(ITelemetryService, NullTelemetryService);
-		const resolve = () => instantiation.invokeFunction(resolveProtectedResourceAuthentication, resource, '[test]');
+		const resolve = () => instantiation.invokeFunction(resolveProtectedResourceAuthentication, resource, '[test]', rootState);
 		return { authentication, defaults, resolve, instantiation };
 	}
 
@@ -132,7 +143,87 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await Promise.resolve();
 		f.defaults.currentDefaultAccount = null;
 		f.authentication.pending.complete([selected]);
-		assert.strictEqual(await resolved, undefined);
+		await assert.rejects(resolved, isCancellationError);
+	});
+
+	for (const phase of ['identity', 'scoped'] as const) {
+		test(`a superseded ${phase} lookup cannot withdraw the account forwarded by a newer pass`, async () => {
+			const f = fixture();
+			const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+			const started = new DeferredPromise<void>();
+			if (phase === 'identity') {
+				f.authentication.pendingIdentity = pending;
+				f.authentication.pendingIdentityStarted = started;
+			} else {
+				f.authentication.pending = pending;
+				f.authentication.pendingStarted = started;
+			}
+			const forwarded: string[] = [];
+			const options = {
+				logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.token); },
+			};
+			const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
+			const original = f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			const cancelled = assert.rejects(original, isCancellationError);
+			await started.p;
+			f.defaults.currentDefaultAccount = {
+				authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+				sessionId: other.id, accountName: other.account.label, enterprise: false,
+			};
+			f.authentication.pending = undefined;
+			f.authentication.pendingIdentity = undefined;
+			f.authentication.sessions = [other];
+			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			pending.complete([selected]);
+			await cancelled;
+			assert.deepStrictEqual({
+				forwarded,
+				account: options.authTokenCache.getAccountId(resource.resource, resource.scopes_supported),
+			}, { forwarded: [other.accessToken], account: other.account.id });
+		});
+	}
+
+	test('an unmarked Graph requirement retains generic resolution and explicit recovery with a GitHub default', async () => {
+		const f = fixture();
+		f.defaults.currentDefaultAccount = {
+			authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+			sessionId: 'github', accountName: 'GitHub', enterprise: false,
+		};
+		f.authentication.sessions = [{ ...other, scopes: ['Mail.Read'] }];
+		const graph = { ...resource, scopes_supported: ['Mail.Read'] };
+		const forwarded: string[] = [];
+		const resolved = await f.instantiation.invokeFunction(resolveProtectedResourceAuthentication, graph, '[test]');
+		const interactive = await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [graph], {
+			logPrefix: '[test]', authenticate: async request => { forwarded.push(request.token); },
+		});
+		assert.deepStrictEqual({
+			token: resolved?.token, interactive, forwarded,
+			clientRegistrations: f.authentication.calls.map(([, , options]) => options?.clientId),
+			prompts: f.authentication.created,
+		}, {
+			token: other.accessToken, interactive: true, forwarded: [other.accessToken],
+			clientRegistrations: f.authentication.calls.map(() => undefined), prompts: [],
+		});
+	});
+
+	test('absent or malformed bridge capabilities and another provider retain generic Microsoft resolution', async () => {
+		const roots: (RootState | undefined)[] = [
+			undefined,
+			{ ...rootState, _meta: undefined },
+			{ ...rootState, _meta: { 'vscode.copilotEntraAuthentication': false } },
+			{ ...rootState, _meta: { 'vscode.copilotEntraAuthentication': 'true' } },
+			{ ...rootState, agents: [{ ...rootState.agents[0], provider: 'unrelated-provider' }] },
+		];
+		const credentials = [];
+		for (const root of roots) {
+			const f = fixture();
+			f.defaults.currentDefaultAccount = null;
+			f.authentication.sessions = [other];
+			const credential = await f.instantiation.invokeFunction(resolveProtectedResourceAuthentication, resource, '[test]', root);
+			credentials.push({ token: credential?.token, registrations: f.authentication.calls.map(([, , options]) => options?.clientId) });
+		}
+		assert.deepStrictEqual(credentials, roots.map(() => ({ token: other.accessToken, registrations: [undefined] })));
 	});
 
 	test('surfaces provider errors instead of treating them as successful authentication', async () => {
@@ -152,7 +243,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			await f.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions,
 				[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }],
 				'microsoft', [{ id: session.id, scopes: [] }],
-				{ logPrefix: '[test]', authTokenCache: cache, authenticate: async request => { forwarded.push(request); } });
+				{ logPrefix: '[test]', rootState, authTokenCache: cache, authenticate: async request => { forwarded.push(request); } });
 		}
 		assert.deepStrictEqual(forwarded, [{ resource: resource.resource, scopes: ['User.Read'], token: '' }]);
 	});
@@ -163,7 +254,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		f.authentication.interactiveResult = selected;
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const signedIn = await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
-			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', rootState, authenticate: async request => { forwarded.push(request); },
 		});
 		assert.deepStrictEqual({
 			signedIn,
@@ -183,7 +274,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', rootState, authenticate: async request => { forwarded.push(request); },
 		}));
 		assert.deepStrictEqual({
 			interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account),
@@ -195,7 +286,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		f.defaults.currentDefaultAccount = null;
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(authenticateProtectedResources,
@@ -223,7 +314,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const cache = new AgentHostAuthTokenCache();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', authTokenCache: cache, authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: cache, authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
@@ -246,7 +337,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			const f = fixture();
 			f.authentication.sessions = [selected, { ...other, scopes: hasScopedCredential ? ['User.Read'] : [] }];
 			const forwarded: IAgentHostAuthenticateRequest[] = [];
-			const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+			const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 			const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			f.authentication.calls.length = 0;
@@ -267,7 +358,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 	test('a superseded default-account lookup does not revoke the current account', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 		const originalDefault = f.defaults.currentDefaultAccount;
@@ -285,7 +376,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
-		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken, selected.accessToken], prompts: [] });
@@ -294,7 +385,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 	test('expired recovery never replays the challenged token or prompts and accepts a later silent replacement', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		const expired = { ...options, challengeReason: AuthRequiredReason.Expired };
@@ -316,7 +407,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Expired,
+			logPrefix: '[test]', rootState, challengeReason: AuthRequiredReason.Expired,
 			authenticate: async request => { forwarded.push(request); },
 		}));
 		assert.deepStrictEqual({ forwarded, prompts: f.authentication.created }, { forwarded: [], prompts: [] });
@@ -325,7 +416,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 	test('an expired challenge cannot join an earlier required recovery and replay its token', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		f.authentication.pending = new DeferredPromise();
@@ -343,7 +434,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const accepted = new DeferredPromise<void>();
 		const started = new DeferredPromise<void>();
 		const options = {
-			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(),
 			authenticate: async (request: IAgentHostAuthenticateRequest) => {
 				forwarded.push(request.token);
 				if (request.token) {
@@ -371,7 +462,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const forwarded: string[] = [];
 		const options = {
-			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[test]', rootState, authTokenCache: new AgentHostAuthTokenCache(),
 			authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.token); },
 		};
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
@@ -396,7 +487,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		f.authentication.pending = new DeferredPromise();
 		const result = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', rootState, authenticate: async request => { forwarded.push(request); },
 		}));
 		f.authentication.pending.error(new Error('provider unavailable'));
 		await assert.rejects(result, /provider unavailable/);
@@ -409,7 +500,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const interactive = new DeferredPromise<AuthenticationSession>();
 		f.authentication.interactiveResult = interactive.p;
 		const result = f.instantiation.createInstance(AgentHostInteractiveAuthentication).request(resource, {
-			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', rootState, authenticate: async request => { forwarded.push(request); },
 		});
 		await f.authentication.interactiveStarted.p;
 		interactive.error(new CancellationError());
@@ -424,7 +515,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		let current = true;
 		f.authentication.pending = new DeferredPromise();
 		const result = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', isCurrent: () => current, authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', rootState, isCurrent: () => current, authenticate: async request => { forwarded.push(request); },
 		}));
 		current = false;
 		f.authentication.pending.complete([selected]);

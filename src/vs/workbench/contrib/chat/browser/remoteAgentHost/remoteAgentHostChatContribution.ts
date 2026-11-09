@@ -355,6 +355,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			for (const removal of this._initialAuthentication.takePendingSessionRemovals(address)) {
 				this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, initialRootState.agents, removal.providerId, removal.sessions, {
 					authTokenCache: connState.authTokenCache,
+					rootState: initialRootState,
 					logPrefix: '[RemoteAgentHost]',
 					isCurrent: () => this._connections.get(address) === connState,
 					authenticate: this._authenticateCallback(address, connection),
@@ -588,6 +589,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				try {
 					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
+						rootState,
 						logPrefix: '[RemoteAgentHost]',
 						authenticate: this._authenticateCallback(address, connState.connection),
 					});
@@ -614,6 +616,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
+				rootState: connection.rootState.value,
 				logPrefix: '[RemoteAgentHost]',
 				authenticate: this._authenticateCallback(address, connection),
 			});
@@ -647,6 +650,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
+			rootState: connection.rootState.value,
 			challengeReason: reason,
 			logPrefix: '[RemoteAgentHost]',
 			isCurrent: () => this._connections.get(address) === connState,
@@ -702,6 +706,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
+			rootState: connection.rootState.value,
 			logPrefix: '[RemoteAgentHost]',
 			authenticate: this._authenticateCallback(address, connection),
 		});

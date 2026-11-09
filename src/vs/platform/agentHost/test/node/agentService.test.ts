@@ -16,17 +16,17 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { Barrier, DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { constObservable, waitForState } from '../../../../base/common/observable.js';
+import { constObservable, waitForState, type IReader } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -39,7 +39,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { ITelemetryService, TelemetryLevel, type ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
-import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -111,7 +111,11 @@ import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAc
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
-import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
+import { supportsCopilotEntraAuthentication } from '../../common/meta/agentHostCopilotAuthentication.js';
+import { AgentHostClientConnectionService, type IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -1222,6 +1226,27 @@ suite('AgentService (node dispatcher)', () => {
 	}
 
 	suite('credential sponsorship', () => {
+		for (const enabled of [false, true]) {
+			test(`advertises the inherited startup Microsoft bridge capability (${enabled}) without following live edits`, async () => {
+				const directory = mkdtempSync(join(tmpdir(), 'copilot-entra-capability-'));
+				const localDisposables = disposables.add(new DisposableStore());
+				try {
+					const resource = URI.file(join(directory, 'agent-host-config.json'));
+					writeFileSync(resource.fsPath, JSON.stringify({ [CopilotCliConfigKey.M365Enabled]: enabled }));
+					const scopedService = localDisposables.add(createTestAgentService(
+						new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), resource,
+					));
+					const configuration = getTestAgentServiceComposition(scopedService).configurationService;
+					configuration.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: !enabled });
+					await configuration.whenIdle();
+					assert.strictEqual(supportsCopilotEntraAuthentication(getStateManager(scopedService).rootState), enabled);
+				} finally {
+					localDisposables.dispose();
+					await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+				}
+			});
+		}
+
 		function source(userId = '1') {
 			return disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
 				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId,
@@ -1606,12 +1631,21 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('local cold dispatch validates desktop sponsorship before restoring history without a prior subscription', async () => {
+		test('GitHub scoped creation and local cold continuation ignore shared Microsoft requirements', async () => {
 			const history: (string | undefined)[] = [];
 			const sends: (string | undefined)[] = [];
 			const reached = new DeferredPromise<void>();
 			class ScopedAgent extends MockAgent {
 				readonly supportsScopedCredentials = true;
+				override getProtectedResources(reader?: IReader, scope: 'shared' | 'client' = 'shared') {
+					return [...super.getProtectedResources(), ...(scope === 'shared' ? microsoft.getProtectedResources(reader) : [])];
+				}
+				validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) {
+					microsoft.validateAuthentication(params, connection);
+				}
+				handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) {
+					return microsoft.authenticate(params, connection);
+				}
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					getMessages: async (chat, context) => {
 						history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
@@ -1630,8 +1664,27 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 				undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
 			));
+			const connections = disposables.add(new AgentHostClientConnectionService());
+			const owner = disposables.add(new CancellationTokenSource());
+			disposables.add(connections.registerSource({
+				hasSeenClient: () => true,
+				isClientConnected: () => true,
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['microsoft-owner', 1]]),
+				requestWorkspaceTrust: async () => false,
+				requestMcpAuthentication: async () => false,
+			}));
+			const microsoft = disposables.add(new CopilotEntraAuthentication(connections, getTestAgentServiceComposition(scopedService).authenticationService));
 			const provider = disposables.add(new ScopedAgent('copilot'));
 			registerTestAgentProvider(scopedService, provider);
+			const request = { kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' } as const;
+			const cancellation = { isCancellationRequested: false, onCancellationRequested: Event.None };
+			await microsoft.options.tokenProvider?.(request, cancellation);
+			await scopedService.authenticate({
+				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
+			}, undefined, owner.token);
 			const previous = source();
 			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
 			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: previous });
@@ -1641,7 +1694,12 @@ suite('AgentService (node dispatcher)', () => {
 			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
 			await scopedService.dispatchAction(chat, chatTurnStarted('local-cold', 'Continue locally'), 'local-client', 1);
 			await reached.p;
-			assert.deepStrictEqual({ history, sends }, { history: ['desktop-for-local'], sends: ['desktop-for-local'] });
+			assert.deepStrictEqual({
+				history, sends, microsoftIdentity: await microsoft.options.tokenProvider?.(request, cancellation),
+			}, {
+				history: ['desktop-for-local'], sends: ['desktop-for-local'],
+				microsoftIdentity: { kind: 'identity', accountId: 'microsoft' },
+			});
 		});
 
 		test('Agent Merge enablement retains its admitted sponsor when the connection closes during principal persistence', async () => {

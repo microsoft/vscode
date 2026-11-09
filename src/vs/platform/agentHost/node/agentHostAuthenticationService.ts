@@ -142,10 +142,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult> {
+		const providerList = [...providers];
 		if (scope) {
-			const providerList = [...providers];
 			const resources = [
-				...providerList.flatMap(provider => provider.getProtectedResources().map(resource => resource.resource)),
+				...providerList.flatMap(provider => provider.getProtectedResources(undefined, 'client').map(resource => resource.resource)),
 				...(scope.principal ? [scope.principal.apiOrigin] : []),
 			];
 			if (!params.target && resources.includes(params.resource)) {
@@ -166,6 +166,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 			return { authenticated };
 		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params, connectionToken);
+		}
 		const scopes = normalizeAuthenticationScopes(params.scopes);
 		const key = this._key(params.resource, scopes, params.target);
 		const previousRequest = this._authenticationRequests.get(key);
@@ -174,7 +177,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		// Wake replayers only after the replacement request is visible.
 		previousRequest?.completed.complete();
 		try {
-			return await this._authenticate(params, providers, scopes, key, request, connectionToken);
+			return await this._authenticate(params, providerList, scopes, key, request, connectionToken);
 		} finally {
 			if (this._authenticationRequests.get(key) === request) {
 				this._authenticationRequests.delete(key);
@@ -229,6 +232,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 					`[AgentHostAuthenticationService] Provider '${sessionResourceHandlers[i].id}' handleAuthenticationToken threw for resource=${params.resource}`,
 				);
 			}
+		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params, connectionToken);
 		}
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };

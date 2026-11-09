@@ -25,6 +25,11 @@ interface IEntraAuthority {
 	readonly connection: CancellationToken;
 }
 
+interface IEntraTokenChallenge {
+	readonly rejectedToken: string | undefined;
+	pending: boolean;
+}
+
 const discoveryResource: ProtectedResourceMetadata = {
 	resource: copilotEntraDiscoveryResource,
 	authorization_servers: [copilotEntraAuthorizationServer],
@@ -38,6 +43,7 @@ export class CopilotEntraAuthentication extends Disposable {
 	readonly onDidRevoke = this._onDidRevoke.event;
 	private readonly _authority = observableValue<IEntraAuthority | undefined>(this, undefined);
 	private readonly _requirements = observableValue<readonly Omit<AuthRequiredParams, 'channel'>[]>(this, []);
+	private readonly _tokenChallenges = new Map<string, IEntraTokenChallenge>();
 	readonly authenticationRequired = derived<Omit<AuthRequiredParams, 'channel'> | undefined>(this, reader => {
 		return this._requirements.read(reader).at(-1);
 	});
@@ -86,10 +92,21 @@ export class CopilotEntraAuthentication extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
 		if (!params.token) {
+			this.validateAuthentication(params, connection);
 			this.revoke();
 			return true;
 		}
 		return this.acceptCredential(params, connection);
+	}
+
+	validateAuthentication(params: AuthenticateParams, connection?: CancellationToken): void {
+		if (params.token || params.target || !isEntraCredentialResource(params.resource)) {
+			return;
+		}
+		const authority = this._authority.get();
+		if (authority && authority.connection !== connection) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Only the connection that owns Microsoft authentication can withdraw it.');
+		}
 	}
 
 	private acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
@@ -98,6 +115,9 @@ export class CopilotEntraAuthentication extends Disposable {
 		const resource = this.getProtectedResources().find(resource => resource.resource === params.resource);
 		const account = validateEntraCredential(params, resource);
 		validateEntraAccount(account.accountId, authority?.accountId);
+		if (this._tokenChallenges.get(params.resource)?.rejectedToken === params.token) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft authentication requires a replacement credential.');
+		}
 		if (isDiscovery && !authority) {
 			const identity: IEntraAuthority = { accountId: account.accountId, connection, ...(account.label !== undefined ? { username: account.label } : {}) };
 			this._authority.set(identity, undefined);
@@ -122,6 +142,7 @@ export class CopilotEntraAuthentication extends Disposable {
 
 	private clearAuthority(): void {
 		this._connectionListener.clear();
+		this._tokenChallenges.clear();
 		for (const resource of [copilotEntraDiscoveryResource, ...copilotEntraResources.values()]) {
 			this._authenticationService.invalidateAuthTokens(resource);
 		}
@@ -166,22 +187,31 @@ export class CopilotEntraAuthentication extends Disposable {
 			return AuthRequiredReason.Required;
 		}
 		const previous = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: request.scopes }, true);
-		return request.skipCachedAccessToken || previous && isExpired(previous.expiresAt) ? AuthRequiredReason.Expired : AuthRequiredReason.Required;
+		return request.skipCachedAccessToken || this._tokenChallenges.get(resource.resource)?.pending || previous && isExpired(previous.expiresAt) ? AuthRequiredReason.Expired : AuthRequiredReason.Required;
 	}
 
 	private acquireToken(request: Extract<EntraTokenProviderArgs, { kind: 'token' }>, resource: ProtectedResourceMetadata): EntraTokenProviderResult | undefined {
-		if (request.skipCachedAccessToken) {
+		const previous = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: request.scopes }, true);
+		let challenge = this._tokenChallenges.get(resource.resource);
+		if (request.skipCachedAccessToken && !challenge?.pending || previous && isExpired(previous.expiresAt)) {
+			challenge = { rejectedToken: previous?.token, pending: true };
+			this._tokenChallenges.set(resource.resource, challenge);
 			this._authenticationService.invalidateAuthTokens(resource.resource);
 			return undefined;
 		}
 		const credential = this.getCredential(resource.resource, request.scopes);
+		if (credential && challenge) {
+			challenge.pending = false;
+		}
 		return credential ? { kind: 'token', accountId: request.accountId, accessToken: credential.token } : undefined;
 	}
 
 	private getCredential(resource: string, scopes: readonly string[]): IAgentHostAuthCredential | undefined {
 		const authority = this._authority.get();
 		const credential = this._authenticationService.getAuthCredential({ resource, scopes });
-		return authority && !authority.connection.isCancellationRequested && credential?.account?.providerId === 'microsoft' && credential.account.accountId === authority.accountId ? credential : undefined;
+		return authority && !authority.connection.isCancellationRequested && credential?.account?.providerId === 'microsoft'
+			&& credential.account.accountId === authority.accountId
+			&& credential.token !== this._tokenChallenges.get(resource)?.rejectedToken ? credential : undefined;
 	}
 
 	private requireCredential(resource: ProtectedResourceMetadata, reason: AuthRequiredReason): void {

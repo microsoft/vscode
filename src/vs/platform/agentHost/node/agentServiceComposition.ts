@@ -23,6 +23,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/sta
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
+import { copilotEntraAuthenticationMeta } from '../common/meta/agentHostCopilotAuthentication.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -149,6 +150,9 @@ export function createAgentServiceComposition(
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
 		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		if (configurationService.copilotM365EnabledAtStartup) {
+			stateManager.rootState._meta = { ...stateManager.rootState._meta, ...copilotEntraAuthenticationMeta() };
+		}
 		const providerService = accessor.get(IAgentHostProviderService);
 		const sessionRegistry = accessor.get(IAgentSessionRegistry);
 		const core: IAgentServiceCore = {
