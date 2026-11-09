@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventLike, EventType } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverWidget, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -392,7 +393,9 @@ const RICH_HOVER_MAX_CREATED_SESSIONS = 2;
 /**
  * Renders the "Open in Agents" titlebar entry as an icon-only button that
  * expands to reveal a label on hover / keyboard focus. Users who are new to the
- * Agents window can see a hover card that explains it instead of a simple tooltip.
+ * Agents window can see a hover card that explains it instead of a simple tooltip,
+ * and with {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick},
+ * activating the button opens that card instead of the Agents window.
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
@@ -400,6 +403,8 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
 	private readonly treatments = this._register(new MutableDisposable());
 	private readonly hoverCard = this._register(new MutableDisposable<AgentsWindowHoverCard>());
+	/** The hover card shown by activating the button, which stays open until it is dismissed. */
+	private readonly stickyHoverCard = this._register(new MutableDisposable<IHoverWidget>());
 	private readonly usage: AgentsWindowUsage;
 	private labelElement: HTMLElement | undefined;
 	private hover: IManagedHover | undefined;
@@ -552,23 +557,86 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 		const design = this.hoverCardDesign;
 		if (!design) {
+			this.stickyHoverCard.clear();
 			this.hoverCard.clear();
 			this.hover.update(this.hoverText);
 			return;
 		}
+		const element = this.getHoverCard(design).element;
+		this.hover.update({ element: () => element, contentOwnsPadding: true });
+	}
+
+	private getHoverCard(design: AgentsWindowGraphicDesign): AgentsWindowHoverCard {
 		let card = this.hoverCard.value;
 		if (card?.design !== design) {
+			this.stickyHoverCard.clear();
 			card = new AgentsWindowHoverCard({
 				design,
 				onOpen: () => {
 					this.hover?.hide();
+					this.stickyHoverCard.clear();
 					void this.actionRunner.run(this.action, this._context);
 				},
 			});
 			this.hoverCard.value = card;
 		}
-		const element = card.element;
-		this.hover.update({ element: () => element, contentOwnsPadding: true });
+		return card;
+	}
+
+	/**
+	 * While the button shows a hover card, activating it, by click, tap or keyboard, logs the trigger of
+	 * {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick} in every arm. When that setting is enabled,
+	 * it then toggles the card instead of opening the Agents window. Otherwise, the action runs as usual.
+	 */
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		const design = this.hoverCardDesign;
+		if (design === undefined) {
+			return super.getActionToRun(event);
+		}
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: (context: unknown) => {
+				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick);
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick) === true) {
+					this.toggleStickyHoverCard(design);
+					return;
+				}
+				return this.action.run(context);
+			},
+		});
+	}
+
+	private toggleStickyHoverCard(design: AgentsWindowGraphicDesign): void {
+		if (this.stickyHoverCard.value && !this.stickyHoverCard.value.isDisposed) {
+			this.stickyHoverCard.clear();
+			return;
+		}
+		if (!this.element) {
+			return;
+		}
+		const card = this.getHoverCard(design);
+		this.hover?.hide();
+		const cardListeners = new DisposableStore();
+		// Shown like the managed hover shows the card, but sticky and with focus in it.
+		const hover = this.hoverService.showInstantHover({
+			content: card.element,
+			target: this.element,
+			additionalClasses: ['managed-hover-content-owns-padding'],
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true, compact: true, skipFadeInAnimation: true },
+			persistence: { sticky: true },
+			trapFocus: true,
+			onDidHide: () => cardListeners.dispose(),
+		}, true);
+		if (!hover) {
+			cardListeners.dispose();
+			return;
+		}
+		this.stickyHoverCard.value = hover;
+		cardListeners.add(card.onDidEscape(() => this.stickyHoverCard.clear()));
+		card.focus();
 	}
 }
 
