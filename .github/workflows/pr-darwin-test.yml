@@ -93,15 +93,12 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-macos
-          key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          key-prefix: pnpm-store-macos
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
           c++ --version

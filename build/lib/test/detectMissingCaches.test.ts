@@ -79,12 +79,13 @@ suite('Detect missing caches', () => {
 				.replaceAll('$(node -p process.arch)', runner.arch);
 			const step = (uses: string) => job.steps.find(step => step.uses === uses);
 
-			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
+			// Only the job that saves a store keeps it warm; others restore it to install the dependencies.
+			const pnpmStore = step('./.github/actions/save-pnpm-store') ? step('./.github/actions/restore-pnpm-store')?.with : undefined;
 			const electron = step('./.github/actions/setup-electron')?.with;
 			const playwright = step('./.github/actions/restore-playwright')?.with;
 			jobs[name] = {
 				os: runner.os,
-				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
+				...pnpmStore ? { pnpmStore: { prefix: pnpmStore['key-prefix'], args: [runner.platform, runner.arch] } } : {},
 				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
@@ -120,17 +121,18 @@ suite('Detect missing caches', () => {
 		const commands = (steps: readonly IStep[], pattern: RegExp) => steps.flatMap(step => step.run?.split('\n').filter(line => pattern.test(line)).map(line => line.trim()) ?? []);
 		const compile = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml').jobs.compile.steps;
 		assert.deepStrictEqual({
-			nodeModules: [...caches(loadActionSteps('restore-node-modules')), ...caches(loadActionSteps('save-node-modules')), ...commands(loadActionSteps('restore-node-modules'), /computeNodeModulesCacheKey/)],
+			pnpmStore: [...caches(loadActionSteps('restore-pnpm-store')), ...caches(loadActionSteps('save-pnpm-store')), ...commands(loadActionSteps('restore-pnpm-store'), /computePnpmStoreCacheKey/)],
 			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
 			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
 			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
 			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
-			nodeModules: [
-				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
-				{ key: '${{ env.NODE_MODULES_CACHE_KEY }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
-				'mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
-				'node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
+			pnpmStore: [
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ env.PNPM_STORE_CACHE_KEY }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
+				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
+				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
 			],
 			electron: [
 				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
