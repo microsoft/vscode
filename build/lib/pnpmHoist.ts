@@ -14,12 +14,13 @@ import { getSnapshotKey, importerDependencyKinds, parsePackageKey, snapshotDepen
  * package the same layout whichever linker installed the dependencies: with the isolated linker,
  * the packages are in pnpm's virtual store instead.
  *
- * pnpm (`@pnpm/real-hoist`) hoists with the hoister of Yarn's node-modules linker (`@yarnpkg/nm`).
- * This is a port of that hoister, reduced to what pnpm uses, plus the rules that reproduce pnpm's
- * results on this repository's lockfiles: the dependencies of an importer are taken in name order,
- * a dependency whose peer is the package that it is nested in stays nested, and dependencies whose
- * peers can only be hoisted together with each other (a peer cycle, such as `webpack` and
- * `webpack-cli`) stay where they are. `build/lib/dependencies.ts` compares the result with the
+ * pnpm (`real-hoist`) hoists with a port of the hoister of Yarn's node-modules linker
+ * (`@yarnpkg/nm`). This is a port of that hoister, reduced to what pnpm uses, plus the rules that
+ * reproduce pnpm's results on this repository's lockfiles: the dependencies of an importer are taken
+ * in name order, the provider of a peer is the nearest ancestor that depends on it, a dependency
+ * whose peer is the package that it is nested in stays nested, and dependencies whose peers can only
+ * be hoisted together with each other (a peer cycle, such as `webpack` and `webpack-cli`) stay where
+ * they are. `build/lib/dependencies.ts` compares the result with the
  * locations that pnpm recorded when the hoisted linker installed the dependencies.
  */
 
@@ -383,8 +384,13 @@ function getHoistInfo(root: IWorkNode, nodePath: readonly IWorkNode[], node: IWo
 					isHoistable = false;
 					break;
 				}
+				// Like pnpm's hoister, look for the provider of the peer up the ancestors: the nearest
+				// one that has it as a dependency (`@yarnpkg/nm` looks only at the parent).
 				const provider = pathNode.dependencies.get(peerName);
-				if (provider && root.dependencies.get(peerName) !== provider) {
+				if (!provider) {
+					continue;
+				}
+				if (root.dependencies.get(peerName) !== provider) {
 					if (index === nodePath.length - 1) {
 						dependsOn!.add(provider);
 					} else {

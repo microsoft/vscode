@@ -461,11 +461,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 		result = localExtensionsStream;
 	} else {
 		// also include shared production node modules
-		const dependenciesStreams = getSharedExtensionDependencyFolders().map(({ folder, destination }) =>
-			gulp.src([`${folder}/**`, `!${folder}/**/{test,tests}/**`], { base: folder })
-				.pipe(filter(file => destination !== sharedTypeScriptDestination || isPackagedTypeScriptFile(file.relative.split(path.sep).join('/'))))
-				.pipe(rename(p => p.dirname = path.posix.join(destination, p.dirname!.split(path.sep).join('/'))))
-		);
+		const dependenciesStreams = getSharedExtensionDependencyFolders().map(({ folder, destination }) => getSharedExtensionDependencyStream(folder, destination));
 
 		if (dependenciesStreams.length) {
 			result = es.merge(
@@ -542,6 +538,22 @@ function getSharedExtensionDependencyFolders(): { folder: string; destination: s
 		result.set(destination, source);
 	}
 	return [...result].map(([destination, folder]) => ({ folder: path.relative(root, folder).split(path.sep).join('/'), destination }));
+}
+
+/**
+ * Returns the files of a shared extension dependency, read from `folder` and placed at
+ * `destination`. The files are moved rather than renamed, so that the filters that follow match
+ * their packaged path, and not the folder of the package in pnpm's virtual store (`.pnpm`).
+ */
+export function getSharedExtensionDependencyStream(folder: string, destination: string): Stream {
+	return gulp.src([`${folder}/**`, `!${folder}/**/{test,tests}/**`], { base: folder })
+		.pipe(filter(file => destination !== sharedTypeScriptDestination || isPackagedTypeScriptFile(file.relative.split(path.sep).join('/'))))
+		.pipe(es.mapSync((file: File) => {
+			const relative = file.relative;
+			file.base = file.cwd;
+			file.path = path.join(file.cwd, destination, relative);
+			return file;
+		}));
 }
 
 /**

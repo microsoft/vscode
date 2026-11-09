@@ -247,7 +247,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(toPackagedLayout(productionDependencies, { commands: true }))
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));

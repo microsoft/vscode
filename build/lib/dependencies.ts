@@ -150,20 +150,22 @@ function getPnpmProductionDependencies(folder: string): IProductionDependency[] 
 	}
 	while (queue.length > 0) {
 		const { from, fromSource, fromProject, name, key } = queue.shift()!;
+		// Check every production package before resolving it, so that a package that the computed
+		// layout misses or misplaces fails the build instead of being left out of the product.
+		if (layout.isHoisted && !checkedKeys.has(key)) {
+			checkedKeys.add(key);
+			const computed = [...layout.locations.get(key) ?? []].sort();
+			const installed = [...layout.installedLocations.get(key) ?? []].sort();
+			if (JSON.stringify(computed) !== JSON.stringify(installed)) {
+				throw new Error(`pnpm installed ${key} at ${installed.map(f => path.relative(root, f)).join(', ') || 'no location'}, but the layout computed from ${path.relative(root, path.join(installRoot, 'pnpm-lock.yaml'))} has it at ${computed.map(f => path.relative(root, f)).join(', ') || 'no location'}. Update build/lib/pnpmHoist.ts to match pnpm's hoisting.`);
+			}
+		}
 		const location = resolve(from, name, key);
 		if (!location || result.has(location)) {
 			continue;
 		}
 		let source: string | undefined;
 		if (layout.isHoisted) {
-			if (!checkedKeys.has(key)) {
-				checkedKeys.add(key);
-				const computed = [...layout.locations.get(key)!].sort();
-				const installed = [...layout.installedLocations.get(key) ?? []].sort();
-				if (JSON.stringify(computed) !== JSON.stringify(installed)) {
-					throw new Error(`pnpm installed ${key} at ${installed.map(f => path.relative(root, f)).join(', ') || 'no location'}, but the layout computed from ${path.relative(root, path.join(installRoot, 'pnpm-lock.yaml'))} has it at ${computed.map(f => path.relative(root, f)).join(', ')}. Update build/lib/pnpmHoist.ts to match pnpm's hoisting.`);
-				}
-			}
 			source = fs.existsSync(location) ? location : undefined;
 		} else {
 			source = getIsolatedSource(fromSource, name, fromProject);
@@ -218,29 +220,16 @@ export function getProductionDependencies(folderPath: string): IProductionDepend
 }
 
 /**
- * Returns the names of the commands of a package (`bin` in its `package.json`) with their files,
- * relative to the package.
- */
-function getPackageCommands(packageFolder: string): [string, string][] {
-	const packageJson = JSON.parse(fs.readFileSync(path.join(packageFolder, 'package.json'), 'utf8')) as { name?: string; bin?: string | Record<string, string> };
-	if (typeof packageJson.bin === 'string') {
-		return [[(packageJson.name ?? '').replace(/^@[^/]+\//, ''), packageJson.bin]];
-	}
-	return Object.entries(packageJson.bin ?? {});
-}
-
-/**
  * Returns a stream that moves the files of production dependencies, read from their `source`
  * folders, to their `folder` (see {@link getProductionDependencies}). Files outside of these
  * folders pass unchanged. With pnpm's hoisted linker the folders are the same, and the stream
  * changes nothing.
  *
  * With the isolated linker, it drops the commands that pnpm links for the dependencies of each
- * package in the store (`node_modules/.bin`). The hoisted linker links the commands of the packages
- * in a `node_modules` folder nested in a package into its `.bin` folder; with `commands`, the
- * stream adds these files too, for callers that package dot folders.
+ * package in the store (`node_modules/.bin`), which point into the store. The product doesn't ship
+ * the commands of nested packages with either linker: the packaging filters drop dot folders.
  */
-export function toPackagedLayout(dependencies: readonly IProductionDependency[], options: { readonly commands?: boolean } = {}): NodeJS.ReadWriteStream {
+export function toPackagedLayout(dependencies: readonly IProductionDependency[]): NodeJS.ReadWriteStream {
 	// The hoisted layout can have a package in several folders, which share its folder in the store.
 	const moved = new Map<string, IProductionDependency[]>();
 	for (const dependency of dependencies) {
@@ -251,43 +240,35 @@ export function toPackagedLayout(dependencies: readonly IProductionDependency[],
 	if (moved.size === 0) {
 		return es.through();
 	}
-	const folders = new Set(dependencies.map(dependency => dependency.folder));
-	let base: string | undefined;
 	return es.through(function (file: VinylFile) {
-		base ??= file.base;
 		for (let current = file.path; path.dirname(current) !== current; current = path.dirname(current)) {
 			const destinations = moved.get(current);
 			if (destinations) {
 				const relative = path.relative(current, file.path);
 				const [first, second] = relative.split(path.sep);
-				if (first !== 'node_modules' || second !== '.bin') {
-					for (const [index, dependency] of destinations.entries()) {
-						const copy = index === 0 ? file : new VinylFile({ cwd: file.cwd, base: file.base, path: file.path, stat: file.stat ?? undefined, contents: file.contents });
-						copy.path = path.join(dependency.folder, relative);
-						this.emit('data', copy);
-					}
+				if (first === 'node_modules' && second === '.bin') {
+					return;
+				}
+				// Create every copy before emitting any: the streams downstream can change a file
+				// synchronously when it is emitted (for example its source map URL).
+				const copies = destinations.map((dependency, index) => {
+					const copy = index === 0 ? file : new VinylFile({
+						cwd: file.cwd,
+						base: file.base,
+						path: file.path,
+						stat: file.stat ? Object.assign(Object.create(Object.getPrototypeOf(file.stat)), file.stat) : undefined,
+						contents: Buffer.isBuffer(file.contents) ? Buffer.from(file.contents) : file.contents,
+					});
+					copy.path = path.join(dependency.folder, relative);
+					return copy;
+				});
+				for (const copy of copies) {
+					this.emit('data', copy);
 				}
 				return;
 			}
 		}
 		this.emit('data', file);
-	}, function () {
-		if (options.commands && base !== undefined) {
-			for (const dependency of [...moved.values()].flat()) {
-				let nodeModules = path.dirname(dependency.folder);
-				if (path.basename(nodeModules).startsWith('@')) {
-					nodeModules = path.dirname(nodeModules);
-				}
-				if (!folders.has(path.dirname(nodeModules))) {
-					continue;
-				}
-				for (const [command, file] of getPackageCommands(dependency.source)) {
-					const target = path.join(dependency.source, file);
-					this.emit('data', new VinylFile({ base, path: path.join(nodeModules, '.bin', command), stat: fs.statSync(target), contents: fs.readFileSync(target) }));
-				}
-			}
-		}
-		this.emit('end');
 	});
 }
 

@@ -56,7 +56,7 @@ suite('dependencies', () => {
 		});
 	});
 
-	test('moves files from pnpm\'s virtual store to the hoisted layout, with the commands of nested packages', async t => {
+	test('moves files from pnpm\'s virtual store to the hoisted layout, as independent copies', async t => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-dependencies-'));
 		t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 		const store = path.join(root, 'node_modules', '.pnpm');
@@ -70,28 +70,28 @@ suite('dependencies', () => {
 		const uuid = { folder: path.join(root, 'node_modules', 'a', 'node_modules', 'uuid'), source: path.join(store, 'uuid@8.0.0', 'node_modules', 'uuid') };
 		const b = { folder: path.join(root, 'node_modules', 'b'), source: path.join(store, 'b@1.0.0', 'node_modules', 'b') };
 		const bUuid = { folder: path.join(root, 'node_modules', 'b', 'node_modules', 'uuid'), source: uuid.source };
-		const rootUuid = { folder: path.join(root, 'node_modules', 'uuid'), source: path.join(store, 'uuid@9.0.0', 'node_modules', 'uuid') };
 		const distro = { folder: path.join(root, 'node_modules', 'vsda'), source: path.join(root, 'node_modules', 'vsda') };
 		write(path.join(a.source, 'index.js'), 'a');
 		write(path.join(a.source, 'node_modules', '.bin', 'uuid'), 'pnpm command shim');
-		write(path.join(uuid.source, 'package.json'), JSON.stringify({ name: 'uuid', bin: { uuid: './bin/uuid' } }));
-		write(path.join(uuid.source, 'bin', 'uuid'), 'uuid 8');
-		write(path.join(rootUuid.source, 'package.json'), JSON.stringify({ name: 'uuid', bin: './bin/uuid' }));
+		write(path.join(uuid.source, 'index.js'), '//# sourceMappingURL=index.js.map');
 		write(path.join(distro.source, 'index.js'), 'vsda');
-		const files = [path.join(a.source, 'index.js'), path.join(a.source, 'node_modules', '.bin', 'uuid'), path.join(uuid.source, 'bin', 'uuid'), path.join(distro.source, 'index.js')]
+		const files = [path.join(a.source, 'index.js'), path.join(a.source, 'node_modules', '.bin', 'uuid'), path.join(uuid.source, 'index.js'), path.join(distro.source, 'index.js')]
 			.map(file => new VinylFile({ base: root, path: file, contents: fs.readFileSync(file) }));
 
+		// Like `rewriteSourceMappingURL`, change each file synchronously, from its packaged path.
 		const packaged = await new Promise<VinylFile[]>((resolve, reject) => es.readArray(files)
-			.pipe(toPackagedLayout([a, uuid, b, bUuid, rootUuid, distro], { commands: true }))
+			.pipe(toPackagedLayout([a, uuid, b, bUuid, distro]))
+			.pipe(es.mapSync((file: VinylFile) => {
+				file.contents = Buffer.from(file.contents!.toString().replace(/sourceMappingURL=(.*)$/, `sourceMappingURL=https://cdn/${path.dirname(file.relative).split(path.sep).join('/')}/$1`));
+				return file;
+			}))
 			.pipe(es.writeArray((err: Error | undefined, result: VinylFile[]) => err ? reject(err) : resolve(result))));
 
 		assert.deepStrictEqual(packaged.map(file => [file.relative.split(path.sep).join('/'), file.contents!.toString()]), [
 			['node_modules/a/index.js', 'a'],
-			['node_modules/a/node_modules/uuid/bin/uuid', 'uuid 8'],
-			['node_modules/b/node_modules/uuid/bin/uuid', 'uuid 8'],
+			['node_modules/a/node_modules/uuid/index.js', '//# sourceMappingURL=https://cdn/node_modules/a/node_modules/uuid/index.js.map'],
+			['node_modules/b/node_modules/uuid/index.js', '//# sourceMappingURL=https://cdn/node_modules/b/node_modules/uuid/index.js.map'],
 			['node_modules/vsda/index.js', 'vsda'],
-			['node_modules/a/node_modules/.bin/uuid', 'uuid 8'],
-			['node_modules/b/node_modules/.bin/uuid', 'uuid 8'],
 		]);
 	});
 });
