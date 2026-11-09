@@ -21,15 +21,26 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * The files that configure how the native modules build. A cached node_modules folder only works with the
- * configuration that built it.
+ * The files that configure how the native modules build, besides the `nativeBuild` field of the
+ * install roots' `package.json` (see {@link getNativeBuildTargets}). A cached node_modules folder
+ * only works with the configuration that built it.
  */
-const nativeBuildConfigFiles = ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'extensions/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
 
 /**
- * Computes the node_modules cache key from the native module build configuration (`.npmrc` and
- * pnpmfiles), the dependency sections of every `package.json`, the `pnpm-lock.yaml` and
- * `pnpm-workspace.yaml` of every install root, and the given arguments.
+ * Returns the `nativeBuild` field of the root and `remote` `package.json`: the runtime and version
+ * that their native modules are built for. `build` builds for the Node.js that runs the install,
+ * whose version is in `.nvmrc`.
+ */
+function getNativeBuildTargets(readFile: ReadRepositoryFile): string {
+	return JSON.stringify(['package.json', 'remote/package.json'].map(file => JSON.parse(readFile(file).toString()).nativeBuild ?? null));
+}
+
+/**
+ * Computes the node_modules cache key from the native module build configuration (the pnpmfiles
+ * and the `nativeBuild` field of the install roots' `package.json`), the dependency sections of
+ * every `package.json`, the `pnpm-lock.yaml` and `pnpm-workspace.yaml` of every install root, and
+ * the given arguments.
  */
 export function computeNodeModulesCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
 	const shasum = crypto.createHash('sha256');
@@ -48,7 +59,8 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 			optionalDependencies: packageJson.optionalDependencies,
 			resolutions: packageJson.resolutions,
 			distro: packageJson.distro,
-			packageManager: packageJson.packageManager
+			packageManager: packageJson.packageManager,
+			nativeBuild: packageJson.nativeBuild
 		};
 		shasum.update(JSON.stringify(relevantPackageJsonSections));
 	}
@@ -79,6 +91,7 @@ export function computeNodeModulesBaseCacheKey(args: readonly string[], readFile
 	for (const file of [...nativeBuildConfigFiles, '.nvmrc', 'extensions/copilot/.nvmrc']) {
 		shasum.update(readFile(file));
 	}
+	shasum.update(getNativeBuildTargets(readFile));
 	shasum.update(JSON.stringify(JSON.parse(readFile('package.json').toString()).packageManager));
 	for (const dir of ['', ...separateRoots, ...distroRoots]) {
 		shasum.update(readFile(path.posix.join(dir, 'pnpm-workspace.yaml')));
@@ -86,6 +99,39 @@ export function computeNodeModulesBaseCacheKey(args: readonly string[], readFile
 
 	for (const arg of args) {
 		shasum.update(arg);
+	}
+
+	return shasum.digest('hex');
+}
+
+/**
+ * Computes the key of the pnpm stores that a job can start from: the cache salt, the pnpm version,
+ * which decides the layout of the store, and the given arguments (the platform of the job). A store
+ * holds the files of every package that it ever installed, so a job can start from the store of
+ * other dependencies and download only the packages that it is missing.
+ */
+export function computePnpmStoreBaseCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
+	const shasum = crypto.createHash('sha256');
+
+	shasum.update(readFile('build/.cachesalt'));
+	shasum.update(JSON.stringify(JSON.parse(readFile('package.json').toString()).packageManager));
+
+	for (const arg of args) {
+		shasum.update(arg);
+	}
+
+	return shasum.digest('hex');
+}
+
+/**
+ * Computes the pnpm store cache key from the `pnpm-lock.yaml` of every install root: the packages
+ * that the store holds after installing them. Use it after {@link computePnpmStoreBaseCacheKey}.
+ */
+export function computePnpmStoreCacheKey(readFile: ReadRepositoryFile = readRepositoryFile): string {
+	const shasum = crypto.createHash('sha256');
+
+	for (const dir of ['', ...separateRoots, ...distroRoots]) {
+		shasum.update(readFile(path.posix.join(dir, 'pnpm-lock.yaml')));
 	}
 
 	return shasum.digest('hex');

@@ -15,7 +15,7 @@ import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from '../../../workbench/common/contextkeys.js';
 import { ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER } from '../../../workbench/common/theme.js';
-import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground, agentsBadgeBackground, agentsBadgeForeground } from '../../common/theme.js';
+import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground, agentsBadgeBackground, agentsBadgeForeground } from '../../../workbench/contrib/sessions/common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -29,7 +29,7 @@ import { ActionsOrientation, IActionViewItem } from '../../../base/browser/ui/ac
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -37,7 +37,7 @@ import { getFlatContextMenuActions } from '../../../platform/actions/browser/men
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
+import { getSidePaneBottomFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -128,7 +128,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			SIDE_BAR_TITLE_BORDER,
 			ViewContainerLocation.AuxiliaryBar,
 			Extensions.Auxiliary,
-			Menus.AuxiliaryBarTitle,
+			AgentsWindowMenus.AuxiliaryBarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,

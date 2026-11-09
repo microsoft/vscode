@@ -16,8 +16,8 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
-import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../../workbench/contrib/sessions/common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -26,16 +26,16 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../workbenc
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { getSessionsPartFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
 
 function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
@@ -119,7 +119,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			PANEL_TITLE_BORDER,
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
-			Menus.PanelTitle,
+			AgentsWindowMenus.PanelTitle,
 			notificationService,
 			storageService,
 			contextMenuService,

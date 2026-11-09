@@ -50,10 +50,11 @@ import { ICompletionsPromiseQueueService, PromiseQueue } from '../../extension/c
 import { ICompletionsRuntimeModeService, RuntimeMode } from '../../extension/completions-core/vscode-node/lib/src/util/runtimeMode';
 import { setExternalTokenizerProvider, TokenizerName, type ExternalTokenizerProvider, type Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
 import { DocumentContext, WorkspaceFolder } from '../../extension/completions-core/vscode-node/types/src';
+import { toInlineSuggestion } from '../../extension/inlineEdits/common/inlineSuggestionEdit';
 import { DebugRecorder } from '../../extension/inlineEdits/node/debugRecorder';
 import { INextEditProvider, NESInlineCompletionContext, NextEditProvider } from '../../extension/inlineEdits/node/nextEditProvider';
 import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../extension/inlineEdits/node/nextEditProviderTelemetry';
-import { INextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
+import { NextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
 import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
@@ -85,7 +86,7 @@ import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
-import { observeModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
+import { observeModelConfigValue, resolveModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
 import { ObservableGit } from '../../platform/inlineEdits/common/observableGit';
 import { IObservableDocument, ObservableWorkspace } from '../../platform/inlineEdits/common/observableWorkspace';
 import { NesHistoryContextProvider } from '../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
@@ -127,6 +128,8 @@ import { derivedOpts, IObservable } from '../../util/vs/base/common/observable';
 import { IObservableWithChange } from '../../util/vs/base/common/observableInternal';
 import { URI } from '../../util/vs/base/common/uri';
 import { generateUuid } from '../../util/vs/base/common/uuid';
+import { StringReplacement } from '../../util/vs/editor/common/core/edits/stringEdit';
+import { OffsetRange } from '../../util/vs/editor/common/core/ranges/offsetRange';
 import { SyncDescriptor } from '../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../util/vs/platform/instantiation/common/instantiation';
 export {
@@ -238,6 +241,14 @@ export interface INESResult {
 		 * {@link range} offsets are resolved against that target document.
 		 */
 		readonly targetDocumentUri?: string;
+		/**
+		 * Whether the edit can be shown as an inline completion (ghost text) at the
+		 * cursor of the document passed to {@link INESProvider.getNextEdit}. When
+		 * `true`, {@link range} and {@link newText} describe an equivalent edit on
+		 * the cursor's line, adjusted so that it can be rendered as ghost text.
+		 * When `false`, the edit should be shown as a next edit suggestion.
+		 */
+		readonly isInlineCompletion: boolean;
 	};
 }
 
@@ -281,12 +292,12 @@ export function createNESProvider(options: INESProviderOptions): INESProvider<IN
 interface NESResult extends INESResult {
 	docId: DocumentId;
 	requestUuid: string;
-	internalResult: INextEditResult;
+	internalResult: NextEditResult;
 	telemetryBuilder: NextEditProviderTelemetryBuilder;
 }
 
 class NESProvider extends Disposable implements INESProvider<NESResult> {
-	private readonly _nextEditProvider: INextEditProvider<INextEditResult, LlmNESTelemetryBuilder>;
+	private readonly _nextEditProvider: INextEditProvider<NextEditResult, LlmNESTelemetryBuilder>;
 	private readonly _telemetrySender: TelemetrySender;
 	private readonly _debugRecorder: DebugRecorder;
 	private readonly _disposeToken = cancelOnDispose(this._store);
@@ -334,6 +345,11 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 
 	handleShown(result: NESResult): void {
 		result.telemetryBuilder.setAsShown();
+		// Lets the "mimic ghost text behavior" gate keep this suggestion from resurfacing as an inline edit.
+		const cacheEntry = result.internalResult.result?.cacheEntry;
+		if (result.result?.isInlineCompletion && cacheEntry) {
+			cacheEntry.wasRenderedAsInlineSuggestion = true;
+		}
 		this._nextEditProvider.handleShown(result.internalResult);
 	}
 
@@ -399,13 +415,29 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		);
 		telemetryBuilder.setOpportunityId(context.requestUuid);
 
+		// Read synchronously before the request so the cursor matches the document snapshot the provider reads.
+		const cursor = document.selection.get().at(0);
+
 		try {
 			const internalResult = await this._nextEditProvider.getNextEdit(docId, context, logContext, cancellationToken, telemetryBuilder.nesBuilder);
+			const edit = internalResult.result?.edit;
+			const inlineCompletion = this._toInlineCompletion(docId, cursor, internalResult);
+			if (edit && !inlineCompletion && this._wasShownAsInlineCompletion(internalResult)) {
+				telemetryBuilder.setStatus('noEdit:suppressedNonInlineReshow');
+				return {
+					result: undefined,
+					docId,
+					requestUuid: context.requestUuid,
+					internalResult: new NextEditResult(internalResult.requestId, internalResult.source, undefined),
+					telemetryBuilder,
+				};
+			}
 			const result: NESResult = {
-				result: internalResult.result?.edit ? {
-					newText: internalResult.result.edit.newText,
-					range: internalResult.result.edit.replaceRange,
-					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
+				result: edit ? {
+					newText: inlineCompletion?.newText ?? edit.newText,
+					range: inlineCompletion?.replaceRange ?? edit.replaceRange,
+					...(internalResult.result?.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
+					isInlineCompletion: !!inlineCompletion,
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,
@@ -421,6 +453,31 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 			}
 			throw e;
 		}
+	}
+
+	/**
+	 * Returns the edit in the form it can be rendered as ghost text at the cursor, or `undefined`
+	 * when it must be shown as an inline edit. Mirrors the VS Code inline completion provider.
+	 */
+	private _toInlineCompletion(docId: DocumentId, cursor: OffsetRange | undefined, internalResult: NextEditResult): StringReplacement | undefined {
+		const result = internalResult.result;
+		if (
+			!result?.edit
+			|| !cursor?.isEmpty
+			|| (result.targetDocumentId !== undefined && result.targetDocumentId !== docId)
+			|| !this._configurationService.getConfig(ConfigKey.TeamInternal.InlineEditsInlineCompletionsEnabled)
+		) {
+			return undefined;
+		}
+		const advanced = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
+		const transformer = result.documentBeforeEdits.getTransformer();
+		const inlineSuggestion = toInlineSuggestion(transformer.getPosition(cursor.start), result.documentBeforeEdits, transformer.getRange(result.edit.replaceRange), result.edit.newText, advanced);
+		return inlineSuggestion && new StringReplacement(transformer.getOffsetRange(inlineSuggestion.range), inlineSuggestion.text);
+	}
+
+	private _wasShownAsInlineCompletion(internalResult: NextEditResult): boolean {
+		return !!internalResult.result?.cacheEntry?.wasRenderedAsInlineSuggestion
+			&& resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior);
 	}
 
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>) {

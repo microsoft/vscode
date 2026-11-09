@@ -358,6 +358,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Keep the notification visible after the response completes instead of folding it into the completed steps. */
+	alwaysVisible?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
 	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
@@ -660,11 +662,11 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
-	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	/** Marks provider-managed reasoning boundaries, including runs without recorded timing. */
 	reasoningTimingSource?: 'provider';
-	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
+	/** Provider-reported epoch milliseconds when reasoning started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
-	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	/** Provider-reported reasoning duration in milliseconds; never inferred from client observation or replay. */
 	reasoningDurationMs?: number;
 }
 
@@ -682,6 +684,18 @@ export interface IChatAutoModeResolutionPart {
 	 * of the pick; it already names the model.
 	 */
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
+	/** A router other than Auto, such as a host-side model router. */
+	router?: string;
+	/** The chosen route's `when`, when it decided the pick. */
+	preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	effort?: string;
+	/** Display name of the model the router moved off on this turn. */
+	switchedFrom?: string;
+	/** The router had no confident pick and used its first route. */
+	defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	kept?: boolean;
 }
 
 /**
@@ -1297,6 +1311,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */

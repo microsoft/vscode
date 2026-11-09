@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
-import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, ISettableObservable, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -32,13 +33,13 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../workbench/contrib/chat/common/chatUtilityModelService.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { getPullRequestKey } from '../../github/common/utils.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
@@ -59,21 +60,24 @@ import {
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	IInboxSessionRow,
+	IInboxSessionAttention,
 	InboxTab,
 	IInboxInteractionTelemetryContext,
 	InboxNotificationActionKind,
 	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
-} from '../common/inboxNotificationsService.js';
-import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { CHAT_INBOX_ENABLED_SETTING } from './inboxNotificationsConstants.js';
+} from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceCommand } from '../common/inboxEvidence.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 const MAX_DISMISSED_NOTIFICATION_IDS = 1000;
 const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
+const COMPLETION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.completionStartTime';
+const ATTENTION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.attentionStartTime';
 
 /** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
@@ -412,6 +416,12 @@ interface INeedsInputPartCandidate {
 	readonly part: IInboxNotificationNeedsInputPart;
 }
 
+interface IInboxWorkflowState {
+	readonly hold?: boolean;
+	readonly done?: string;
+	readonly resumedCompletion?: number;
+}
+
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -467,11 +477,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly sessionAttention: IObservable<ReadonlyMap<string, IInboxSessionAttention>>;
+	private readonly _attentionConsumers = observableValue(this, 0);
 	readonly attentionCount: IObservable<number>;
-	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
+	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
+	private readonly _completionStartTime: IObservable<number>;
+	private readonly _attentionStartTime: IObservable<number>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
+	private readonly _trackingEnabled: IObservable<boolean>;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -497,6 +512,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const inboxEnabled = observableConfigValue(CHAT_INBOX_ENABLED_SETTING, false, configurationService);
 		this._enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this._trackingEnabled = derived(this, reader => (inboxEnabled.read(reader) || this._attentionConsumers.read(reader) > 0) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this._completionStartTime = this.trackCompletionStartTime(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, this._enabled);
+		this._attentionStartTime = this.trackCompletionStartTime(ATTENTION_START_TIME_STORAGE_KEY, StorageScope.PROFILE,
+			derived(this, reader => this._attentionConsumers.read(reader) > 0 && this._trackingEnabled.read(reader)));
 
 		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
 		this.previews = this._previews;
@@ -543,7 +562,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}));
 
 		this._register(autorun(reader => {
-			if (!this._enabled.read(reader)) {
+			if (!this._trackingEnabled.read(reader)) {
 				return;
 			}
 			sessionsChanged.read(reader);
@@ -571,7 +590,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}));
 		this._register(autorun(reader => {
 			this._activeNeedsInputChatResources.clear();
-			if (this._enabled.read(reader)) {
+			if (this._trackingEnabled.read(reader)) {
 				sessionsChanged.read(reader);
 				this._chatProvidersChanged.read(reader);
 				this.chatService.chatModels.read(reader);
@@ -591,38 +610,78 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				for (const cts of this._loadingNeedsInputChatModels.values()) {
 					cts.cancel();
 				}
+			}
+			this.disposeInactiveChatModels(this._activeNeedsInputChatResources, this._needsInputChatModelRefs);
+		}));
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
 				for (const cts of this._previewCancellationSources) {
 					cts.cancel();
 				}
 			}
-
-			this.disposeInactiveChatModels(this._activeNeedsInputChatResources, this._needsInputChatModelRefs);
 		}));
 
-		this._allItems = derived(this, reader => {
-			if (!this._enabled.read(reader)) {
+		const sessions = derived(this, reader => {
+			if (!this._trackingEnabled.read(reader)) {
 				return [];
 			}
 			sessionsChanged.read(reader);
-			providersChanged.read(reader);
-			this.chatService.chatModels.read(reader);
-
-			const itemsById = new Map<string, IInboxNotificationItem>();
-
-			const sessions = this.sessionsManagementService.getSessions();
-			const pullRequestSessions = this.getPullRequestNotificationSessions(sessions, reader);
-			for (const session of sessions) {
-				this.collectSessionNotifications(itemsById, session, pullRequestSessions, reader);
+			return this.sessionsManagementService.getSessions();
+		});
+		const pullRequestsBySession = derived(this, reader => {
+			const assignments = new ResourceMap<string[]>(getComparisonKey);
+			for (const [key, session] of this.getPullRequestNotificationSessions(sessions.read(reader), reader)) {
+				const keys = assignments.get(session.resource);
+				if (keys) {
+					keys.push(key);
+				} else {
+					assignments.set(session.resource, [key]);
+				}
 			}
+			return assignments;
+		});
+		const sessionNotifications = mapObservableArrayCached(this, sessions, session => {
+			const id = `session:${session.sessionId}`;
+			const workflow = derived(this, reader => this._workflow.read(reader).get(id));
+			const pendingCompletion = derived(this, reader => {
+				const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+				const saved = workflow.read(reader);
+				return turnEnd >= this._completionStartTime.read(reader) || !!saved?.hold || saved?.resumedCompletion === turnEnd;
+			});
+			const assignedPullRequests = derivedOpts<readonly string[]>({ owner: this, equalsFn: arrayEquals }, reader =>
+				pullRequestsBySession.read(reader).get(session.resource) ?? []);
+			const notifications = derived(this, reader => {
+				providersChanged.read(reader);
+				this.chatService.chatModels.read(reader);
+				const items = new Map<string, IInboxNotificationItem>();
+				const owners = new Map(assignedPullRequests.read(reader).map(key => [key, session]));
+				this.collectSessionNotifications(items, session, owners, pendingCompletion, reader);
+				return [...items.values()].map(item => this.attachPreviewInput(item));
+			});
+			return { session, id, workflow, pendingCompletion, notifications };
+		});
+		const externalItems = mapObservableArrayCached(this, this._externalItems, item => this.attachPreviewInput(item));
 
-			for (const item of this._externalItems.read(reader)) {
+		this._allItems = derived(this, reader => {
+			if (!this._trackingEnabled.read(reader)) {
+				return [];
+			}
+			const itemsById = new Map<string, IInboxNotificationItem>();
+			for (const entry of sessionNotifications.read(reader)) {
+				for (const item of entry.notifications.read(reader)) {
+					itemsById.set(item.id, item);
+				}
+			}
+			for (const item of externalItems.read(reader)) {
 				itemsById.set(item.id, item);
 			}
-
-			return [...itemsById.values()].map(item => this.attachPreviewInput(item));
+			return [...itemsById.values()];
 		});
 
 		this.notifications = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return [];
+			}
 			const dismissed = this._dismissedIds.read(reader);
 			const sortMode = this.sortMode.read(reader);
 			return this._allItems.read(reader)
@@ -630,16 +689,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
 
-		this.sessionRows = derived(this, reader => {
-			if (!this._enabled.read(reader)) {
-				return [];
-			}
-			sessionsChanged.read(reader);
-			const allItems = this._allItems.read(reader);
-			const dismissed = this._dismissedIds.read(reader);
-			const workflow = this._workflow.read(reader);
+		const itemsBySession = derived(this, reader => {
 			const itemsBySession = new ResourceMap<IInboxNotificationItem[]>(getComparisonKey);
-			for (const item of allItems) {
+			for (const item of this._allItems.read(reader)) {
 				if (item.sessionResource) {
 					const items = itemsBySession.get(item.sessionResource);
 					if (items) {
@@ -649,34 +701,60 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					}
 				}
 			}
-			const rows: IInboxSessionRow[] = [];
-			for (const session of this.sessionsManagementService.getSessions()) {
+			return itemsBySession;
+		});
+		const sessionEntries = mapObservableArrayCached(this, sessionNotifications, entry => {
+			const { session, id, workflow, pendingCompletion } = entry;
+			const sourceItems = derivedOpts<readonly IInboxNotificationItem[]>({ owner: this, equalsFn: arrayEquals }, reader => itemsBySession.read(reader).get(session.resource) ?? []);
+			const visibleItems = derivedOpts<readonly IInboxNotificationItem[]>({ owner: this, equalsFn: arrayEquals }, reader => {
+				const dismissed = this._dismissedIds.read(reader);
+				return sourceItems.read(reader).filter(item => !dismissed.has(item.id)).sort(compareInboxNotifications);
+			});
+			const state = derived(this, reader => {
 				const status = session.status.read(reader);
 				if (status === SessionStatus.Untitled) {
-					continue;
+					return undefined;
 				}
-				const source = itemsBySession.get(session.resource) ?? [];
-				const notifications = source.filter(item => !dismissed.has(item.id)).sort(compareInboxNotifications);
-				const sessionTitle = session.title.read(reader);
-				const references = getSessionGitHubReferences(session, reader);
-				const goals = [...references.pullRequests, ...references.issues].flatMap(ref => ref.title ? [ref.title] : []);
-				const workTitle = goals.length === 1 ? goals[0] : sessionTitle;
+				const source = sourceItems.read(reader);
+				const notifications = visibleItems.read(reader);
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
-				const occurrence = `${status}:${session.lastTurnEnd.read(reader)?.getTime() ?? 0}:${source.map(item => item.id).sort().join('|')}`;
-				const id = `session:${session.sessionId}`;
-				const saved = workflow.get(id);
+				const notificationIds = source.map(item => item.id).sort();
+				const occurrence = `${status}:${session.lastTurnEnd.read(reader)?.getTime() ?? 0}:${notificationIds.join('|')}`;
+				const saved = workflow.read(reader);
 				const ownedPullRequests = getInboxPullRequestRefs(session, reader);
 				const merged = source.some(item => item.kind === InboxNotificationKind.PullRequestMerged
 					&& item.pullRequestStates?.length === ownedPullRequests.length);
 				const terminal = session.isArchived.read(reader) || (merged && status !== SessionStatus.NeedsInput);
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
+				const attentionStartTime = this._attentionStartTime.read(reader);
+				const attention: IInboxSessionAttention = {
+					tab: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou,
+					priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
+					notificationIds,
+					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
+						&& !notifications.some(item => item.kind !== InboxNotificationKind.Completed && item.kind !== InboxNotificationKind.PullRequestMerged),
+				};
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
-					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou;
+					: attention.tab === InboxTab.ReadyForYou && !needsAttention && status === SessionStatus.Completed && !pendingCompletion.read(reader)
+						? InboxTab.Done : attention.tab;
+				return { status, notifications, timestamp, occurrence, tab, attention };
+			});
+			const row = derived(this, reader => {
+				const current = state.read(reader);
+				if (!current) {
+					return undefined;
+				}
+				const { status, notifications, timestamp, occurrence, tab } = current;
+				const sessionTitle = session.title.read(reader);
+				const references = getSessionGitHubReferences(session, reader);
+				const goals = [...references.pullRequests, ...references.issues].flatMap(ref => ref.title ? [ref.title] : []);
+				const workTitle = goals.length === 1 ? goals[0] : sessionTitle;
 				const lead = notifications[0];
 				const title = this.getRowActionTitle(tab, lead, sessionTitle);
 				const chatResource = lead?.chatResource ?? lead?.needsInputPart?.chatResource;
 				const chat = chatResource ? session.chats.read(reader).find(chat => isEqual(chat.resource, chatResource)) : session.mainChat.read(reader);
+				this.chatService.chatModels.read(reader);
 				const model = chat && this.chatService.getSession(chat.resource);
 				if (model) {
 					this.chatModelChangeSignal(model).read(reader);
@@ -702,10 +780,36 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					...notifications.map(item => { const detail = this.describeItemForPreview(item); return `${detail.contextLabel}: ${detail.detailText}`; }),
 					`Fallback action: ${title}`,
 				].join('\n').slice(0, PREVIEW_MAX_INPUT_CHARS);
-				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash([inputText, notifications.map(item => item.previewSignature)])}` });
+				const previewKey = status === SessionStatus.Completed && row.kind === InboxNotificationKind.Completed
+					? [id, occurrence, timestamp, tab, sessionTitle, workTitle] : [inputText, notifications.map(item => item.previewSignature)];
+				return { ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash(previewKey)}` };
+			});
+			return { session, state, row };
+		});
+		const standaloneItems = derived(this, reader => {
+			const represented = new ResourceMap<boolean>(getComparisonKey);
+			for (const entry of sessionEntries.read(reader)) {
+				if (entry.state.read(reader)) {
+					represented.set(entry.session.resource, true);
+				}
 			}
-			const represented = new Set(rows.flatMap(row => row.notifications.map(item => item.id)));
-			for (const item of allItems.filter(item => !represented.has(item.id) && !dismissed.has(item.id))) {
+			const dismissed = this._dismissedIds.read(reader);
+			return this._allItems.read(reader).filter(item => !dismissed.has(item.id) && (!item.sessionResource || !represented.has(item.sessionResource)));
+		});
+
+		this.sessionRows = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return [];
+			}
+			const rows: IInboxSessionRow[] = [];
+			for (const entry of sessionEntries.read(reader)) {
+				const row = entry.row.read(reader);
+				if (row) {
+					rows.push(row);
+				}
+			}
+			const workflow = this._workflow.read(reader);
+			for (const item of standaloneItems.read(reader)) {
 				const saved = workflow.get(item.id);
 				rows.push({
 					...item, tab: saved?.hold ? InboxTab.OnHold : saved?.done === item.id ? InboxTab.Done : InboxTab.ReadyForYou,
@@ -715,14 +819,40 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return rows.sort(this.sortMode.read(reader) === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
 
-		this.attentionCount = derived(this, reader => this.sessionRows.read(reader).filter(row => row.tab === InboxTab.ReadyForYou).length);
+		this.attentionCount = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return 0;
+			}
+			let count = 0;
+			for (const entry of sessionEntries.read(reader)) {
+				if (entry.state.read(reader)?.tab === InboxTab.ReadyForYou) {
+					count++;
+				}
+			}
+			const workflow = this._workflow.read(reader);
+			return count + standaloneItems.read(reader).filter(item => {
+				const saved = workflow.get(item.id);
+				return !saved?.hold && saved?.done !== item.id;
+			}).length;
+		});
+
+		this.sessionAttention = derived(this, reader => {
+			const attention = new Map<string, IInboxSessionAttention>();
+			for (const entry of sessionEntries.read(reader)) {
+				const state = entry.state.read(reader);
+				if (state) {
+					attention.set(entry.session.sessionId, state.attention);
+				}
+			}
+			return attention;
+		});
 
 		this.dismissedNotifications = derived(this, reader => {
 			const dismissed = this._dismissedIds.read(reader);
 			const snapshots = this._dismissedSnapshots.read(reader);
 			const sortMode = this.sortMode.read(reader);
-			const liveDismissedItems = this._allItems.read(reader)
-				.filter(item => dismissed.has(item.id));
+			const liveDismissedItems = this._enabled.read(reader)
+				? this._allItems.read(reader).filter(item => dismissed.has(item.id)) : [];
 			const liveDismissedIds = new Set(liveDismissedItems.map(item => item.id));
 			for (const [id, snapshot] of snapshots) {
 				if (dismissed.has(id) && !liveDismissedIds.has(id)) {
@@ -757,6 +887,29 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			this.reconcileItemLifecycle(this.notifications.read(reader));
 		}));
+	}
+
+	private trackCompletionStartTime(key: string, scope: StorageScope, enabled: IObservable<boolean>): IObservable<number> {
+		const startTime = observableValue(this, Number.POSITIVE_INFINITY);
+		this._register(this.storageService.onDidChangeValue(scope, key, this._store)(event => {
+			if (event.external) {
+				startTime.set(this.storageService.getNumber(key, scope, Number.POSITIVE_INFINITY), undefined);
+			}
+		}));
+		this._register(autorun(reader => {
+			if (enabled.read(reader)) {
+				// Persist the first activation so late-arriving history cannot backfill the inbox after reload.
+				const value = this.storageService.getNumber(key, scope) ?? Date.now();
+				this.storageService.store(key, value, scope, StorageTarget.MACHINE);
+				startTime.set(value, undefined);
+			}
+		}));
+		return startTime;
+	}
+
+	acquireSessionAttention(): IDisposable {
+		this._attentionConsumers.set(this._attentionConsumers.get() + 1, undefined);
+		return toDisposable(() => this._attentionConsumers.set(this._attentionConsumers.get() - 1, undefined));
 	}
 
 	private invalidatePreviewFallbacks(): void {
@@ -1110,6 +1263,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						contextLabel: 'tool run waiting for the user to approve',
 						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
 					};
+				case 'planReview':
+					return {
+						contextLabel: 'plan waiting for the user to review',
+						detailText: [part.title, toPreviewPlainText(part.content), part.actions.map(action => action.label).join(', ')].join(' — '),
+					};
 				case 'confirmation':
 					return {
 						contextLabel: 'action waiting for the user to confirm',
@@ -1147,16 +1305,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
-	requestDetailSummary(item: IInboxNotificationItem): void {
+	requestDetailSummary(item: IInboxNotificationItem, source: 'visibility' | 'interaction' = 'interaction'): void {
 		if (!this._enabled.get() || this._store.isDisposed || this._dismissedIds.get().has(item.id) || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart && !item.pullRequestStates?.length)) {
 			return;
 		}
 		const key = item.id;
 		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
 		const request = chatResource && this.chatService.getSession(chatResource)?.getRequests().at(-1);
+		const completed = this.sessionsManagementService.getSession(item.sessionResource)?.status.get() === SessionStatus.Completed;
 		const signature = JSON.stringify([
 			item.previewSignature, item.timestamp, chatResource?.toString(),
-			request?.id, request?.response?.isComplete, request?.response?.isCanceled,
+			completed ? undefined : [request?.id, request?.response?.isComplete, request?.response?.isCanceled],
 		]);
 		if (this._detailSummarySignatures.get(key) !== signature) {
 			this._detailSummarySignatures.set(key, signature);
@@ -1167,9 +1326,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 		const existing = this._detailSummaryCache.get(key);
-		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
-		// only a real summary or an in-flight request should block regeneration.
-		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
+		// Re-observing a card must not retry an empty result from loading and releasing its history.
+		if ((existing && (source === 'visibility' || existing !== EMPTY_DETAIL_SUMMARY)) || this._detailSummaryInFlight.has(key)) {
 			return;
 		}
 		void this.generateDetailSummary(key, item);
@@ -1226,7 +1384,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				if (summary) {
 					this.publishDetailSummary(key, summary);
 				} else {
-					// Empty summaries settle loading but remain retryable.
+					// Interactions or invalidated inputs can retry an empty summary.
 					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
 				}
 			}
@@ -1497,16 +1655,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			if (!Array.isArray(entries)) {
 				throw new Error('Invalid Inbox workflow state');
 			}
-			const state = new Map<string, { hold?: boolean; done?: string }>();
+			const state = new Map<string, IInboxWorkflowState>();
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'object' || !entry[1]) {
 					throw new Error('Invalid Inbox workflow entry');
 				}
 				const value = entry[1];
-				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')) {
+				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')
+					|| (value.resumedCompletion !== undefined && (typeof value.resumedCompletion !== 'number' || !Number.isFinite(value.resumedCompletion)))) {
 					throw new Error('Invalid Inbox workflow value');
 				}
-				state.set(entry[0], { hold: value.hold, done: value.done });
+				state.set(entry[0], { hold: value.hold, done: value.done, resumedCompletion: value.resumedCompletion });
 			}
 			this._workflow.set(state, undefined);
 		} catch (error) {
@@ -1514,10 +1673,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private saveWorkflow(id: string, value: { hold?: boolean; done?: string }): void {
+	private saveWorkflow(id: string, value: IInboxWorkflowState): void {
 		const state = new Map(this._workflow.get());
 		state.delete(id);
-		if (value.hold || value.done) {
+		if (value.hold || value.done || value.resumedCompletion !== undefined) {
 			state.set(id, value);
 		}
 		while (state.size > MAX_DISMISSED_NOTIFICATION_IDS) {
@@ -1528,7 +1687,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void {
-		this.saveWorkflow(row.id, { hold: onHold });
+		const session = row.sessionResource && this.sessionsManagementService.getSession(row.sessionResource);
+		const resumedCompletion = !onHold && session?.status.get() === SessionStatus.Completed
+			? session.lastTurnEnd.get()?.getTime() ?? session.updatedAt.get().getTime() : undefined;
+		this.saveWorkflow(row.id, { hold: onHold, resumedCompletion });
 	}
 
 	markSessionDone(row: IInboxSessionRow): void {
@@ -1629,7 +1791,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return new Map([...candidates].map(([key, candidate]) => [key, candidate.session]));
 	}
 
-	private collectSessionNotifications(itemsById: Map<string, IInboxNotificationItem>, session: ISession, pullRequestSessions: ReadonlyMap<string, ISession>, reader: IReaderWithStore): void {
+	private collectSessionNotifications(itemsById: Map<string, IInboxNotificationItem>, session: ISession, pullRequestSessions: ReadonlyMap<string, ISession>, pendingCompletion: IObservable<boolean>, reader: IReaderWithStore): void {
 		if (session.isArchived.read(reader)) {
 			return;
 		}
@@ -1669,7 +1831,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		// Use provider state rather than a resident chat model, so loading/unloading history
 		// does not change the id or resurrect a dismissed notification.
-		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+		if (status === SessionStatus.Completed && pendingCompletion.read(reader) && itemsById.size === sizeBeforePullRequests) {
 			const turnId = session.lastTurnEnd.read(reader)?.getTime() ?? updatedAt;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
@@ -2134,6 +2296,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			case 'toolConfirmation':
 				return `tc:${part.requestId}:${part.toolCallId}:${part.confirmationKind}`;
+			case 'planReview':
+				return `pr:${part.requestId}:${part.resolveId ?? part.reviewIndex}`;
 			case 'confirmation':
 				return `cf:${part.requestId}:${hash(toPreviewPlainText(part.title))}`;
 		}
@@ -2155,7 +2319,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 
-		for (const part of response.response.value) {
+		for (const [reviewIndex, part] of response.response.value.entries()) {
 			if (part.kind === 'questionCarousel' && !part.isUsed) {
 				if (!part.questions.length) {
 					continue;
@@ -2170,6 +2334,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					questions: part.questions,
 				};
 				return questionPart;
+			}
+
+			if (part.kind === 'planReview' && !part.isUsed && !response.isComplete) {
+				return {
+					kind: 'planReview',
+					chatResource,
+					requestId: response.requestId,
+					reviewIndex,
+					resolveId: part.resolveId,
+					title: part.title,
+					content: part.content,
+					actions: part.actions,
+					planUri: part.planUri,
+				};
 			}
 
 			if (part.kind !== 'toolInvocation') {
@@ -2235,6 +2413,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	private getNeedsInputPartDescription(part: IInboxNotificationNeedsInputPart): string {
+		if (part.kind === 'planReview') {
+			return localize('inboxNotifications.needsInput.description.planReview', "Review the plan below.");
+		}
 		if (part.kind === 'questionCarousel') {
 			return localize('inboxNotifications.needsInput.description.questionCarousel', "Answer the pending questions below.");
 		}

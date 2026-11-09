@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.74.0",
+  "version": "0.75.0",
   "packageManager": "pnpm@12.16.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.146.0",
+    "vscode": "^1.147.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -6680,15 +6680,13 @@
       {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {
         "path": "./assets/prompts/skills/agent-customization/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {
@@ -6819,12 +6817,13 @@
     "@fluentui/react-icons": "^2.0.305",
     "@hediet/node-reload": "^0.8.0",
     "@octokit/types": "^14.1.0",
+    "@parcel/watcher": "^2.5.6",
     "@types/eslint": "^9.0.0",
     "@types/express": "^5.0.6",
     "@types/markdown-it": "^14.0.0",
     "@types/minimist": "^1.2.5",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^22.16.3",
+    "@types/node": "24.x",
     "@types/picomatch": "^4.0.0",
     "@types/react": "17.0.44",
     "@types/react-dom": "^18.2.17",
@@ -6834,8 +6833,9 @@
     "@types/ws": "^8.5.3",
     "@types/yargs": "^17.0.24",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261105.1",
     "@vitest/snapshot": "^1.5.0",
+    "@vscode/l10n-dev": "0.0.35",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.81",

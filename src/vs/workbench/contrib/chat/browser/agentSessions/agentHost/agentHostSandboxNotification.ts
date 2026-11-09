@@ -30,6 +30,7 @@ import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostCha
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -93,6 +94,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 		this._id = `agentHost.sandboxUnsupported.${_sessionResource.toString()}`;
@@ -276,8 +278,8 @@ export class AgentHostSandboxNotification extends Disposable {
 						: isRemote
 							? localize({
 								key: 'agentHost.sandboxCertificateMissingRemoteDetail',
-								comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
-							}, "Install the sandbox certificate authority (CA) on remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value)
+								comment: ['{0} and {1} are CLI commands. {2} is a Markdown link labeled "Learn more".'],
+							}, "Install the sandbox certificate authority (CA) on the remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. On the host, run `{0}`, then `{1}`. {2}.", `${this._productService.applicationName} agent sandbox ca create`, `${this._productService.applicationName} agent sandbox ca trust`, learnMore.value)
 							: localize({
 								key: 'agentHost.sandboxCertificateMissingDetail',
 								comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],

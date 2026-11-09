@@ -145,7 +145,7 @@ suite('AgentSessionsDataSource', () => {
 				['unread', { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') }],
 				['archived', { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
 				['in-progress', { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') }],
-				['needs-input', { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') }],
+				['needs-input', { ...Codicon.reportQuestion, color: themeColorFromId('agentSessionNeedsInput.foreground') }],
 				['failed', { ...Codicon.error, color: themeColorFromId('errorForeground') }],
 			]);
 		});
@@ -1482,7 +1482,6 @@ suite('AgentSessionsPicker', () => {
 		exclude: () => false,
 		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
 		isDefault: () => true,
-		limitResults: () => undefined,
 		notifyResults: () => { },
 		reset: () => { },
 		sortResults: () => undefined,

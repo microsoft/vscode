@@ -419,8 +419,13 @@ export interface IBrowserViewWorkbenchService {
 	 * redirected to the main editor area so the browser docks instead of opening
 	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
 	 * specific group) are left untouched.
+	 *
+	 * @param sourceWindowId The window the open was requested from, such as a link
+	 * in a page of that window: without an explicit or configured placement, the
+	 * browser opens in that window's active group rather than in the one of the
+	 * window that appears to have focus.
 	 */
-	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a

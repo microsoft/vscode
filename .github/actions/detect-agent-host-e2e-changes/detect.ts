@@ -38,7 +38,6 @@ interface ICore {
 
 const exactPaths = new Set([
 	'.nvmrc',
-	'.npmrc',
 	'.pnpmfile.mjs',
 	'package.json',
 	'pnpm-lock.yaml',

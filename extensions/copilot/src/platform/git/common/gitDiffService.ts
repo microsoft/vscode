@@ -5,6 +5,7 @@
 
 import type { CancellationToken, Uri } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change, Repository } from '../vscode/git';
 
 export const IGitDiffService = createServiceIdentifier<IGitDiffService>('IGitDiffService');

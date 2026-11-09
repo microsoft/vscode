@@ -10,6 +10,7 @@
 .monaco-workbench.agent-sessions-workbench {
 	background-color: var(--vscode-agents-background);
 	--agents-floating-panel-gap: var(--vscode-agents-layout-floatingPanelGap);
+	--part-grid-gap: var(--agents-floating-panel-gap);
 	--agents-part-corner-radius: var(--vscode-cornerRadius-large);
 	--agents-session-frame-inset: 0px;
 	--agents-side-pane-frame-inset: 0px;
@@ -159,14 +160,19 @@
 	margin-left: var(--agents-floating-panel-gap);
 }
 
-/* Floating content card. Shared by every full-surface content part (the
-	sessions grid and the custom view grid) so they are visually identical. */
-.agent-sessions-workbench .agents-part-card {
-	margin: 0 var(--agents-floating-panel-gap) 0 0;
+/* Floating content card surface: its background, frame and corners. Shared by every
+	full-surface content part (the sessions grid and the custom view grid) and by any other
+	card that must look the same, so they are visually identical. */
+.agent-sessions-workbench .agents-card-surface {
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
+}
+
+/* Where a content part's card sits in the main window's layout. */
+.agent-sessions-workbench .agents-part-card {
+	margin: 0 var(--agents-floating-panel-gap) 0 0;
 }
 
 .agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
@@ -225,13 +231,13 @@
 }
 
 /* Compact surfaces share a single separator without reserving space for card frames. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-card-surface,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar),
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border-width: 0;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-card-surface::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar)::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
 	content: '';
@@ -253,7 +259,7 @@
 	border-top-width: 0;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
+.monaco-workbench.vs.agent-sessions-workbench .agents-card-surface {
 	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
 }
 
@@ -297,8 +303,8 @@
  * Match the standard workbench's three-dot sash gripper. The center
  * dot is the pseudo-element and box shadows draw the outer dots; hide all three
  * while the full hover/drag highlight communicates the active resize target.
+ * The gap sashes of grids draw theirs from the part grid's CSS.
  */
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	content: '';
@@ -315,27 +321,19 @@
 	transform: translate(-50%, -50%);
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.disabled::after {
-	content: none;
-}
-
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.vertical::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after {
 	box-shadow: 0 calc(-1 * var(--agents-floating-panel-gap)) currentColor, 0 var(--agents-floating-panel-gap) currentColor;
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.horizontal::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	box-shadow: calc(-1 * var(--agents-floating-panel-gap)) 0 currentColor, var(--agents-floating-panel-gap) 0 currentColor;
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash:is(.hover, .active)::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:is(.hover, .active)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:is(.hover, .active)::after {
 	opacity: 0;
 }
 
-:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench) .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
 :is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 :is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
@@ -343,7 +341,6 @@
 
 @media (forced-colors: active) {
 
-	.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
 	.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 	.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 		background: CanvasText;
@@ -384,30 +381,37 @@
 		border-bottom-left-radius: var(--agents-window-corner-radius);
 	}
 
-	&.nopanel.noeditorpane .agents-part-card,
-	&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part),
-	&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part),
-	&.nopanel:not(.dock-detail-panel) .part.auxiliarybar,
-	&:not(.nopanel):not(.panel-alignment-center) .part.panel,
-	&:not(.nopanel).panel-alignment-center.noeditorpane .part.panel,
-	&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) {
-		border-bottom-right-radius: var(--agents-window-corner-radius);
-	}
-
 	&.modern-ui-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left {
 		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
-	}
-
-	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
-		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
 	}
 
 	&.modern-ui-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-left > .chat-group-view-surface {
 		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
 	}
 
-	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-right > .chat-group-view-surface {
-		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	/* While the Session Activity Bar column shows, it is the card in the bottom-right corner, beside the panel too. */
+	&:not(.session-activity-bar-column-visible) {
+		&.nopanel.noeditorpane .agents-part-card,
+		&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part),
+		&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part),
+		&.nopanel:not(.dock-detail-panel) .part.auxiliarybar,
+		&:not(.nopanel):not(.panel-alignment-center) .part.panel,
+		&:not(.nopanel).panel-alignment-center.noeditorpane .part.panel,
+		&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) {
+			border-bottom-right-radius: var(--agents-window-corner-radius);
+		}
+
+		&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
+			border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+		}
+
+		&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-right > .chat-group-view-surface {
+			border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+		}
+	}
+
+	&.session-activity-bar-column-visible .session-activity-bar-column .session-activity-bar.docked {
+		border-bottom-right-radius: var(--agents-window-corner-radius);
 	}
 }
 

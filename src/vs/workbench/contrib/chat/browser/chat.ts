@@ -37,50 +37,10 @@ import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit, ICha
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
-import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
+import type { IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
 
 export { ChatOutline } from './chatOutline.js';
-
-/**
- * A workspace item that can be selected in the workspace picker.
- */
-export interface IWorkspacePickerItem {
-	readonly uri: URI;
-	readonly label: string;
-	readonly isFolder: boolean;
-}
-
-/**
- * Delegate interface for the workspace picker.
- * Allows consumers to get and set the target workspace for chat submissions in empty window contexts.
- */
-export interface IWorkspacePickerDelegate {
-	/**
-	 * Returns the list of available workspaces to select from.
-	 */
-	getWorkspaces(): IWorkspacePickerItem[];
-	/**
-	 * Returns the currently selected workspace, if any.
-	 */
-	getSelectedWorkspace(): IWorkspacePickerItem | undefined;
-	/**
-	 * Sets the currently selected workspace.
-	 */
-	setSelectedWorkspace(workspace: IWorkspacePickerItem | undefined): void;
-	/**
-	 * Event that fires when the selected workspace changes.
-	 */
-	onDidChangeSelectedWorkspace: Event<IWorkspacePickerItem | undefined>;
-	/**
-	 * Event that fires when the available workspaces change.
-	 */
-	onDidChangeWorkspaces: Event<void>;
-	/**
-	 * Command ID to execute when user wants to open a new folder.
-	 */
-	openFolderCommand: string;
-}
 
 /**
  * Delegate interface for the session target picker.
@@ -384,14 +344,6 @@ export interface IChatWidgetViewOptions {
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
 
 	/**
-	 * Optional delegate for the workspace picker.
-	 * When provided, shows a workspace picker in the chat input allowing users to select
-	 * a target workspace for their request. This is useful for empty window contexts where
-	 * the user wants to send a request to a specific workspace.
-	 */
-	workspacePickerDelegate?: IWorkspacePickerDelegate;
-
-	/**
 	 * Optional handler for chat submission.
 	 * When provided, this handler is called before the normal input acceptance flow.
 	 * If it returns true (handled), the normal submission is skipped.
@@ -429,6 +381,9 @@ export interface IChatWidgetViewOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Checked state of a permissions picker hosted outside the chat input. */
+	readonly sandboxToggleChecked?: IObservable<boolean>;
 
 	/** Tab index for the transcript tree root. Use `-1` to exclude it from sequential keyboard navigation while preserving programmatic focus. */
 	transcriptTabIndex?: 0 | -1;

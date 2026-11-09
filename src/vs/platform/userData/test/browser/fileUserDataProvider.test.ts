@@ -70,6 +70,44 @@ suite('FileUserDataProvider', () => {
 		assert.strictEqual(exists, false);
 	});
 
+	test('does not advertise or emulate atomic rename for unsupported backing providers', async () => {
+		assert.strictEqual(fileUserDataProvider.capabilities & FileSystemProviderCapabilities.FileAtomicRename, 0);
+		await assert.rejects(async () => fileUserDataProvider.renameFileAtomic(
+			joinPath(environmentService.userRoamingDataHome, 'source'),
+			joinPath(environmentService.userRoamingDataHome, 'target'),
+			{ overwrite: true }
+		), /Atomic rename not supported/);
+	});
+
+	test('forwards atomic rename with translated user-data URIs', async () => {
+		const nativeScheme = 'atomic-native-test';
+		const userScheme = 'atomic-user-data-test';
+		const nativeProvider = disposables.add(new class extends InMemoryFileSystemProvider {
+			renamed: string[] = [];
+			override get capabilities(): FileSystemProviderCapabilities {
+				return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
+			}
+			async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+				this.renamed = [from.scheme, to.scheme];
+				return super.rename(from, to, options);
+			}
+		}());
+		disposables.add(testObject.registerProvider(nativeScheme, nativeProvider));
+		const identityService = disposables.add(new UriIdentityService(testObject));
+		const wrapper = disposables.add(new FileUserDataProvider(nativeScheme, nativeProvider, userScheme, userDataProfilesService, identityService, new NullLogService()));
+		disposables.add(testObject.registerProvider(userScheme, wrapper));
+		const source = joinPath(ROOT.with({ scheme: userScheme }), 'source');
+		const target = joinPath(ROOT.with({ scheme: userScheme }), 'target');
+		await testObject.writeFile(source, VSBuffer.fromString('new'));
+		await testObject.writeFile(target, VSBuffer.fromString('old'));
+		await testObject.move(source, target, true, { atomic: true });
+		assert.deepStrictEqual({
+			renamed: nativeProvider.renamed,
+			content: (await testObject.readFile(target)).value.toString(),
+			sourceExists: await testObject.exists(source),
+		}, { renamed: [nativeScheme, nativeScheme], content: 'new', sourceExists: false });
+	});
+
 	test('read file throws error if not exist', async () => {
 		try {
 			await testObject.readFile(userDataProfilesService.defaultProfile.settingsResource);

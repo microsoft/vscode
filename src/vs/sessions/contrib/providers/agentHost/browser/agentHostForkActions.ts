@@ -8,18 +8,33 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ForkConversationAction, IForkConversationOptions } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionForkError, IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import type { IForkChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { isAgentHostProviderId } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import type { IForkChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 registerAction2(class extends ForkConversationAction {
-	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<boolean> {
+	protected override _captureForkNavigation(accessor: ServicesAccessor): () => boolean {
+		const sessionsService = accessor.get(ISessionsService);
+		const focusedSessionHostService = accessor.get(IFocusedSessionHostService);
+		const navigationRequest = sessionsService.navigationRequest.get();
+		const focusedHost = focusedSessionHostService.focusedHost.get();
+		const activeSession = focusedHost.session.get();
+		const activeChat = focusedHost.chat.get();
+		// Opens the fork only while the focused host still shows the session and chat it was forked from.
+		return () => sessionsService.navigationRequest.get() === navigationRequest
+			&& focusedSessionHostService.focusedHost.get() === focusedHost
+			&& focusedHost.session.get() === activeSession
+			&& focusedHost.chat.get() === activeChat;
+	}
+
+	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions, canOpenFork: () => boolean = () => true): Promise<boolean> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
 			const sessionsService = accessor.get(ISessionsService);
@@ -52,10 +67,12 @@ registerAction2(class extends ForkConversationAction {
 				: undefined;
 			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId, forkOptions);
 			try {
-				if (options?.toSide) {
-					await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
-				} else {
-					await sessionsService.openChat(session, newChat.resource);
+				if (canOpenFork()) {
+					if (options?.toSide) {
+						await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
+					} else {
+						await sessionsService.openChat(session, newChat.resource);
+					}
 				}
 			} catch (error) {
 				if (options?.initialMessage) {
@@ -68,8 +85,11 @@ registerAction2(class extends ForkConversationAction {
 		});
 	}
 
-	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, options?: IForkConversationOptions): Promise<void> {
+	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, options?: IForkConversationOptions, canOpenFork: () => boolean = () => true): Promise<void> {
 		return instantiationService.invokeFunction(async accessor => {
+			if (!canOpenFork()) {
+				return;
+			}
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
 			const sessionsService = accessor.get(ISessionsService);
 			const logService = accessor.get(ILogService);
@@ -78,7 +98,7 @@ registerAction2(class extends ForkConversationAction {
 				?? sessionsManagementService.getSessionForChatResource(parentSessionResource)?.session;
 			if (!parentSession) {
 				logService.error(`Parent session ${parentSessionResource.toString()} not found when forking conversation`);
-				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
+				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource, options, canOpenFork);
 			}
 
 			// Inspect a prompt fork's peer directly instead of waiting for a top-level session row.
@@ -109,6 +129,9 @@ registerAction2(class extends ForkConversationAction {
 					logService.error(`Forked session ${forkedSessionResource.toString()} did not appear within timeout`);
 					throw new Error(localize('chat.fork.targetDidNotAppear', "The forked chat did not appear, so it was most likely never created."));
 				}
+			}
+			if (!canOpenFork()) {
+				return;
 			}
 			if (options?.toSide) {
 				const forkedSession = sessionsManagementService.getSession(forkedSessionResource);

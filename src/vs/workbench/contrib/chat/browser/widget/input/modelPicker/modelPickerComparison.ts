@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../../../base/common/observable.js';
+import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { RawContextKey } from '../../../../../../../platform/contextkey/common/contextkey.js';
 
 export const ModelComparisonAvailableContext = new RawContextKey<boolean>('chatModelComparisonAvailable', false);
@@ -19,6 +20,8 @@ export interface IModelPickerComparison {
 	readonly description?: IObservable<string>;
 	readonly startCommandId?: string;
 	readonly showPickerHint?: IObservable<boolean>;
+	/** Attaches comparison-specific guidance to the rendered toggle. */
+	renderToggle?(button: HTMLElement): IDisposable;
 	start(): void;
 	cancel(): void;
 	reset(): void;

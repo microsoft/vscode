@@ -241,7 +241,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			globalCodeBlockIndexStart = codeBlockStartIndex;
 
 			// TODO: Move katex support into chatMarkdownRenderer
-			const markedExtensions = enableMath
+			// Math needs broader class and style rules than other Markdown. Only allow them when all HTML
+			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
+			const content = this.markdown.content;
+			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
+			const markedExtensions = renderMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
@@ -398,7 +402,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				...markdownRenderOptions,
 				markedExtensions: [...markedExtensions, ...(markdownRenderOptions?.markedExtensions ?? [])],
 				sanitizerConfig: {
-					...MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes }),
+					...(renderMath
+						? MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes })
+						: { allowedTags: { override: allowedChatMarkdownHtmlTags } }),
 					...markdownRenderOptions?.sanitizerConfig,
 					allowedMediaSchemes: { augment: [AGENT_HOST_SCHEME] },
 					remoteImageIsAllowed: uri => fileImages.has(uri),

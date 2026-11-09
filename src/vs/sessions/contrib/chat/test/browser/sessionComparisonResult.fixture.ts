@@ -18,11 +18,12 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
-import { SessionComparisonResult } from '../../browser/sessionComparisonResult.js';
+import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { SessionComparisonResult } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';
 
 import '../../../../browser/media/style.css';
 
@@ -215,6 +216,7 @@ function renderResult(context: ComponentFixtureContext, options: IRenderOptions 
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override async openSession(): Promise<void> { }
 			}());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { }());
 		},
 	});
 	const result = disposableStore.add(instantiationService.createInstance(
@@ -222,6 +224,7 @@ function renderResult(context: ComponentFixtureContext, options: IRenderOptions 
 		constObservable(upcastPartial<ISession>({ resource: judgeResource })),
 		() => { },
 		instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService)),
+		undefined,
 	));
 	dom.append(container, result.domNode);
 	result.layout(width);

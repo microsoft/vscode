@@ -29,7 +29,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
-import { getCanvasReferenceKey, ICanvas, ICanvasReference, ICanvasService } from '../common/canvas.js';
+import { ICanvasService } from '../common/canvas.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 
@@ -422,6 +423,8 @@ export class CanvasView extends Disposable {
 				openExternal: true,
 				fromUserGesture: true,
 				allowContributedOpeners: true,
+				// In the window of the canvas: focus is in its page, outside the workbench, so it cannot tell the window.
+				sourceWindowId: this.targetWindow.vscodeWindowId,
 			});
 			if (!opened) {
 				this.logService.warn(`${this.options.logPrefix} External canvas link was not opened`);

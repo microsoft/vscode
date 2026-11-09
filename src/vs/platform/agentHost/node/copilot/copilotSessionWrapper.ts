@@ -90,6 +90,7 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
+		readonly launchMcpSkillsEnabled: boolean,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -451,6 +452,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
 	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
 		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
+	}
+
+	private _onSkillsLoaded: Event<SessionEventPayload<'session.skills_loaded'>> | undefined;
+	get onSkillsLoaded(): Event<SessionEventPayload<'session.skills_loaded'>> {
+		return this._onSkillsLoaded ??= this._sdkEvent('session.skills_loaded');
 	}
 
 	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;

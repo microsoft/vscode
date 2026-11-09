@@ -13,28 +13,31 @@ import { EditorContextKeys } from '../../../editor/common/editorContextKeys.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { Menus } from '../../browser/menus.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { logSessionsInteraction } from '../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
+import { resolveSessionCommandTarget } from '../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
+import { getEditorWindowSessionResource, notifyEditorWindowSessionUnsupported, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
-import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IChat, ISession, isSessionCreated } from '../../../workbench/services/sessions/common/session.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -44,34 +47,38 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
+				id: AgentsWindowMenus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
-		const sessionsService = accessor.get(ISessionsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		return instantiationService.invokeFunction(openSessionInVSCode, sessionsService.activeSession.get());
+		// The session of the window it is invoked from, such as from the title row of a chat window, else of the focused window.
+		const target = context?.session ? context : instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, []));
+		return instantiationService.invokeFunction(openSessionInVSCode, target?.session, target?.chat);
 	}
 }
 
-export async function openSessionInVSCode(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+export async function openSessionInVSCode(accessor: ServicesAccessor, session: ISession | undefined, chat?: IChat): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
+	const tunnelAgentHostService = accessor.get(ITunnelAgentHostService);
+	const notificationService = accessor.get(INotificationService);
 	const labelService = accessor.get(ILabelService);
 
-	const folders = session?.activeChat.get().workspace.get()?.folders;
+	const folders = (chat ?? session?.mainChat.get())?.workspace.get()?.folders;
 	if (!session || !folders?.length) {
 		return nativeHostService.openWindow();
 	}
@@ -88,15 +95,19 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 		});
 	}
 
-	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
-	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
+	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
+	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService, tunnelAgentHostService);
+	if (typeof editorChatSession === 'string') {
+		notifyEditorWindowSessionUnsupported(notificationService, editorChatSession);
+	}
+	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen: URI.isUri(editorChatSession) ? editorChatSession : undefined });
 }
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
  */
-export function getChatSessionToOpenInEditor(session: IActiveSession | undefined): URI | undefined {
-	return session?.isCreated.get() ? session.resource : undefined;
+export function getChatSessionToOpenInEditor(session: ISession | undefined, chat?: IChat): URI | undefined {
+	return session && isSessionCreated(session) ? chat?.resource ?? session.resource : undefined;
 }
 
 export class OpenVSCodeWindowAction extends Action2 {
@@ -180,7 +191,7 @@ export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkb
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.TitleBarCenterRight, OpenSessionInVSCodeAction.ID, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarCenterRight, OpenSessionInVSCodeAction.ID, (action, options) => {
 			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options, OpenVSCodeWindowAction.ID);
 		}, undefined));
 	}

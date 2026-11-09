@@ -2,10 +2,18 @@
   "name": "vscode-reh",
   "version": "0.0.0",
   "packageManager": "pnpm@12.16.0",
+  "nativeBuild": {
+    "runtime": "node",
+    "target": "24.22.1",
+    "disturl": "https://nodejs.org/dist",
+    "msBuildId": "488038",
+    "buildFromSource": true,
+    "forceProcessConfig": true
+  },
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.29-preview.1",
+    "@github/copilot-sdk": "1.0.30-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -15,7 +23,7 @@
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
-    "@vscode/proxy-agent": "^0.45.0",
+    "@vscode/proxy-agent": "^0.46.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
     "@vscode/spdlog": "^0.15.8",
@@ -56,5 +64,5 @@
     "yazl": "^2.4.3",
     "zod": "^4.4.3"
   },
-  "copilotRuntimeVersion": "1.0.106-2"
+  "copilotRuntimeVersion": "1.0.108-0"
 }

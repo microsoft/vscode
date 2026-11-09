@@ -129,6 +129,7 @@ export function setup(options?: { skipSuite: boolean }) {
 				const script = [
 					'let i = 0;',
 					'let bells = 0;',
+					'let bellTimer;',
 					'let timer;',
 					'const tick = () => process.stdout.write(String.fromCharCode(27) + \']0;working-\' + (++i) + String.fromCharCode(7) + \'tick-\' + i + String.fromCharCode(13, 10));',
 					'tick();',
@@ -136,7 +137,8 @@ export function setup(options?: { skipSuite: boolean }) {
 					'process.stdin.on(\'data\', data => {',
 					'if (data.toString() === \'r\') { timer = setInterval(tick, 50); }',
 					'if (data.toString() === \'s\') { clearInterval(timer); process.stdout.write(\'stopped-\' + i + String.fromCharCode(13, 10)); }',
-					'if (data.toString() === \'b\') { process.stdout.write(String.fromCharCode(7) + \'bell-\' + (++bells) + String.fromCharCode(13, 10)); }',
+					'if (data.toString() === \'b\') { const bell = ++bells; const ring = () => process.stdout.write(String.fromCharCode(7) + \'bell-\' + bell + String.fromCharCode(13, 10)); ring(); bellTimer = setInterval(ring, 50); }',
+					'if (data.toString() === \'q\') { clearInterval(bellTimer); process.stdout.write(\'bell-stopped-\' + bells + String.fromCharCode(13, 10)); }',
 					'});'
 				].join(' ');
 				await terminal.runCommandInTerminal(`node -e "${script}"`);
@@ -149,8 +151,29 @@ export function setup(options?: { skipSuite: boolean }) {
 
 			async function ringBell(): Promise<void> {
 				const marker = `bell-${++bellCount}`;
+				const page = await terminal.getPage();
+				const bell = await page.evaluate(() => {
+					const icon = document.createElement('span');
+					icon.className = 'codicon codicon-bell';
+					icon.style.visibility = 'hidden';
+					document.body.appendChild(icon);
+					const content = getComputedStyle(icon, '::before').content;
+					icon.remove();
+					return content;
+				});
+				assert.ok(bell.length > 2 && bell !== 'none' && bell !== 'normal');
 				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'b');
-				await terminal.waitForTerminalText(buffer => buffer.some(line => line === marker));
+				try {
+					await terminal.waitForTerminalText(buffer => buffer.some(line => line === marker));
+					// The bell listener is installed after startup; wait for the actual status decoration.
+					await page.waitForFunction(({ selector, bell }) => {
+						const label = document.querySelector(`${selector} .monaco-icon-label`);
+						return label && getComputedStyle(label, '::after').content === bell;
+					}, { selector: rowSelector, bell });
+				} finally {
+					await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'q');
+					await terminal.waitForTerminalText(buffer => buffer.some(line => line === `bell-stopped-${bellCount}`));
+				}
 			}
 
 			async function startTitleUpdates(): Promise<void> {
