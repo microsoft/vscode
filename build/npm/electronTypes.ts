@@ -67,7 +67,8 @@ export function packElectronFromNpm(electronVersion: string): Uint8Array {
 	const destination = fs.mkdtempSync(path.join(os.tmpdir(), 'electron-types-'));
 	try {
 		const output = execSync(`npm pack electron@${electronVersion} --pack-destination "${destination}" --json --ignore-scripts`, {
-			cwd: destination,
+			// Run from the checkout so npm also reads its project-level .npmrc, like pnpm install.
+			cwd: root,
 			encoding: 'utf8',
 			stdio: ['ignore', 'pipe', 'inherit'],
 			timeout: 5 * 60 * 1000,
