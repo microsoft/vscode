@@ -2797,6 +2797,7 @@ export class CopilotAgentSession extends Disposable {
 		const turn = this._currentTurn.value;
 		if (turn) {
 			turn.messageCharLen = event.data.content.length;
+			turn.sdkSendInvoked = true;
 			turn.markRunning();
 			this._markPermissionPromptsReady(turn);
 		}
@@ -10044,8 +10045,13 @@ export class CopilotAgentSession extends Disposable {
 			// even though it completes without an assistant.turn_start event.
 			this._dropLateRootTurnEvents = false;
 			this._failedExecutionIdlePending = false;
+			this._hasSentTurn = true;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
+			const turn = this._currentTurn.value;
+			if (turn) {
+				turn.sdkSendInvoked = true;
+			}
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,

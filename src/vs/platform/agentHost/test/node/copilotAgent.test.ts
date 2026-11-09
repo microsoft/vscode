@@ -23705,6 +23705,68 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		test('delivers steering during a notification-started turn after background agent completes', async () => {
+			const h = await createHarness();
+			const sends: Parameters<CopilotSession['send']>[0][] = [];
+			const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+				assert.ok(options);
+				sends.push(options);
+				return '';
+			});
+			try {
+				await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+				h.newRuntime.emit({
+					id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: 'original', messageId: 'sdk-original', turnId: 'sdk-turn' },
+				});
+				h.newRuntime.emit({
+					id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
+					type: 'session.idle', ephemeral: true, data: {},
+				});
+				assert.strictEqual(h.live().hasRunningTurn, false);
+
+				h.newRuntime.emit({
+					id: 'subagent-idle-notification', timestamp: new Date().toISOString(), parentId: null,
+					type: 'system.notification',
+					data: {
+						content: '<system_notification>\nAgent "agent-a" has finished processing and is now idle.\n</system_notification>',
+						kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', description: 'Investigate the issue' },
+					},
+				});
+				const readyBeforeProviderStart = h.live().hasRunningTurn;
+
+				h.newRuntime.emit({
+					id: 'resume-turn-start', timestamp: new Date().toISOString(), parentId: null,
+					type: 'assistant.turn_start',
+					data: { turnId: 'sdk-resumed-turn' },
+				});
+				const readyWhileRunning = h.live().hasRunningTurn;
+
+				const admitted = await h.agent.sendSteeringMessage(h.chat, {
+					id: 'steer-notification-turn', message: { text: 'summarize progress', origin: { kind: MessageKind.User } },
+				});
+
+				assert.deepStrictEqual({
+					readyBeforeProviderStart,
+					readyWhileRunning,
+					admitted,
+					sends: sends.map(s => ({ prompt: s.prompt, mode: s.mode })),
+				}, {
+					readyBeforeProviderStart: false,
+					readyWhileRunning: true,
+					admitted: true,
+					sends: [
+						{ prompt: 'original', mode: undefined },
+						{ prompt: 'summarize progress', mode: 'immediate' },
+					],
+				});
+			} finally {
+				send.restore();
+				await disposeAgent(h.agent);
+			}
+		});
+
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
 				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });

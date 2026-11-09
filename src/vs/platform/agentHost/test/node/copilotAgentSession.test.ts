@@ -18393,6 +18393,40 @@ Use the attached image as context.
 			});
 		});
 
+		for (const ending of ['idle', 'abort'] as const) {
+			test(`preserves steering readiness during a notification-started turn and clears on ${ending}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables);
+
+				mockSession.fire('system.notification', {
+					content: '<system_notification>\nAgent "agent-a" has finished processing and is now idle.\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', description: 'Investigate the issue' },
+				} as SessionEventPayload<'system.notification'>['data']);
+
+				const readyBeforeProviderStart = session.hasRunningTurn;
+				mockSession.fire('assistant.turn_start', { turnId: 'turn-subagent-resume' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				const readyWhileRunning = session.hasRunningTurn;
+
+				if (ending === 'abort') {
+					await session.abort();
+				} else {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				}
+				const readyAfterEnding = session.hasRunningTurn;
+				session.resetTurnState('next-turn');
+				assert.deepStrictEqual({
+					readyBeforeProviderStart,
+					readyWhileRunning,
+					readyAfterEnding,
+					readyBeforeNextSend: session.hasRunningTurn,
+				}, {
+					readyBeforeProviderStart: false,
+					readyWhileRunning: true,
+					readyAfterEnding: false,
+					readyBeforeNextSend: false,
+				});
+			});
+		}
+
 		test('agent idle notification during an active turn appends a SystemNotification response part', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-active');
