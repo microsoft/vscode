@@ -62,6 +62,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly socketError?: boolean;
 	readonly onInvalidate?: () => void;
 	readonly disconnectAfterMs?: number;
+	readonly canConnect?: () => boolean;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const sockets: TestSocket[] = [];
@@ -107,7 +108,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 			store.add(disposableTimeout(() => socket.disconnect(), options.disconnectAfterMs));
 		}
 		return socket;
-	}, () => StopWatch.create(false)));
+	}, () => StopWatch.create(false), options?.canConnect));
 	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs, telemetry };
 }
 
@@ -246,6 +247,53 @@ suite('CloudSandboxSessionFeed', () => {
 			],
 		});
 	}));
+
+	test('defers renewal while inactive, retaining the socket until demand resumes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		await timeout(24 * 60_000);
+		const inactive = { requests: h.requests.length, closed: h.sockets[0].closed, deferred: h.feed.deferred, reasons: [...h.reasons] };
+		active = true;
+		await h.feed.start();
+		await timeout(501);
+		assert.deepStrictEqual({ inactive, requests: h.requests.length, closed: h.sockets.map(socket => socket.closed), reasons: h.reasons }, {
+			inactive: { requests: 1, closed: false, deferred: true, reasons: [] },
+			requests: 2, closed: [true, false], reasons: [],
+		});
+	}));
+
+	test('defers dropped-socket retries while inactive', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		h.sockets[0].disconnect();
+		await timeout(60 * 60_000);
+		const inactiveRequests = h.requests.length;
+		active = true;
+		await h.feed.start();
+		assert.deepStrictEqual({ inactiveRequests, requests: h.requests.length, connected: h.feed.connected, reason: h.telemetry.at(-1)?.reason, refreshes: h.reasons }, {
+			inactiveRequests: 1, requests: 2, connected: true, reason: 'recovery', refreshes: [],
+		});
+	}));
+
+	test('does not open a socket if demand disappears during negotiation', async () => {
+		let active = true;
+		const pending = new DeferredPromise<ICloudSandboxSessionFeedConnection>();
+		const h = createFeed(store, { canConnect: () => active, connect: () => pending.p });
+		const started = h.feed.start();
+		active = false;
+		await pending.complete(connection());
+		await started;
+		const inactiveSockets = h.sockets.length;
+		active = true;
+		await h.feed.start();
+		assert.deepStrictEqual({ inactiveSockets, requests: h.requests.length, connected: h.feed.connected }, {
+			inactiveSockets: 0, requests: 2, connected: true,
+		});
+	});
 
 	test('a connection gap during renewal reports reconnect catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
