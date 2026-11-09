@@ -260,9 +260,13 @@ export async function toSdkCustomAgents(
 
 /** Projects authored tool references without rereading or mutating the parsed agent configurations. */
 export function mapCopilotCustomAgentTools<T extends CustomAgentConfig>(agents: readonly T[], clientToolNames: ReadonlyMap<string, string>): T[] {
+	const toolGroupAliases = new Map<string, readonly string[]>([
+		['search', ['grep', 'rg', 'glob']],
+		['web', ['web_fetch', 'web_search']],
+	]);
 	return agents.map(agent => agent.tools ? {
 		...agent,
-		tools: agent.tools.map(tool => clientToolNames.get(tool) ?? tool),
+		tools: agent.tools.flatMap(tool => toolGroupAliases.get(tool) ?? [clientToolNames.get(tool) ?? tool]),
 	} : agent);
 }
 

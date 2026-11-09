@@ -3932,7 +3932,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
 	});
 
-	test('custom-agent tool reference remapping remains launch-only', async () => {
+	test('custom-agent tool aliases and references are resolved at launch', async () => {
 		const store = disposables.add(new DisposableStore());
 		let configuration: ICopilotClientToolConfiguration | undefined;
 		const reference = 'publisher/tools.read';
@@ -3942,7 +3942,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		let reads = 0;
 		await buildResumeConfig(createLauncher(store, {}, () => {
 			reads++;
-			return `---\nname: reviewer\ntools: ["${reference}"]\n---\nReview`;
+			return `---\nname: reviewer\ntools: [search, web, "${reference}"]\n---\nReview`;
 		}), undefined, {
 			discoveredAgents: [{
 				name: 'reviewer', uri,
@@ -3963,7 +3963,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			equivalent: changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)),
 			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === getSdkCustomAgentName(uri))?.tools,
 			reads,
-		}, { equivalent: [true, true, true, false, false], agentTools: ['zetaRead'], reads: 1 });
+		}, { equivalent: [true, true, true, false, false], agentTools: ['grep', 'rg', 'glob', 'web_fetch', 'web_search', 'zetaRead'], reads: 1 });
 	});
 
 	test('filtered client tools do not change launch-only prompt, search, or semantic-search projections', async () => {
