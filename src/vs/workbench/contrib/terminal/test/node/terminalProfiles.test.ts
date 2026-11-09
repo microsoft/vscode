@@ -7,7 +7,7 @@ import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ITerminalProfile, ProfileSource } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalConfiguration, ITerminalProfiles } from '../../common/terminal.js';
-import { detectAvailableProfiles, IFsProvider } from '../../../../../platform/terminal/node/terminalProfiles.js';
+import { detectAvailableProfiles, IFsProvider, parseAccountLoginShell } from '../../../../../platform/terminal/node/terminalProfiles.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
@@ -30,6 +30,13 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 
 suite('Workbench - TerminalProfiles', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should parse account login shells from Linux and macOS records', () => {
+		deepStrictEqual([
+			parseAccountLoginShell('user:x:1000:1000:User:/home/user:/bin/bash', 'linux'),
+			parseAccountLoginShell('user:*:1000:1000:0:0:never:User:/Users/user:/opt/homebrew/bin/fish', 'macOS')
+		], ['/bin/bash', '/opt/homebrew/bin/fish']);
+	});
 
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {

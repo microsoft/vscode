@@ -476,10 +476,17 @@ async function getAccountLoginShell(logService?: ILogService): Promise<string | 
 				resolve(undefined);
 				return;
 			}
-			const shell = stdout.trim().split(':')[6];
-			resolve(shell && isAbsolute(shell) ? shell : undefined);
+			resolve(parseAccountLoginShell(stdout, isLinux ? 'linux' : 'macOS'));
 		});
 	});
+}
+
+/**
+ * Parses the account record's shell path for Linux or macOS.
+ */
+export function parseAccountLoginShell(stdout: string, platform: 'linux' | 'macOS'): string | undefined {
+	const shell = stdout.trim().split(':')[platform === 'linux' ? 6 : 9];
+	return shell && isAbsolute(shell) ? shell : undefined;
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTerminalProfile } | undefined, profilesMap: Map<string, IUnresolvedTerminalProfile>) {
