@@ -225,7 +225,7 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 				continue;
 			}
 
-			const previousRef = commits[index + 1]?.hash ?? emptyTree;
+			const previousRef = commits[index + 1]?.hash ?? cursor ?? emptyTree;
 			const item = new GitTimelineItem(c.hash, previousRef, message, timestamp, c.hash, 'git:file:commit', Uri.file(repo.root));
 			item.iconPath = new ThemeIcon('git-commit');
 			item.description = description;
