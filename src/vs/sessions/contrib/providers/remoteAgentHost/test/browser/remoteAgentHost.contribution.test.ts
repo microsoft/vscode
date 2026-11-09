@@ -58,7 +58,7 @@ interface IRemoteAuthNotificationHarness {
 	_instantiationService: TestInstantiationService;
 	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_logService: NullLogService;
-	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
+	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate' | 'rootState'>, notification: INotification): void;
 	_authenticateCallback(address: string, connection: Pick<IAgentConnection, 'authenticate'>, reason?: AuthRequiredReason): IAgentConnection['authenticate'];
 }
 
@@ -415,6 +415,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		instantiationService.stub(ILogService, logService);
 		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
+			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } }),
 			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
@@ -477,8 +478,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
 
-		contribution._handleAuthenticationRequiredNotification('host-one', { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
-		contribution._handleAuthenticationRequiredNotification('host-two', { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
+		const rootState = upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } });
+		contribution._handleAuthenticationRequiredNotification('host-one', { rootState, authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-two', { rootState, authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
@@ -520,7 +522,10 @@ suite('RemoteAgentHost auth notifications', () => {
 			scopes_supported: ['session:read'],
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Expired };
-		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
+		const connection: Pick<IAgentConnection, 'authenticate' | 'rootState'> = {
+			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } }),
+			authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; },
+		};
 
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
