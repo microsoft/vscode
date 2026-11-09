@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { afterEach, suite, test } from 'node:test';
 import zlib from 'node:zlib';
 import { sha256 } from '../../lib/download.ts';
-import { downloadElectronTypes, extractFileFromTgz, packElectronFromNpm } from '../electronTypes.ts';
+import { downloadElectronTypes, extractFileFromTgz, packElectronFromNpm } from '../electronTypesDownload.ts';
 
 function tgz(entries: { name: string; prefix?: string; contents: string; size?: string }[]): Uint8Array {
 	const blocks: Buffer[] = [];
