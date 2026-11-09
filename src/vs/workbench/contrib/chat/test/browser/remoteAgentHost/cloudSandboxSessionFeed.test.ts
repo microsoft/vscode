@@ -665,6 +665,31 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('resume delivers buffered hints without waiting for a replacement feed that becomes unavailable', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const replacement = new DeferredPromise<ICloudSandboxSessionFeedConnection | undefined>();
+		let attempts = 0;
+		const h = createFeed(store, { connect: async () => ++attempts === 1 ? connection() : replacement.p });
+		await h.feed.start();
+		h.sockets[0].receive(changed('one'));
+		h.suspend.fire();
+		await timeout(60_000);
+		const duringSuspend = [...h.reasons];
+		h.resume.fire();
+		await timeout(1_501);
+		const beforeReplacement = { reasons: [...h.reasons], taskBatches: [...h.taskBatches] };
+		await replacement.complete(undefined);
+		await timeout(60 * 60_000);
+		assert.deepStrictEqual({
+			duringSuspend, beforeReplacement, reasons: h.reasons, taskBatches: h.taskBatches,
+			requests: h.requests.length, connected: h.feed.connected,
+			outcomes: h.telemetry.map(event => event.outcome),
+		}, {
+			duringSuspend: [], beforeReplacement: { reasons: ['change'], taskBatches: [['one']] },
+			reasons: ['change'], taskBatches: [['one']], requests: 2, connected: false,
+			outcomes: ['connected', 'unavailable'],
+		});
+	}));
+
 	test('startup during suspend waits for resume before negotiating', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		h.suspend.fire();

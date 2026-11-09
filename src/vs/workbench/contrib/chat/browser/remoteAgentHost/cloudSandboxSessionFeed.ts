@@ -43,7 +43,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 		if (this._resumeConnection) {
 			this._resumeConnection = false;
 			void this._connect(true);
-		} else if (this._taskIds.size || this._refreshReason) {
+		}
+		if (this._taskIds.size || this._refreshReason) {
 			this._refresh.schedule();
 		}
 	}, reconnectPolicy.initialDelayMs));
