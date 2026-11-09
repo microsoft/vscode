@@ -1,7 +1,7 @@
 {
   "name": "vscode-reh",
   "version": "0.0.0",
-  "packageManager": "pnpm@12.16.0",
+  "packageManager": "pnpm@12.17.0",
   "nativeBuild": {
     "runtime": "node",
     "target": "24.22.1",
