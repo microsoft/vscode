@@ -25,7 +25,8 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { INewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -33,8 +34,8 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
 import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
@@ -254,7 +255,9 @@ suite('agentHostAgentPicker', () => {
 				disposables.add(configuration.onDidChangeConfigurationEmitter);
 				const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
 				disposables.add(providers.registerProvider(provider));
-				disposables.add(new AgentHostAgentPickerContribution(
+				// What it reports as the user's choice of agent.
+				const userSelections: string[] = [];
+				const contribution = disposables.add(new AgentHostAgentPickerContribution(
 					new NullActionViewItemService(),
 					focusedSessionHostServiceOf(activeSession),
 					providers,
@@ -270,6 +273,7 @@ suite('agentHostAgentPicker', () => {
 					disposables.add(new ContextKeyService(configuration)),
 					upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
 					new TestExperimentTriggerTelemetryService(),
+					upcastPartial<INewSessionComposerService>({ notifyUserAgentSelection: ({ sessionId, agent }) => userSelections.push(`${sessionId} ${agent?.uri ?? 'default'}`) }),
 				));
 				const snapshot = () => ({
 					mode: activeSession.get()?.mode.get()?.id,
@@ -280,11 +284,19 @@ suite('agentHostAgentPicker', () => {
 				const beforeDiscovery = snapshot();
 				availableAgents = [alpha, beta];
 				agentsChanged.fire();
+				const afterDiscovery = snapshot();
+				// Selecting the remembered agent on its own is not the user's choice; the user's pick and clear are.
+				const internal = [...userSelections];
+				const selectMode = Reflect.get(contribution, '_selectMode') as (mode: IChatMode, session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService) => void;
+				selectMode.call(contribution, upcastPartial<IChatMode>({ id: beta.uri, name: constObservable('Beta') }), draft.session, providers);
+				selectMode.call(contribution, upcastPartial<IChatMode>({ id: ChatMode.Agent.id }), draft.session, providers);
 
-				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
+				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery, internal, userSelections }, {
 					afterFallback: { mode: undefined, remembered: rememberedUri },
 					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
 					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
+					internal: [],
+					userSelections: [`draft ${beta.uri}`, 'draft default'],
 				});
 			});
 		}

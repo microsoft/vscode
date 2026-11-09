@@ -92,6 +92,8 @@ export const FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID = 'sessions.focusNewSe
 export const FOCUS_SESSION_SYNC_ACTION_COMMAND_ID = 'sessions.focusSessionSyncAction';
 export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
+export const SEND_IN_BACKGROUND_COMMAND_ID = 'sessions.sendInBackground';
+
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
 export const FOCUS_NEXT_CHAT_GROUP_COMMAND_ID = 'sessions.focusNextChatGroup';

@@ -37,8 +37,8 @@ import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit, ICha
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
-import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
+import type { IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
 
 export { ChatOutline } from './chatOutline.js';
 

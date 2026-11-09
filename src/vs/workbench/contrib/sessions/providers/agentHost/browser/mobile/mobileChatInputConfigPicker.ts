@@ -27,9 +27,9 @@ import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession } from '../../../../common/session.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../browser/chat/newChatModelPicker.js';
@@ -173,7 +173,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -400,7 +400,7 @@ export class MobileChatInputConfigPickerContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {

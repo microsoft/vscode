@@ -20,30 +20,31 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../common/session.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
+import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
-import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
-import { VisibleSessions } from './visibleSessions.js';
+import { SessionsRecencyHistory } from '../../../services/sessions/browser/sessionsRecencyHistory.js';
+import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
-import { IChatHostClosedChat, IChatHostOpenerService } from './chatHostOpener.js';
+import { ISessionsPartService, SessionGridRequest } from '../../../services/sessions/browser/sessionsPartService.js';
+import { IChatHostClosedChat, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { ICustomViewService } from './customView.js';
 import { IWindowCanvasService } from './windowCanvas.js';
 import { IsNewChatSessionContext } from '../common/contextkeys.js';
 import { setHostSessionContextKeys } from '../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../browser/parts/sessions/sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from './sessionHost.js';
-import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from './sessionGridPane.js';
+import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
+import { ShownChatReadMarker } from './shownChatReadMarker.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -105,6 +106,11 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly toSide?: boolean;
 	/** Require the created draft to start in a Dev Container rather than falling back to host execution. */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Create the draft in this slot instead of the main composer's. Like {@link preserveCustomView}, the Sessions grid,
+	 * navigation and custom view are left alone; the result is the slot's draft.
+	 */
+	readonly draftSlot?: INewSessionDraftSlot;
 }
 
 /**
@@ -650,7 +656,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onDidSendRequest(({ session }) => {
+			if (!this._isIndependentDraftSlotSession(session)) {
+				this._sendFollow.clear();
+			}
+		}));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -887,57 +897,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		let previousActiveChat: URI | undefined;
-		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
+		const readMarker = new ShownChatReadMarker(this.sessionsManagementService, this.uriIdentityService.extUri);
 		disposables.add(autorun(reader => {
 			if (this.customViewService.activeCustomViewOpen.read(reader)) {
-				previousActiveChat = undefined;
-				lastReadRequest = undefined;
+				readMarker.reset();
 				return;
 			}
-			const chat = paneChat.read(reader);
-			const mainChat = activeSession.mainChat.read(reader);
-			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
-			previousActiveChat = chat?.resource;
-			if (activeChatChanged) {
-				lastReadRequest = undefined;
-			}
-			if (activeSession.loading.read(reader)) {
-				lastReadRequest = undefined;
-				return;
-			}
-			if (!chat || chat.isRead.read(reader)) {
-				return;
-			}
-			const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
-			if (pendingExplicitChat && !this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat)) {
-				return;
-			}
-			const version = (chat.lastTurnEnd?.read(reader) ?? chat.updatedAt.read(reader))?.getTime();
-			// Deduplicate stale read-state echoes without suppressing the next completed turn in the active chat.
-			if (lastReadRequest
-				&& this.uriIdentityService.extUri.isEqual(lastReadRequest.chat, chat.resource)
-				&& lastReadRequest.version === version) {
-				return;
-			}
-			const readRequest = { chat: chat.resource, version };
-			lastReadRequest = readRequest;
-			const accepted = this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)
-				? this.sessionsManagementService.markRead(activeSession, {
-					preserveExplicitUnread: !activeChatChanged,
-				})
-				: this.sessionsManagementService.markChatRead(activeSession, chat, {
-					preserveExplicitUnread: !activeChatChanged,
-				});
-			accepted.then(result => {
-				if (result === false && lastReadRequest === readRequest) {
-					lastReadRequest = undefined;
-				}
-			}, error => {
-				if (lastReadRequest === readRequest) {
-					lastReadRequest = undefined;
-				}
-				onUnexpectedError(error);
+			readMarker.update(activeSession, paneChat.read(reader), reader, chat => {
+				const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
+				return !pendingExplicitChat || this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat);
 			});
 		}));
 
@@ -980,7 +948,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	/** Whether a send is from a composer outside the main window, which never shows in the grid. */
+	private _isIndependentDraftSlotSession(session: ISession): boolean {
+		const owner = this.sessionsManagementService.getNewSessionOwner(session.sessionId);
+		return !!owner && owner !== this.sessionsManagementService.defaultNewSessionSlot;
+	}
+
 	private _startSendFollow(session: ISession): void {
+		// Neither starts nor ends the grid's follow (see the onDidSendRequest listener).
+		if (this._isIndependentDraftSlotSession(session)) {
+			return;
+		}
 		const store = new DisposableStore();
 		let followId = session.sessionId;
 		// A foreground send can replace the session id (draft graduating into a
@@ -1552,7 +1530,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					: undefined;
 				await Promise.all([
 					reopening ? raceCancellation(reopening, token) : undefined,
-					this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open'),
+					this.sessionsProvidersService.getProvider(sessionData.providerId, sessionData.sessionId)?.prepareSessionForOpen?.(sessionData, 'open'),
 				]);
 				if (token.isCancellationRequested) {
 					return;
@@ -1641,7 +1619,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!this.areGridSessionsCurrent([session]) || !await this.canOpenSession(session) || token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
-		await this.sessionsProvidersService.getProvider(session.providerId)?.prepareSessionForOpen?.(session, 'open');
+		await this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.prepareSessionForOpen?.(session, 'open');
 		if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
@@ -1696,7 +1674,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!await this.canOpenSession(session) || token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 					return undefined;
 				}
-				await this.sessionsProvidersService.getProvider(session.providerId)?.prepareSessionForOpen?.(session, 'open');
+				await this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.prepareSessionForOpen?.(session, 'open');
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -1989,7 +1967,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
-		if (options?.preserveCustomView) {
+		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
+		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
+		const preserveCustomView = options?.preserveCustomView || !!draftSlot;
+		if (preserveCustomView) {
 			intent = 'automatic';
 		}
 		if (options?.cancelRestore) {
@@ -2022,26 +2003,27 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			if (!options?.preserveCustomView) {
+			if (!preserveCustomView) {
 				this._beginNavigation(intent, token, options?.preserveNavigation);
 				this._startOpenSession();
 			}
 			try {
-				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				const session = draftSlot ? draftSlot.createNewSession(folderUri, options) : this.sessionsManagementService.createNewSession(folderUri, options);
+				const discard = () => draftSlot ? draftSlot.discardNewSession(session) : this.sessionsManagementService.discardNewSession(session);
 				if (options?.requireDevContainer) {
-					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
-						this.sessionsManagementService.discardNewSession(session);
+						discard();
 						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
 					}
 					try {
 						provider.preferDevContainer(session.sessionId, { required: true });
 					} catch (error) {
-						this.sessionsManagementService.discardNewSession(session);
+						discard();
 						throw error;
 					}
 				}
-				if (!options?.preserveCustomView) {
+				if (!preserveCustomView) {
 					this._activateOrInsert(session, options?.toSide, intent);
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
@@ -2056,8 +2038,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		if (options?.preserveCustomView) {
-			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
+		if (preserveCustomView) {
+			return { session: (draftSlot ?? this.sessionsManagementService).newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to
@@ -2779,7 +2761,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		if (activeSession) {
-			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId);
 			void provider?.prepareSessionForOpen?.(activeSession, 'restore').catch(error => this.logService.warn(`[SessionsView] Failed to prepare restored session for provider '${provider.id}'`, error));
 		}
 

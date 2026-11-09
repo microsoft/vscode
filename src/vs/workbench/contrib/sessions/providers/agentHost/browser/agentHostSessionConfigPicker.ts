@@ -49,23 +49,23 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
-import { ISessionChangesService } from '../../../browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobilePermissionPicker.js';
-import { isPhoneLayout } from '../../../browser/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../browser/parts/sessions/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM } from '../../../browser/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
@@ -82,12 +82,12 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
-import { readPaneSessions } from '../../../browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -773,7 +773,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._openedPickerSessionId = undefined;
 		}
 		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
-		const provider = session ? this._getProvider(session.providerId) : undefined;
+		const provider = session ? this._getProvider(session.providerId, session.sessionId) : undefined;
 		const chat = this._chat.get();
 		const resolvedConfig = session && chat && provider?.getSessionConfig(session.sessionId, chat.resource);
 		if (!session || !chat || !provider || !resolvedConfig) {
@@ -1261,7 +1261,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!session || session.sessionId !== sessionId) {
 			return;
 		}
-		const provider = this._getProvider(session.providerId);
+		const provider = this._getProvider(session.providerId, session.sessionId);
 		const resolvedConfig = provider && this._getSessionConfig(provider, sessionId);
 		const isolationProperty = resolvedConfig && getSessionWorkspaceProperties(resolvedConfig.schema).isolation;
 		if (!provider || !resolvedConfig || !isolationProperty) {
@@ -1480,7 +1480,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected _isCurrentSession(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
 		const session = this._session.get();
-		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId) === provider;
+		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId, session.sessionId) === provider;
 	}
 
 	private async _showChanges(): Promise<void> {
@@ -1641,18 +1641,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& schema.enum?.length === 2
 			&& !schema.enumDynamic
 			&& session?.sessionId === sessionId
-			&& this._getProvider(session.providerId)?.getCreateSessionConfig(sessionId) !== undefined;
+			&& this._getProvider(session.providerId, session.sessionId)?.getCreateSessionConfig(sessionId) !== undefined;
 	}
 
-	protected _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+	protected _getProvider(providerId: string, sessionId?: string): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(providerId, sessionId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
 	protected _presentationProperty(sessionId: string, property: string): string {
 		const session = this._session.get();
 		const chat = this._chat.get();
-		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId)?.getSessionConfig(sessionId, chat.resource) : undefined;
+		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId, session.sessionId)?.getSessionConfig(sessionId, chat.resource) : undefined;
 		return config ? getSessionConfigPresentationKey(property, config.schema) : property;
 	}
 }
@@ -2153,7 +2153,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!session) {
 				continue;
 			}
-			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}

@@ -11,11 +11,11 @@ import { AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarg
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { IFocusedSessionHostService } from './sessionHost.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -56,7 +56,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 	}
 
 	private _getAHSProvider(session: ISession): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			this._ensureProviderListener(provider);
 			return provider;

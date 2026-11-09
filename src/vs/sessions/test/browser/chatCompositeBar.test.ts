@@ -22,6 +22,7 @@ import { IAccessibilityService } from '../../../platform/accessibility/common/ac
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { extractChatReferenceDropData } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
@@ -32,18 +33,19 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../workbench/contrib/sessions/browser/parts/chatCompositeBar.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../../workbench/contrib/sessions/browser/dnd.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
-import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
 import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
@@ -51,7 +53,8 @@ import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
-import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionPaneTabs } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;
@@ -198,7 +201,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService; readonly providerLookup?: (providerId: string, sessionId?: string) => ISessionsProvider | undefined }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	// The pane the bar is in, whose command context its menus pass.
@@ -260,8 +263,8 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
-		override getProvider<T extends ISessionsProvider>(): T | undefined {
-			return provider as T | undefined;
+		override getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined {
+			return (options?.providerLookup ? options.providerLookup(providerId, sessionId) : provider) as T | undefined;
 		}
 	}());
 
@@ -1652,6 +1655,27 @@ suite('Sessions - ChatCompositeBar', () => {
 			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 			externalTypes: [],
+		});
+	});
+
+	test('chat-reference drags resolve their backend through the session-scoped runtime', () => {
+		const backendChat = URI.parse('opaque-chat://host/default');
+		const runtime = upcastPartial<IAgentHostSessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID,
+			getHarnessPresentation: () => undefined,
+			getBackendChatResource: () => backendChat,
+		});
+		const { tabs, session } = createHarness(disposables, {
+			providerLookup: (_providerId, sessionId) => sessionId === 'session' ? runtime : undefined,
+		});
+		const event = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		tabs[1].dispatchEvent(event);
+		const payload = extractChatReferenceDropData(event);
+		tabs[1].dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+		assert.deepStrictEqual(payload, {
+			chatResource: backendChat.toString(),
+			clientResource: session.visibleChatTabs.get()[1].resource.toString(),
+			title: 'Secondary Chat',
 		});
 	});
 

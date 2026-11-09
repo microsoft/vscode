@@ -24,13 +24,14 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { logChangesToStateModel } from '../../../../chat/common/model/chatModel.js';
 import { ChatModeKind } from '../../../../chat/common/constants.js';
 import { Menus } from '../../../browser/menus.js';
+import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../common/session.js';
+import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
-import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -213,6 +214,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatContextPickService chatContextPickService: IChatContextPickService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
 		let settingAgentInternally = false;
@@ -245,7 +247,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			openPicker: anchor => openActiveAgentPicker?.(anchor),
 		}, configurationService, telemetryService)));
 		const modePickerModels = this._register(new ScopedModePickerModelCache(session => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
+			const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			return !!provider && isAgentHostProvider(provider);
 		}));
 
@@ -325,7 +327,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		if (!session) {
 			return undefined;
 		}
-		const provider = sessionsProvidersService.getProvider(session.providerId);
+		const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
@@ -432,16 +434,14 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		if (!session) {
 			return;
 		}
-		const provider = sessionsProvidersService.getProvider(session.providerId);
+		const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return;
 		}
-		if (mode.id === ChatMode.Agent.id) {
-			this._setAgent(session, provider, undefined);
-		} else {
-			const rawAgentUri = mode.id;
-			this._setAgent(session, provider, { uri: rawAgentUri, name: mode.name.get() });
-		}
+		const agent = mode.id === ChatMode.Agent.id ? undefined : { uri: mode.id, name: mode.name.get() };
+		// Before the agent changes: what hosts the session's composer takes it as the user's choice.
+		this.newSessionComposerService.notifyUserAgentSelection({ sessionId: session.sessionId, agent });
+		this._setAgent(session, provider, agent);
 	}
 
 	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {

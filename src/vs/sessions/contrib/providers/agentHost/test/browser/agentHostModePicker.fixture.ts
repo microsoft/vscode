@@ -48,7 +48,7 @@ import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/c
 import { PermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';

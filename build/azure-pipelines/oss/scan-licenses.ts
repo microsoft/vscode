@@ -548,6 +548,36 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 }
 
 /**
+ * Returns the packages installed in the node_modules folder `nmDir`, each as its name in a
+ * node_modules folder (scoped names included) and its folder: the top-level packages of `nmDir`,
+ * then, when pnpm installed `nmDir` with the isolated linker, the packages of its virtual store
+ * (`.pnpm`).
+ *
+ * With pnpm's hoisted linker, every package of an install root has a folder in its node_modules
+ * folders, and `.pnpm` holds no packages. With the isolated linker, the top level holds only the
+ * install root's direct dependencies (links into the store), and the packages are in
+ * `.pnpm/<id>/node_modules/<name>`, next to links to their dependencies. Callers keep the first
+ * folder that they find for a name, so the store's hoisting folder (`.pnpm/node_modules`, which
+ * links one version of each package) comes before the package folders of the store.
+ */
+export function collectInstalledPackages(nmDir: string): Array<{ name: string; dir: string }> {
+	const inFolder = (folder: string) => collectPackagesInNodeModules(folder).map(name => ({ name, dir: path.join(folder, ...name.split('/')) }));
+	const result = inFolder(nmDir);
+	const store = path.join(nmDir, '.pnpm');
+	if (!fs.existsSync(store)) {
+		return result;
+	}
+	result.push(...inFolder(path.join(store, 'node_modules')));
+	for (const id of fs.readdirSync(store).sort()) {
+		if (id === 'node_modules') {
+			continue;
+		}
+		result.push(...inFolder(path.join(store, id, 'node_modules')).filter(({ dir }) => !fs.lstatSync(dir).isSymbolicLink()));
+	}
+	return result;
+}
+
+/**
  * Returns the node_modules folders nested in the packages of `nmDir`, at any depth.
  */
 function collectNestedNodeModules(nmDir: string): string[] {
@@ -1172,7 +1202,9 @@ async function main(): Promise<void> {
 	// `extensions` is a pnpm install root: with the hoisted layout most extension
 	// dependencies are in extensions/node_modules, after the extensions' own folders.
 	// Its nested node_modules folders come last, for packages that pnpm didn't
-	// hoist (e.g. `emmet`, whose name a workspace project has).
+	// hoist (e.g. `emmet`, whose name a workspace project has). With the isolated
+	// layout they are in the store of extensions/node_modules (see
+	// collectInstalledPackages).
 	for (const ext of [...extensions, '(extensions)']) {
 		const nmDirs = ext === '(extensions)' ? [path.join(extensionsDir, 'node_modules'), ...collectNestedNodeModules(path.join(extensionsDir, 'node_modules'))] : [
 			path.join(extensionsDir, ext, 'node_modules'),
@@ -1181,10 +1213,7 @@ async function main(): Promise<void> {
 		];
 
 		for (const nmDir of nmDirs) {
-			const packages = collectPackagesInNodeModules(nmDir);
-
-			for (const pkgName of packages) {
-				const pkgDir = path.join(nmDir, ...pkgName.split('/'));
+			for (const { name: pkgName, dir: pkgDir } of collectInstalledPackages(nmDir)) {
 				const pkgInfo = readPkgJson(pkgDir);
 				const resolvedName = pkgInfo?.name || pkgName;
 				const key = resolvedName.toLowerCase();
@@ -1249,10 +1278,7 @@ async function main(): Promise<void> {
 
 	const rootNmDir = path.join(repoRoot, 'node_modules');
 	if (fs.existsSync(rootNmDir)) {
-		const rootPackages = collectPackagesInNodeModules(rootNmDir);
-
-		for (const pkgName of rootPackages) {
-			const pkgDir = path.join(rootNmDir, ...pkgName.split('/'));
+		for (const { name: pkgName, dir: pkgDir } of collectInstalledPackages(rootNmDir)) {
 			const pkgInfo = readPkgJson(pkgDir);
 			const resolvedName = pkgInfo?.name || pkgName;
 			const key = resolvedName.toLowerCase();
@@ -1689,8 +1715,7 @@ async function main(): Promise<void> {
 	const pbSeedKeys = new Set<string>();
 	const pbSeedParents: Array<{ key: string; dir: string; optDeps: Record<string, unknown> }> = [];
 	for (const root of pbRoots) {
-		for (const pkgName of collectPackagesInNodeModules(root)) {
-			const dir = path.join(root, ...pkgName.split('/'));
+		for (const { name: pkgName, dir } of collectInstalledPackages(root)) {
 			const ck = pkgName.toLowerCase();
 			if (!pbOnDisk.has(ck)) {
 				pbOnDisk.set(ck, dir);

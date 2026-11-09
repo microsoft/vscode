@@ -127,7 +127,11 @@
 
 		/* The opaque sticky background hides the row tint, so paint it as an overlay. */
 		&:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input) {
-			background-image: linear-gradient(color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent), color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent));
+			background-image: linear-gradient(color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent), color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent));
+
+			:is(.hc-black, .hc-light) & {
+				background-image: none;
+			}
 		}
 	}
 
@@ -152,13 +156,16 @@
 		border-radius: var(--vscode-cornerRadius-small);
 
 		> .monaco-tl-row {
-			border-radius: inherit;
+			border-radius: var(--vscode-cornerRadius-small);
 		}
 	}
 
 	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
+		/* Content-box clipping subtracts the bottom padding from the vertical corner radii. */
+		border-bottom-left-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
+		border-bottom-right-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
 		outline: 0 !important;
 	}
 
@@ -196,7 +203,26 @@
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		background-color: color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent);
+
+		:is(.hc-black, .hc-light) & {
+			background-color: transparent;
+
+			.session-attention-indicator {
+				display: block;
+			}
+		}
+	}
+
+	.session-attention-indicator {
+		display: none;
+		position: absolute;
+		top: var(--vscode-spacing-size40);
+		bottom: var(--vscode-spacing-size40);
+		left: 0;
+		width: var(--vscode-spacing-size20);
+		background-color: var(--vscode-agentSessionNeedsInput-foreground);
+		pointer-events: none;
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -356,6 +382,52 @@
 
 /* Session Item */
 
+.sessions-list-primary,
+.sessions-list-inbox-footer {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sessions-list-inbox-resize {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: var(--vscode-spacing-size40);
+	pointer-events: none;
+	z-index: 1;
+
+	&:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+}
+
+.sessions-list-control.inbox-layout {
+	&:not(.compact) .session-item:not(.quick-chat, .session-comparison-attempt) {
+		padding-top: var(--vscode-spacing-size40);
+		padding-bottom: var(--vscode-spacing-size40);
+
+		.session-title-row {
+			padding-bottom: var(--vscode-spacing-size20);
+		}
+	}
+
+	.sessions-list-inbox-footer .session-section {
+		font-weight: var(--vscode-fontWeight-regular);
+
+		.session-section-count {
+			margin-left: auto;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.session-section-toolbar.has-no-actions {
+			display: none;
+		}
+	}
+}
+
 .session-item {
 	display: flex;
 	flex-direction: row;
@@ -380,6 +452,10 @@
 			width: var(--vscode-spacing-size20);
 			border-radius: var(--vscode-cornerRadius-circle);
 			background-color: var(--vscode-focusBorder);
+		}
+
+		> .session-attention-indicator {
+			left: var(--vscode-spacing-size40);
 		}
 	}
 
@@ -729,6 +805,32 @@
 			}
 		}
 	}
+}
+
+.sessions-list-control .session-inline-actions {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	grid-column: 1 / -1;
+
+	.monaco-button {
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		font-size: var(--vscode-fontSize-label1);
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	&[hidden] {
+		display: none;
+	}
+}
+
+.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
+	min-height: 44px;
+	box-sizing: border-box;
 }
 
 .sessions-list-control.compact {

@@ -44,15 +44,15 @@ import { ToolDataSource } from '../../../../chat/common/tools/languageModelTools
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../../browser/chat/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
+import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
-import { ISessionHost } from '../../../browser/sessionHost.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISessionGridPane } from '../../../browser/sessionGridPane.js';
+import { ISessionGridPane } from '../../../../../services/sessions/browser/sessionGridPane.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('Session Artifacts', () => {

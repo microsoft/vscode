@@ -27,8 +27,8 @@ import { SessionConfigPropertySchema } from '../../../../../../platform/agentHos
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getSessionConfigProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../common/session.js';
-import { ISessionChatSource } from '../../../browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../chat/browser/chatPetAchievements.js';
@@ -200,7 +200,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!session || !chat) {
 			return false;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const configProvider = provider && getSessionConfigProvider(provider);
 		if (!configProvider) {
 			return false;
@@ -218,7 +218,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const rawProvider = provider && getSessionConfigProvider(provider);
 		if (!rawProvider) {
 			return undefined;

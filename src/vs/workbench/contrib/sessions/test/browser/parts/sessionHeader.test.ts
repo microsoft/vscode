@@ -31,10 +31,10 @@ import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { ISessionHost, isSessionHostCommandContext } from '../../../browser/sessionHost.js';
+import { ISessionHost, isSessionHostCommandContext } from '../../../../../services/sessions/browser/sessionHost.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());

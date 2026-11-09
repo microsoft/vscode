@@ -21,7 +21,7 @@ import { IChatModelReference, IChatService, IChatUsage } from '../../../chat/com
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { getChatNotificationResource } from '../../../chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';

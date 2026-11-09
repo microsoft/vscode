@@ -40,7 +40,7 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility, type IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { TestEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -54,14 +54,14 @@ import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/ex
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
-import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { ISessionChangesStatsCache } from '../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHover } from '../../../../../workbench/contrib/sessions/browser/github/issueHover.js';
 import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue, type IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
@@ -73,6 +73,7 @@ import { buildSessionIssueSections, buildSessionPullRequestSections, computeSess
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArtifacts.js';
 import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { type IChatBackgroundShell } from '../../../../../workbench/common/chatBackgroundShell.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -601,6 +602,22 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('does not report the cached changes of a quick chat on its main chat, which has no workspace', () => {
+		const cache = upcastPartial<ISessionChangesStatsCache>({ get: () => ({ files: 1, insertions: 4, deletions: 0 }) });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), workspace: constObservable(undefined) });
+		const session = (isQuickChat: boolean) => upcastPartial<ITestSessionWithChat>({
+			sessionId: 'provider:session',
+			mainChat: constObservable(chat),
+			isQuickChat: constObservable(isQuickChat),
+		});
+		const stats = (isQuickChat: boolean) => derived(reader => computeSessionInputPillStats(session(isQuickChat), chat, reader, cache)).get();
+
+		assert.deepStrictEqual({ quickChat: stats(true), workspaceSession: stats(false) }, {
+			quickChat: { files: 0, insertions: 0, deletions: 0 },
+			workspaceSession: { files: 1, insertions: 4, deletions: 0 },
+		});
+	});
+
 	test('uses Session Changes for folders and Branch Changes for worktrees', () => {
 		const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({
@@ -880,7 +897,7 @@ suite('SessionChatInputToolbar', () => {
 				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
 					{ action: 'activate', resource: session.resource },
 					{ action: 'reveal' },
-					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined } },
 				]));
 			});
 		}
@@ -940,6 +957,8 @@ suite('SessionChatInputToolbar', () => {
 				workspace,
 			});
 			const opened: (string | undefined)[] = [];
+			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+			instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
 			instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 			instantiationService.stub(ISessionsService, 'setActive', () => { });
 			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
@@ -1024,6 +1043,8 @@ suite('SessionChatInputToolbar', () => {
 			workspace,
 		});
 		const opened: (string | undefined)[] = [];
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
 		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
@@ -1058,6 +1079,71 @@ suite('SessionChatInputToolbar', () => {
 			},
 			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
 		});
+	});
+
+	test('opens the Changes editor of its own chat from a pill in a chat window', () => {
+		const { instantiationService } = createServices();
+		const createWorkspace = (folder: string) => constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				workingDirectory: URI.file(folder),
+				gitRepository: {
+					uri: URI.file('/repo'),
+					workTreeUri: URI.file(folder),
+					baseBranchName: 'main',
+					branchName: folder,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+		}));
+		const createChat = (resource: string, folder: string) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
+			workspace: createWorkspace(folder),
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file(`${folder}/change.ts`), insertions: 1, deletions: 0 }]),
+		});
+		const mainChat = createChat('chat:main', '/worktrees/main');
+		const nestedChat = createChat('chat:nested', '/worktrees/nested');
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([mainChat, nestedChat]),
+			mainChat: constObservable(mainChat),
+			workspace: mainChat.workspace,
+		});
+		const opened: { resource: string; chatResource: string | undefined }[] = [];
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			// The dropdowns of the pills show in the container of their window.
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (resource, options) => {
+				opened.push({ resource: resource.toString(), chatResource: options?.chatResource?.toString() });
+				return undefined;
+			},
+		}));
+		for (const chat of [nestedChat, mainChat]) {
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			toolbar.setSession(session, chat);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+			pill.click();
+		}
+
+		assert.deepStrictEqual(opened, [
+			{ resource: 'session:1', chatResource: 'chat:nested' },
+			{ resource: 'session:1', chatResource: 'chat:main' },
+		]);
 	});
 
 	test('uses one GitHub row presentation in dedicated, artifact, and reference collections', () => {

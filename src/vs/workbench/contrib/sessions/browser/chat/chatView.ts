@@ -56,11 +56,11 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../cha
 import { getChatSessionType, getNewChatSessionResource } from '../../../chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
-import { isPhoneLayout } from '../mobileLayout.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';
-import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -176,7 +176,7 @@ export function getChatRespondent(session: ISession, chatResource: URI, sessions
 	if (!chat || !harness || harness === session.harness) {
 		return undefined;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (provider) {
 		readProviderModelsChanged(provider, reader);
 	}
@@ -922,7 +922,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void {
-		const snapshot = this.sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId, chat.modelId.get());
+		const snapshot = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.getModelsSnapshot(session.sessionId, chat.modelId.get());
 		// Keep this view-owned model in the draft's pool without registering it or reusing the backend resource.
 		const model = this.instantiationService.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat,

@@ -72,6 +72,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
+import { injectSideChatContext, readSideChatSourceContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
@@ -33011,6 +33012,124 @@ suite('AgentService (node dispatcher)', () => {
 				immediateStateTitle: 'Side title',
 				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
+		});
+
+		for (const active of [false, true]) {
+			test(`isolated side chats retain their origin but no ${active ? 'active or historical' : 'historical'} source context`, async () => {
+				const data = createPerSessionDataService();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new SideChatAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const sourceChat = buildDefaultChatUri(session);
+				const stateManager = getStateManager(localService);
+				stateManager.seedDefaultChatTurns(session.toString(), [
+					completedTurn('history', 'Unrelated task', 'Unrelated answer'),
+					...(!active ? [completedTurn('source-turn', 'Continue the task', 'Source answer')] : []),
+				]);
+				if (active) {
+					stateManager.dispatchServerAction(sourceChat, chatTurnStarted('source-turn', 'Continue the task'));
+					stateManager.dispatchServerAction(sourceChat, {
+						type: ActionType.ChatResponsePart, turnId: 'source-turn',
+						part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'Unrelated partial answer' },
+					});
+				}
+				const side = URI.parse(buildChatUri(session, 'isolated-side'));
+				await localService.createChat(session, side, {
+					sideChat: { source: URI.parse(sourceChat), turnId: 'source-turn', includeSourceContext: false },
+				});
+				const query = 'Explain `npm i` without running it.';
+				const sent = Event.toPromise(agent.onDidSendMessage, disposables);
+				localService.dispatchAction(side.toString(), chatTurnStarted('explain-turn', query), 'client', 1);
+				const message = await sent;
+
+				assert.deepStrictEqual({
+					origin: stateManager.getChatOrigin(side.toString()),
+					fork: agent.lastCreateOptions?.fork,
+					inheritedTurns: stateManager.getChatState(side.toString())?.turns,
+					includeSourceContext: await readSideChatSourceContext(data.service, URI.parse(stateManager.resolveChatStorageResource(session.toString(), side.toString()))),
+					prompt: message.prompt,
+					sourceActiveTurn: stateManager.getChatState(sourceChat)?.activeTurn?.id,
+				}, {
+					origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'source-turn' },
+					fork: undefined,
+					inheritedTurns: [],
+					includeSourceContext: false,
+					prompt: injectSideChatContext(query),
+					sourceActiveTurn: active ? 'source-turn' : undefined,
+				});
+			});
+		}
+
+		test('isolated side-chat provenance and context exclusion survive a host restart', async () => {
+			const data = createPerSessionDataService();
+			const database = new RetainedAgentHostDatabase(':memory:');
+			disposables.add(toDisposable(() => void database.release()));
+			const createService = (session?: URI) => {
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+				const agent = disposables.add(new SideChatAgent('copilot'));
+				if (session) {
+					agent.seedSession(session);
+				}
+				registerTestAgentProvider(localService, agent);
+				return { localService, agent };
+			};
+			const first = createService();
+			const session = await first.localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			getStateManager(first.localService).seedDefaultChatTurns(session.toString(), [completedTurn('source-turn')]);
+			const side = URI.parse(buildChatUri(session, 'isolated-side'));
+			await first.localService.createChat(session, side, {
+				sideChat: { source: URI.parse(sourceChat), turnId: 'source-turn', includeSourceContext: false },
+			});
+			await first.localService.shutdown();
+			first.localService.dispose();
+
+			const restarted = createService(session);
+			await restarted.localService.restoreSession(session);
+			const stateManager = getStateManager(restarted.localService);
+
+			assert.deepStrictEqual({
+				origin: stateManager.getChatOrigin(side.toString()),
+				includeSourceContext: await readSideChatSourceContext(data.service, URI.parse(stateManager.resolveChatStorageResource(session.toString(), side.toString()))),
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'source-turn' },
+				includeSourceContext: false,
+			});
+		});
+
+		test('a normal side chat resets context exclusion copied from an isolated side chat', async () => {
+			const data = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new class extends SideChatAgent {
+				override async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+					const result = await super.createChat(session, chat, options);
+					if (options?.fork) {
+						await data.database(chat).setMetadataValues(await data.database(options.fork.source).getMetadataByPrefix(''));
+					}
+					return result;
+				}
+			}('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(localService);
+			stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('source-turn')]);
+			const isolated = URI.parse(buildChatUri(session, 'isolated'));
+			await localService.createChat(session, isolated, {
+				sideChat: { source: URI.parse(sourceChat), turnId: 'source-turn', includeSourceContext: false },
+			});
+			stateManager.dispatchServerAction(isolated.toString(), chatTurnStarted('isolated-turn', 'Explain a command'));
+			stateManager.dispatchServerAction(isolated.toString(), chatTurnComplete('isolated-turn', 1));
+			const contextual = URI.parse(buildChatUri(session, 'contextual'));
+
+			await localService.createChat(session, contextual, { sideChat: { source: isolated, turnId: 'isolated-turn' } });
+
+			assert.deepStrictEqual({
+				isolated: await readSideChatSourceContext(data.service, isolated),
+				contextual: await readSideChatSourceContext(data.service, contextual),
+				forkSource: agent.lastCreateOptions?.fork?.source.toString(),
+			}, { isolated: false, contextual: true, forkSource: isolated.toString() });
 		});
 
 		test('creates a side chat with a selection larger than the catalog JSON string bound', async () => {

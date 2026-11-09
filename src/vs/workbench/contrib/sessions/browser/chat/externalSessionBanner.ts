@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
-import { ISession } from '../../common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 const EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY = 'sessions.externalSessionBanner.dismissed';
 const DAY = 24 * 60 * 60 * 1000;

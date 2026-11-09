@@ -30,7 +30,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
-import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 /**
  * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:

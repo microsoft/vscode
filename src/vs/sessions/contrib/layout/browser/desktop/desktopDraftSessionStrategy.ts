@@ -20,9 +20,9 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/services/sessions/common/session.js';
 import {
 	DetailPanelTarget,
 	DesktopDetailPanelCoordinator,
@@ -30,16 +30,18 @@ import {
 import {
 	FilesDetailsState,
 	getFilesDetailsState,
+	getLayoutWorkspace,
 	isChangesEditorInput,
 	isEditorWithoutDockedDetails,
 	isMainPartEmpty,
+	isQuickChatShown,
 } from './desktopSharedHelpers.js';
 import {
 	IDesktopLayoutContext,
 	DesktopLayoutStrategy,
 } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
-import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * Owns workspace-backed and workspace-less draft layout behavior.
@@ -82,7 +84,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return undefined;
 		}
 		const shown = this._ctx.shownByMainWindow();
-		return shown && !isSessionCreated(shown.session) && !shown.session.isQuickChat?.get()
+		return shown && !isSessionCreated(shown.session) && !isQuickChatShown(shown)
 			? this._ctx.ownerKeyFor(shown)
 			: undefined;
 	}
@@ -242,9 +244,18 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _registerQuickChatVisibility(): void {
+		let previousOwnerKey: string | undefined;
+		let previousDraftKey: string | undefined;
 		this._register(autorun(reader => {
-			const activeSession = this._ctx.mainWindowSession.read(reader);
-			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
+			const shown = this._ctx.shownByMainWindow(reader);
+			const activeSession = shown?.session;
+			const ownerKey = shown && (this._ctx.ownerKeyFor(shown, reader) ?? shown.session.resource).toString();
+			const ownerUnchanged = !!ownerKey && ownerKey === previousOwnerKey;
+			previousOwnerKey = ownerKey;
+			const draftKey = activeSession && !isSessionCreated(activeSession, reader) ? activeSession.resource.toString() : undefined;
+			const isDraftWorkspaceSelection = !!draftKey && !!previousDraftKey && draftKey !== previousDraftKey;
+			previousDraftKey = draftKey;
+			if (!activeSession || !isQuickChatShown(shown, reader)) {
 				this._activeQuickChatKey = undefined;
 				this._pendingEditorRestoreKey = undefined;
 				return;
@@ -259,14 +270,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
 				const isRestoringSessionLayout = this._ctx.isRestoringSessionLayout;
-				this._pendingEditorRestoreKey = !multipleSessionsVisible
-					? sessionKey
-					: undefined;
-				if (!multipleSessionsVisible && hasSavedWorkingSet) {
-					this._applyQuickChatVisibility();
-				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
-					this._pendingEditorRestoreKey = undefined;
-					this._hideQuickChatSidePaneTransiently();
+				this._pendingEditorRestoreKey = undefined;
+				if (!multipleSessionsVisible && !isDraftWorkspaceSelection) {
+					this._enterQuickChat(sessionKey, ownerUnchanged, hasSavedWorkingSet, isRestoringSessionLayout);
 				}
 				this._detailPanel.sync(DetailPanelTarget.Files);
 			}
@@ -276,7 +282,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			const activeSession = this._ctx.mainWindowSession.get();
 			const sessionKey = activeSession?.resource.toString();
 			if (!activeSession
-				|| !(activeSession.isQuickChat?.get() ?? false)
+				|| !isQuickChatShown(this._ctx.shownByMainWindow())
 				|| this._ctx.multipleSessionsVisibleObs.get()) {
 				return;
 			}
@@ -305,8 +311,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
 			try {
 				const shown = this._ctx.shownByMainWindow();
-				const activeSession = shown?.session;
-				if (!activeSession?.isQuickChat?.get()
+				if (!isQuickChatShown(shown)
 					|| this._ctx.chatLayoutSuspended()
 					|| this._ctx.multipleSessionsVisibleObs.get()
 					|| isMainPartEmpty(this._editorGroupsService)) {
@@ -328,6 +333,29 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(this._editorService.onDidEditorsChange(() => this._captureQuickChatSharedVisibility()));
 	}
 
+	/**
+	 * Applies a Quick Chat's side-pane visibility when the main window starts showing it: at once when it replaces a chat of
+	 * its own owner or has a saved working set, or once that restore settles.
+	 */
+	private _enterQuickChat(sessionKey: string, ownerUnchanged: boolean, hasSavedWorkingSet: boolean, isRestoringSessionLayout: boolean): void {
+		if (ownerUnchanged) {
+			if (this._getMainPartEditors().every(editor => editor instanceof EmptyFileEditorInput || isChangesEditorInput(editor, this._sessionChangesService))) {
+				this._hideQuickChatSidePaneTransiently();
+			} else {
+				this._applyQuickChatVisibility();
+			}
+			return;
+		}
+		if (!isRestoringSessionLayout && !hasSavedWorkingSet && isMainPartEmpty(this._editorGroupsService)) {
+			this._hideQuickChatSidePaneTransiently();
+			return;
+		}
+		this._pendingEditorRestoreKey = sessionKey;
+		if (hasSavedWorkingSet) {
+			this._applyQuickChatVisibility();
+		}
+	}
+
 	private _captureQuickChatSharedVisibility(): void {
 		if (this._changingVisibility
 			|| this._ctx.isRestoringSessionLayout
@@ -340,7 +368,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		const shown = this._ctx.shownByMainWindow();
-		if (!shown || !(shown.session.isQuickChat?.get() ?? false)) {
+		if (!shown || !isQuickChatShown(shown)) {
 			return;
 		}
 
@@ -369,7 +397,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	 * chat-specific layout mode.
 	 */
 	private _quickChatVisibilityOwnerKey(shown: IShownChat): URI | undefined {
-		return shown.session.isQuickChat?.get() && this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout ? this._ctx.ownerKeyFor(shown) : undefined;
+		return isQuickChatShown(shown) && this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout ? this._ctx.ownerKeyFor(shown) : undefined;
 	}
 
 	/**
@@ -490,8 +518,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				if (!this._editorGroupsService.mainPart.getGroup(event.groupId)) {
 					return;
 				}
-				const session = this._ctx.mainWindowSession.get();
-				const isQuickChat = session?.isQuickChat?.get() ?? false;
+				const isQuickChat = isQuickChatShown(this._ctx.shownByMainWindow());
 				if (
 					(!this._getActiveNewSessionKey() && !isQuickChat) ||
 					this._otherSessionShown() ||
@@ -521,8 +548,8 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			!shown ||
 			!session ||
 			isSessionCreated(session) ||
-			session.isQuickChat?.get() ||
-			!session.workspace.get() ||
+			isQuickChatShown(shown) ||
+			!getLayoutWorkspace(shown) ||
 			this._multipleLayoutOwnersVisible()
 		) {
 			return undefined;
@@ -537,8 +564,8 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			!shown ||
 			!session ||
 			isSessionCreated(session, reader) ||
-			(session.isQuickChat?.read(reader) ?? false) ||
-			!session.workspace.read(reader) ||
+			isQuickChatShown(shown, reader) ||
+			!getLayoutWorkspace(shown, reader) ||
 			this._multipleLayoutOwnersVisible(reader)
 		) {
 			return undefined;
@@ -585,9 +612,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					previousEditorSessionKey = undefined;
 					return;
 				}
-				const isQuickChat = activeSession.isQuickChat?.read(reader) ?? false;
-				const workspace = activeSession.workspace.read(reader);
-				if (isQuickChat || !workspace || isSessionCreated(activeSession, reader)) {
+				const isQuickChat = isQuickChatShown(shown, reader);
+				const workspace = isQuickChat ? undefined : getLayoutWorkspace(shown, reader);
+				if (!workspace || isSessionCreated(activeSession, reader)) {
 					previousActiveEditor = undefined;
 					previousEditorPartVisible = false;
 					previousEditorSessionKey = undefined;

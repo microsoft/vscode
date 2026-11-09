@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-question-answer-editor {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0 var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-input-background);
+	overflow: hidden;
+}
+
+.chat-question-answer-editor:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.chat-question-answer-editor .chat-question-answer-editor-input {
+	width: 100%;
+}
+
+/* Outrank session-surface editor colors while keeping Monaco's background layers opaque. */
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor {
+	background-color: transparent;
+}
+
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .margin,
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background);
+}
+
+/* Idle (unfocused and empty): same frame as any input; only the placeholder reads as an action. */
+.chat-question-answer-editor.ghost {
+	cursor: text;
+}
+
+.chat-question-answer-editor.ghost .monaco-editor .editorPlaceholder {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench:not(.monaco-reduce-motion) .chat-question-answer-editor {
+	transition: border-color 150ms ease-out;
+
+	.monaco-editor .editorPlaceholder {
+		transition: color 150ms ease-out;
+	}
+}
