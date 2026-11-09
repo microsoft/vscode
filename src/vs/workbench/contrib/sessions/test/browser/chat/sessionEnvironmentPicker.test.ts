@@ -11,7 +11,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -182,6 +182,7 @@ suite('SessionEnvironmentPicker', () => {
 		let hide: (() => void) | undefined;
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
+		let hovers: IActionListItemHover['content'][] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
 		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
@@ -189,6 +190,7 @@ suite('SessionEnvironmentPicker', () => {
 			hide: () => hide?.(),
 			show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
 				labels = items.map(item => item.label);
+				hovers = items.map(item => item.hover?.content);
 				hide = () => delegate.onHide();
 				accept = index => delegate.onSelect(items[index].item!);
 			},
@@ -222,13 +224,14 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual({
 			order: container.textContent,
 			labels,
+			hovers,
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
 			toolbar: !!trigger.closest('.monaco-toolbar'),
 			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], hovers: ['Run this session directly on this computer', undefined], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
 			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
 	});

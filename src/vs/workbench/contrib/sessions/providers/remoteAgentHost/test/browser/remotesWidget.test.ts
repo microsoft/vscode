@@ -1291,7 +1291,7 @@ suite('RemotesWidget', () => {
 			tooltip: hoverContents.get(connection),
 			infoIcons: row.querySelectorAll('.codicon-info').length,
 			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Offline. Start the owning application.'),
+			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Host offline. Start the owning application.'),
 		};
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
@@ -1299,7 +1299,7 @@ suite('RemotesWidget', () => {
 			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
 			tableFocused: dom.getActiveElement() === table,
 		}, {
-			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			offline: { connection: 'Host offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
 			available: 'Disconnected', tableFocused: true,
 		});
 	});
@@ -1328,7 +1328,7 @@ suite('RemotesWidget', () => {
 		await model.pendingConnection.complete();
 		await timeout(0);
 		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
+		assert.deepStrictEqual(observed, ['Host offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Host offline']);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {

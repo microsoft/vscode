@@ -77,7 +77,7 @@ type RemoteCellTemplate = {
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
 	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
-		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
+		? localize('remotes.hostOffline', "Host offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
 		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
 }
 

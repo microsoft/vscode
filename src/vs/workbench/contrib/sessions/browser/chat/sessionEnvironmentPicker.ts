@@ -227,6 +227,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
+			hover: environment.kind === 'local' ? { content: localize('environmentPicker.localHover', "Run this session directly on this computer") } : undefined,
 			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
