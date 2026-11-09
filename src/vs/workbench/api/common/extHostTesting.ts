@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { hash } from '../../../base/common/hash.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -24,7 +24,7 @@ import { TestId, TestPosition } from '../../contrib/testing/common/testId.js';
 import { InvalidTestItemError } from '../../contrib/testing/common/testItemCollection.js';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiff, TestsDiffOp, isStartControllerTests } from '../../contrib/testing/common/testTypes.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from './extHost.protocol.js';
+import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape, TestRunUpdate } from './extHost.protocol.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -77,7 +77,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		super();
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 		this.observer = new TestObservers(this.proxy);
-		this.runTracker = new TestRunCoordinator(this.proxy, logService);
+		this.runTracker = this._register(new TestRunCoordinator(this.proxy, logService));
 		this._register(commands.registerExecutionParticipant(command => {
 			if (command.startsWith('testing.') || command === 'vscode.peekTestError') {
 				this.runTracker.flushUpdates();
@@ -620,7 +620,6 @@ interface TestRun extends vscode.TestRun {
 }
 
 class TestRunTracker extends Disposable {
-	private readonly batchedRpc: BatchedTestRunRpc;
 	private state = TestRunTrackerState.Running;
 	private running = 0;
 	private readonly tasks = new Map</* task ID */string, { cts: CancellationTokenSource; run: vscode.TestRun }>();
@@ -655,10 +654,10 @@ class TestRunTracker extends Disposable {
 		private readonly logService: ILogService,
 		private readonly profile: vscode.TestRunProfile | undefined,
 		private readonly extension: IExtensionDescription,
+		private readonly batchedRpc: BatchedTestRunRpc,
 		parentToken?: CancellationToken,
 	) {
 		super();
-		this.batchedRpc = this._register(new BatchedTestRunRpc(proxy, dto.controllerId, dto.id));
 		this.cts = this._register(new CancellationTokenSource(parentToken));
 
 		const forciblyEnd = this._register(new RunOnceScheduler(() => this.forciblyEndTasks(), RUN_CANCEL_DEADLINE));
@@ -733,7 +732,7 @@ class TestRunTracker extends Disposable {
 
 		const guardTestMutation = <Args extends unknown[]>(fn: (test: vscode.TestItem, ...args: Args) => void) =>
 			(test: vscode.TestItem, ...args: Args) => {
-				if (ended) {
+				if (ended || this._store.isDisposed) {
 					this.logService.warn(`Setting the state of test "${test.id}" is a no-op after the run ends.`);
 					return;
 				}
@@ -754,7 +753,7 @@ class TestRunTracker extends Disposable {
 				}
 			}
 
-			this.batchedRpc.add({ type: 'messages', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), messages: converted });
+			this.addUpdate({ type: 'messages', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), messages: converted });
 		};
 
 		let ended = false;
@@ -770,7 +769,7 @@ class TestRunTracker extends Disposable {
 			name,
 			onDidDispose: this.onDidDispose,
 			addCoverage: (coverage) => {
-				if (ended) {
+				if (ended || this._store.isDisposed) {
 					return;
 				}
 
@@ -793,24 +792,24 @@ class TestRunTracker extends Disposable {
 			},
 			//#region state mutation
 			enqueued: guardTestMutation(test => {
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Queued });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Queued });
 			}),
 			skipped: guardTestMutation(test => {
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Skipped });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Skipped });
 			}),
 			started: guardTestMutation(test => {
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Running });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Running });
 			}),
 			errored: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Errored, duration });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Errored, duration });
 			}),
 			failed: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Failed, duration });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Failed, duration });
 			}),
 			passed: guardTestMutation((test, duration) => {
-				this.batchedRpc.add({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
+				this.addUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
 			}),
 			//#endregion
 			appendOutput: (output: string | Uint8Array, location?: vscode.Location, test?: vscode.TestItem) => {
@@ -821,8 +820,8 @@ class TestRunTracker extends Disposable {
 					this.ensureTestIsKnown(test);
 				}
 
-				this.batchedRpc.add({
-					type: 'output', taskId, output: typeof output === 'string' ? VSBuffer.fromString(output) : VSBuffer.wrap(output),
+				this.addUpdate({
+					type: 'output', taskId, output: typeof output === 'string' ? output : VSBuffer.wrap(output),
 					location: location && Convert.location.from(location),
 					testId: test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
 				});
@@ -894,7 +893,11 @@ class TestRunTracker extends Disposable {
 			test = test.parent || root;
 		}
 
-		this.batchedRpc.add({ type: 'tests', tests: chain });
+		this.addUpdate({ type: 'tests', tests: chain });
+	}
+
+	private addUpdate(update: TestRunUpdate): void {
+		this.batchedRpc.add(this.dto.controllerId, update);
 	}
 
 	public flushUpdates(): void {
@@ -912,9 +915,10 @@ class TestRunTracker extends Disposable {
  * Queues runs for a single extension and provides the currently-executing
  * run so that `createTestRun` can be properly correlated.
  */
-export class TestRunCoordinator {
+export class TestRunCoordinator extends Disposable {
 	private readonly tracked = new Map<vscode.TestRunRequest, TestRunTracker>();
 	private readonly trackedById = new Map<string, TestRunTracker>();
+	private readonly batchedRpcs = this._register(new DisposableMap<string, BatchedTestRunRpc>());
 
 	public get trackers() {
 		return this.tracked.values();
@@ -923,7 +927,9 @@ export class TestRunCoordinator {
 	constructor(
 		private readonly proxy: MainThreadTestingShape,
 		private readonly logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	/**
 	 * Gets a coverage report for a given run and task ID.
@@ -951,13 +957,14 @@ export class TestRunCoordinator {
 	 * in associated data.
 	 */
 	public disposeTestRun(runId: string) {
-		this.trackedById.get(runId)?.dispose();
-		this.trackedById.delete(runId);
-		for (const [req, { id }] of this.tracked) {
-			if (id === runId) {
+		for (const [req, tracker] of this.tracked) {
+			if (tracker.id === runId) {
+				tracker.dispose();
 				this.tracked.delete(req);
 			}
 		}
+		this.trackedById.delete(runId);
+		this.batchedRpcs.deleteAndDispose(runId);
 	}
 
 	/**
@@ -1018,10 +1025,22 @@ export class TestRunCoordinator {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IExtensionDescription, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, token);
+		let batchedRpc = this.batchedRpcs.get(dto.id);
+		if (!batchedRpc) {
+			batchedRpc = new BatchedTestRunRpc(this.proxy, dto.id);
+			this.batchedRpcs.set(dto.id, batchedRpc);
+		}
+		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, batchedRpc, token);
 		this.tracked.set(req, tracker);
 		this.trackedById.set(tracker.id, tracker);
 		return tracker;
+	}
+
+	public override dispose(): void {
+		for (const runId of this.batchedRpcs.keys()) {
+			this.disposeTestRun(runId);
+		}
+		super.dispose();
 	}
 }
 

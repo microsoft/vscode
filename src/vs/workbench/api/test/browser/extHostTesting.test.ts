@@ -960,13 +960,13 @@ suite('ExtHost Testing', () => {
 		};
 		const rpc = new TestRPCProtocol();
 		rpc.set(MainContext.MainThreadTesting, receiver);
-		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting), 'ctrl', 'run'));
+		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting), 'run'));
 		const bytes = new Uint8Array([0x00, 0xff, 0xe2]);
-		batchedRpc.add({ type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
+		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
 		bytes.fill(0);
-		batchedRpc.add({ type: 'output', taskId: 'task', output: 'after' });
+		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: 'after' });
 		batchedRpc.dispose();
-		batchedRpc.add({ type: 'output', taskId: 'task', output: 'ignored' });
+		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: 'ignored' });
 		await rpc.sync();
 		assert.deepStrictEqual({ batches, output: receiver.$appendOutputToRun.args }, {
 			batches: [['output', 'output']],
@@ -975,6 +975,21 @@ suite('ExtHost Testing', () => {
 				['run', 'task', VSBuffer.fromString('after'), undefined, undefined],
 			],
 		});
+	});
+
+
+	test('flushes controller boundaries in call order within a shared run', () => {
+		const proxy = mockObject<MainThreadTestingShape>()();
+		const rpc = ds.add(new BatchedTestRunRpc(proxy, 'run'));
+		rpc.add('first', { type: 'output', taskId: 'one', output: 'one' });
+		rpc.add('second', { type: 'output', taskId: 'two', output: 'two' });
+		rpc.add('first', { type: 'output', taskId: 'three', output: 'three' });
+		rpc.flush();
+		assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([controllerId, runId, updates]) => ({ controllerId, runId, taskIds: updates.value.map((update: TestRunUpdate) => update.type === 'tests' ? undefined : update.taskId) })), [
+			{ controllerId: 'first', runId: 'run', taskIds: ['one'] },
+			{ controllerId: 'second', runId: 'run', taskIds: ['two'] },
+			{ controllerId: 'first', runId: 'run', taskIds: ['three'] },
+		]);
 	});
 
 	test('continues applying a batch after an update handler throws', async () => {
@@ -1045,7 +1060,7 @@ suite('ExtHost Testing', () => {
 				}
 			});
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy, new NullLogService());
+			c = ds.add(new TestRunCoordinator(proxy, new NullLogService()));
 
 			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
@@ -1171,6 +1186,51 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 		});
 
+
+		for (const outputLength of [100, 64 * 1024]) {
+			test(`encodes ${outputLength} string bytes once while snapshotting extension bytes`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const clone = sinon.spy(VSBuffer.prototype, 'clone');
+				task.appendOutput('x'.repeat(outputLength));
+				assert.strictEqual(clone.callCount, 0);
+				const bytes = new Uint8Array([97, 98]);
+				task.appendOutput(bytes);
+				assert.strictEqual(clone.callCount, 1);
+				bytes.fill(0);
+				task.end();
+				assert.deepStrictEqual(proxy.$appendOutputToRun.args.map(args => args[2].toString()), ['x'.repeat(outputLength), 'ab']);
+			});
+		}
+
+		for (const target of ['message', 'registration'] as const) {
+			test(`snapshots the Markdown trust object and command array for a ${target}`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const item = single.root.children.get('id-a')!;
+				const commands = ['original'];
+				const trust = { enabledCommands: commands };
+				const markdown = new MarkdownString('Original message');
+				markdown.isTrusted = trust;
+				if (target === 'message') {
+					task.failed(item, new TestMessage(markdown));
+				} else {
+					item.error = markdown;
+					task.started(item);
+				}
+				commands.push('later');
+				trust.enabledCommands = ['replacement'];
+				markdown.value = 'Changed message';
+				clock.tick(0);
+				const actual = target === 'message'
+					? proxy.$appendTestMessagesInRun.firstCall.args[3][0].message
+					: proxy.$addTestsToRun.firstCall.args[2].find((test: ITestItem.Serialized) => test.extId === 'ctrlId\0id-a')!.error;
+				assert.ok(actual && typeof actual !== 'string');
+				assert.strictEqual(actual.value, 'Original message');
+				assert.deepStrictEqual(actual.isTrusted, { enabledCommands: ['original'] });
+				assert.notStrictEqual(actual.isTrusted, trust);
+				task.end();
+			});
+		}
+
 		test('bounds cumulative failure snapshot payloads before the timer fires', () => {
 			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
 			const test = single.root.children.get('id-a')!;
@@ -1240,6 +1300,52 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.hasRunningTasks, false);
 		});
 
+
+		for (const flush of ['timer', 'task end', 'result disposal'] as const) {
+			test(`preserves interleaved profile updates on ${flush}`, () => {
+				const sharedDto = new TestRunDto('ctrlId', dto.id, true, single);
+				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
+				const secondRequest = { ...req, profile: secondProfile };
+				c.prepareForMainThreadTestRun(ext, req, sharedDto, configuration, cts.token);
+				c.prepareForMainThreadTestRun(ext, secondRequest, sharedDto, secondProfile, cts.token);
+				const firstDisposed = sinon.stub();
+				const secondDisposed = sinon.stub();
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, secondRequest, 'second', true);
+				ds.add(first.onDidDispose(firstDisposed));
+				ds.add(second.onDidDispose(secondDisposed));
+				const one = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const two = single.root.children.get('id-a')!.children.get('id-ab')!;
+				const three = single.root.children.get('id-a')!;
+				first.started(one);
+				second.started(two);
+				first.started(three);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+				if (flush === 'timer') {
+					clock.tick(0);
+				} else if (flush === 'task end') {
+					second.end();
+					assert.ok(proxy.$finishedTestRunTask.calledAfter(proxy.$applyTestRunUpdates));
+					first.passed(one);
+					clock.tick(0);
+				} else {
+					c.disposeTestRun(sharedDto.id);
+					assert.strictEqual(firstDisposed.callCount, 1);
+					assert.strictEqual(secondDisposed.callCount, 1);
+					first.started(one);
+					second.appendOutput('ignored');
+				}
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.args.slice(0, 3).map(args => args[2]), [one, two, three].map(item => TestId.fromExtHostTestItem(item, 'ctrlId').toString()));
+				const count = proxy.$applyTestRunUpdates.callCount;
+				clock.tick(0);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, count);
+				if (flush !== 'result disposal') {
+					first.end();
+					second.end();
+				}
+			});
+		}
+
 		for (const firstToEnd of ['first', 'second'] as const) {
 			test(`preserves both profiles' results when the ${firstToEnd} profile ends first`, () => {
 				const sharedDto = new TestRunDto('ctrlId', dto.id, true, single);
@@ -1272,9 +1378,7 @@ suite('ExtHost Testing', () => {
 				const endingOrder = firstToEnd === 'first' ? [first, second] : [second, first];
 				endingOrder[0].end();
 				const registered = result.getStateById(testId)!;
-				assert.deepStrictEqual(registered.tasks.map(task => task.state), firstToEnd === 'first'
-					? [TestResultState.Failed, TestResultState.Unset]
-					: [TestResultState.Unset, TestResultState.Passed]);
+				assert.deepStrictEqual(registered.tasks.map(task => task.state), [TestResultState.Failed, TestResultState.Passed]);
 				endingOrder[1].end();
 				clock.tick(0);
 				const actual = result.getStateById(testId)!;
@@ -1315,10 +1419,10 @@ suite('ExtHost Testing', () => {
 				c.markTestRetired(invalidateAll ? undefined : ['ctrlId\0id-a']);
 
 				assert.deepStrictEqual({ calls, runIds: proxy.$applyTestRunUpdates.args.map(args => args[1]) }, {
-					calls: ['updates', 'updates', 'retire'], runIds: ['run-id', 'run-id'],
+					calls: ['updates', 'retire'], runIds: ['run-id'],
 				});
 				clock.tick(0);
-				assert.deepStrictEqual(calls, ['updates', 'updates', 'retire']);
+				assert.deepStrictEqual(calls, ['updates', 'retire']);
 				first.end();
 				second.end();
 			});
