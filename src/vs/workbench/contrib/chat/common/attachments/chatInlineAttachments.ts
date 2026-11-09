@@ -391,7 +391,7 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		if (variable.kind === 'file' || variable.kind === 'directory') {
 			mentions.add(`${chatVariableLeader}file:${variable.name}`).add(`${chatVariableLeader}${variable.name}`);
 		}
-		if (variable.kind === 'symbol' || variable.kind === 'file' || isLocation(variable.value) || variable.id.startsWith('vscode.symbol/')) {
+		if (variable.kind === 'symbol' || isLocation(variable.value) || variable.id.startsWith('vscode.symbol/')) {
 			const symbolNames = new Set([variable.name, variable.fullName]);
 			if (variable.name.startsWith('sym:')) {
 				symbolNames.add(variable.name.slice(4));

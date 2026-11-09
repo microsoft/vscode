@@ -254,6 +254,29 @@ suite('Chat inline attachments', () => {
 		});
 	});
 
+	test('recovers same-name file and symbol references without shadowing', () => {
+		const text = 'compare #file:run with #sym:run';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'file', id: 'file-run', name: 'run', value: URI.file('/workspace/run') },
+			{
+				kind: 'file',
+				id: 'symbol-run',
+				name: 'run',
+				fullName: 'run',
+				value: { uri: URI.file('/workspace/run.ts'), range: new Range(1, 1, 5, 2) },
+			},
+		];
+		const recovered = recoverAttachmentMentions(message, variables);
+		assert.deepStrictEqual({
+			parts: recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text),
+			inline: [...getInlineRequestAttachments(recovered.parts, variables, text).values()].map(variable => variable.id),
+		}, {
+			parts: ['compare ', '[file-run]', ' with ', '[symbol-run]'],
+			inline: ['file-run', 'symbol-run'],
+		});
+	});
+
 	test('recovers the mentions that the prompt sent to the model read pills as', () => {
 		const text = 'compare [utils.ts](file:///src/utils.ts) with [utils.ts](file:///src/utils.ts) using Pasted text #1, not Pasted text #12 or MyPasted text #1';
 		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
