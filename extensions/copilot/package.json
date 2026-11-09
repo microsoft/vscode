@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.74.0",
+  "version": "0.75.0",
   "packageManager": "pnpm@12.16.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.146.0",
+    "vscode": "^1.147.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
