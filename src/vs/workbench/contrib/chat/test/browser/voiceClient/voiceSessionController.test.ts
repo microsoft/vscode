@@ -6733,7 +6733,7 @@ suite('VoiceSessionController', () => {
 			sinon.stub(chatService, 'sendRequest').callsFake(async (resource): Promise<ChatSendResult> => {
 				calls.push(`send:${resource}`);
 				started.complete();
-				return outcome === 'queued' ? { kind: 'queued', deferred: sent.p } : sent.p;
+				return outcome === 'queued' ? { kind: 'queued', requestId: 'queued', deferred: sent.p } : sent.p;
 			});
 			const controller = createController(new TestVoiceClientService(), undefined, commandService, undefined, undefined, undefined, chatService);
 			const dispatchService = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;

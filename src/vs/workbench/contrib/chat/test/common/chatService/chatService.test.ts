@@ -735,6 +735,17 @@ suite('ChatService', () => {
 		}, { calls: 1, logged: true });
 	});
 
+	test('a queued result identifies its pending request before execution', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const result = await service.sendRequest(model.sessionResource, 'queued feedback', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		const pending = model.getPendingRequests()[0];
+		assert.deepStrictEqual({
+			kind: result.kind, requestId: ChatSendResult.isQueued(result) ? result.requestId : undefined,
+		}, { kind: 'queued', requestId: pending.request.id });
+		service.removePendingRequest(model.sessionResource, pending.request.id);
+	});
+
 	test('only the first accepted message starts a session even when queued or removed', async () => {
 		const service = createChatService();
 		const model = startSessionModel(service).object;

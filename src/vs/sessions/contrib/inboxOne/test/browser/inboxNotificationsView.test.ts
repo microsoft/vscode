@@ -2011,7 +2011,7 @@ suite('InboxNotificationsView', () => {
 			};
 			chatViews[0].submitted.fire({
 				sessionResource: chat.resource,
-				completion: getChatRequestOutcome(outcome === 'queued' || outcome === 'rejected' ? { kind: 'queued', deferred: pending.p } : sent),
+				completion: getChatRequestOutcome(outcome === 'queued' || outcome === 'rejected' ? { kind: 'queued', requestId: 'queued', deferred: pending.p } : sent),
 			});
 			await timeout(0);
 			const accepted = dismiss.callCount;

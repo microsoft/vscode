@@ -1989,6 +1989,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** Identifies the queued request for correlation with provider acknowledgement. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.

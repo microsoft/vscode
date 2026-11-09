@@ -457,7 +457,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				const completed = new DeferredPromise<void>();
 				const queued = new DeferredPromise<ChatSendResult>();
 				const sent: ChatSendResult = { kind: 'sent', data: upcastPartial<IChatSendRequestData>({ responseCreatedPromise: created.p, responseCompletePromise: completed.p }) };
-				const result: ChatSendResult = kind === 'sent' ? sent : kind === 'queued' ? { kind, deferred: queued.p } : { kind, reason: 'test' };
+				const result: ChatSendResult = kind === 'sent' ? sent : kind === 'queued' ? { kind, requestId: 'queued', deferred: queued.p } : { kind, reason: 'test' };
 				let requestOptions: IChatSendRequestOptions | undefined;
 				const service: ChatService = Object.assign(Object.create(ChatService.prototype), {
 					sendRequestInternal: async (_resource: URI, _request: string, options: IChatSendRequestOptions | undefined) => { requestOptions = options; return result; },

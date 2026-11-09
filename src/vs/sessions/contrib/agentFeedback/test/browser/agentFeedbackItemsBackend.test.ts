@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction, autorun } from '../../../../../base/common/observable.js';
@@ -83,9 +83,12 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const open = new Set<string>();
 		let serverSeq = 0;
 		let clientSeq = 0;
+		let snapshotBarrier: DeferredPromise<void> | undefined;
 		const manager = store.add(new AgentSubscriptionManager(clientId, () => ++clientSeq, () => { }, async resource => {
 			open.add(resource.toString());
-			return { resource: resource.toString(), state: hostState.get(resource.toString()) ?? { annotations: [] }, fromSeq: serverSeq };
+			const snapshot = { resource: resource.toString(), state: hostState.get(resource.toString()) ?? { annotations: [] }, fromSeq: serverSeq };
+			await snapshotBarrier?.p;
+			return snapshot;
 		}, resource => open.delete(resource.toString())));
 		const hostApply = (channel: string, action: ClientAnnotationsAction, origin?: { clientId: string; clientSeq: number }) => {
 			hostState.set(channel, annotationsReducer(hostState.get(channel) ?? { annotations: [] }, action));
@@ -94,6 +97,8 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const host = {
 			connected: true,
 			open,
+			holdSnapshots: () => { snapshotBarrier = new DeferredPromise<void>(); },
+			releaseSnapshots: async () => { await snapshotBarrier?.complete(); snapshotBarrier = undefined; },
 			/** Feedback texts the host holds for the session. */
 			items: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations.map(annotation => annotation.entries[0].text) ?? [],
 			annotations: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations ?? [],
@@ -206,6 +211,43 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		host.addFeedback(session, 'legacy');
 		assert.deepStrictEqual(backend.getItems(session.resource).map(item => ({ id: item.id, chat: item.chatResource })), [{ id: 'legacy', chat: undefined }]);
 	});
+
+	for (const opaque of [false, true]) {
+		test(`updates a cached deleted child's feedback while its replacement snapshot is pending (opaque=${opaque})`, async () => {
+			const { backend, host, sessions: [session], showPanes, feedback } = createConnectedBackend(1);
+			showPanes([session]);
+			backend.getItems(session.resource);
+			await timeout(0);
+			const child = session.chats.get()[1];
+			backend.upsert({ ...feedback('child', session), chatResource: child.resource });
+			session.chats.set([session.mainChat.get()], undefined);
+			if (opaque) {
+				backend.upsert(backend.getItems(session.resource)[0]);
+			}
+			showPanes([]);
+			const suspended = host.open.size === 0;
+			host.holdSnapshots();
+			showPanes([session]);
+			const cached = backend.getItems(session.resource)[0];
+			const loading = !backend.hasLoaded(session.resource);
+			try {
+				backend.upsert({ ...cached, text: 'Edited while loading' });
+				backend.upsert({ ...backend.getItems(session.resource)[0], replies: [{ text: 'Reply while loading', author: 'user' }] });
+				assert.deepStrictEqual({
+					suspended, loading,
+					origin: host.annotations(session)[0].origin.chat,
+					entries: host.annotations(session)[0].entries.map(entry => entry.text),
+				}, {
+					suspended: true, loading: true,
+					origin: 'other-host:/opaque-threads/0-1',
+					entries: ['Edited while loading', 'Reply while loading'],
+				});
+			} finally {
+				await host.releaseSnapshots();
+				await timeout(0);
+			}
+		});
+	}
 
 	test('scoped observation shares and releases annotations without populating the persistent cache', async () => {
 		const sessionResource = URI.parse('agent-host-claude:/saved');
