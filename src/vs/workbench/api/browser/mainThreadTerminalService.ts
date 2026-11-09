@@ -190,7 +190,10 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
 		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
 			const parentTerminal = await this._getTerminalInstance(location.parentTerminal);
-			return parentTerminal && (parentTerminal.target === TerminalLocation.Editor || this._terminalService.foregroundInstances.includes(parentTerminal)) ? { parentTerminal } : undefined;
+			if (!parentTerminal) {
+				return undefined;
+			}
+			return parentTerminal.target === TerminalLocation.Editor || this._terminalService.foregroundInstances.includes(parentTerminal) ? { parentTerminal } : TerminalLocation.Panel;
 		}
 		return location;
 	}

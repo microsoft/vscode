@@ -10,6 +10,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
@@ -21,7 +22,7 @@ import { TerminalGroupService } from '../../../contrib/terminal/browser/terminal
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from '../../../contrib/terminal/common/environmentVariable.js';
-import { ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
+import { ITerminalConfiguration, ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
 import { TestViewDescriptorService } from '../../../contrib/terminal/test/browser/xterm/xtermTestUtils.js';
 import { ITerminalLinkProviderService } from '../../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService } from '../../../contrib/terminalContrib/quickFix/browser/quickFix.js';
@@ -42,30 +43,32 @@ suite('MainThreadTerminalService', () => {
 	let terminals: TerminalService;
 	let groups: TerminalGroupService;
 	let editors: TerminalEditorService;
+	let configurationService: TestConfigurationService;
 	let environmentVariableService: IEnvironmentVariableService;
 	let instantiationService: TestInstantiationService;
 	let input: string[];
 
 	setup(async () => {
 		input = [];
-		instantiationService = workbenchInstantiationService({
-			configurationService: () => new TestConfigurationService({
-				files: {},
-				terminal: {
-					integrated: {
-						allowInUntrustedWorkspace: true,
-						defaultLocation: 'view',
-						fontFamily: 'monospace',
-						scrollback: 1000,
-						fastScrollSensitivity: 2,
-						mouseWheelScrollSensitivity: 1,
-						unicodeVersion: '6',
-						commandsToSkipShell: [],
-						shellIntegration: { enabled: false },
-						tabs: { title: '${process}', description: '' }
-					}
+		configurationService = new TestConfigurationService({
+			files: {},
+			terminal: {
+				integrated: {
+					allowInUntrustedWorkspace: true,
+					defaultLocation: 'view',
+					fontFamily: 'monospace',
+					scrollback: 1000,
+					fastScrollSensitivity: 2,
+					mouseWheelScrollSensitivity: 1,
+					unicodeVersion: '6',
+					commandsToSkipShell: [],
+					shellIntegration: { enabled: false },
+					tabs: { title: '${process}', description: '' }
 				}
-			})
+			}
+		});
+		instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
 		}, store);
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		instantiationService.stub(IViewsService, { isViewVisible: () => false });
@@ -361,9 +364,59 @@ suite('MainThreadTerminalService', () => {
 					parent.dispose();
 				}
 			});
+
+			for (const hideChild of [false, true]) {
+				test(`preserves the panel location of a ${state} parent referenced by its ${identifier} with an editor default and a ${hideChild ? 'hidden' : 'visible'} child`, async () => {
+					await configurationService.setUserConfiguration('terminal.integrated', {
+						...configurationService.getValue<ITerminalConfiguration>('terminal.integrated'),
+						defaultLocation: 'editor'
+					});
+					configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+						override affectsConfiguration(section: string): boolean {
+							return section.startsWith('terminal.integrated');
+						}
+					});
+					await service.$createTerminal('parent-terminal', {
+						name: 'Parent',
+						hideFromUser: state === 'hidden',
+						isExtensionCustomPtyTerminal: true,
+						location: TerminalLocation.Panel
+					});
+					const parent = store.add(terminals.instances[0]);
+					if (state === 'backgrounded') {
+						terminals.moveToBackground(parent);
+					}
+					await service.$createTerminal('child-terminal', {
+						name: 'Child',
+						hideFromUser: hideChild,
+						isExtensionCustomPtyTerminal: true,
+						location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+					});
+					const child = store.add(terminals.instances.find(instance => instance !== parent)!);
+					if (!hideChild && child.target === TerminalLocation.Editor) {
+						store.add(editors.getInputFromResource(child.resource));
+					}
+					try {
+						assert.deepStrictEqual({
+							childLocation: child.target,
+							editorInstances: editors.instances.map(instance => instance.instanceId),
+							panelInstances: groups.instances.map(instance => instance.instanceId),
+							parentInForeground: terminals.foregroundInstances.includes(parent)
+						}, {
+							childLocation: TerminalLocation.Panel,
+							editorInstances: [],
+							panelInstances: hideChild ? [] : [child.instanceId],
+							parentInForeground: false
+						});
+					} finally {
+						child.dispose();
+						parent.dispose();
+					}
+				});
+			}
 		}
 
-		test(`falls back to the default location for a hidden panel parent referenced by its ${identifier}`, async () => {
+		test(`keeps the child in the panel for a hidden panel parent referenced by its ${identifier}`, async () => {
 			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
 			const parent = store.add(terminals.instances[0]);
 			await service.$createTerminal('child-terminal', {
@@ -407,7 +460,7 @@ suite('MainThreadTerminalService', () => {
 		});
 	}
 
-	test('falls back to the default location for a panel parent moved to the background', async () => {
+	test('keeps the child in the panel for a panel parent moved to the background', async () => {
 		await service.$createTerminal('parent-terminal', { name: 'Parent', isExtensionCustomPtyTerminal: true });
 		const parent = store.add(terminals.instances[0]);
 		terminals.moveToBackground(parent);
