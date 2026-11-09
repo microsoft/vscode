@@ -52,7 +52,6 @@ export function getSidePaneFrameInset(container: HTMLElement, spacing: number = 
 		&& !container.classList.contains('modern-ui-compact')
 		&& !container.classList.contains('phone-layout')
 		&& container.classList.contains('dock-detail-panel')
-		&& !container.classList.contains('noeditorpane')
 		&& container.classList.contains('modern-ui-connected-editor-tabs')
 		&& container.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS)
 		&& !container.classList.contains('noeditorpane')

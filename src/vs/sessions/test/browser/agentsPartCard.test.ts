@@ -80,7 +80,7 @@ suite('Sessions - Agents Part Card', () => {
 			container.classList.add('semantic-agents-sizes', 'modern-ui-tabs', 'modern-ui-connected-editor-tabs');
 			card.classList.add('part', 'sessionspart');
 			const session = append(card, $('.session-view'));
-			const customView = append(container, $('.agents-part-card'));
+			const customView = append(container, $('.agents-part-card.agents-card-surface'));
 			const grid = append(container, $('.monaco-grid-view'));
 			const editor = append(grid, $('.part.editor'));
 			const auxiliary = append(grid, $('.part.auxiliarybar'));

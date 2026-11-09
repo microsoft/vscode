@@ -319,11 +319,11 @@
 	transform: translateY(calc((var(--agents-floating-panel-gap) - var(--agents-session-frame-inset) - var(--agents-session-frame-inset)) / 2));
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.vertical {
+.agent-sessions-workbench .part.sessionspart .monaco-sash.part-grid-gap-sash.vertical {
 	transform: translateX(var(--agents-grid-gap-offset));
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.horizontal {
+.agent-sessions-workbench .part.sessionspart .monaco-sash.part-grid-gap-sash.horizontal {
 	transform: translateY(var(--agents-grid-gap-offset));
 }
 

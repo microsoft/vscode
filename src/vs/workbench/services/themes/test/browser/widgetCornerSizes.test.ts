@@ -49,14 +49,11 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../contrib/browserView/electron-browser/media/browser.css';
 // eslint-disable-next-line local/code-import-patterns -- Verify the shared theme output against Agents-specific widget overrides.
 import '../../../../../sessions/browser/media/style.css';
-// eslint-disable-next-line local/code-import-patterns -- Exercise the Agents-specific split-button overrides.
-import '../../../../../sessions/contrib/changes/browser/media/changesView.css';
-// eslint-disable-next-line local/code-import-patterns -- Exercise the Agents-specific input override.
-import '../../../../../sessions/contrib/changes/browser/media/createPullRequest.css';
+import '../../../../contrib/sessionChanges/browser/media/changesView.css';
+import '../../../../contrib/sessionChanges/browser/media/createPullRequest.css';
 // eslint-disable-next-line local/code-import-patterns -- Exercise the Agents-specific radio and button overrides.
 import '../../../../../sessions/contrib/chat/browser/media/runScriptAction.css';
-// eslint-disable-next-line local/code-import-patterns -- Preserve the intentional circular send button.
-import '../../../../../sessions/contrib/chat/browser/media/chatInput.css';
+import '../../../../contrib/sessions/browser/chat/media/chatInput.css';
 
 suite('Widget corner sizes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -267,7 +264,7 @@ suite('Widget corner sizes', () => {
 				scriptButton.label = 'Run';
 				const browserUrl = within(root, '.browser-root', '.browser-url-container');
 				const remoteIndicator = append(browserUrl, $('.browser-remote-indicator'));
-				const sendButton = store.add(new Button(within(root, '.sessions-chat-send-button'), { ...unthemedButtonStyles, title: '' }));
+				const sendButton = within(root, '.interactive-session', '.chat-input-toolbars', '.chat-execute-toolbar', '.monaco-action-bar', '.action-item.chat-submit-button', 'a.action-label');
 				const tab = within(root, '.extension-editor', '.body', '.navbar', '.monaco-action-bar', '.actions-container', '.action-item', 'a.action-label');
 				const rows = within(root, '.monaco-list', '.monaco-list-row');
 				const pickerTab = within(root, '.action-widget', '.tabbed-action-list-tabbar', '.monaco-custom-radio', '.monaco-button');
@@ -280,7 +277,7 @@ suite('Widget corner sizes', () => {
 					checkbox: read(settingCheckbox.domNode),
 					script: [read(scriptRadio.domNode), ...scriptRadio.optionElements.map(read), read(scriptButton.element)],
 					browser: [read(browserUrl), read(remoteIndicator)],
-					special: [read(sendButton.element), read(tab), read(rows), read(pickerTab)],
+					special: [read(sendButton), read(tab), read(rows), read(pickerTab)],
 				});
 				const baseline = snapshot();
 				for (const value of [0, 2, 8]) {
