@@ -1186,12 +1186,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// remove it from the entries and don't show it in the working set anymore
 		// so that it can be recreated e.g. through retry
 		const listener = entry.onDidDelete(() => {
-			const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, entry.modifiedURI));
-			this._entriesObs.set(newEntries, undefined);
-			this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
-
-			if (!existingExternalEntry) {
-				// don't dispose entries that are not yours!
+			const entries = this._entriesObs.get();
+			if (entries.includes(entry)) {
+				this._entriesObs.set(entries.filter(e => e !== entry), undefined);
+				this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
 				entry.dispose();
 			}
 
