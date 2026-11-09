@@ -424,7 +424,7 @@ export class ChatWindowComposers extends Disposable {
 			if (this._live.get(key) === composer) {
 				this._live.delete(key);
 			}
-			// A restored composer that goes before its window opened, such as opening the window failed, stays stored.
+			// A restored composer that goes before its window opened, such as when opening the window failed, stays stored.
 			if (this._restoredAs.get(key) === key) {
 				this._restoredAs.delete(key);
 			}
