@@ -119,6 +119,7 @@ function createInitialState(storageScope: BrowserViewStorageScope, audiences: IB
 		canGoForward: false,
 		loading: false,
 		focused: false,
+		hasBeenFocused: false,
 		visible: false,
 		isDevToolsOpen: false,
 		lastScreenshot: undefined,

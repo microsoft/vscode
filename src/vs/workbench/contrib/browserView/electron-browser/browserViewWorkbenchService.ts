@@ -11,6 +11,7 @@ import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -89,6 +90,14 @@ const browserViewContextMenuCommands = [
 	BrowserViewCommandId.GoForward,
 	BrowserViewCommandId.Reload,
 ];
+
+/**
+ * Whether only its agent uses a page: an agent opened it, it is hidden, and it never had focus, so the user has not
+ * typed into it or clicked it.
+ */
+function isUsedOnlyByAgent(model: IBrowserViewModel | undefined): boolean {
+	return model?.owner.type === 'agent' && !model.visible && !model.hasBeenFocused;
+}
 
 export class BrowserViewWorkbenchService extends Disposable implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -170,9 +179,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
 
-		// A restart reloads every live page, which loses its state (e.g. form input or an ephemeral login)
+		// A restart reloads every live page, which loses its state (e.g. form input or an ephemeral login). Pages that only
+		// agents use do not block: an agent at work blocks the restart itself.
 		this._register(unattendedRestartService.registerParticipant({
-			check: () => this._remoteEvents.size > 0 ? 'browser.livePage' : undefined
+			check: () => Iterable.some(this._remoteEvents.keys(), id => !isUsedOnlyByAgent(this._known.get(id)?.model)) ? 'browser.livePage' : undefined
 		}));
 
 		// Send the full per-window configuration as a single unit, and resend it

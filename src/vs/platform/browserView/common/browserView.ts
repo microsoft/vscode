@@ -363,6 +363,8 @@ export interface IBrowserViewState {
 	canGoForward: boolean;
 	loading: boolean;
 	focused: boolean;
+	/** Whether the page has ever had focus: only then may the user have interacted with it. */
+	hasBeenFocused: boolean;
 	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;

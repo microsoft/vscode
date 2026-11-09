@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
@@ -108,17 +108,18 @@ suite('BrowserViewWorkbenchService', () => {
 		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing, unattendedRestartService };
 	}
 
-	function info(id: string, presentation = BrowserViewPresentation.Listed): IBrowserViewInfo {
+	function info(id: string, presentation = BrowserViewPresentation.Listed, owner: IBrowserViewOwner = { type: 'user' }, state?: Partial<IBrowserViewInfo['state']>): IBrowserViewInfo {
 		return {
-			id, host: { windowId: 1 }, owner: { type: 'user' }, presentation,
+			id, host: { windowId: 1 }, owner, presentation,
 			state: {
 				url: '', title: '', canGoBack: false, canGoForward: false,
-				loading: false, focused: false, visible: false, isDevToolsOpen: false,
+				loading: false, focused: false, hasBeenFocused: false, visible: false, isDevToolsOpen: false,
 				lastScreenshot: undefined, lastFavicon: undefined, lastError: undefined, certificateError: undefined,
 				session: { scope: BrowserViewStorageScope.Global }, storageKeys: {},
 				permissions: { origins: {} }, browserZoomIndex: browserZoomDefaultIndex,
 				elementSelectionState: { active: false, options: {} },
 				isAreaSelectionActive: false, device: undefined, audiences: [],
+				...state,
 			}
 		};
 	}
@@ -342,6 +343,39 @@ suite('BrowserViewWorkbenchService', () => {
 		restored.dispose();
 		await Promise.resolve();
 		assert.deepStrictEqual(results, [[], ['browser.livePage'], [], ['browser.livePage'], []]);
+	});
+
+	test('does not block unattended restarts for pages that only agents use: hidden pages they opened that the user never focused', async () => {
+		const { service, events, unattendedRestartService } = createService();
+		const check = async () => (await unattendedRestartService.canRestartUnattended()).blockers;
+		const agent: IBrowserViewOwner = { type: 'agent', sessionId: 'chat:/session' };
+
+		// Pages that survived a window reload, one of which the user focused before the reload
+		const views = [info('untouched', undefined, agent), info('focusedBeforeReload', undefined, agent, { hasBeenFocused: true })].map(view => serializeBrowserViewInfo(view));
+		events.fire([{ type: 'snapshot', windowId: 1, views: views.map(([view]) => view) }, views.map(([, screenshot]) => screenshot)]);
+		const untouched = store.add(service.getKnownBrowserViews().get('untouched')!);
+		const focusedBeforeReload = store.add(service.getKnownBrowserViews().get('focusedBeforeReload')!);
+
+		const results: Record<string, readonly string[]> = {};
+		results.focusedBeforeReload = await check();
+		focusedBeforeReload.dispose();
+		results.untouched = await check();
+		events.fire([{ type: 'changed', windowId: 1, id: 'untouched', event: 'onDidChangeVisibility', data: { visible: true } }, []]);
+		results.shown = await check();
+		events.fire([{ type: 'changed', windowId: 1, id: 'untouched', event: 'onDidChangeVisibility', data: { visible: false } }, []]);
+		results.hiddenAgain = await check();
+		events.fire([{ type: 'changed', windowId: 1, id: 'untouched', event: 'onDidChangeFocus', data: { focused: true } }, []]);
+		events.fire([{ type: 'changed', windowId: 1, id: 'untouched', event: 'onDidChangeFocus', data: { focused: false } }, []]);
+		results.focusedOnce = await check();
+		untouched.dispose();
+
+		assert.deepStrictEqual(results, {
+			focusedBeforeReload: ['browser.livePage'],
+			untouched: [],
+			shown: ['browser.livePage'],
+			hiddenAgain: [],
+			focusedOnce: ['browser.livePage'],
+		});
 	});
 
 	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {

@@ -667,6 +667,7 @@ export class BrowserView extends Disposable {
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
 			focused: this._reportedFocus.focused,
+			hasBeenFocused: this._reportedFocus.hasBeenFocused,
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
