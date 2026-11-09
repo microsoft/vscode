@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -34,6 +35,7 @@ suite('AgentHostClientProxy', () => {
 		readonly remoteSettings?: Record<string, unknown>;
 		readonly resolveProxy?: (url: string) => string | undefined;
 		readonly apiEndpoint?: string;
+		readonly environment?: IProcessEnvironment;
 		readonly logService?: ILogService;
 	}
 
@@ -58,7 +60,7 @@ suite('AgentHostClientProxy', () => {
 			currentDefaultAccount: options.apiEndpoint ? { entitlementsData: { endpoints: { api: options.apiEndpoint } } } : null,
 		} as Partial<IDefaultAccountService>);
 		instantiationService.stub(ILogService, options.logService ?? new NullLogService());
-		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, authInfos, configurationService };
+		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true, options.environment ?? {}), resolvedUrls, authInfos, configurationService };
 	}
 
 	async function lookUp(proxyUrls: readonly string[], options: IOptions) {
@@ -189,6 +191,30 @@ suite('AgentHostClientProxy', () => {
 				const after = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
 				return { before, after };
 			})(),
+			environmentProxy: await lookUpBasic(['http://pac.corp:8080', 'http://envproxy.corp:3128'], {
+				environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080; PROXY envproxy.corp:3128',
+			}),
+			unresolvedEnvironmentProxy: await lookUpBasic(['http://pac.corp:8080', 'http://envproxy.corp:3128'], {
+				environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080',
+			}),
+			environmentProxyWithoutCredentials: await lookUpBasic(['http://pac.corp:8080'], {
+				environment: { HTTPS_PROXY: 'http://envproxy.corp:3128', HTTP_PROXY: 'http://user:pass@other.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080',
+			}),
+			clearedConfiguredProxy: await (async () => {
+				const { proxy, configurationService } = createProxy({
+					settings: { 'http.proxy': 'http://configured.corp:3128' },
+					environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+					resolveProxy: () => 'PROXY pac.corp:8080',
+				});
+				await proxy.resolveProxy('https://github.example/api');
+				const configured = (await proxy.lookupBasicAuthorization('http://configured.corp:3128', undefined, 1))?.password;
+				await configurationService.setUserConfiguration('http.proxy', '');
+				const pac = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
+				return { configured, pac };
+			})(),
 		};
 
 		assert.deepStrictEqual(results, {
@@ -214,6 +240,19 @@ suite('AgentHostClientProxy', () => {
 			useLocalProxyConfigurationOff: { credentials: { 'http://proxy.corp:8080': undefined }, authInfos: [] },
 			// The native lookup would return the credentials of `http.proxy` for the proxy resolved before.
 			resolvedBeforeConfiguredProxy: { before: 'secret:pac.corp', after: undefined },
+			// Likewise, it would return the credentials of the environment's proxy for any other proxy.
+			environmentProxy: {
+				credentials: { 'http://pac.corp:8080': undefined, 'http://envproxy.corp:3128': 'secret:envproxy.corp' },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'envproxy.corp', port: 3128, realm: '', attempt: 2 }],
+			},
+			unresolvedEnvironmentProxy: { credentials: { 'http://pac.corp:8080': undefined, 'http://envproxy.corp:3128': undefined }, authInfos: [] },
+			// The first proxy variable the native lookup reads has no credentials, so it returns none for any proxy.
+			environmentProxyWithoutCredentials: {
+				credentials: { 'http://pac.corp:8080': 'secret:pac.corp' },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'pac.corp', port: 8080, realm: 'Corp', attempt: 1 }],
+			},
+			// Once `http.proxy` is cleared, the native lookup reads the environment's proxy.
+			clearedConfiguredProxy: { configured: 'secret:configured.corp', pac: undefined },
 		});
 	});
 

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../github/common/githubEndpoints.js';
@@ -35,8 +37,13 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	/** The lookups and hosts of the proxies this client declined, to log each once. */
 	private readonly _declinedLookups = new Set<string>();
 
+	/**
+	 * @param _environment This client's environment, which it inherits from the main process that the native credential
+	 * lookup reads its environment proxy in.
+	 */
 	constructor(
 		private readonly _isEnabled: () => boolean,
+		private readonly _environment: IProcessEnvironment,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
@@ -70,7 +77,8 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	/**
 	 * Unlike Kerberos tickets, Basic credentials are reusable secrets that the native lookup returns for any proxy, such
-	 * as the ones in `http.proxy`, so they only go to the endpoints of proxies this client points the agent host at.
+	 * as the ones in `http.proxy` or `HTTPS_PROXY`, so they only go to the endpoints of proxies this client points the
+	 * agent host at.
 	 */
 	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
 		if (this._configurationService.getValue<boolean>('http.useLocalProxyConfiguration') === false) {
@@ -119,13 +127,33 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	 * resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
 	 * resolved. `http.proxy` is read as the native request service reads it, so remote settings cannot widen access.
 	 *
-	 * With `matchEndpoint`, the port must match too, and while `http.proxy` is set, only it qualifies: the native lookup
-	 * returns its credentials for any proxy on the first attempt, including one resolved before it was set.
+	 * With `matchEndpoint`, the port must match too, and while the native lookup returns the credentials of a proxy for
+	 * any proxy on the first attempt (see {@link _getCredentialsProxy}), only that proxy can qualify, even when another
+	 * was resolved before.
 	 */
 	private async _isResolvedProxy(proxy: IProxyEndpoint, matchEndpoint: boolean): Promise<boolean> {
 		const matches = (candidate: IProxyEndpoint) => candidate.hostname === proxy.hostname && (!matchEndpoint || candidate.port === proxy.port);
-		const resolvedProxies = matchEndpoint && this._getConfiguredProxy() ? [] : [...this._resolvedProxies.values()];
-		return resolvedProxies.some(matches) || (await this._resolveCopilotProxies()).some(matches);
+		const credentialsProxy = matchEndpoint ? this._getCredentialsProxy() : undefined;
+		if (credentialsProxy !== undefined) {
+			const endpoint = getProxyEndpoint(credentialsProxy);
+			if (!endpoint || !matches(endpoint)) {
+				return false;
+			}
+		}
+		return [...this._resolvedProxies.values()].some(matches) || (await this._resolveCopilotProxies()).some(matches);
+	}
+
+	/**
+	 * The proxy whose credentials, if any, the native lookup returns for any proxy on the first attempt: `http.proxy`,
+	 * or else a proxy with credentials in the main process's environment.
+	 */
+	private _getCredentialsProxy(): string | undefined {
+		const configuredProxy = this._getConfiguredProxy();
+		if (configuredProxy) {
+			return configuredProxy;
+		}
+		const environmentProxy = getEnvironmentProxy(this._environment);
+		return environmentProxy && URI.parse(environmentProxy).authority.includes('@') ? environmentProxy : undefined;
 	}
 
 	private async _resolveCopilotProxies(): Promise<IProxyEndpoint[]> {
@@ -174,6 +202,12 @@ function getProxyEndpoint(url: string): IProxyEndpoint | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/** The environment's proxy, read like the native lookup reads it from the main process, which ignores case on Windows. */
+function getEnvironmentProxy(environment: IProcessEnvironment): string | undefined {
+	const read = (name: string) => environment[isWindows ? Object.keys(environment).find(key => key.toUpperCase() === name.toUpperCase()) ?? name : name];
+	return (read('https_proxy') || read('HTTPS_PROXY') || read('http_proxy') || read('HTTP_PROXY') || '').trim() || undefined;
 }
 
 /** The HTTP proxies in a PAC-style result such as `PROXY proxy:8080; DIRECT`. */
