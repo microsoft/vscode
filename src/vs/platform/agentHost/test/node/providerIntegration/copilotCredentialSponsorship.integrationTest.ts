@@ -270,7 +270,9 @@ suite('Copilot Agent credential sponsorship', function () {
 	 * prompt context each model request had, in order, so a context missing only on a chat's first turn shows as such.
 	 */
 	function preserveFailureDiagnostics(title: string): void {
-		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`);
+		// One directory per test, since setup resets the recorded traffic and several tests can fail in one run.
+		const testDirectory = title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 80);
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
 		preserveAgentHostE2ELogs(directory, directory, destination, title);
 		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
 			({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
