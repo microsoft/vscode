@@ -4287,12 +4287,12 @@ suite('CloudSandboxApiService task catalog resolution', () => {
 		}, { beforeOpen: 0, binding: ['session', 'environment'], detailReads: 1 });
 	});
 
-	test('bounds concurrent on-demand execution reads independently of enumeration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('uses the shared queue for concurrent on-demand execution reads', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const tasks = Array.from({ length: 30 }, (_, index) => task(`task-${index}`, 'Conversation', undefined, `session-${index}`, `environment-${index}`));
 		const { service, concurrency } = createService(store, { tasks, repositories: new Map(), taskFetchDelayMs: 10 });
 		await service.listSessions(CancellationToken.None);
 		const resolved = await Promise.all(tasks.map(task => service.resolveSession(task.id, CancellationToken.None)));
-		assert.deepStrictEqual({ resolved: resolved.length, peak: concurrency.max, active: concurrency.current }, { resolved: 30, peak: 5, active: 0 });
+		assert.deepStrictEqual({ resolved: resolved.length, peak: concurrency.max, active: concurrency.current }, { resolved: 30, peak: 8, active: 0 });
 	}));
 });
 

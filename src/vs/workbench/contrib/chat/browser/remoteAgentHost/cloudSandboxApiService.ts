@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError } from '../../../../../base/common/async.js';
+import { MAX_TIMEOUT_DELAY, raceCancellationError } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -192,9 +192,6 @@ const DISCOVERY_TASK_SCAN_LIMIT = 100;
 /** Maximum pages to read per repository/archive task scope during discovery. */
 const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
 
-/** Bounds concurrent on-demand session-resolution requests. */
-const SESSION_RESOLUTION_CONCURRENCY = 5;
-
 const DISCOVERY_OVERLAP_MS = 60_000;
 
 /** Minimum automatic inventory retry interval after an authorization refusal. */
@@ -215,7 +212,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private readonly _sessionResolutions = new Map<string, ISessionResolution>();
 	private readonly _sessionResolutionSources = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _sessionResolutionLimiter = this._register(new Limiter<ICloudSandboxDiscoveredSession>(SESSION_RESOLUTION_CONCURRENCY));
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private _discoverySince: string | undefined;
 	private _archivedDiscoverySince: string | undefined;
@@ -1110,7 +1106,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const generation = this._accountGeneration;
 			const source = new CancellationTokenSource(this._lifetimeToken);
 			this._sessionResolutionSources.set(taskId, source);
-			const pending = raceCancellationError(this._sessionResolutionLimiter.queue(async () => {
+			const pending = raceCancellationError((async () => {
 				const full = await this._withReadClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
 					(client, signal, options) => client.tasks.get(taskId, signal, options));
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
@@ -1152,7 +1148,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					environmentId: binding.environmentId, agentSessionId: binding.sessionId, taskId,
 				});
 				return session;
-			}), source.token).finally(() => {
+			})(), source.token).finally(() => {
 				if (this._sessionResolutionSources.get(taskId) === source) {
 					this._sessionResolutionSources.deleteAndDispose(taskId);
 				} else {
