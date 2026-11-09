@@ -38,7 +38,9 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 	if (!part.resolved) {
 		return localize('autoMode.routing', "Auto routing task");
 	}
-	return part.resolved.reason ?? localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name);
+	return part.resolved.reason ?? (part.fusion
+		? localize('autoMode.fusionRoutedTo', "Copilot Fusion routed task to {0}", part.resolved.name)
+		: localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name));
 }
 
 /** Why a host-side router made its pick, for the routing line's hover. Auto explains itself in its title. */

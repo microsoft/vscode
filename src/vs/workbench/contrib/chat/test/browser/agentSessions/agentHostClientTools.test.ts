@@ -1116,6 +1116,7 @@ suite('AgentHostClientTools', () => {
 				onDidChangeLanguageModels: Event.None,
 				deltaLanguageModelChatProviderDescriptors: () => { },
 				registerLanguageModelProvider: () => toDisposable(() => { }),
+				lookupLanguageModel: () => undefined,
 			});
 			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IOutputService, { getChannel: () => undefined });

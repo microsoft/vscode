@@ -2519,6 +2519,21 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('an on-device row too slow for Auto names Copilot Fusion when Auto is presented that way', () => {
+		const status = onDeviceStatus();
+		const localModels = onDevicePresentation({ ...status, active: { ...status.active!, autoEligible: false } });
+		const label = (auto: ILanguageModelChatMetadataAndIdentifier) => {
+			const { popup, dismiss } = createPicker({ models: [auto, ...models, exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels });
+			const row = Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbed .monaco-list-row.action')).find(candidate => candidate.querySelector('.title')?.textContent === exampleFlash.metadata.name);
+			dismiss();
+			return row?.getAttribute('aria-label');
+		};
+		assert.deepStrictEqual({ auto: label(createAutoModel()), fusion: label(createFusionModel()) }, {
+			auto: 'Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, Too slow for Auto',
+			fusion: 'Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, Too slow for Copilot Fusion',
+		});
+	});
+
 	test('Right Arrow on an on-device row opens its detail page, and Back returns to the row', async () => {
 		const { popup } = createPicker({ models: [...copilotModels, exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels: onDevicePresentation() });
 		const list = element(popup, '.chat-model-picker-tabbed .monaco-list');
