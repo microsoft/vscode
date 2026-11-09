@@ -38,27 +38,6 @@
 	max-width: none;
 }
 
-/* The top row of its window, in the title bar: centered in it, after the window controls; its empty space moves the window. */
-.session-header-bar.window-chrome {
-	flex: 1 1 auto;
-	min-width: 0;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	-webkit-app-region: drag;
-}
-
-.session-header-bar.window-chrome > .chat-composite-bar-header {
-	max-width: none;
-	margin: 0;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-session-title,
-.session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	-webkit-app-region: no-drag;
-}
-
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 var(--vscode-spacing-size20);
@@ -655,6 +634,16 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view.independent-chat-groups::after {
+	content: none;
+}
+
+/* A session view shown as an editor is framed as every editor is, by its group or its part, which also frame the tabs of
+ * the group above it: it draws no frame of its own, so that its group's active tab flows into it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view {
+	border-radius: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view::after {
 	content: none;
 }
 

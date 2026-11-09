@@ -30,9 +30,9 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/brows
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
-import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -52,7 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISessionsService } from '../sessionsService.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -75,7 +75,13 @@ export interface IChatCompositeBarDelegate {
 	 * the contributed tab menus (whose actions act on `{ session, chat }`), chat
 	 * drag data, and rename/delete operations.
 	 */
-	readonly session: IActiveSession;
+	readonly session: ISession;
+
+	/** Whether the bar is of a pane that shows one chat of its session apart from its slot, such as a detached pane. */
+	readonly isDetached: boolean;
+
+	/** Closes the pane of the bar, as closing its main chat's tab does. */
+	closePane(): void;
 
 	/** The chats assigned to this group, in tab order. */
 	readonly chats: IObservable<readonly IChat[]>;
@@ -128,7 +134,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
-	private readonly _sessionToolbar: MenuWorkbenchToolBar;
+	private readonly _sessionMenuArgs: unknown[] = [];
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -172,7 +178,7 @@ export class ChatCompositeBar extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -206,10 +212,10 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
-		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
+			menuOptions: { args: this._sessionMenuArgs },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 		}));
@@ -280,7 +286,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._delegate = delegate;
-		this._sessionToolbar.context = delegate?.session;
+		this._sessionMenuArgs.splice(0, this._sessionMenuArgs.length, ...(delegate?.session ? sessionMenuArgs(delegate.session, undefined, this._sessionHost) : []));
 
 		const store = new DisposableStore();
 		this._groupDisposables.value = store;
@@ -318,8 +324,8 @@ export class ChatCompositeBar extends Disposable {
 	 * Presents a chat's harness, re-evaluating for `reader` as the provider learns its
 	 * harnesses (a restored session can render before its host advertises them).
 	 */
-	private _presentChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
-		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
+	private _presentChatHarness(session: ISession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId, session.sessionId), getChatHarness(session, chat), reader);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
@@ -409,7 +415,7 @@ export class ChatCompositeBar extends Disposable {
 			const ancestors = session ? getSessionChatAncestors(session, chat, reader) : [];
 			const parentResource = chat.origin?.parentChat ?? session?.mainChat.read(reader).resource;
 			const sharesParent = parentResource && delegate?.chats.read(reader).some(candidate => isEqual(candidate.resource, parentResource));
-			const showParentContext = !!session?.scopedChatResource || (!sharesParent && delegate?.showParentContext?.read(reader));
+			const showParentContext = !!delegate?.isDetached || (!sharesParent && delegate?.showParentContext?.read(reader));
 			const description = showParentContext ? ancestors.join(' / ') : '';
 			labelWidget.setLabel(title, description);
 			tab.classList.toggle('has-description', description.length > 0);
@@ -493,10 +499,9 @@ export class ChatCompositeBar extends Disposable {
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
 				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				menuOptions: { args: [session, chat] },
+				menuOptions: { args: sessionMenuArgs(session, chat, this._sessionHost) },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
-			tabToolbar.context = session;
 		}
 
 		this._tabsContainer.appendChild(tab);
@@ -561,12 +566,12 @@ export class ChatCompositeBar extends Disposable {
 				return;
 			}
 			if (isMainChat) {
-				this._sessionsService.closeSession(session);
+				delegate?.closePane();
 				return;
 			}
 
 			this._cancelTabEditing();
-			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat).catch(onUnexpectedError);
+			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost)).catch(onUnexpectedError);
 		}));
 
 		// A tab drag carries two payloads: a group-move payload (to move/split the
@@ -599,7 +604,7 @@ export class ChatCompositeBar extends Disposable {
 			// singleton) lets the chat be moved between groups / split out. It must not
 			// use the singleton because the chat-reference payload below also uses it,
 			// and the singleton holds only one payload at a time.
-			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, !!delegate.session.scopedChatResource);
+			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, delegate.isDetached);
 
 			// Chat-reference payload: requires the opaque backend chat URI, which
 			// only the owning agent-host provider knows. When it is unavailable
@@ -633,7 +638,7 @@ export class ChatCompositeBar extends Disposable {
 			})
 			: new Action(RENAME_CHAT_COMMAND_ID, renameLabel, undefined, true, async () => {
 				if (session) {
-					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
+					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true }, undefined, this._sessionHost.commandContext);
 				}
 			}));
 
@@ -646,7 +651,7 @@ export class ChatCompositeBar extends Disposable {
 		const closeAction = this._tabDisposables.add(new Action(CLOSE_CHAT_COMMAND_ID, localize('chatTab.close', "Close"), undefined, true, async () => {
 			if (session) {
 				this._cancelTabEditing();
-				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat);
+				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost));
 			}
 		}));
 		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
@@ -702,7 +707,7 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
-					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
@@ -737,11 +742,11 @@ export class ChatCompositeBar extends Disposable {
 	 * state for the chat — the caller then offers no chat-reference payload.
 	 */
 	private _backendChatResource(chat: IChat): URI | undefined {
-		const providerId = this._delegate?.session.providerId;
-		if (!providerId) {
+		const session = this._delegate?.session;
+		if (!session) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 

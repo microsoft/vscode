@@ -212,6 +212,7 @@ export const enum AgentsWindowOpenSource {
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
+	ChatViewTitle = 'chatViewTitle',
 	CurrentChatHandoff = 'currentChatHandoff',
 	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
 	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
@@ -230,6 +231,7 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.ChatViewTitle:
 		case AgentsWindowOpenSource.CurrentChatHandoff:
 		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
 		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:

@@ -27,7 +27,7 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IGitHubService } from '../github/githubService.js';
 import { GitHubPullRequestState } from '../../common/github/types.js';

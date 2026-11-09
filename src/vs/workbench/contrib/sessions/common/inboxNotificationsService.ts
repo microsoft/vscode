@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -12,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from './session.js';
+import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from './github/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
@@ -208,11 +209,23 @@ export interface IInboxSessionRow extends IInboxNotificationItem {
 	readonly occurrence: string;
 }
 
+/** Live attention classification, independent of either surface's hold and Done decisions. */
+export interface IInboxSessionAttention {
+	readonly tab: InboxTab.ReadyForYou | InboxTab.Working | InboxTab.ReadyToMerge;
+	readonly priority: InboxNotificationPriority;
+	readonly notificationIds: readonly string[];
+	/** Completed before sidebar Inbox activation, with no outstanding question or actionable notification. */
+	readonly isHistoricalCompletion: boolean;
+}
+
 export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly sessionAttention: IObservable<ReadonlyMap<string, IInboxSessionAttention>>;
+	/** Keeps attention tracking alive without enabling the Inbox canvas, previews, or lifecycle telemetry. */
+	acquireSessionAttention(): IDisposable;
 	readonly attentionCount: IObservable<number>;
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void;
 	markSessionDone(row: IInboxSessionRow): void;

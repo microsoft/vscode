@@ -8,14 +8,12 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDiscoveredDevContainer } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
-import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -52,7 +50,6 @@ export class RemotesEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
@@ -116,8 +113,7 @@ export class RemotesEditor extends EditorPane {
 			return;
 		}
 		if (!this.widget.value) {
-			const channel = this.sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL);
-			const model = this.widgetInstantiationService.createInstance(RemotesModel, token => channel.call<readonly IDiscoveredDevContainer[]>('listDevContainers', undefined, token));
+			const model = this.widgetInstantiationService.createInstance(RemotesModel);
 			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.tableContainer, model, OS);
 		}
 		const showThisComputer = this.isThisComputerEnabled();

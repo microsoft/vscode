@@ -21,9 +21,10 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';

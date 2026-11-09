@@ -8,9 +8,9 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, runOnChange, transaction } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -42,6 +42,7 @@ import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/comm
 import { IAgentHostActiveClientService } from '../../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { getAgentHostSessionResource } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { IRemoteAgentHostAuthenticationService } from '../../../../chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { createCloudSandboxSessionPreparation } from '../../../../chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
@@ -51,8 +52,8 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../common/devContainerAgentHostService.js';
-import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../common/session.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../browser/sessionHost.js';
+import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
@@ -82,6 +83,8 @@ function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 }
 
 export interface IRemoteAgentHostSessionsProviderConfig {
+	readonly providerId?: string;
+	readonly mapSessionResource?: (backendSession: URI) => URI | undefined;
 	readonly address: string;
 	readonly name: string;
 	/**
@@ -133,6 +136,11 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * location, where the suffix would put every session in a workspace group of one.
 	 */
 	readonly omitHostFromWorkspaceLabel?: boolean;
+	/**
+	 * Replaces this host's label in the `[host]` suffix of its workspaces. Set by hosts whose label
+	 * names the host itself rather than where its workspaces come from, such as a Dev Container.
+	 */
+	readonly workspaceHostLabel?: IObservable<string>;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
 	/** Keeps unavailable and initially connecting sessions read-only, but permits self-healing reconnects. */
@@ -181,6 +189,10 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  *   session URI (`copilot:///abc123`), reconstructed via `AgentSession.uri`.
  */
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
+
+	static getCachedSessionReadStates(storageService: IStorageService, address: string) {
+		return super.readCachedSessionReadStates(storageService, `${CACHED_SESSIONS_STORAGE_PREFIX}${agentHostAuthority(address)}`);
+	}
 
 	readonly id: string;
 	private _defaultLabel: string;
@@ -258,6 +270,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 	private readonly _connectionAuthority: string;
+	private readonly _mapSessionResource: IRemoteAgentHostSessionsProviderConfig['mapSessionResource'];
+	private readonly _sessionResourceAliases = this._register(new DisposableMap<string>());
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
@@ -265,6 +279,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	protected readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
+	private readonly _workspaceHostLabelOverride: IObservable<string> | undefined;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	private readonly _devContainerSourceWorkspaceUri: URI | undefined;
@@ -325,14 +340,15 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
+		this._mapSessionResource = config.mapSessionResource;
 		const authenticationPending = this._register(remoteAuthenticationService.acquire(config.address)).object;
 		const resolverRegistrations = this._register(new DisposableStore());
 		const registerResolvers = () => {
 			resolverRegistrations.clear();
 			for (const sessionType of this.sessionTypes) {
 				resolverRegistrations.add(workingDirectoryResolver.registerResolver(this.resourceSchemeForProvider(sessionType.id),
-					resource => this.getSessionByResource(resource)?.workspace.get()?.folders[0]?.workingDirectory,
-					resource => this.getSessionByResource(resource)?.status.get() === SessionStatus.Untitled));
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.workspace.get()?.folders[0]?.workingDirectory,
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.status.get() === SessionStatus.Untitled));
 			}
 		};
 		this._register(this.onDidChangeSessionTypes(registerResolvers));
@@ -345,6 +361,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
+		this._workspaceHostLabelOverride = config.workspaceHostLabel;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
@@ -397,7 +414,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._defaultLabel = config.name || config.address;
 		const displayName = this._remoteAgentHostService.getDisplayNameOverride(config.address) ?? this._defaultLabel;
 
-		this.id = `agenthost-${this._connectionAuthority}`;
+		this.id = config.providerId ?? `agenthost-${this._connectionAuthority}`;
 		this._label = displayName;
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
@@ -440,6 +457,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				this._updateLabel();
 			}
 		}));
+		if (this._workspaceHostLabelOverride) {
+			this._register(runOnChange(this._workspaceHostLabelOverride, () => this._refreshSessionWorkspaces()));
+		}
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
@@ -1065,6 +1085,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
 		this.agentHostConnectionsService.registerSessionResource(backendSession, this._connectionAuthority, provider);
+		const resource = this._mapSessionResource?.(backendSession);
+		if (resource && !this._sessionResourceAliases.has(backendSession.toString())) {
+			this._sessionResourceAliases.set(backendSession.toString(), this.agentHostConnectionsService.registerSessionResourceAlias(resource, backendSession, this._connectionAuthority, provider));
+		}
+	}
+
+	protected override _mapBackendSessionResource(resource: URI): URI {
+		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
+	}
+
+	protected override sessionResource(resource: URI, scheme: string): URI {
+		return this._mapSessionResource?.(resource) ?? super.sessionResource(resource, scheme);
 	}
 
 	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
@@ -1251,7 +1283,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * nothing — in web the workbench is already scoped to a single host by the host picker.
 	 */
 	private get _workspaceHostLabel(): string | undefined {
-		return this.isWebPlatform || this._omitHostFromWorkspaceLabel ? undefined : this.label;
+		if (this.isWebPlatform || this._omitHostFromWorkspaceLabel) {
+			return undefined;
+		}
+		return this._workspaceHostLabelOverride?.get() ?? this.label;
 	}
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[], typeIcon?: ThemeIcon): ISessionWorkspace | undefined {

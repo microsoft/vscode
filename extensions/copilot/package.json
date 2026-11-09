@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.74.0",
+  "version": "0.75.0",
   "packageManager": "pnpm@12.16.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.146.0",
+    "vscode": "^1.147.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -6680,8 +6680,7 @@
       {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {
@@ -6835,6 +6834,7 @@
     "@typescript-eslint/typescript-estree": "^8.26.1",
     "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/snapshot": "^1.5.0",
+    "@vscode/l10n-dev": "0.0.35",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.81",

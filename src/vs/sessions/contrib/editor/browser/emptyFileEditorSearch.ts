@@ -32,7 +32,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions } from '../../../../workbench/contrib/search/common/search.js';
 import { QueryBuilder } from '../../../../workbench/services/search/common/queryBuilder.js';
 import { getExcludes, hasSiblingFn, ISearchComplete, ISearchConfiguration, ISearchService } from '../../../../workbench/services/search/common/search.js';
-import { ISessionFolder, ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
 
 export const EmptyFileEditorSearchPickerFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchPickerFocused', false, localize('emptyFileEditorSearchPickerFocused', "Whether the empty Files editor search picker is active."));
 

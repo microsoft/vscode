@@ -28,14 +28,15 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
+import { getChatWindowOfHost, openPickedSessionInChatWindow, SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getWindowHost, ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -200,6 +201,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 	) {
 		super(undefined, action, options);
 		this._windowHost = getWindowHost(sessionHost);
@@ -446,7 +448,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		const session = this._windowHost.session.get();
-		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		return provider && isAgentHostProvider(provider) && provider.remoteAddress
 			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
 			: localize('noWorkspace', "No workspace");
@@ -700,6 +702,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _openBlockedSession(resource: URI, preserveFocus: boolean, sideBySide: boolean): void {
+		// In a chat window, the session opens in that window, as one picked in its Sessions picker
+		const chatWindow = getChatWindowOfHost(this._windowHost, this.chatWindowService);
+		const session = chatWindow && this.sessionsManagementService.getSession(resource);
+		if (chatWindow && session) {
+			this.instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, session, chatWindow, { preserveFocus, toSide: sideBySide })).catch(onUnexpectedError);
+			return;
+		}
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
@@ -762,13 +771,19 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 	}
 }
 
+/**
+ * The windows whose command center shows the session widget: the main window, and windows with layout modes, such as chat
+ * windows, whose widget shows the session of their active chat.
+ */
+const sessionsTitleBarWindowContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.negate(), LayoutModeContext)!;
+
 export function registerSessionsTitleBarMenus(): IDisposable {
 	return combinedDisposable(
 		MenuRegistry.appendMenuItem(AgentsWindowMenus.CommandCenter, {
 			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
-			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
+			when: ContextKeyExpr.and(sessionsTitleBarWindowContext, SessionsWelcomeVisibleContext.negate())
 		}),
 		MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionTitle, {
 			command: {
@@ -777,7 +792,7 @@ export function registerSessionsTitleBarMenus(): IDisposable {
 			},
 			group: 'a_sessions',
 			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
+			when: sessionsTitleBarWindowContext
 		})
 	);
 }

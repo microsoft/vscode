@@ -8,10 +8,10 @@ import { autorun, ISettableObservable, observableValue, transaction } from '../.
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsHasClosedItemContext } from '../common/contextkeys.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionsPartService } from './sessionsPartService.js';
-import { VisibleSessions } from './visibleSessions.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 
 export const enum ClosedItemKind {
@@ -115,8 +115,8 @@ export class ClosedItemHistory extends Disposable {
 		// the command would stay enabled while permanently doing nothing.
 		this._item.set(undefined, undefined);
 
-		// The recorded session may be a wrapper that was disposed along with its
-		// grid slot, and a provider can drop it from its catalog without ever
+		// The recorded session may be a stale incarnation that left the grid with
+		// its slot, and a provider can drop it from its catalog without ever
 		// firing `onDidDeleteSession`.
 		const session = this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
 		if (!session) {
@@ -136,7 +136,10 @@ export class ClosedItemHistory extends Disposable {
 			suspension.dispose();
 		}
 
-		this._sessionsPartService.focusSession(this._visibility.activeSession.get());
+		const activePane = this._visibility.activePane.get();
+		if (activePane) {
+			this._sessionsPartService.focusPane(activePane);
+		}
 	}
 
 	private _reopenSession(item: IClosedSessionItem, session: ISession): void {
@@ -151,8 +154,8 @@ export class ClosedItemHistory extends Disposable {
 		}
 
 		if (!item.replacedBy && (!item.placement || !this._visibility.getSlot(item.placement.sessionId))) {
-			const active = this._visibility.setActive(session);
-			if (item.sticky && !active?.sticky.get()) {
+			this._visibility.setActive(session);
+			if (item.sticky && !this._visibility.getSlot(session.sessionId)?.sticky) {
 				this._visibility.toggleStickiness(session);
 			}
 			return;

@@ -20,7 +20,7 @@ import { IStorageService, InMemoryStorageService } from '../../../../../platform
 import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../../../../workbench/contrib/sessions/common/createPullRequestPreferences.js';
 import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestDetails } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { CreatePullRequestWidget } from '../../../../../workbench/contrib/sessions/browser/changes/createPullRequestWidget.js';
+import { CreatePullRequestWidget } from '../../../../../workbench/contrib/sessionChanges/browser/createPullRequestWidget.js';
 
 const details: ISessionPullRequestDetails = {
 	title: 'Preserve keyboard focus when switching sessions',

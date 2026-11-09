@@ -65,11 +65,6 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
 		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
 	},
-	devContainer: {
-		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
-		description: localize('remotes.empty.devContainers.description', "Create a Dev Container for a local project."),
-		documentation: { label: localize('remotes.docs.devContainers', "Dev Containers Guide"), href: 'https://aka.ms/vscode-remote/containers' },
-	},
 };
 
 const horizontalScrollbarSize = 10;
@@ -617,7 +612,6 @@ export class RemotesWidget extends Disposable {
 			case 'wsl': return localize('remotes.wslRefreshWarning', "Could not refresh WSL distributions. Check that WSL is available. See the Window log for more details.");
 			case 'tunnel': return localize('remotes.tunnelRefreshWarning', "Could not refresh tunnels. Check your sign-in and network connection. See the Window log for more details.");
 			case 'environment': return localize('remotes.environmentRefreshWarning', "Could not refresh environments. Check your GitHub sign-in and network connection. See the Window log for more details.");
-			case 'devContainer': return localize('remotes.devContainerRefreshWarning', "Could not refresh Dev Containers. Check that Docker is running. See the Window log for more details.");
 		}
 	}
 

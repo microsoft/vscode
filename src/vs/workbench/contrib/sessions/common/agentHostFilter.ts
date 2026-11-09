@@ -121,16 +121,16 @@ export interface IAgentHostFilterService {
 	/**
 	 * Trigger every registered discovery handler and resolve once they
 	 * have all settled. {@link isDiscovering} is `true` for the duration
-	 * of the call. No-op when no handlers are registered.
+	 * of the call. Automatic callers preserve provider freshness policies; manual calls request repair.
 	 */
-	rediscover(): Promise<boolean>;
+	rediscover(reason?: 'automatic' | 'manual'): Promise<boolean>;
 
 	/**
 	 * Register a callback invoked when {@link rediscover} runs. Used by
 	 * host providers (e.g. dev tunnels) to plug their own discovery
 	 * routine into the shared host picker UX.
 	 */
-	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable;
+	registerDiscoveryHandler(handler: (reason: 'automatic' | 'manual') => Promise<void>): IDisposable;
 
 	/**
 	 * Declare a host group that always has an entry, even while none of its

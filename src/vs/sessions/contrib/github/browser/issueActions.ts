@@ -13,8 +13,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { IGitHubIssueRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IGitHubIssueRef, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { OPEN_ISSUE_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
@@ -49,7 +48,7 @@ class OpenIssueAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | IssueActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: ISession | ISession[] | IssueActionContext): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const extensionService = accessor.get(IExtensionService);
 		const urlService = accessor.get(IURLService);
@@ -94,7 +93,7 @@ class CopyIssueUrlAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | IssueActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: ISession | ISession[] | IssueActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? resolveSessionCommandTarget(accessor, [])?.session;
 		const issue = isIssueActionContext(target) ? target.issue : getSessionIssues(target)[0];

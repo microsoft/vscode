@@ -11,7 +11,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from './codeReviewService.js';
-import { ISession, ISessionFileChange } from '../common/session.js';
+import { ISession, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { IAgentFeedbackVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 
@@ -98,6 +98,8 @@ export interface ISubmitFeedbackOptions {
 	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
+	/** Sends to the explicit target chat without opening a widget; rejects on failure. */
+	readonly background?: boolean;
 	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
 	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
@@ -185,6 +187,8 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
+	/** Observes existing feedback without keeping unopened sessions subscribed after the observer is disposed. */
+	getFeedbackObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]>;
 	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
 	isAgentHostSession(sessionResource: URI): boolean;
 

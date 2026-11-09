@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { createPullRequestChatMeta, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ISessionChangesetOperation } from '../../../common/session.js';
+import { ISessionChangesetOperation } from '../../../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../common/sessionsProvider.js';
 import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../common/pullRequestCreation.js';
 

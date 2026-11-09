@@ -466,6 +466,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/sessionsPartContent.registration.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsServices.registration.js';

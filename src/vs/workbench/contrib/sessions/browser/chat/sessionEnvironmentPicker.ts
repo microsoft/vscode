@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { Menus } from '../menus.js';
 import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../common/contextkeys.js';
-import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../common/session.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -51,8 +51,9 @@ export interface ISessionCreationEnvironment {
 }
 
 export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
+	// Container-backed providers are offered as the Dev Container option of their source environment, not as separate environments.
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
-		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false));
+		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];

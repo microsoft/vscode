@@ -20,7 +20,6 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewPaneOptions } from '../../../../browser/parts/views/viewPane.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
-import { isIChatSessionFileChange2 } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -34,17 +33,17 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 
 import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
-import { DesktopChangesViewPane } from '../../../../contrib/sessions/browser/changes/changesView.js';
+import { DesktopChangesViewPane } from '../../../../contrib/sessionChanges/browser/changesView.js';
 import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
-import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
 import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
-import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../contrib/sessions/common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -103,7 +102,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
-	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
+	constructor(session: ITestSessionWithChat, options: IChangesViewFixtureOptions) {
 		super();
 
 		const changeset = createChangeset(options.changes);
@@ -282,7 +281,7 @@ function createWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createSession(options: IChangesViewFixtureOptions): IActiveSession {
+function createSession(options: IChangesViewFixtureOptions): ITestSessionWithChat {
 	const capabilities: ISessionCapabilities = {
 		supportsMultipleChats: false,
 		supportsRename: true,
@@ -296,7 +295,7 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly workspace = workspace;
 	}();
 
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = 'fixture:changes-view';
 		override readonly resource = URI.parse('fixture-session://changes-view');
 		override readonly providerId = 'fixture';
@@ -420,8 +419,9 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IGitHubService, createGitHubService(options.checks));
 			reg.defineInstance(IViewDescriptorService, new FixtureViewDescriptorService());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable<IActiveSession | undefined>(session);
-				override readonly visibleSessions = constObservable([session]);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
+				readonly gridShown = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
@@ -463,8 +463,8 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 		},
 	});
-	stubSessionHosts(instantiationService, disposableStore, { session: constObservable<IActiveSession | undefined>(session) });
-	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)));
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable<ITestSessionWithChat | undefined>(session) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable<ITestSessionWithChat | undefined>(session)));
 
 	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,

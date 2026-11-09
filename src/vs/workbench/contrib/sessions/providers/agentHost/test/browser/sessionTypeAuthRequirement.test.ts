@@ -10,7 +10,7 @@ import type { AgentInfo } from '../../../../../../../platform/agentHost/common/s
 import type { ProtectedResourceMetadata } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
 import { areLocalModelsLoaded, getSignedOutModelsNotificationState, SignedOutModelsNotificationState } from '../../../../../chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
-import { SessionTypeAuthRequirement } from '../../../../common/session.js';
+import { SessionTypeAuthRequirement } from '../../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {
 	return {

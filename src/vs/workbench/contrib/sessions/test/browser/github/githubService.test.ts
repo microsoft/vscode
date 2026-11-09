@@ -21,19 +21,18 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { GitHubService } from '../../../browser/github/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../browser/github/pullRequestIconCache.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISessionHostService } from '../../../browser/sessionHost.js';
-import { sessionHostServiceOf } from '../sessionHostTestUtils.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat, sessionHostServiceOf } from '../sessionHostTestUtils.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 
 suite('GitHubService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: GitHubService;
-	let activeSession: ISettableObservable<IActiveSession | undefined>;
-	let mainWindowActiveSession: ISettableObservable<IActiveSession | undefined>;
+	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
+	let mainWindowActiveSession: ISettableObservable<ITestSessionWithChat | undefined>;
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
 	setup(() => {
@@ -41,13 +40,13 @@ suite('GitHubService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
-		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
-		mainWindowActiveSession = observableValue<IActiveSession | undefined>('test.mainWindowActiveSession', undefined);
+		activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
+		mainWindowActiveSession = observableValue<ITestSessionWithChat | undefined>('test.mainWindowActiveSession', undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 		}());
-		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, gridShown: constObservable([]), windowSessions: constObservable([]) }));
 		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
@@ -104,15 +103,15 @@ suite('GitHubService', () => {
 		});
 	});
 
-	function createPullRequestSession(prNumber: number): IActiveSession {
-		return upcastPartial<IActiveSession>({
+	function createPullRequestSession(prNumber: number): ITestSessionWithChat {
+		return upcastPartial<ITestSessionWithChat>({
 			workspace: observableValue('test.workspace', {
 				folders: [{
 					gitRepository: {
 						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
 					},
 				}],
-			}) as unknown as IActiveSession['workspace'],
+			}) as unknown as ITestSessionWithChat['workspace'],
 		});
 	}
 
@@ -127,16 +126,16 @@ suite('GitHubService', () => {
 	});
 
 	test('getSessionPullRequest resolves the pull request of its own session independent of the active session', () => {
-		const createSession = (prNumber: number) => upcastPartial<IActiveSession>({
+		const createSession = (prNumber: number) => upcastPartial<ITestSessionWithChat>({
 			workspace: observableValue('test.workspace', {
 				folders: [{
 					gitRepository: {
 						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
 					},
 				}],
-			}) as unknown as IActiveSession['workspace'],
+			}) as unknown as ITestSessionWithChat['workspace'],
 		});
-		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', createSession(7));
+		const scopedSession = observableValue<ITestSessionWithChat | undefined>('test.scopedSession', createSession(7));
 		activeSession.set(createSession(3), undefined);
 		mainWindowActiveSession.set(activeSession.get(), undefined);
 
