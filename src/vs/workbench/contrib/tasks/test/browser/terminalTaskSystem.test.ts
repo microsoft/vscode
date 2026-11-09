@@ -37,7 +37,7 @@ import { TaskProblemMonitor } from '../../browser/taskProblemMonitor.js';
 import { TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
-import { ITaskSummary, ITaskSystemInfo, TaskExecuteKind, VerifiedTask } from '../../common/taskSystem.js';
+import { IResolveSet, ITaskSummary, ITaskSystemInfo, TaskExecuteKind, VerifiedTask } from '../../common/taskSystem.js';
 import { CustomTask, DependsOrder, IConfigurationProperties, InMemoryTask, PresentationOptions, RunOptions, RuntimeType, TaskEvent, TaskEventKind } from '../../common/tasks.js';
 
 suite('TerminalTaskSystem process executable', () => {
@@ -68,6 +68,7 @@ suite('TerminalTaskSystem process executable', () => {
 			override getModels() { return []; }
 		});
 		let resolutionCalls = 0;
+		const resolutionRequests: IResolveSet[] = [];
 		const acquiredVariables: string[] = [];
 		const lookupCalls: { command: string; cwd?: string; paths?: string[] }[] = [];
 		const systemInfo: ITaskSystemInfo = {
@@ -76,6 +77,7 @@ suite('TerminalTaskSystem process executable', () => {
 			uriProvider: path => URI.file(path),
 			resolveVariables: async (_folder, resolveSet) => {
 				resolutionCalls++;
+				resolutionRequests.push(resolveSet);
 				acquiredVariables.push(...resolveSet.variables);
 				return { variables: new Map(values), process: 'ignored.exe' };
 			},
@@ -161,6 +163,7 @@ suite('TerminalTaskSystem process executable', () => {
 			system,
 			createTask,
 			lookupCalls,
+			resolutionRequests,
 			acquiredVariables,
 			endedTasks,
 			get resolutionCalls() { return resolutionCalls; },
@@ -212,6 +215,25 @@ suite('TerminalTaskSystem process executable', () => {
 			const system = createSystem(new Map([[variable, '']]));
 			await assertRejectsWithMessage(system.execute('${' + variable + '}'), /^The command for process task 'test' resolved to an empty string\.$/);
 			assert.deepStrictEqual(system.state, { taskEnded: true, terminalCreated: false });
+		});
+	}
+
+	for (const command of ['run', '${input:tool}', '${command:tool}']) {
+		test(`looks up ${command} only once after acquiring task inputs`, async () => {
+			const fixture = createSystem(new Map([
+				['input:tool', 'run'], ['command:tool', 'run'],
+				['input:cwd', 'C:\\work'], ['input:path', 'C:\\tools;C:\\other']
+			]), { foundExecutable: 'C:\\tools\\run.exe' });
+			const config = await fixture.execute(command, '${input:cwd}', { Path: '${input:path}' });
+			assert.deepStrictEqual({
+				executable: config?.executable,
+				processRequests: fixture.resolutionRequests.map(request => request.process),
+				lookupCalls: fixture.lookupCalls
+			}, {
+				executable: 'C:\\tools\\run.exe',
+				processRequests: [undefined],
+				lookupCalls: [{ command: 'run', cwd: 'C:\\work', paths: ['C:\\tools', 'C:\\other'] }]
+			});
 		});
 	}
 

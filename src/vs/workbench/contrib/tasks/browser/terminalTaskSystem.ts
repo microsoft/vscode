@@ -764,15 +764,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				variables: unresolved
 			};
 
-			if (taskSystemInfo.platform === Platform.Platform.Windows && isProcess) {
-				resolveSet.process = { name: CommandString.value(task.command.name!) };
-				if (cwd) {
-					resolveSet.process.cwd = cwd;
-				}
-				if (envPath) {
-					resolveSet.process.path = envPath;
-				}
-			}
 			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolved) => {
 				if (!resolved) {
 					return undefined;
