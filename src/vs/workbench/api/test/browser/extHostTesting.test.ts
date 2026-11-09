@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import * as editorRange from '../../../../editor/common/core/range.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { MainContext, MainThreadCommandsShape, MainThreadTestingShape, TestRunUpdate } from '../../common/extHost.protocol.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
@@ -30,7 +31,8 @@ import { FileCoverage, Location, MarkdownString, Position, Range, TestMessage, T
 import { MainThreadTesting } from '../../browser/mainThreadTesting.js';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
-import { TestDiffOpType, TestItemExpandState, TestMessageType, TestResultState, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
+import { LiveTestResult } from '../../../contrib/testing/common/testResult.js';
+import { ITestItem, ITestMessage, ITestRunTask, TestDiffOpType, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import type { TestController, TestItem, TestRun, TestRunProfile, TestRunRequest } from 'vscode';
 
@@ -1235,6 +1237,64 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.hasRunningTasks, false);
 		});
 
+		for (const firstToEnd of ['first', 'second'] as const) {
+			test(`preserves both profiles' results when the ${firstToEnd} profile ends first`, () => {
+				const sharedDto = new TestRunDto('ctrlId', dto.id, true, single);
+				const result = ds.add(new LiveTestResult(sharedDto.id, false, { group: TestRunProfileBitset.Run, targets: [] }, 0, NullTelemetryService));
+				const uriIdentity = { asCanonicalUri: (uri: URI) => uri };
+				proxy.$startedTestRunTask.callsFake((_runId: string, task: ITestRunTask) => result.addTask(task));
+				proxy.$finishedTestRunTask.callsFake((_runId: string, taskId: string) => result.markTaskComplete(taskId));
+				proxy.$addTestsToRun.callsFake((controllerId: string, _runId: string, tests: ITestItem.Serialized[]) => result.addTestChainToRun(controllerId, tests.map(test => ITestItem.deserialize(uriIdentity, test))));
+				proxy.$updateTestStateInRun.callsFake((_runId: string, taskId: string, testId: string, state: TestResultState, duration?: number) => result.updateState(testId, taskId, state, duration));
+				proxy.$appendTestMessagesInRun.callsFake((_runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]) => {
+					for (const message of messages) {
+						result.appendMessage(testId, taskId, ITestMessage.deserialize(uriIdentity, message));
+					}
+				});
+
+				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
+				const secondRequest = { ...req, profile: secondProfile };
+				ds.add(c.prepareForMainThreadTestRun(ext, req, sharedDto, configuration, cts.token));
+				ds.add(c.prepareForMainThreadTestRun(ext, secondRequest, sharedDto, secondProfile, cts.token));
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, secondRequest, 'second', true);
+				const test = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const testId = TestId.fromExtHostTestItem(test, 'ctrlId').toString();
+				first.started(test);
+				second.started(test);
+				first.failed(test, new TestMessage('first profile failure'), 2);
+				second.passed(test, 3);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+
+				const endingOrder = firstToEnd === 'first' ? [first, second] : [second, first];
+				endingOrder[0].end();
+				const registered = result.getStateById(testId)!;
+				assert.deepStrictEqual(registered.tasks.map(task => task.state), firstToEnd === 'first'
+					? [TestResultState.Failed, TestResultState.Unset]
+					: [TestResultState.Unset, TestResultState.Passed]);
+				endingOrder[1].end();
+				clock.tick(0);
+				const actual = result.getStateById(testId)!;
+				assert.deepStrictEqual({
+					sameItem: actual === registered,
+					states: actual.tasks.map(task => task.state),
+					durations: actual.tasks.map(task => task.duration),
+					messages: actual.tasks.map(task => task.messages.map(message => message.type === TestMessageType.Error ? message.message : undefined)),
+					computedState: actual.computedState,
+					rootState: result.getStateById('ctrlId')!.computedState,
+					counts: [result.counts[TestResultState.Unset], result.counts[TestResultState.Failed], result.counts[TestResultState.Passed]],
+				}, {
+					sameItem: true,
+					states: [TestResultState.Failed, TestResultState.Passed],
+					durations: [2, 3],
+					messages: [['first profile failure'], []],
+					computedState: TestResultState.Failed,
+					rootState: TestResultState.Failed,
+					counts: [2, 1, 0],
+				});
+			});
+		}
+
 		for (const invalidateAll of [false, true]) {
 			test(`flushes every profile sharing a run ID before retiring ${invalidateAll ? 'all results' : 'a test'}`, () => {
 				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
@@ -1429,7 +1489,10 @@ suite('ExtHost Testing', () => {
 			task.appendOutput('output');
 			assert.doesNotThrow(() => task.appendOutput(undefined!));
 
+			clock.tick(0);
+			assert.strictEqual(proxy.$applyTestRunUpdates.called, false);
 			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$updateTestStateInRun.called, false);
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 			assert.strictEqual(proxy.$appendTestMessagesInRun.called, false);
 		});
