@@ -187,11 +187,11 @@ suite('Extension Gallery Service', () => {
 	for (const { name, deprecation, expected } of [
 		{ name: 'absent', deprecation: undefined, expected: undefined },
 		{ name: 'null', deprecation: null, expected: undefined },
-		{ name: 'plain', deprecation: {}, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
-		{ name: 'message', deprecation: { customMessage: '**Retired**' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: '**Retired**' } },
-		{ name: 'replacement and message', deprecation: { replacementExtension: { name: 'other.replacement', displayName: 'Replacement' }, customMessage: 'Please switch' }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: 'Please switch' } },
-		{ name: 'replacement without display name', deprecation: { replacementExtension: { name: 'other.replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'other.replacement' }, additionalInfo: undefined } },
-		{ name: 'invalid replacement', deprecation: { replacementExtension: { name: 'invalid' }, customMessage: 'Retired' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: 'Retired' } },
+		{ name: 'plain', deprecation: {}, expected: { source: 'marketplace', disallowInstall: true, extension: undefined, additionalInfo: undefined } },
+		{ name: 'message', deprecation: { customMessage: '**Retired**' }, expected: { source: 'marketplace', disallowInstall: true, extension: undefined, additionalInfo: '**Retired**' } },
+		{ name: 'replacement and message', deprecation: { replacementExtension: { name: 'other.replacement', displayName: 'Replacement' }, customMessage: 'Please switch' }, expected: { source: 'marketplace', disallowInstall: true, extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: 'Please switch' } },
+		{ name: 'replacement without display name', deprecation: { replacementExtension: { name: 'other.replacement' } }, expected: { source: 'marketplace', disallowInstall: true, extension: { id: 'other.replacement', displayName: 'other.replacement' }, additionalInfo: undefined } },
+		{ name: 'invalid replacement', deprecation: { replacementExtension: { name: 'invalid' }, customMessage: 'Retired' }, expected: { source: 'marketplace', disallowInstall: true, extension: undefined, additionalInfo: 'Retired' } },
 	] satisfies { name: string; deprecation: object | null | undefined; expected: IDeprecationInfo | undefined }[]) {
 		for (const route of ['query', 'latest', 'version'] as const) {
 			test(`Marketplace deprecation ${name} through ${route}`, async () => {

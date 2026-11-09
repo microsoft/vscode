@@ -1135,6 +1135,28 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not allowed by your organization.');
 	});
 
+	test('Marketplace install restriction follows rollback and metadata removal without restricting legacy advice', async () => {
+		let gallery = aGalleryExtension('deprecated', { deprecationInfo: { source: 'marketplace', disallowInstall: true } });
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+			malicious: [], search: [], deprecated: { 'pub.deprecated': { additionalInfo: 'Legacy advice' } }
+		});
+		testObject = await aWorkbenchService();
+		const [extension] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		const installable: boolean[] = [];
+		for (const enabled of [true, false, true]) {
+			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
+			installable.push(await testObject.canInstall(extension) === true);
+		}
+		gallery = aGalleryExtension('deprecated');
+		const [refreshed] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		installable.push(await testObject.canInstall(refreshed) === true);
+		assert.deepStrictEqual({ installable, fallback: refreshed.deprecationInfo }, {
+			installable: [false, true, false, true],
+			fallback: { additionalInfo: 'Legacy advice' }
+		});
+	});
+
 	suite('installExtension waits for installed inventory', () => {
 		for (const { name, version, preRelease, disabled } of [
 			{ name: 'newer pre-release', version: '1.26.54', preRelease: true, disabled: false },
