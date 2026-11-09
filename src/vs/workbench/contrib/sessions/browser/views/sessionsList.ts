@@ -1009,6 +1009,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const elementDisposables = disposables.add(new DisposableStore());
 		container.classList.add('session-chat-item');
 
+		DOM.append(container, $('span.session-attention-indicator', { 'aria-hidden': 'true' }));
 		const titleRow = DOM.append(container, $('.session-chat-title-row'));
 		const iconContainer = DOM.append(titleRow, $('.session-chat-icon'));
 		iconContainer.setAttribute('aria-hidden', 'true');
@@ -1735,6 +1736,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		container.classList.add('session-item');
 
 		DOM.append(container, $('span.session-group-connector', { 'aria-hidden': 'true' }));
+		DOM.append(container, $('span.session-attention-indicator', { 'aria-hidden': 'true' }));
 		const iconContainer = DOM.append(container, $('.session-icon'));
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
