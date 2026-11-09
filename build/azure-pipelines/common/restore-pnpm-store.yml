@@ -20,9 +20,13 @@ parameters:
 # only the packages that it doesn't have, and the cache saves the store at the end of the job.
 # Include prune-pnpm-store.yml after the installation, so that the saved store drops the packages
 # that the lockfiles no longer use.
+#
+# A failing cache step doesn't fail the job (continueOnError): pnpm then installs without the cached
+# store, and the cache doesn't save it, because it only saves after jobs that fully succeeded.
 steps:
   - script: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts ${{ parameters.keyArgs }}
     displayName: Prepare pnpm store cache key
+    continueOnError: true
 
   - task: Cache@2
     inputs:
@@ -40,3 +44,4 @@ steps:
         OVERRIDE_PIPELINE_ARTIFACT_CHUNKSIZE: Dedup1024K
     displayName: Restore pnpm store cache
     retryCountOnTaskFailure: 2
+    continueOnError: true

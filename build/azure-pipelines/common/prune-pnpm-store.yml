@@ -9,7 +9,8 @@ parameters:
 # restore-pnpm-store.yml restored, when the cache saves it at the end of the job (its key missed).
 # Also removes the store's links to those projects (in `projects`): the cache follows links when it
 # archives the store on Windows, and the next installation adds its own. Include it after the last
-# installation of the job.
+# installation of the job. A failure doesn't fail the job (continueOnError), and the cache then
+# doesn't save the store.
 steps:
   - ${{ if ne(parameters.os, 'windows') }}:
     - script: |
@@ -18,6 +19,7 @@ steps:
         rm -rf "$(pnpm store path)/projects"
       condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), ne(variables['Agent.OS'], 'Windows_NT'))
       displayName: Prune pnpm store
+      continueOnError: true
 
   - ${{ if or(eq(parameters.os, ''), eq(parameters.os, 'windows')) }}:
     - powershell: |
@@ -28,3 +30,4 @@ steps:
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
       condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), eq(variables['Agent.OS'], 'Windows_NT'))
       displayName: Prune pnpm store
+      continueOnError: true

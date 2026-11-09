@@ -201,6 +201,7 @@ jobs:
           cacheHitVar: PNPM_STORE_RESTORED
         displayName: Restore pnpm store cache
         retryCountOnTaskFailure: 2
+        continueOnError: true
 
       # Sets the registry and its authentication in the user npm configuration, as the product build
       # jobs do: `npm install -g pnpm` (also on a cache hit) doesn't read a project .npmrc, and these

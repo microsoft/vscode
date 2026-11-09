@@ -546,27 +546,3 @@ extends:
                   - smoke-agents-kerberos-pac-proxy
 
 
-      # Installs the dependencies of the platforms that CI builds don't build, so that the product
-      # builds find their pnpm store in the pipeline cache (see common/restore-pnpm-store.yml).
-      - stage: pnpm_store
-        displayName: pnpm store
-        dependsOn: []
-        jobs:
-          - template: build/azure-pipelines/win32/product-build-win32-pnpm-store.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-              VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
-          - template: build/azure-pipelines/linux/product-build-linux-pnpm-store.yml@self
-            parameters:
-              NPM_ARCH: arm64
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/alpine/product-build-alpine-pnpm-store.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/alpine/product-build-alpine-pnpm-store.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/darwin/product-build-darwin-pnpm-store.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/web/product-build-web-pnpm-store.yml@self
