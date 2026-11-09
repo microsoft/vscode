@@ -66,7 +66,7 @@ export interface IAgentHostSharedNetworkClient {
 	/** A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from the client's Kerberos tickets. */
 	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 	/** Basic credentials for `proxyUrl`; `attempt` is 1 for the first credentials a request asks for. */
-	lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
+	lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
 }
 
 /**
@@ -456,7 +456,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		}
 		for (const client of this._sharedNetworkClients.values()) {
 			try {
-				const credentials = await client.lookupBasicCredentials(proxyOrigin, authInfo.realm || undefined, authInfo.attempt);
+				const credentials = await client.lookupBasicAuthorization(proxyOrigin, authInfo.realm || undefined, authInfo.attempt);
 				if (credentials) {
 					return credentials;
 				}

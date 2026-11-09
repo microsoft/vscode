@@ -23,9 +23,9 @@ export const lookupClientProxyKerberosAuthorizationResultValidator = vObj({ auth
  * earlier ones, and `realm` comes from the proxy, so it is untrusted. An omitted or empty `username` means the client has
  * none; an omitted `password` is empty.
  */
-export const LookupClientProxyBasicCredentialsExtensionMethod = 'vscode/lookupProxyBasicCredentials';
-export const lookupClientProxyBasicCredentialsParamsValidator = vObj({ proxyUrl: vString(), realm: vOptionalProp(vString()), attempt: vNumber() });
-export const lookupClientProxyBasicCredentialsResultValidator = vObj({ username: vOptionalProp(vString()), password: vOptionalProp(vString()) });
+export const LookupClientProxyBasicAuthorizationExtensionMethod = 'vscode/lookupProxyBasicAuthorization';
+export const lookupClientProxyBasicAuthorizationParamsValidator = vObj({ proxyUrl: vString(), realm: vOptionalProp(vString()), attempt: vNumber() });
+export const lookupClientProxyBasicAuthorizationResultValidator = vObj({ username: vOptionalProp(vString()), password: vOptionalProp(vString()) });
 
 /**
  * Client → host: the client's proxy resolution may have changed, so the host drops cached resolutions and refreshes the
@@ -47,5 +47,5 @@ export interface IAgentHostClientProxyProvider {
 	/** A `Negotiate` `Proxy-Authorization` value for `proxyUrl`, or `undefined` when the client declines or has no ticket. */
 	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 	/** Basic credentials for `proxyUrl`, or `undefined` when the client declines or has none. */
-	lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
+	lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
 }

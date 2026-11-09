@@ -37,7 +37,7 @@ import { AgentHostChannelError, AgentHostChannelErrorCode, reportAgentHostChanne
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod, lookupClientProxyBasicCredentialsParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -3436,11 +3436,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						sendResult({ authorization } satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyKerberosAuthorizationExtensionMethod]['result']);
 						return;
 					}
-					case LookupClientProxyBasicCredentialsExtensionMethod: {
+					case LookupClientProxyBasicAuthorizationExtensionMethod: {
 						if (!this._clientProxy?.isEnabled()) {
 							throw new Error('This client does not provide proxy credentials for this agent host');
 						}
-						const { proxyUrl, realm, attempt } = lookupClientProxyBasicCredentialsParamsValidator.validateOrThrow(params);
+						const { proxyUrl, realm, attempt } = lookupClientProxyBasicAuthorizationParamsValidator.validateOrThrow(params);
 						if (!isHttpUrl(proxyUrl)) {
 							throw new Error('Unsupported proxy URL');
 						}
@@ -3449,11 +3449,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						}
 						let credentials: Credentials | undefined;
 						try {
-							credentials = await this._clientProxy.lookupBasicCredentials(proxyUrl, realm, attempt);
+							credentials = await this._clientProxy.lookupBasicAuthorization(proxyUrl, realm, attempt);
 						} catch {
 							throw new Error('Proxy credential lookup failed');
 						}
-						sendResult((credentials ? { username: credentials.username, password: credentials.password } : {}) satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyBasicCredentialsExtensionMethod]['result']);
+						sendResult((credentials ? { username: credentials.username, password: credentials.password } : {}) satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyBasicAuthorizationExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {

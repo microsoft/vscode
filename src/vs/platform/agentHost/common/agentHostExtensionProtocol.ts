@@ -5,7 +5,7 @@
 
 import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod, lookupClientProxyBasicCredentialsParamsValidator, lookupClientProxyBasicCredentialsResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
@@ -423,9 +423,9 @@ export interface IAgentHostExtensionServerCommandMap {
 		params: ValidatorType<typeof lookupClientProxyKerberosAuthorizationParamsValidator>;
 		result: ValidatorType<typeof lookupClientProxyKerberosAuthorizationResultValidator>;
 	};
-	[LookupClientProxyBasicCredentialsExtensionMethod]: {
-		params: ValidatorType<typeof lookupClientProxyBasicCredentialsParamsValidator>;
-		result: ValidatorType<typeof lookupClientProxyBasicCredentialsResultValidator>;
+	[LookupClientProxyBasicAuthorizationExtensionMethod]: {
+		params: ValidatorType<typeof lookupClientProxyBasicAuthorizationParamsValidator>;
+		result: ValidatorType<typeof lookupClientProxyBasicAuthorizationResultValidator>;
 	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;

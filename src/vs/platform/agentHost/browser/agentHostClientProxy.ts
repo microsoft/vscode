@@ -72,7 +72,7 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	 * Unlike Kerberos tickets, Basic credentials are reusable secrets that the native lookup returns for any proxy, such
 	 * as the ones in `http.proxy`, so they only go to the endpoints of proxies this client points the agent host at.
 	 */
-	async lookupBasicCredentials(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
+	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
 		if (this._configurationService.getValue<boolean>('http.useLocalProxyConfiguration') === false) {
 			return undefined;
 		}

@@ -160,7 +160,7 @@ suite('AgentHostClientProxy', () => {
 			const { proxy, authInfos } = createProxy(options);
 			const credentials: Record<string, string | undefined> = {};
 			for (const [index, proxyUrl] of proxyUrls.entries()) {
-				credentials[proxyUrl] = (await proxy.lookupBasicCredentials(proxyUrl, index ? undefined : 'Corp', index + 1))?.password;
+				credentials[proxyUrl] = (await proxy.lookupBasicAuthorization(proxyUrl, index ? undefined : 'Corp', index + 1))?.password;
 			}
 			return { credentials, authInfos };
 		}
@@ -184,9 +184,9 @@ suite('AgentHostClientProxy', () => {
 			resolvedBeforeConfiguredProxy: await (async () => {
 				const { proxy, configurationService } = createProxy({ resolveProxy: () => 'PROXY pac.corp:8080' });
 				await proxy.resolveProxy('https://github.example/api');
-				const before = (await proxy.lookupBasicCredentials('http://pac.corp:8080', undefined, 1))?.password;
+				const before = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
 				await configurationService.setUserConfiguration('http.proxy', 'http://user:pass@configured.corp:3128');
-				const after = (await proxy.lookupBasicCredentials('http://pac.corp:8080', undefined, 1))?.password;
+				const after = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
 				return { before, after };
 			})(),
 		};

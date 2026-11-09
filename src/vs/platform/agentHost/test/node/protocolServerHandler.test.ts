@@ -11,7 +11,7 @@ import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
@@ -994,9 +994,9 @@ suite('ProtocolServerHandler', () => {
 
 		const proxy = await respond(ResolveClientProxyExtensionMethod, () => proxyResolver.resolveProxy('https://example.com/path'), { proxy: 'PROXY proxy.example:8080' });
 		const kerberos = await respond(LookupClientProxyKerberosAuthorizationExtensionMethod, () => proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'), { authorization: 'Negotiate ticket' });
-		const basic = await respond(LookupClientProxyBasicCredentialsExtensionMethod, () => lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', {}), { username: 'user', password: 'secret' });
+		const basic = await respond(LookupClientProxyBasicAuthorizationExtensionMethod, () => lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', {}), { username: 'user', password: 'secret' });
 		wsl.simulateClose();
-		const methods = [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod];
+		const methods = [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod];
 		assert.deepStrictEqual({
 			proxy, kerberos, basic,
 			afterDisconnect: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),

@@ -418,7 +418,7 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async proxyUrl => `Negotiate client-token for ${proxyUrl}`,
-			lookupBasicCredentials: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const { lookupProxyAuthorization } = (resolver as unknown as {
 			_getProxyResolver(): { readonly params: ProxyAgentParams };
@@ -443,12 +443,12 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('failing', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async () => undefined,
-			lookupBasicCredentials: async () => { throw new Error('disconnected'); },
+			lookupBasicAuthorization: async () => { throw new Error('disconnected'); },
 		}));
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async () => undefined,
-			lookupBasicCredentials: async (proxyUrl, realm, attempt) => {
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
 				lookups.push([proxyUrl, realm, attempt]);
 				return proxyUrl.includes('proxy.example') ? { username: 'user', password: 'secret' } : undefined;
 			},
@@ -490,7 +490,7 @@ suite('AgentHostProxyResolver', () => {
 				return 'PROXY proxy.example:8080';
 			},
 			lookupKerberosAuthorization: async () => undefined,
-			lookupBasicCredentials: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const shared = await resolver.resolveProxy('https://shared.example/path');
 		const sharedInfo = await resolver.resolveProxyByURL('https://shared-info.example/path');
@@ -516,7 +516,7 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => clientProxy,
 			lookupKerberosAuthorization: async () => undefined,
-			lookupBasicCredentials: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		const before = await resolver.resolveProxy('https://shared.example/path');
 
@@ -536,11 +536,11 @@ suite('AgentHostProxyResolver', () => {
 		disposables.add(resolver.registerSharedNetworkClient('failing', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async () => { throw new Error('disconnected'); },
-			lookupBasicCredentials: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 		}));
 		disposables.add(resolver.registerSharedNetworkClient('wsl', {
 			resolveProxy: async () => undefined,
-			lookupBasicCredentials: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 			lookupKerberosAuthorization: async proxyUrl => {
 				lookups.push(`client ${proxyUrl}`);
 				return 'Negotiate client-token';

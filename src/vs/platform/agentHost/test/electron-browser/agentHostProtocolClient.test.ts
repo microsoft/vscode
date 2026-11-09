@@ -24,7 +24,7 @@ import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../.
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicCredentialsExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
@@ -4662,8 +4662,8 @@ suite('AgentHostProtocolClient', () => {
 					}
 					return 'Negotiate ticket';
 				},
-				lookupBasicCredentials: async (proxyUrl, realm, attempt) => {
-					calls.push(['lookupBasicCredentials', proxyUrl, String(realm), String(attempt)]);
+				lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+					calls.push(['lookupBasicAuthorization', proxyUrl, String(realm), String(attempt)]);
 					if (proxyUrl.includes('failing')) {
 						throw new Error('secret failure detail');
 					}
@@ -4723,18 +4723,18 @@ suite('AgentHostProtocolClient', () => {
 			const { client, transport } = createProxyClient(calls);
 			await connectClient(client, transport);
 			const results = [
-				await sendRequest(transport, 70, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://proxy.example:8080', realm: 'Corp', attempt: 1 }),
-				await sendRequest(transport, 71, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://unknown.example:8080', attempt: 2 }),
-				await sendRequest(transport, 72, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://failing.example:8080', attempt: 1 }),
-				await sendRequest(transport, 73, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'socks5://proxy.example:1080', attempt: 1 }),
-				await sendRequest(transport, 74, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 0 }),
-				await sendRequest(transport, 75, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1.5 }),
+				await sendRequest(transport, 70, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', realm: 'Corp', attempt: 1 }),
+				await sendRequest(transport, 71, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://unknown.example:8080', attempt: 2 }),
+				await sendRequest(transport, 72, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://failing.example:8080', attempt: 1 }),
+				await sendRequest(transport, 73, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'socks5://proxy.example:1080', attempt: 1 }),
+				await sendRequest(transport, 74, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 0 }),
+				await sendRequest(transport, 75, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1.5 }),
 			];
 			assert.deepStrictEqual({ calls, results }, {
 				calls: [
-					['lookupBasicCredentials', 'http://proxy.example:8080', 'Corp', '1'],
-					['lookupBasicCredentials', 'http://unknown.example:8080', 'undefined', '2'],
-					['lookupBasicCredentials', 'http://failing.example:8080', 'undefined', '1'],
+					['lookupBasicAuthorization', 'http://proxy.example:8080', 'Corp', '1'],
+					['lookupBasicAuthorization', 'http://unknown.example:8080', 'undefined', '2'],
+					['lookupBasicAuthorization', 'http://failing.example:8080', 'undefined', '1'],
 				],
 				results: [
 					{ username: 'user', password: 'secret' },
@@ -4759,7 +4759,7 @@ suite('AgentHostProtocolClient', () => {
 				errors: [
 					await sendRequest(disabled.transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com' }),
 					await sendRequest(ordinary.transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
-					await sendRequest(disabled.transport, 53, LookupClientProxyBasicCredentialsExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1 }),
+					await sendRequest(disabled.transport, 53, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1 }),
 				],
 				calls,
 			}, {
