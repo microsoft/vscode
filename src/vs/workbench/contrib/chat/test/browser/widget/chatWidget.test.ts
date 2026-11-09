@@ -17,6 +17,7 @@ import { mockObject, upcastPartial } from '../../../../../../base/test/common/mo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { CopyPasteController } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
@@ -686,10 +687,11 @@ suite('ChatWidget', () => {
 		const submit = async (hostSubmit: boolean) => {
 			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 			Object.defineProperties(widget, {
+				_store: { value: store.add(new DisposableStore()) },
 				viewOptions: { value: hostSubmit ? { hostSubmit: { canSubmit: constObservable(true) } } : {} },
 				// A placeholder local chat, as blocked by a policy that requires the agent host.
 				viewModel: { value: { model: { isInputBlocked: constObservable(true) }, sessionResource: LocalChatSessionUri.forSession('placeholder') } },
-				input: { value: { hasPendingProgrammaticModelSelection: false, isManagedSettingsRefreshBlocked: false } },
+				input: { value: { inputEditor: { getContribution: () => null }, hasPendingProgrammaticModelSelection: false, isManagedSettingsRefreshBlocked: false } },
 				// The first step past the input checks.
 				getParticipantForLocalChat: { value: () => { reached.push(hostSubmit ? 'hostSubmit' : 'widget'); return undefined; } },
 				instantiationService: { value: { createInstance: () => { throw new Error('stop after the input checks'); } } },
@@ -2497,11 +2499,15 @@ suite('ChatWidget - acceptInput submission', () => {
 		const attachments = new ChatRequestVariableSet();
 		const contribs: IChatWidget['contribs'][number][] = [];
 		const parts: IParsedChatRequest['parts'][number][] = [];
-		const parsedInput: IParsedChatRequest = { text: inputText, parts };
+		const parsedInput = { text: inputText, parts } satisfies IParsedChatRequest;
 		const policyRequiresAgentHost = observableValue('policyRequiresAgentHost', false);
 		const contextKeyService = store.add(new MockContextKeyService());
+		const pasteController = mockObject<CopyPasteController>()();
+		pasteController.finishedPaste.resolves();
+		const editor = mockObject<ChatInputPart['inputEditor']>()();
+		editor.getContribution.returns(pasteController);
 		const input = mockObject<ChatInputPart>()({
-			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text, getContribution: editor.getContribution }),
 			getPromptText: () => parsedInput.text,
 			inlineAttachments: undefined,
 			currentModeKind: ChatModeKind.Ask,
@@ -2599,7 +2605,103 @@ suite('ChatWidget - acceptInput submission', () => {
 			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+		return { widget, widgetStore, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, parsedInput, pasteController, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+	}
+
+	for (const customHandler of [false, true]) {
+		test(`waits for pasted text and attachments before ${customHandler ? 'calling a custom submit handler' : 'sending the draft'}`, async () => {
+			const fixture = createSubmissionWidget(undefined, 'Explain ');
+			const paste = new DeferredPromise<void>();
+			fixture.pasteController.finishedPaste.returns(paste.p);
+			const submissions: { text: string; attachments: readonly string[] }[] = [];
+			if (customHandler) {
+				fixture.viewOptions.submitHandler = async (text, _mode, attachments) => {
+					submissions.push({ text, attachments: attachments?.map(entry => entry.id) ?? [] });
+					return true;
+				};
+			}
+
+			const sending = fixture.widget.acceptInput();
+			await timeout(0);
+			const pending = {
+				waitingForPaste: fixture.pasteController.finishedPaste.calledOnce,
+				requests: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount,
+				handled: submissions.length,
+			};
+			fixture.parsedInput.text = 'Explain pasted text';
+			fixture.attachments.add({ kind: 'file', id: 'pasted-file', name: 'file.ts', value: URI.file('/workspace/file.ts') });
+			await paste.complete();
+			await sending;
+			for (const call of fixture.chatService.sendRequest.getCalls()) {
+				const options: IChatSendRequestOptions = call.args[2];
+				submissions.push({ text: call.args[1], attachments: options.attachedContext?.map(entry => entry.id) ?? [] });
+			}
+
+			assert.deepStrictEqual({ pending, submissions }, {
+				pending: { waitingForPaste: true, requests: 0, accepted: 0, handled: 0 },
+				submissions: [{ text: 'Explain pasted text', attachments: ['pasted-file'] }],
+			});
+		});
+	}
+
+	test('preserved-input submissions do not wait for a paste into the unrelated draft', async () => {
+		const fixture = createSubmissionWidget();
+		const paste = new DeferredPromise<void>();
+		fixture.pasteController.finishedPaste.returns(paste.p);
+		try {
+			await fixture.widget.acceptInput('Background continuation', fixture.options);
+			assert.deepStrictEqual({
+				waited: fixture.pasteController.finishedPaste.called,
+				message: fixture.chatService.sendRequest.firstCall.args[1],
+			}, { waited: false, message: 'Background continuation' });
+		} finally {
+			await paste.complete();
+		}
+	});
+
+	test('does not send an incomplete draft when paste fails', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.pasteController.finishedPaste.rejects(new Error('Paste failed'));
+
+		await assert.rejects(fixture.widget.acceptInput(), /Paste failed/);
+		assert.deepStrictEqual({
+			requests: fixture.chatService.sendRequest.callCount,
+			accepted: fixture.input.acceptInput.callCount,
+		}, { requests: 0, accepted: 0 });
+	});
+
+	for (const change of ['session', 'input', 'blocked', 'dispose'] as const) {
+		test(`does not submit after ${change} changes while waiting for paste`, async () => {
+			const fixture = createSubmissionWidget();
+			const paste = new DeferredPromise<void>();
+			fixture.pasteController.finishedPaste.returns(paste.p);
+			const sending = fixture.widget.acceptInput();
+			const settled = change === 'blocked'
+				? sending
+				: assert.rejects(sending, CancellationError);
+			switch (change) {
+				case 'session':
+					Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('test:/other-session')).viewModel });
+					break;
+				case 'input':
+					Object.defineProperty(fixture.widget, 'input', { value: upcastPartial<ChatInputPart>({}) });
+					break;
+				case 'blocked':
+					fixture.original.isInputBlocked.set(true, undefined);
+					break;
+				case 'dispose':
+					fixture.widgetStore.dispose();
+					break;
+			}
+			await paste.complete();
+			await settled;
+
+			assert.deepStrictEqual({
+				requests: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount,
+			}, { requests: 0, accepted: 0 });
+		});
 	}
 
 	for (const changeModel of [true, false]) {
@@ -3010,6 +3112,41 @@ suite('ChatWidget - acceptInput submission', () => {
 		widget.acceptInput.resolves(response);
 		return { widget, input, attachmentModel };
 	}
+
+	test('waits for paste before routing an extension participant to a Local chat', async () => {
+		const fixture = createSubmissionWidget(undefined, 'Explain ');
+		const paste = new DeferredPromise<void>();
+		fixture.pasteController.finishedPaste.returns(paste.p);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		const destination = createParticipantDestination(local.viewModel, fixture.response);
+		fixture.chatWidgetService.openSession.resolves(destination.widget);
+
+		const sending = fixture.widget.acceptInput();
+		await timeout(0);
+		const beforePaste = {
+			created: fixture.chatService.startNewLocalSession.callCount,
+			sent: fixture.chatService.sendRequest.callCount,
+		};
+		fixture.parsedInput.text = '@participant Explain pasted text';
+		const participant = addParticipant(fixture);
+		await paste.complete();
+		await sending;
+
+		assert.deepStrictEqual({
+			beforePaste,
+			participant: destination.widget.lastSelectedAgent,
+			draft: local.inputModel.setState.firstCall.args[0].inputText,
+			sent: fixture.chatService.sendRequest.callCount,
+			redirected: destination.widget.acceptInput.callCount,
+		}, {
+			beforePaste: { created: 0, sent: 0 },
+			participant,
+			draft: '@participant Explain pasted text',
+			sent: 0,
+			redirected: 1,
+		});
+	});
 
 	for (const inEditor of [false, true]) {
 		test(`submits an extension participant in a new Local chat without changing the agent-host request (${inEditor ? 'editor' : 'sidebar'})`, async () => {

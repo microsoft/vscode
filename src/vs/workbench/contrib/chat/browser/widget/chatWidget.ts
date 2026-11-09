@@ -34,6 +34,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { CopyPasteController } from '../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -3652,10 +3653,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return captureForkPromptSourceInput(this, this.chatService);
 	}
 
-	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+	private isInputSubmissionBlocked(): boolean {
 		const modelInputBlocked = this.viewModel?.model.isInputBlocked.get() && !this.viewOptions.hostSubmit;
-		if (this._readOnly || modelInputBlocked || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
+		return !!(this._readOnly || modelInputBlocked || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh());
+	}
+
+	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		if (this.isInputSubmissionBlocked()) {
 			return undefined;
+		}
+		if (!options?.preserveInput) {
+			const input = this.input;
+			const viewModel = this.viewModel;
+			await CopyPasteController.get(input.inputEditor)?.finishedPaste();
+			if (this._store.isDisposed || this.input !== input || this.viewModel !== viewModel) {
+				throw new CancellationError();
+			}
+			if (this.isInputSubmissionBlocked()) {
+				return undefined;
+			}
 		}
 		const participant = this.getParticipantForLocalChat(query);
 		if (participant) {
