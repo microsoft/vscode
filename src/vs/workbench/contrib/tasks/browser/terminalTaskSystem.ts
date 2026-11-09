@@ -5,12 +5,14 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import * as Async from '../../../../base/common/async.js';
+import { WeakCachedFunction } from '../../../../base/common/cache.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isUNC } from '../../../../base/common/extpath.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedMap, Touch } from '../../../../base/common/map.js';
 import * as Objects from '../../../../base/common/objects.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import * as path from '../../../../base/common/path.js';
 import * as Platform from '../../../../base/common/platform.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -172,6 +174,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _taskTerminalActive: IContextKey<boolean>;
 	private readonly _taskStartTimes = new Map<number, number>();
 	private readonly _capturedTaskVariables = new Map<string, string>();
+	// A watcher can become inactive repeatedly before its execution promise settles.
+	private readonly _dependencyTaskResults = new WeakCachedFunction((taskPromise: Promise<ITaskSummary>) => {
+		const result = observableValue<PromiseSettledResult<ITaskSummary> | undefined>(this, undefined);
+		taskPromise.then(
+			value => result.set({ status: 'fulfilled', value }, undefined),
+			reason => result.set({ status: 'rejected', reason }, undefined)
+		);
+		return result;
+	});
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -625,11 +636,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _createInactiveDependencyPromise(task: Task, taskPromise: Promise<ITaskSummary>): Promise<ITaskSummary> {
-		const inactive = Event.toPromise(Event.filter(this.onDidStateChange, event => event.kind === TaskEventKind.Inactive && event.__task === task));
+		const completion = this._dependencyTaskResults.get(taskPromise);
+		const disposables = new DisposableStore();
 		try {
-			return await Promise.race([inactive.then(() => ({ exitCode: 0 })), taskPromise]);
+			const inactive = Event.toPromise(Event.filter(this.onDidStateChange, event => event.kind === TaskEventKind.Inactive && event.__task === task, disposables), disposables).then(() => ({ exitCode: 0 }));
+			return await new Promise<ITaskSummary>((resolve, reject) => {
+				inactive.then(resolve);
+				disposables.add(autorun(reader => {
+					const result = completion.read(reader);
+					if (result?.status === 'fulfilled') {
+						resolve(result.value);
+					} else if (result?.status === 'rejected') {
+						reject(result.reason);
+					}
+				}));
+			});
 		} finally {
-			inactive.cancel();
+			disposables.dispose();
 		}
 	}
 

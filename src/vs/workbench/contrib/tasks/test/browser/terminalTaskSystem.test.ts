@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { win32 } from '../../../../../base/common/path.js';
 import { isWindows, Platform } from '../../../../../base/common/platform.js';
@@ -46,6 +48,8 @@ suite('TerminalTaskSystem process executable', () => {
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Exercise the real resolution and launch-config pipeline without exposing test-only APIs. */
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceFolder = toWorkspaceFolder(URI.file('C:\\work'));
+
+	teardown(() => sinon.restore());
 
 	async function assertRejectsWithMessage<T>(promise: Promise<T>, expected: RegExp): Promise<void> {
 		const error: unknown = await promise.then(() => undefined, reason => reason);
@@ -295,7 +299,8 @@ suite('TerminalTaskSystem process executable', () => {
 				});
 				const laterResolution = new DeferredPromise<InMemoryTask>();
 				const initialListeners = fixture.taskListeners;
-				const failingTaskEnded = Event.toPromise(Event.filter(fixture.system.onDidStateChange, event => event.kind === TaskEventKind.End && event.__task === failingTask), store);
+				const disposables = store.add(new DisposableStore());
+				const failingTaskEnded = Event.toPromise(Event.filter(fixture.system.onDidStateChange, event => event.kind === TaskEventKind.End && event.__task === failingTask, disposables), disposables);
 				const unhandledRejections: string[] = [];
 				store.add(addDisposableListener(mainWindow, 'unhandledrejection', event => unhandledRejections.push(String(event.reason))));
 				const result = fixture.system.run(parent, {
@@ -742,6 +747,157 @@ suite('TerminalTaskSystem process executable', () => {
 			inactiveEvents: system.lifecycle.events.filter(event => event === TaskEventKind.Inactive).length
 		}, { extraListeners: 0, activeTasks: 0, modelListeners: 0, inactiveEvents: 1 });
 	});
+
+	function createRunningBackgroundDependency() {
+		const fixture = createSystem(new Map(), { configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] } });
+		const task = fixture.createTask('C:\\tools\\run.exe');
+		const completion = new DeferredPromise<ITaskSummary>();
+		const completionObserver = sinon.spy(completion.p, 'then');
+		const activeTask = { task, promise: completion.p, count: { count: 1 }, state: TaskEventKind.Active };
+		return { fixture, task, completion, completionObserver, activeTask };
+	}
+
+	test('bounds completion observers across repeated background dependency waits', async () => {
+		const { fixture, task, completion, completionObserver, activeTask } = createRunningBackgroundDependency();
+		const initialListeners = fixture.taskListeners;
+		const results: ITaskSummary[] = [];
+		try {
+			for (let i = 0; i < 100; i++) {
+				const dependency = fixture.system['_getDependencyPromise'](activeTask);
+				fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, task));
+				results.push(await dependency);
+			}
+			assert.deepStrictEqual({
+				completionObservers: completionObserver.callCount,
+				watcherSettled: completion.isSettled,
+				extraListeners: fixture.taskListeners - initialListeners,
+				results
+			}, {
+				completionObservers: 1, watcherSettled: false, extraListeners: 0,
+				results: Array.from({ length: 100 }, () => ({ exitCode: 0 }))
+			});
+		} finally {
+			await completion.complete({ exitCode: 9 });
+		}
+	});
+
+	test('releases completion subscriptions after background dependency waits', async () => {
+		const { fixture, task, completion, activeTask } = createRunningBackgroundDependency();
+		const initialListeners = fixture.taskListeners;
+		const result = fixture.system['_dependencyTaskResults'].get(completion.p);
+		const addObserver = sinon.spy(result, 'addObserver');
+		const removeObserver = sinon.spy(result, 'removeObserver');
+		try {
+			for (let i = 0; i < 10; i++) {
+				const dependency = fixture.system['_getDependencyPromise'](activeTask);
+				fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, task));
+				await dependency;
+			}
+			assert.deepStrictEqual({
+				added: addObserver.callCount,
+				removed: removeObserver.callCount,
+				watcherSettled: completion.isSettled,
+				extraListeners: fixture.taskListeners - initialListeners
+			}, { added: 10, removed: 10, watcherSettled: false, extraListeners: 0 });
+		} finally {
+			await completion.complete({ exitCode: 9 });
+		}
+	});
+
+	for (const outcome of ['complete', 'reject', 'reject undefined']) {
+		test(`shares ${outcome} with concurrent and late background dependency waits`, async () => {
+			const { fixture, completion, completionObserver, activeTask } = createRunningBackgroundDependency();
+			const initialListeners = fixture.taskListeners;
+			const results = Promise.allSettled([
+				fixture.system['_getDependencyPromise'](activeTask),
+				fixture.system['_getDependencyPromise'](activeTask)
+			]);
+			const expected: PromiseSettledResult<ITaskSummary> = outcome === 'complete'
+				? { status: 'fulfilled', value: { exitCode: 9 } }
+				: { status: 'rejected', reason: outcome === 'reject' ? new Error('dependency failed') : undefined };
+			if (expected.status === 'fulfilled') {
+				await completion.complete(expected.value);
+			} else {
+				await completion.error(expected.reason);
+			}
+			assert.deepStrictEqual({
+				results: await results,
+				lateResult: await Promise.allSettled([fixture.system['_getDependencyPromise'](activeTask)]),
+				completionObservers: completionObserver.callCount,
+				extraListeners: fixture.taskListeners - initialListeners
+			}, {
+				results: [expected, expected], lateResult: [expected],
+				completionObservers: 1, extraListeners: 0
+			});
+		});
+	}
+
+	test('already inactive background dependency waits do not observe completion', async () => {
+		const { fixture, completion, completionObserver, activeTask } = createRunningBackgroundDependency();
+		const initialListeners = fixture.taskListeners;
+		activeTask.state = TaskEventKind.Inactive;
+		try {
+			assert.deepStrictEqual({
+				result: await fixture.system['_getDependencyPromise'](activeTask),
+				completionObservers: completionObserver.callCount,
+				watcherSettled: completion.isSettled,
+				extraListeners: fixture.taskListeners - initialListeners
+			}, {
+				result: { exitCode: 0 }, completionObservers: 0, watcherSettled: false, extraListeners: 0
+			});
+		} finally {
+			await completion.complete({ exitCode: 9 });
+		}
+	});
+
+	test('background dependency waits settle after task system disposal', async () => {
+		const { fixture, completion, activeTask } = createRunningBackgroundDependency();
+		const dependency = fixture.system['_getDependencyPromise'](activeTask);
+		fixture.system.dispose();
+		await completion.complete({ exitCode: 9 });
+		assert.deepStrictEqual(await dependency, { exitCode: 9 });
+	});
+
+	test('background dependency waits keep restarted executions separate', async () => {
+		const { fixture, task, completion, activeTask } = createRunningBackgroundDependency();
+		const first = fixture.system['_getDependencyPromise'](activeTask);
+		await completion.complete({ exitCode: 9 });
+		const firstResult = await first;
+		const restartedCompletion = new DeferredPromise<ITaskSummary>();
+		const restartedTask = { ...activeTask, promise: restartedCompletion.p };
+		try {
+			const restarted = fixture.system['_getDependencyPromise'](restartedTask);
+			fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, task));
+			const inactiveResult = await restarted;
+			await restartedCompletion.complete({ exitCode: 17 });
+			assert.deepStrictEqual({
+				first: firstResult,
+				restartedInactive: inactiveResult,
+				restartedComplete: await fixture.system['_getDependencyPromise'](restartedTask)
+			}, {
+				first: { exitCode: 9 }, restartedInactive: { exitCode: 0 }, restartedComplete: { exitCode: 17 }
+			});
+		} finally {
+			if (!restartedCompletion.isSettled) {
+				await restartedCompletion.complete({ exitCode: 17 });
+			}
+		}
+	});
+
+	for (const completeFirst of [true, false]) {
+		test(`background dependency waits preserve completion priority when inactivity arrives ${completeFirst ? 'after' : 'before'} completion in the same turn`, async () => {
+			const { fixture, task, completion, activeTask } = createRunningBackgroundDependency();
+			const dependency = fixture.system['_getDependencyPromise'](activeTask);
+			if (completeFirst) {
+				completion.complete({ exitCode: 9 });
+			}
+			fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, task));
+			if (!completeFirst) {
+				completion.complete({ exitCode: 9 });
+			}
+			assert.deepStrictEqual(await dependency, { exitCode: 9 });
+		});
+	}
 
 	for (const outcome of ['inactive', 'complete', 'reject']) {
 		test(`disposes an already-running dependency listener when it becomes ${outcome}`, async () => {
