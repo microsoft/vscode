@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color } from '../../../../base/common/color.js';
 import { hash } from '../../../../base/common/hash.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -52,21 +53,18 @@ export function getStandardColors(colorTheme: IColorTheme): string[] {
 
 export function createColorStyleElement(colorTheme: IColorTheme): IDisposable {
 	const disposable = new DisposableStore();
-	const standardColors = getStandardColors(colorTheme);
 	const styleElement = createStyleSheet(undefined, undefined, disposable);
-	let css = '';
-	for (const colorKey of standardColors) {
-		const colorClass = getColorClass(colorKey);
-		const color = colorTheme.getColor(colorKey);
-		if (color) {
-			css += (
-				`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
-				`{ color: ${color} !important; }`
-			);
-		}
-	}
-	styleElement.textContent = css;
+	styleElement.textContent = getColorStyleContent(colorTheme);
 	return disposable;
+}
+
+export function getIconColorStyle(colorClass: string, color: Color): string {
+	const iconSelector = '.codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)';
+	return (
+		`.monaco-workbench .${colorClass}:not(.single-terminal-tab) ${iconSelector},` +
+		`.monaco-workbench .${colorClass}.single-terminal-tab > ${iconSelector}` +
+		`{ color: ${color} !important; }`
+	);
 }
 
 export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean): string {
@@ -83,10 +81,7 @@ export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean):
 					`{ color: ${color} !important; }`
 				);
 			} else {
-				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
-					`{ color: ${color} !important; }`
-				);
+				css += getIconColorStyle(colorClass, color);
 			}
 		}
 	}

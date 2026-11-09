@@ -40,7 +40,7 @@ export function setup(options?: { skipSuite: boolean }) {
 		it('should truncate a long single tab label without overflowing its actions', async function () {
 			const app = this.app as Application;
 			const name = 'Notification settings progress '.repeat(10).trim();
-			const description = 'Current task directory '.repeat(10).trim();
+			const description = 'Current task directory [project] C:\\workspace\\terminal_long_name '.repeat(10).trim();
 			try {
 				await setTerminalTestSettings(app, [
 					['terminal.integrated.tabs.description', JSON.stringify(description)],
@@ -51,10 +51,15 @@ export function setup(options?: { skipSuite: boolean }) {
 				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelRight');
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 				await terminal.assertSingleTab({ name });
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, '\u0007');
 
 				const page = await terminal.getPage();
-				await page.waitForSelector('.single-terminal-tab .codicon-bell');
+				const bell = page.locator('.single-terminal-tab .codicon-bell');
+				// The bell listener is registered after terminal startup.
+				const bellDeadline = Date.now() + 10_000;
+				do {
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, '\u0007');
+				} while (!await bell.isVisible() && Date.now() < bellDeadline);
+				await bell.waitFor({ state: 'visible', timeout: 1000 });
 				const layout = await page.locator('.single-terminal-tab').evaluate((label: HTMLElement) => {
 					const action = label.closest<HTMLElement>('.action-item')!;
 					const labelBounds = label.getBoundingClientRect();
@@ -71,15 +76,86 @@ export function setup(options?: { skipSuite: boolean }) {
 						})
 					};
 				});
-				assert.deepStrictEqual(layout, {
+				await page.locator('.single-terminal-tab').hover();
+				const hover = page.locator('.monaco-hover:visible');
+				await hover.waitFor({ state: 'visible' });
+				const hoverText = (await hover.textContent())?.replace(/\s+/g, ' ');
+				assert.deepStrictEqual({
+					...layout,
+					hoverIncludesTitle: hoverText?.includes(name),
+					hoverIncludesDescription: hoverText?.includes(description)
+				}, {
 					text: `${name} - ${description}`,
 					labelOverflows: false,
 					actionOverflows: false,
 					actionWithinToolbar: true,
-					iconsVisible: true
+					iconsVisible: true,
+					hoverIncludesTitle: true,
+					hoverIncludesDescription: true
 				});
 			} finally {
 				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
+				await settingsEditor.clearUserSettings();
+				await setTerminalTestSettings(app);
+			}
+		});
+
+		it('should keep progress icon colors independent of the terminal color', async function () {
+			const app = this.app as Application;
+			try {
+				await setTerminalTestSettings(app, [
+					['terminal.integrated.tabs.description', '"${progress}"']
+				]);
+				await terminal.createEmptyTerminal();
+
+				const page = await terminal.getPage();
+				const states = [
+					{ state: 2, icon: 'error' },
+					{ state: 3, icon: 'loading' },
+					{ state: 4, icon: 'alert' }
+				];
+				const readColors = async () => {
+					const colors: { icon: string; terminal: string; progress: string; pickerProgress: string }[] = [];
+					for (const { state, icon } of states) {
+						await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\x1b]9;4;${state};0\\x07`);
+						const progressIcon = page.locator(`.single-terminal-tab-label .codicon-${icon}`);
+						await progressIcon.waitFor({ state: 'visible' });
+						const currentColors = await progressIcon.evaluate((progress: HTMLElement) => {
+							const label = progress.closest<HTMLElement>('.single-terminal-tab')!;
+							const terminalIcon = label.querySelector<HTMLElement>(':scope > .codicon:first-child')!;
+							return {
+								terminal: getComputedStyle(terminalIcon).color,
+								progress: getComputedStyle(progress).color
+							};
+						});
+						await app.workbench.quickaccess.runCommand(TerminalCommandIdWithValue.ChangeColor, { keepOpen: true });
+						await page.getByPlaceholder('Select a color for the terminal', { exact: true }).waitFor({ state: 'visible' });
+						const pickerProgress = await progressIcon.evaluate((progress: HTMLElement) => getComputedStyle(progress).color);
+						await page.keyboard.press('Escape');
+						await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
+						colors.push({
+							icon,
+							...currentColors,
+							pickerProgress
+						});
+					}
+					return colors;
+				};
+				const originalColors = await readColors();
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, 'Green');
+				const customColors = await readColors();
+				assert.deepStrictEqual(customColors.map((colors, index) => ({
+					icon: colors.icon,
+					terminalIconChanged: colors.terminal !== originalColors[index].terminal,
+					progress: colors.progress,
+					pickerProgress: colors.pickerProgress
+				})), originalColors.map(({ icon, progress }) => ({
+					icon,
+					terminalIconChanged: true,
+					progress,
+					pickerProgress: progress
+				})));
+			} finally {
 				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app);
 			}

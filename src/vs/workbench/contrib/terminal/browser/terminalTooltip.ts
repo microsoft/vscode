@@ -13,7 +13,7 @@ import type { ITerminalStatusHoverAction } from '../common/terminal.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { ITerminalInstance } from './terminal.js';
 
-export function getInstanceHoverInfo(instance: ITerminalInstance, storageService: IStorageService): { content: MarkdownString; actions: IHoverAction[] } {
+export function getInstanceHoverInfo(instance: ITerminalInstance, storageService: IStorageService, label = instance.title): { content: MarkdownString; actions: IHoverAction[] } {
 	const showDetailed = parseInt(storageService.get(TerminalStorageKeys.TabsShowDetailed, StorageScope.APPLICATION) ?? '0');
 	let statusString = '';
 	const statuses = instance.statusList.statuses;
@@ -41,7 +41,7 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
+	const content = new MarkdownString(label + shellProcessString + statusString, { supportThemeIcons: true });
 
 	return { content, actions };
 }
@@ -73,4 +73,3 @@ export function getShellProcessTooltip(instance: ITerminalInstance, showDetailed
 
 	return lines.length ? `\n\n---\n\n${lines.join('\n')}` : '';
 }
-

@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import * as cssJs from '../../../../base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +38,7 @@ import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/
 import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { getColorClass, getUriClasses } from './terminalIcon.js';
+import { getColorClass, getIconColorStyle, getUriClasses } from './terminalIcon.js';
 import { getTerminalActionBarArgs } from './terminalMenus.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
@@ -653,11 +654,7 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
-				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
-					`{ color: ${color} !important; }`
-				);
+				css += getIconColorStyle(colorClass, color);
 			}
 		}
 
@@ -689,7 +686,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 		if (!instance) {
 			return;
 		}
-		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		const label = getSingleTabTitle(instance, this._configurationService.getValue<string>(TerminalSettingId.TerminalTitleSeparator));
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService, escapeMarkdownSyntaxTokens(label));
 		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
