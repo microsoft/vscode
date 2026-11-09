@@ -14,6 +14,7 @@ import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
 import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
+import { isHiddenWindowMode } from '../../windows/electron-main/windows.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;
@@ -90,6 +91,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Remember
 			this.setWin(window, options);
+
+			// The popup WebContents predates this window and ignores its `backgroundThrottling` option
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				window.webContents.setBackgroundThrottling(false);
+			}
 
 			// Disable Menu
 			window.setMenu(null);
