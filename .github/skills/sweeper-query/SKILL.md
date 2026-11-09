@@ -43,17 +43,20 @@ say so instead of guessing a file name.
 The file is 10–15 MB for vscode and changes only when the sweeper publishes (nightly,
 plus the occasional hand run). Cache it once per target and re-validate the cache
 against the file's latest commit before each question — one small request, no
-re-download unless it changed:
+re-download unless it changed. The recipe stops when either request fails: a stale
+cache must never answer silently (say that GitHub was unreachable instead):
 
 ```bash
 STATE=egamma/vscodesweeper-state
 NAME=vscode                                   # from targets.json .targets[].name
 DIR="${TMPDIR:-/tmp}/sweeper-query"; mkdir -p "$DIR"
 FILE="index-$NAME.json"
-SHA=$(gh api "repos/$STATE/commits?path=$FILE&sha=main&per_page=1" --jq '.[0].sha')
+SHA=$(gh api "repos/$STATE/commits?path=$FILE&sha=main&per_page=1" --jq '.[0].sha') \
+  && [ -n "$SHA" ] || { echo "cannot validate the cache: commit lookup for $FILE failed" >&2; exit 1; }
 if [ ! -s "$DIR/$FILE" ] || [ "$(cat "$DIR/$FILE.sha" 2>/dev/null)" != "$SHA" ]; then
   gh api "repos/$STATE/contents/$FILE?ref=main" -H "Accept: application/vnd.github.raw" > "$DIR/$FILE.tmp" \
-    && mv "$DIR/$FILE.tmp" "$DIR/$FILE" && printf '%s' "$SHA" > "$DIR/$FILE.sha"
+    && mv "$DIR/$FILE.tmp" "$DIR/$FILE" && printf '%s' "$SHA" > "$DIR/$FILE.sha" \
+    || { echo "refresh of $FILE failed; not answering from a stale cache" >&2; exit 1; }
 fi
 jq -r '"\(.target) · \(.rows | length) rows · generated \(.generatedAt) · schema \(.schema)"' "$DIR/$FILE"
 ```
@@ -82,9 +85,10 @@ documented below.
   agent can start there too. Offer both tiers when the user does not specify. Say
   that readiness is a review-time snapshot: re-check the live issue (open, no
   `security` label, no open PR) before anyone starts.
-- **Ranking.** Sort laned rows by `-(.valueRaw // 0)`; compare values only within one
-  assignee × lane, never across the whole corpus. `lane == "bugs"` has `severity`,
-  `lane == "features"` has `signal`.
+- **Ranking.** Sort laned rows by `-(.valueRaw // 0)`. The score is comparable across
+  assignees and areas WITHIN one lane (it has no per-assignee term), never across
+  lanes: features outrank bugs by construction, so filter on `lane` before sorting.
+  `lane == "bugs"` has `severity`, `lane == "features"` has `signal`.
 - **Time windows.** `reviewedAt`, `createdAt`, `closedAt`, `lastCommentAt` are ISO
   strings: `.reviewedAt >= (now - 7*86400 | todate)` for "this week".
 - **Duplicates.** A duplicate proposal is `closeReason == "duplicate"` with the target
@@ -119,19 +123,24 @@ jq -r '[.rows[] | select(.currentState == null and .triageAction != null
 
 **"Is this a known duplicate before I file?"** (the report: minimap renders blurry
 on a scaled display) — search open titles by the symptom's keywords, then show
-whether each hit is itself a confirmed duplicate of something older:
+whether each hit itself carries a duplicate proposal, and whether the blinded second
+review confirmed it:
 
 ```bash
 jq -r '[.rows[] | select(.currentState == null
         and (.title | test("minimap"; "i")) and (.title | test("blur|scal|dpi|zoom"; "i")))]
   | sort_by(-(.upvotes // 0))
-  | .[:20][] | [.number, (.upvotes // 0), (.canonical // ""), (.verifyVerdict // ""), .title] | @tsv' "$DIR/$FILE"
+  | .[:20][] | [.number, (.upvotes // 0), (.canonical // ""), (.verifyVerdict // ""),
+                (if .verifyStale == true then "stale" else "" end), .title] | @tsv' "$DIR/$FILE"
 ```
 
-Read the result for the user: a hit with a `canonical` points at the issue the
-family already tracks; no hit means the index knows no open report with those words
-(it is a title search, not a semantic one — suggest one more phrasing before
-concluding).
+Read the result for the user. A `canonical` is a PROPOSAL, not a fact: only
+`verifyVerdict == "confirmed"` with no `verifyStale` means the family tracks the hit
+under that canonical — say "duplicate of N (confirmed)". A `refuted`, `unverifiable`,
+unverified or stale proposal is "the sweeper proposed N; not confirmed", and the user
+should look at both before deciding not to file. No hit means the index knows no open
+report with those words (it is a title search, not a semantic one — suggest one more
+phrasing before concluding).
 
 **"Pick me three implementable papercuts in terminal."**
 
@@ -194,7 +203,7 @@ _Generated from `src/index-schema.ts` — index schema 2. Do not edit by hand; r
 | `fixPr` | string | historical rows only (retired fork lane) | URL of a draft fix PR from the retired fork lane. |
 | `implementPr` | string | historical rows only (retired implement lane) | URL of a draft PR from the retired implement lane. |
 | `lane` | string | on open keep-open rows of the two ranked types | Which ranking the row belongs to. Rows without a lane are not ranked (closed, close proposals, needs-info, other item types). Values: `bugs`, `features`. |
-| `valueRaw` | number | beside `lane` | The UN-normalized value score (demand × severity/breadth, age-damped). Compare only within one assignee × lane; sort with `sort_by(-(.valueRaw // 0))`. |
+| `valueRaw` | number | beside `lane` | The UN-normalized value score (demand × severity/breadth, age-damped). Comparable across assignees WITHIN one lane, never across lanes (features outrank bugs by construction); sort with `sort_by(-(.valueRaw // 0))`. |
 | `upvotes` | number | beside `lane` | 👍 reactions at review time. |
 | `comments` | number | beside `lane` | Comment count at review time. |
 | `severity` | string | bugs lane | The bug's severity class. Values: `crash`, `data-loss`, `freeze`, `perf`, `correctness`, `visual`, `papercut`, `none`. |
