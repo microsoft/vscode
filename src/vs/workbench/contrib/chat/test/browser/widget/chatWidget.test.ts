@@ -176,7 +176,7 @@ suite('ChatWidget', () => {
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
 	});
 
-	function createRespondentWidget(lockedAgent: boolean) {
+	function createRespondentWidget(lockedAgent: boolean, sandboxToggleChecked: IObservable<boolean> = constObservable(false)) {
 		const resource = URI.parse('agent-host-copilotcli:/session#peer');
 		let placeholder: string | undefined;
 		const viewModel = upcastPartial<ChatViewModel>({
@@ -195,6 +195,7 @@ suite('ChatWidget', () => {
 		hasActiveRequest.set(true);
 		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
+			sandboxToggleChecked,
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
 			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
 				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
@@ -227,6 +228,18 @@ suite('ChatWidget', () => {
 		});
 		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
 	}
+
+	test('restores the sandbox label when switching between chats with the same placeholder', () => {
+		const plain = URI.parse('agent-host-copilotcli:/plain');
+		const sandboxed = URI.parse('agent-host-copilotcli:/sandboxed');
+		const selected = observableValue('selectedChat', plain);
+		const { widget, editorPlaceholders } = createRespondentWidget(true, selected.map(resource => resource === sandboxed));
+		for (const resource of [plain, sandboxed, plain, sandboxed]) {
+			selected.set(resource, undefined);
+			widget['_applyInputPlaceholder']();
+		}
+		assert.deepStrictEqual(editorPlaceholders, ['Chat with Copilot', 'Chat with Copilot (sandbox enabled)', 'Chat with Copilot', 'Chat with Copilot (sandbox enabled)']);
+	});
 
 	test('unbinding clears running-request controls before refreshing the toolbars', () => {
 		const harness = createRespondentWidget(true);
