@@ -46,6 +46,25 @@ suite('ExtHostCustomEditors document disposal', () => {
 		return editors.$createCustomDocument(resource, viewType, undefined, undefined, CancellationToken.None);
 	}
 
+	test('passes existing backup IDs to the provider unchanged', async () => {
+		const backupIds = ['file:///test/custom-editor-backups/-11126784611', 'opaque backup: %/?#'];
+		const openedBackupIds: Array<string | undefined> = [];
+		store.add(editors.registerCustomEditorProvider(nullExtensionDescription, viewType, {
+			openCustomDocument: (uri, context) => {
+				openedBackupIds.push(context.backupId);
+				return { uri, dispose: () => { } };
+			},
+			resolveCustomEditor: () => { },
+		}, {}));
+
+		for (const backupId of backupIds) {
+			await editors.$createCustomDocument(resource, viewType, backupId, undefined, CancellationToken.None);
+			await editors.$disposeCustomDocument(resource, viewType);
+		}
+
+		assert.deepStrictEqual(openedBackupIds, backupIds);
+	});
+
 	test('disposes the document after its provider has been unregistered', async () => {
 		let disposed = 0;
 		const registration = register({ uri: resource, dispose: () => disposed++ });
