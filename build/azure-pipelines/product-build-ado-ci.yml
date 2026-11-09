@@ -528,13 +528,6 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
-                VSCODE_JOB_NAME: Copilot
-                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                VSCODE_TEST_IDS:
-                  - copilot
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: true
                 VSCODE_JOB_NAME: BrowserRemote
                 VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                 VSCODE_TEST_IDS:

@@ -1,9 +1,9 @@
 parameters:
   - name: OS
-    type: string # linux, darwin, win32
+    type: string # linux, win32
 
-# Runs every Copilot test in the Copilot Tests job of a platform stage. The
-# Copilot stage (../product-copilot.yml) only typechecks and lints.
+# Runs every Copilot test in the Copilot Tests job of the Windows and Linux
+# stages. The Copilot stage (../product-copilot.yml) only typechecks and lints.
 steps:
   - script: git lfs install --local
     condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
@@ -38,16 +38,6 @@ steps:
         APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
         APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
         echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME"
-      displayName: Compute VS Code build path
-
-  - ${{ if eq(parameters.OS, 'darwin') }}:
-    - script: |
-        set -e
-        APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-        APP_NAME="$(ls $APP_ROOT | head -n 1)"
-        ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
-        BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
-        echo "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME"
       displayName: Compute VS Code build path
 
   - ${{ if eq(parameters.OS, 'win32') }}:
@@ -120,67 +110,6 @@ steps:
         testId: copilot-sanity
         testStep:
           script: xvfb-run -a pnpm run test:sanity
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot sanity tests
-          timeoutInMinutes: 15
-          env:
-            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-
-  - ${{ if eq(parameters.OS, 'darwin') }}:
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-unit
-        testStep:
-          script: pnpm run test:unit
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot unit tests
-          timeoutInMinutes: 15
-
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-simulation
-        testStep:
-          script: pnpm run simulate-ci
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot simulation tests
-          timeoutInMinutes: 15
-
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-prompt
-        testStep:
-          script: pnpm run test:prompt
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot prompt tests
-          timeoutInMinutes: 15
-
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-extension
-        testStep:
-          script: pnpm run test:extension
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot extension tests
-          timeoutInMinutes: 15
-          env:
-            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-completions-core
-        testStep:
-          script: pnpm run test:completions-core
-          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-          displayName: 🧪 Run Copilot completions core tests
-          timeoutInMinutes: 15
-          env:
-            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
-
-    - template: ../common/run-test-with-checkpoint.yml@self
-      parameters:
-        testId: copilot-sanity
-        testStep:
-          script: pnpm run test:sanity
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15
