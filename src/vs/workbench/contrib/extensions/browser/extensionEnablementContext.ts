@@ -29,6 +29,8 @@ export const EXTENSION_ENABLED_CONTEXT_KEY_PREFIX = 'extensionEnabled:';
  */
 export class ExtensionEnablementContextKeysContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionEnablementContextKeys';
+
 	private readonly _contextKeys = new Map<string, IContextKey<boolean>>();
 
 	constructor(

@@ -30,6 +30,9 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { IExtensionsWorkbenchService } from '../common/extensions.js';
 
 export class InstallRemoteExtensionsContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.installRemoteExtensions';
+
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
@@ -119,6 +122,9 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 }
 
 export class RemoteExtensionsInitializerContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteExtensionsInitializer';
+
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,

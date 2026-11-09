@@ -7,11 +7,11 @@ import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.displayChangeRemeasureFonts';
 
 	private readonly _delayer = this._register(new ThrottledDelayer(2000));
 
@@ -29,4 +29,4 @@ class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContri
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisplayChangeRemeasureFonts, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(DisplayChangeRemeasureFonts.ID, DisplayChangeRemeasureFonts, WorkbenchPhase.Eventually);

@@ -36,6 +36,8 @@ import { ITimerService } from '../../../services/timer/browser/timerService.js';
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionsAutoProfiler';
+
 	private readonly _blame = new ExtensionIdentifierSet();
 
 	private _session: CancellationTokenSource | undefined;

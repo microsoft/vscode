@@ -13,6 +13,9 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHostService } from '../../../services/host/browser/host.js';
 
 export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensionEnablementWorkspaceTrustTransitionParticipant';
+
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IHostService hostService: IHostService,
