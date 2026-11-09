@@ -39,8 +39,10 @@ export function setup(options?: { skipSuite: boolean }) {
 
 		it('should truncate a long single tab label without overflowing its actions', async function () {
 			const app = this.app as Application;
+			const previousWindowSize = await app.code.driver.resizeWindow({ width: 1024, height: 720 });
 			const name = 'Notification settings progress '.repeat(10).trim();
-			const description = 'Current task directory [project] C:\\workspace\\terminal_long_name '.repeat(10).trim();
+			// Settings automation reads rendered lines; the long title alone is enough to force truncation.
+			const description = 'Current task directory [project] C:\\workspace\\terminal_long_name';
 			try {
 				await setTerminalTestSettings(app, [
 					['terminal.integrated.tabs.description', JSON.stringify(description)],
@@ -62,11 +64,13 @@ export function setup(options?: { skipSuite: boolean }) {
 				await bell.waitFor({ state: 'visible', timeout: 1000 });
 				const layout = await page.locator('.single-terminal-tab').evaluate((label: HTMLElement) => {
 					const action = label.closest<HTMLElement>('.action-item')!;
+					const textLabel = label.querySelector<HTMLElement>('.single-terminal-tab-label')!;
 					const labelBounds = label.getBoundingClientRect();
 					const actionBounds = action.getBoundingClientRect();
 					const toolbarBounds = action.parentElement!.getBoundingClientRect();
 					return {
 						text: label.textContent?.replace(/\s+/g, ' ').trim(),
+						textTruncated: textLabel.scrollWidth > textLabel.clientWidth,
 						labelOverflows: label.scrollWidth > label.clientWidth,
 						actionOverflows: action.scrollWidth > action.clientWidth,
 						actionWithinToolbar: actionBounds.left >= toolbarBounds.left && actionBounds.right <= toolbarBounds.right,
@@ -86,6 +90,7 @@ export function setup(options?: { skipSuite: boolean }) {
 					hoverIncludesDescription: hoverText?.includes(description)
 				}, {
 					text: `${name} - ${description}`,
+					textTruncated: true,
 					labelOverflows: false,
 					actionOverflows: false,
 					actionWithinToolbar: true,
@@ -94,6 +99,7 @@ export function setup(options?: { skipSuite: boolean }) {
 					hoverIncludesDescription: true
 				});
 			} finally {
+				await app.code.driver.resizeWindow(previousWindowSize);
 				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
 				await settingsEditor.clearUserSettings();
 				await setTerminalTestSettings(app);
