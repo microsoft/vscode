@@ -3002,7 +3002,7 @@ export class McpListWidget extends Disposable {
 					installedKeys.add(key.toLowerCase());
 				}
 			} else if (entry.type === 'builtin-item' || entry.type === 'connector-item') {
-				installedKeys.add(entry.label.toLowerCase());
+				installedKeys.add((entry.type === 'connector-item' ? entry.connector.serverName : entry.label).toLowerCase());
 				if (entry.localServer) {
 					for (const key of getRuntimeServerMatchKeys(entry.localServer)) {
 						installedKeys.add(key.toLowerCase());
@@ -3777,7 +3777,7 @@ export class McpListWidget extends Disposable {
 				case 'builtin-item':
 					return entry.label === serverName;
 				case 'connector-item':
-					return entry.label === serverName || entry.connector.connector.displayName === serverName;
+					return entry.connector.serverName === serverName || entry.connector.connector.displayName === serverName;
 				case 'provider-item':
 					return entry.name === serverName || entry.label === serverName;
 				case 'group-header':
