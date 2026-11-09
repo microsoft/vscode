@@ -43,7 +43,7 @@ export interface IAgentContextUsage {
 	readonly toolDefinitionsTokens?: number;
 }
 
-const vscodeUsageKeys = ['cost', 'autoModeResolved', 'copilotUsage', 'quotaSnapshots', 'contextAttribution', 'turnTokenTotals', 'directTurnTokenTotals', 'directCopilotUsage', 'vscode.modelCall', LOCAL_MODEL_META_KEY] as const;
+const vscodeUsageKeys = ['cost', 'autoModeResolved', 'modelRouted', 'copilotUsage', 'quotaSnapshots', 'contextAttribution', 'turnTokenTotals', 'directTurnTokenTotals', 'directCopilotUsage', 'vscode.modelCall', LOCAL_MODEL_META_KEY] as const;
 
 export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (hasAgentMetadata(usage, vscodeUsageKeys)) {

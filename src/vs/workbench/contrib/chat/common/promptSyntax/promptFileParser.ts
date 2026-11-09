@@ -628,7 +628,18 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 			const quote = char;
 			pos++; // Skip opening quote
 
-			while (pos < input.length && input[pos] !== quote) {
+			while (pos < input.length) {
+				if (input[pos] === quote) {
+					if (quote === '\'' && input[pos + 1] === quote) {
+						value += quote;
+						pos += 2;
+						continue;
+					}
+					break;
+				}
+				if (quote === '"' && input[pos] === '\\' && (input[pos + 1] === quote || input[pos + 1] === '\\')) {
+					pos++;
+				}
 				value += input[pos];
 				pos++;
 			}

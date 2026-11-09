@@ -1,5 +1,5 @@
-# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
-# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+packages:
+  - web
 pnpmfile: .pnpmfile.mjs
 nodeLinker: hoisted
 strictPeerDependencies: false

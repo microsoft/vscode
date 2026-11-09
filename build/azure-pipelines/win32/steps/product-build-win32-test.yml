@@ -342,6 +342,8 @@ steps:
           try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
           catch { Write-Host "  failed: $($_.Exception.Message)" }
         }
+      # Processes that run from elsewhere, such as a git.exe started by an extension host, can hold the log files too
+      & "$(Build.SourcesDirectory)\build\azure-pipelines\win32\stop-log-file-holders.ps1" -Path "$(Build.SourcesDirectory)\.build\logs"
     displayName: Kill lingering test processes
     continueOnError: true
     condition: always()

@@ -358,6 +358,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Keep the notification visible after the response completes instead of folding it into the completed steps. */
+	alwaysVisible?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
 	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
@@ -682,6 +684,18 @@ export interface IChatAutoModeResolutionPart {
 	 * of the pick; it already names the model.
 	 */
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
+	/** A router other than Auto, such as a host-side model router. */
+	router?: string;
+	/** The chosen route's `when`, when it decided the pick. */
+	preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	effort?: string;
+	/** Display name of the model the router moved off on this turn. */
+	switchedFrom?: string;
+	/** The router had no confident pick and used its first route. */
+	defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	kept?: boolean;
 }
 
 /**

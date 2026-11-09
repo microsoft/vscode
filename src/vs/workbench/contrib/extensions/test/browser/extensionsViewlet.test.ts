@@ -125,6 +125,25 @@ suite('Extensions viewlet notification layout', () => {
 		});
 	});
 
+	test('action-only notification keeps its action below the message', async () => {
+		const { notification, messageContainer, messageText, actions, show, dismiss } = await createNotification(240, 'Showing extension results containing \'mcp\'. Browse and install MCP servers from the Customizations marketplace.', 'Browse MCP Servers', false);
+		const actionsBounds = actions!.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			actionBelowMessage: actionsBounds.top - messageContainer.getBoundingClientRect().bottom >= 7.99,
+			actionAlignedWithText: Math.abs(actionsBounds.left - messageText.getBoundingClientRect().left) < 1,
+			notificationFits: notification.scrollWidth <= notification.clientWidth,
+			show,
+			dismissAtTop: dismiss.getBoundingClientRect().top === messageContainer.getBoundingClientRect().top,
+		}, {
+			actionBelowMessage: true,
+			actionAlignedWithText: true,
+			notificationFits: true,
+			show: undefined,
+			dismissAtTop: true,
+		});
+	});
+
 	test('dismiss-only notification has no empty action row', async () => {
 		const { notification, messageContainer, actions, dismiss } = await createNotification(180, 'Extensions are disabled.', undefined, false);
 		const dismissBounds = dismiss.getBoundingClientRect();

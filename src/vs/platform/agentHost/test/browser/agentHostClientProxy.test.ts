@@ -34,6 +34,7 @@ suite('AgentHostClientProxy', () => {
 		readonly remoteSettings?: Record<string, unknown>;
 		readonly resolveProxy?: (url: string) => string | undefined;
 		readonly apiEndpoint?: string;
+		readonly logService?: ILogService;
 	}
 
 	function createProxy(options: IOptions) {
@@ -51,7 +52,7 @@ suite('AgentHostClientProxy', () => {
 		instantiationService.stub(IDefaultAccountService, {
 			currentDefaultAccount: options.apiEndpoint ? { entitlementsData: { endpoints: { api: options.apiEndpoint } } } : null,
 		} as Partial<IDefaultAccountService>);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, configurationService };
 	}
 
@@ -104,7 +105,8 @@ suite('AgentHostClientProxy', () => {
 					'http://intranet.corp:8080': undefined,
 					'not a URL': undefined,
 				},
-				resolvedUrls: Array(4).fill('https://api.enterprise.githubcopilot.com'),
+				// The proxies resolved for the first lookup are remembered, while a declined one is checked again.
+				resolvedUrls: Array(2).fill('https://api.enterprise.githubcopilot.com'),
 			},
 			configuredProxy: {
 				authorizations: { 'http://configured.corp:3128': 'Negotiate token:configured.corp', 'http://proxy.corp:8080': undefined },
@@ -146,6 +148,25 @@ suite('AgentHostClientProxy', () => {
 			resolved: 'PROXY pac.corp:8080; DIRECT',
 			after: 'Negotiate token:pac.corp',
 		});
+	});
+
+	test('logs a declined proxy once', async () => {
+		const declined: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void {
+				declined.push(message);
+			}
+		}();
+		const { proxy } = createProxy({ resolveProxy: () => 'PROXY proxy.corp:8080', logService });
+
+		for (const proxyUrl of ['http://intranet.corp:8080', 'http://intranet.corp:3128', 'http://other.corp:8080']) {
+			await proxy.lookupKerberosAuthorization(proxyUrl);
+		}
+
+		assert.deepStrictEqual(declined, [
+			'[AgentHostClientProxy] Declined Kerberos lookup for intranet.corp: not a proxy this client points the agent host at',
+			'[AgentHostClientProxy] Declined Kerberos lookup for other.corp: not a proxy this client points the agent host at',
+		]);
 	});
 
 	test('leaves proxy resolution to the agent host when http.useLocalProxyConfiguration is off', async () => {

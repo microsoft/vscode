@@ -69,7 +69,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		super(undefined, action);
 
 		this._primaryAction = this._register(instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action));
-		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => { await this.action.run(this._context); }));
+		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => this.action.run(this._context), this._isChatInput ? 'chatInput' : 'titleBar'));
 		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.label', "Remote Connections")));
 		this._dropdown = this._register(instantiationService.createInstance(RemoteConnectionsDropdownActionViewItem,
 			dropdownAction,
