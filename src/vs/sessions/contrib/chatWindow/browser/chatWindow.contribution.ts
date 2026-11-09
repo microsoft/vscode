@@ -25,7 +25,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			experiment: { mode: 'auto' },
+			experiment: { mode: 'startup' },
 			description: localize('sessions.chatWindows.enabled', "Controls whether chats of the Agents window can be opened in windows of their own, and whether the chat windows that were open are restored at startup. Turning it off hides the actions that open chat windows; the chat windows that are open stay until closed."),
 		},
 	}

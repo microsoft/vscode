@@ -24,7 +24,7 @@ const serializedBytes = (value: unknown) => VSBuffer.fromString(JSON.stringify(v
 suite('DecisionsModelRouterPicker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('asks gpt-6-luna-decisions about the prompt only on a first turn, with recent turns as text on a follow-up', () => {
+	test('sends a first turn\'s prompt as text, and a follow-up\'s recent turns as JSON', () => {
 		const first = buildModelRouterDecisionsRequest(pickRequest());
 		const followUp = buildModelRouterDecisionsRequest(pickRequest({
 			followUp: { currentModel: 'opus', currentEffort: undefined, recentTurns: [{ prompt: 'earlier', response: 'done' }], turns: 1, lastTurnState: 'complete', lastTurnToolCalls: 0, lastTurnFailedToolCalls: 0 },
@@ -37,10 +37,10 @@ suite('DecisionsModelRouterPicker', () => {
 			followUpQuestions: followUp.questions.map(q => q.name),
 		}, {
 			model: 'gpt-6-luna-decisions',
-			firstContext: { kind: 'json', value: { request: 'plan the migration' } },
+			firstContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nplan the migration' },
 			firstQuestions: ['model', 'effort'],
 			followUpTurns: [{ prompt: 'earlier', response: 'done' }],
-			followUpQuestions: ['model', 'effort', 'scope'],
+			followUpQuestions: ['model', 'effort'],
 		});
 	});
 
@@ -56,7 +56,18 @@ suite('DecisionsModelRouterPicker', () => {
 		assert.ok(serializedBytes(value.request) - 2 <= modelRouterRequestLimits.prompt);
 		assert.ok(value.recentTurns.every(turn => serializedBytes(turn.prompt) - 2 + serializedBytes(turn.response) - 2 <= modelRouterRequestLimits.recentTurn));
 		assert.ok(serializedBytes(built) <= modelRouterRequestLimits.request);
+		assert.ok(serializedBytes(buildModelRouterDecisionsRequest(pickRequest({ text: control }))) <= modelRouterRequestLimits.request, 'a first turn is capped too');
 		assert.strictEqual(truncateToEscapedBytes('ab\uD83D\uDE00', 4), 'ab', 'never splits a surrogate pair');
+	});
+
+	test('tells the effort question that a follow-up carries the earlier turns\' work', () => {
+		const effortOf = (request: IAgentDecisionsRequest) => request.questions.find(q => q.name === 'effort')?.instructions ?? '';
+		const first = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix it' }));
+		const followUp = buildModelRouterDecisionsRequest(pickRequest({
+			text: 'fix it',
+			followUp: { currentModel: 'opus', currentEffort: undefined, recentTurns: [{ prompt: 'why does this crash?', response: 'It unwraps an empty line.' }], turns: 1, lastTurnState: 'complete', lastTurnToolCalls: 3, lastTurnFailedToolCalls: 0 },
+		}));
+		assert.deepStrictEqual([effortOf(first).includes('This is a follow-up'), effortOf(followUp).includes('This is a follow-up')], [false, true]);
 	});
 
 	test('maps answers to a pick, and a tie to no pick', async () => {

@@ -469,6 +469,8 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	override readonly onDidReplaceSession = Event.None;
 	override readonly onDidDiscardNewSession = Event.None;
 	override readonly onDidReplaceNewDraftSession = Event.None;
+	override readonly onDidAcceptNewSessionRequest = Event.None;
+	override readonly onDidEndNewSessionRequest = Event.None;
 	override readonly onDidMoveChat = Event.None;
 
 	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>) {

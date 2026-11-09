@@ -75,4 +75,13 @@ suite('Copilot builtin troubleshoot skill', () => {
 		const example = /```yaml\n([\s\S]*?)\n```/.exec(content ?? '')?.[1];
 		assert.deepStrictEqual(parseModelRouter(example ?? '', 'daily-driver.model-router.yaml').diagnostics, []);
 	});
+
+	test('the model-router skill names the host\'s own router and session folders', async () => {
+		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal }) ?? '';
+		assert.deepStrictEqual({
+			routers: content.includes(URI.file('/copilot-home/model-routers').fsPath),
+			sessions: content.includes(`${URI.file('/copilot-home/session-state').fsPath}/*/events.jsonl`),
+			unresolved: content.includes('{{'),
+		}, { routers: true, sessions: true, unresolved: false });
+	});
 });

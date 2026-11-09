@@ -38,6 +38,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
+import { readSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta.js';
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
@@ -2347,6 +2348,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
+			const withoutSourceContext = readSideChatWithoutContext(params);
+			if (withoutSourceContext === 'invalid' || (withoutSourceContext !== undefined && params.source?.kind !== ChatSourceKind.SideChat)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat side-chat context metadata');
+			}
 			const workspace = readCreateChatWorkspaceMeta(params._meta);
 			if (workspace === 'invalid') {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat workspace metadata');
@@ -2400,6 +2405,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 								source: URI.parse(source.chat),
 								turnId: source.turnId,
 								...(source.selection ? { selection: source.selection } : {}),
+								...(withoutSourceContext ? { includeSourceContext: false } : {}),
 							},
 						};
 						break;

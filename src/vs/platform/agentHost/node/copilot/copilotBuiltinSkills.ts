@@ -68,7 +68,11 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
 			if (name === modelRouterName) {
-				return isModelRouterEnabled() ? modelRouterSkillContent.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath) : undefined;
+				return isModelRouterEnabled()
+					? modelRouterSkillContent
+						.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath)
+						.replace('{{COPILOT_SESSION_STATE}}', () => sessionStateDirectory.fsPath)
+					: undefined;
 			}
 			if (name !== troubleshootName) {
 				return undefined;
@@ -261,21 +265,21 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 /** Built from lines because YAML needs leading spaces, which source lines here can't start with. */
 const modelRouterExample = [
 	'version: 1                 # required',
-	'description: Haiku for quick work, Opus for building, Sol for figuring out why.   # required; shown in the model picker',
+	'description: Opus for building, Haiku for quick work, Sol for figuring out why.   # required; shown in the model picker',
 	'effort: auto               # optional: auto (default), off, or a fixed level',
-	'switching: auto            # optional: auto (default) or first-turn',
-	'routes:                    # 2 to 10 routes; the first is the fallback',
-	'  - model: claude-haiku-4.5',
-	'    when: Quick answers and small chores that need little investigation, such as where something is, what a setting does, a one-file edit or a git command.',
-	'    examples:              # optional, up to 10',
-	'      - where is the code for the login page?',
-	'      - undo that test',
+	'switching: first-turn      # optional: first-turn (default) or auto',
+	'routes:                    # 2 to 10 routes; the first is used when the router can\'t tell',
 	'  - model: [claude-opus-4.8, claude-opus-4.7]   # fallbacks, in order',
 	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research.',
-	'    examples:',
+	'    examples:              # optional, up to 10',
 	'      - prototype this',
 	'      - review the PR and tell me what to change',
 	'    effort: high           # optional; overrides the router\'s effort',
+	'  - model: claude-haiku-4.5',
+	'    when: Quick answers and small chores that need little investigation, such as where something is, what a setting does, a one-file edit or a git command.',
+	'    examples:',
+	'      - where is the code for the login page?',
+	'      - undo that test',
 	'  - model: gpt-6.1-sol',
 	'    when: Figuring out why, such as debugging a failure, analyzing data or telemetry, explaining surprising numbers, or judging whether a proposal works.',
 	'    examples:',
@@ -301,19 +305,25 @@ ${modelRouterExample}
 
 - \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
 - \`when\` says which requests the route is for. The decision model sees only the user's message, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
+- Put first the model the user wants when the router can't tell which route fits: usually their strongest everyday model, not the cheapest.
 - Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
+- Put short hand-off replies in the examples of the route that should do the work, such as "fix it (after finding the cause)" or "do that and open a PR" under the building route. On their own they read like quick chores.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
-- \`switching: first-turn\` picks a model and effort on the first turn and keeps them; \`auto\` may switch later when the work clearly changes.
+- \`switching: first-turn\`, the default, picks a model and effort on the first turn and keeps them; \`auto\` may also switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
 
 ## YAML rules
 
 Only plain YAML is accepted: maps and lists written one item per line, \`[a, b]\` lists with commas, plain or quoted text, \`|\` and \`>\` blocks, and comments. \`{ ... }\` maps, anchors, unknown escapes like \`"\\q"\` and duplicate keys are errors. A file is at most 32 KiB, and the guidance, \`when\` and examples together at most 64 KiB.
 
+Quote any example or \`when\` text that contains \`: \`, such as a pasted error message (\`- "CUDA error: device-side assert triggered"\`). Unquoted, YAML reads it as a key and a value.
+
 ## Workflow
 
 1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list.
-2. Write or edit the file with your normal file tools.
-3. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
-4. Tell the user the router's name and that it appears in the model picker. A changed router is used from the next turn.
+2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks that have no \`agentId\` and whose \`data.source\` is missing, empty or \`user\`; the others are subagent prompts and injected content. Take the user's request from \`data.content\`, leaving out the \`<reminder>\`, \`<attachments>\`, \`<context>\`, \`<current_datetime>\` and similar blocks the host adds. Ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
+3. Make sure every kind of work the user does often is named in some route's \`when\` or examples. Write the examples in their style, but never copy file paths, names, links or other details from their messages into the router.
+4. Write or edit the file with your normal file tools.
+5. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
+6. Tell the user the router's name and that it appears in the model picker. A changed router is used from the next turn.
 `;

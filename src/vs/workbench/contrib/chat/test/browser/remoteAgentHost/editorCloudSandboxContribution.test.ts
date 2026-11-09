@@ -1222,6 +1222,33 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { scans: 2, triggers: ['startup', 'manual'], items: [discovered.name] });
 	});
 
+	test('manual refresh retries after an automatic scan awaiting authorization is refused', async () => {
+		const entered = new DeferredPromise<void>();
+		const authorization = new DeferredPromise<void>();
+		let lookups = 0;
+		let scans = 0;
+		const h = createHarness(store, {
+			sessionFeedEnabled: false,
+			getAccountKey: async accountKey => {
+				if (++lookups === 1) {
+					await entered.complete();
+					await authorization.p;
+				}
+				return accountKey;
+			},
+			listSessions: async () => ++scans === 1
+				? { kind: 'failed', reason: 'Inventory authorization refused' }
+				: { kind: 'complete', sessions: [discovered] },
+		});
+		await entered.p;
+		const manual = h.refresh();
+		await authorization.complete();
+		await manual;
+		assert.deepStrictEqual({ triggers: h.discoveryTriggers, items: h.items().map(item => item.label) }, {
+			triggers: ['startup', 'manual'], items: [discovered.name],
+		});
+	});
+
 	for (const sessionFeedEnabled of [false, true]) {
 		test(`automatic refresh reuses fresh discovery with the feed ${sessionFeedEnabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const h = createHarness(store, { sessionFeedEnabled });

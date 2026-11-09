@@ -24,6 +24,7 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { logChangesToStateModel } from '../../../../chat/common/model/chatModel.js';
 import { ChatModeKind } from '../../../../chat/common/constants.js';
 import { Menus } from '../../../browser/menus.js';
+import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
@@ -213,6 +214,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatContextPickService chatContextPickService: IChatContextPickService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
 		let settingAgentInternally = false;
@@ -436,12 +438,10 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		if (!provider || !isAgentHostProvider(provider)) {
 			return;
 		}
-		if (mode.id === ChatMode.Agent.id) {
-			this._setAgent(session, provider, undefined);
-		} else {
-			const rawAgentUri = mode.id;
-			this._setAgent(session, provider, { uri: rawAgentUri, name: mode.name.get() });
-		}
+		const agent = mode.id === ChatMode.Agent.id ? undefined : { uri: mode.id, name: mode.name.get() };
+		// Before the agent changes: what hosts the session's composer takes it as the user's choice.
+		this.newSessionComposerService.notifyUserAgentSelection({ sessionId: session.sessionId, agent });
+		this._setAgent(session, provider, agent);
 	}
 
 	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {

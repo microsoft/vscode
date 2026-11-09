@@ -31,7 +31,7 @@ import './sessionSyncChanges.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
-import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesEditorScope, IChangesViewService, NoChangesEditorScope } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -150,3 +150,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+registerSingleton(IChangesEditorScope, NoChangesEditorScope, InstantiationType.Delayed);

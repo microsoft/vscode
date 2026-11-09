@@ -2599,6 +2599,35 @@ export default defineConfig(
 		}
 	},
 	{
+		// Sessions depends on chat, never the reverse: contrib/chat must not import contrib/sessions.
+		files: [
+			'src/vs/workbench/contrib/chat/**/*.ts'
+		],
+		ignores: [
+			// Existing violations; remove entries as they are fixed (https://github.com/microsoft/vscode/issues/346756)
+			'src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.ts',
+			'src/vs/workbench/contrib/chat/browser/chatTipCatalog.ts',
+			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
+			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'local/code-no-restricted-path-imports': [
+				'error',
+				{
+					'paths': [
+						{
+							'pattern': 'src/vs/workbench/contrib/sessions/**',
+							'message': 'contrib/chat must not import from contrib/sessions: Sessions depends on chat, never the reverse. See https://github.com/microsoft/vscode/issues/346756'
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		files: [
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts'
 		],
