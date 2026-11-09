@@ -822,7 +822,7 @@ class TestRunTracker extends Disposable {
 				}
 
 				this.batchedRpc.add({
-					type: 'output', taskId, output: typeof output === 'string' ? output : VSBuffer.wrap(output),
+					type: 'output', taskId, output: typeof output === 'string' ? VSBuffer.fromString(output) : VSBuffer.wrap(output),
 					location: location && Convert.location.from(location),
 					testId: test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
 				});

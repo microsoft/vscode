@@ -1126,19 +1126,22 @@ suite('ExtHost Testing', () => {
 			});
 		}
 
-		test('batches byte output and bounds its cumulative payload', () => {
-			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
-			const output = new Uint8Array(40 * 1024).fill(0x61);
-			task.appendOutput(output);
-			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
-			task.appendOutput(output);
-			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
-			task.end();
-			assert.deepStrictEqual({
-				batchLengths: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length),
-				outputSizes: proxy.$appendOutputToRun.args.map(args => args[2].byteLength),
-			}, { batchLengths: [1, 1], outputSizes: [40 * 1024, 40 * 1024] });
-		});
+		for (const kind of ['string', 'bytes'] as const) {
+			test(`batches ${kind} output as buffers and bounds its cumulative byte payload`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const output = kind === 'string' ? '\u2713'.repeat(14 * 1024) : new Uint8Array(42 * 1024).fill(0x61);
+				task.appendOutput(output);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+				task.appendOutput(output);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+				task.end();
+				assert.deepStrictEqual({
+					batchLengths: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length),
+					binaryOutput: proxy.$applyTestRunUpdates.args.every(([, , updates]) => updates.value.every((update: TestRunUpdate) => update.type === 'output' && update.output instanceof VSBuffer)),
+					outputSizes: proxy.$appendOutputToRun.args.map(args => args[2].byteLength),
+				}, { batchLengths: [1, 1], binaryOutput: true, outputSizes: [42 * 1024, 42 * 1024] });
+			});
+		}
 
 		test('preserves split UTF-8 byte output and its order with batched updates', () => {
 			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
