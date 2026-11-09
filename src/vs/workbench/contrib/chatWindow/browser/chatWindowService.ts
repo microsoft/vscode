@@ -1248,7 +1248,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		this._windows.set([...this._windows.get(), chatWindow], undefined);
 		disposables.add(toDisposable(() => this._remove(chatWindow)));
 		disposables.add(chatWindow.onDidClose(() => this._remove(chatWindow)));
-		// The window closes with the workbench, such as it reloads, as editor windows do; it opens again as it restores.
+		// The window closes with the workbench, such as when it reloads, as editor windows do; it opens again as it restores.
 		disposables.add(Event.once(this._lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		auxiliaryWindow.layout();
