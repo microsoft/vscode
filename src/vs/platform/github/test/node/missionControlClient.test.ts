@@ -475,6 +475,44 @@ suite('Mission Control client', () => {
 		}
 	});
 
+	test('task continuations preserve omitted filters across page and cursor transitions', async () => {
+		const links = [
+			'https://api.github.com/agents/tasks?page=2',
+			'?cursor=next&per_page=50',
+			'?page=3',
+		];
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const link = links[page++];
+			return Response.json({ tasks: [] }, { headers: link ? { link: `<${link}>; rel="next"` } : {} });
+		});
+		await client.tasks.list(signal(), {
+			query: {
+				page: 1, per_page: 100, with_repo: false, is_archived: true, since: date,
+				sort: 'updated_at', direction: 'desc', include_environment_kinds: 'managed-sandbox',
+				artifact_type: 'pull', artifact_state: ['open', 'draft'],
+			},
+			maxPages: 4,
+		});
+		assert.deepStrictEqual(requests.map(({ url }) => ({
+			origin: url.origin, path: url.pathname,
+			page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'), size: url.searchParams.get('per_page'),
+			repository: url.searchParams.get('with_repo'), archived: url.searchParams.get('is_archived'),
+			since: url.searchParams.get('since'), sort: url.searchParams.get('sort'), direction: url.searchParams.get('direction'),
+			environments: url.searchParams.get('include_environment_kinds'),
+			artifact: url.searchParams.get('artifact_type'), states: url.searchParams.getAll('artifact_state'),
+		})), [
+			{ page: '1', cursor: null, size: '100' },
+			{ page: '2', cursor: null, size: '100' },
+			{ page: null, cursor: 'next', size: '50' },
+			{ page: '3', cursor: null, size: '50' },
+		].map(pagination => ({
+			origin: apiBaseUri, path: '/agents/tasks', ...pagination,
+			repository: 'false', archived: 'true', since: date, sort: 'updated_at', direction: 'desc',
+			environments: 'managed-sandbox', artifact: 'pull', states: ['open', 'draft'],
+		})));
+	});
+
 	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {
 		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
 		const hints = [120, 30, 60];

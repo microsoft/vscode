@@ -27,33 +27,42 @@ export function missionControlAccount(endpoint: ApiEndpoint, account: AccountHan
 }
 
 function getMissionControlNextPagePath(apiBaseUri: string, responseUrl: string, link: string | undefined): string | null | undefined {
-	const path = getNextPagePath(apiBaseUri, responseUrl, link);
+	let path = getNextPagePath(apiBaseUri, responseUrl, link);
 	const current = new URL(responseUrl);
-	if (path !== null) {
-		if (path !== undefined && current.pathname === '/agents/tasks' && new URL(path, current).pathname !== '/tasks') {
+	if (path === null) {
+		const base = new URL(apiBaseUri);
+		if (base.origin !== copilotApiOrigin || base.pathname.replace(/\/+$/, '') !== '/agents') {
 			return null;
 		}
+		const next = nextLink(link);
+		if (current.origin !== base.origin || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
+			return null;
+		}
+		let target: URL;
+		try {
+			target = new URL(next, current);
+		} catch {
+			return null;
+		}
+		if (target.origin !== gitHubDotComOrigin || target.pathname !== current.pathname
+			|| target.username || target.password || target.hash) {
+			return null;
+		}
+		path = `/tasks${target.search}`;
+	} else if (path !== undefined && current.pathname === '/agents/tasks' && new URL(path, current).pathname !== '/tasks') {
+		return null;
+	}
+	if (path === undefined) {
 		return path;
 	}
-	const base = new URL(apiBaseUri);
-	if (base.origin !== copilotApiOrigin || base.pathname.replace(/\/+$/, '') !== '/agents') {
-		return path;
+	const target = new URL(path, current);
+	const supplied = new Set(target.searchParams.keys());
+	for (const [key, value] of current.searchParams) {
+		if (key !== 'page' && key !== 'cursor' && !supplied.has(key)) {
+			target.searchParams.append(key, value);
+		}
 	}
-	const next = nextLink(link);
-	if (current.origin !== base.origin || current.pathname !== '/agents/tasks' || !next || /[\\\r\n\t]/.test(next)) {
-		return null;
-	}
-	let target: URL;
-	try {
-		target = new URL(next, current);
-	} catch {
-		return null;
-	}
-	if (target.origin !== gitHubDotComOrigin || target.pathname !== current.pathname
-		|| target.username || target.password || target.hash) {
-		return null;
-	}
-	return `/tasks${target.search}`;
+	return `${target.pathname}${target.search}`;
 }
 
 /** Enforces service-specific credential, retry, and response privacy policy at the execution boundary. */

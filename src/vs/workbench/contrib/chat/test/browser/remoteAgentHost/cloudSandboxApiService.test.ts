@@ -447,6 +447,59 @@ suite('CloudSandboxApiService typed reads', () => {
 		});
 	});
 
+	test('shares one repository enrichment for more tasks than the transport waiter limit', async () => {
+		const tasks = Array.from({ length: 65 }, (_, index) => task(`task-${index}`, 'Task', 42, `session-${index}`, 'environment'));
+		const h = createService(store, {
+			tasks, repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			onRequest: async url => {
+				if (url.pathname === '/repositories/42') {
+					await timeout(0);
+				}
+				return undefined;
+			},
+		});
+		const result = await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			names: result.kind === 'failed' ? [] : result.sessions.map(session => session.repoName),
+			lookups: h.typedRequests.filter(request => new URL(request.url).pathname === '/repositories/42').length,
+			misses: h.discoveryEvents.at(-1)?.repositoryEnrichmentMissCount,
+		}, { names: Array(65).fill('owner/repository'), lookups: 1, misses: 0 });
+	});
+
+	test('repository enrichment returns an invalidated scan without caching stale names after a task mutation', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<void>();
+		const current = task('task', 'Task', 42, 'session', 'environment');
+		const repositories = new Map([[42, { full_name: 'owner/old-name' }]]);
+		let lookups = 0;
+		const h = createService(store, {
+			tasks: [current], repositories,
+			onRequest: async url => {
+				if (url.pathname === '/repositories/42' && ++lookups === 1) {
+					void started.complete();
+					await response.p;
+				}
+				if (url.pathname === '/agents/tasks/task/archive') {
+					return jsonResponse(current);
+				}
+				return undefined;
+			},
+		});
+		const discovery = h.service.listSessions(CancellationToken.None);
+		await started.p;
+		await h.service.setTaskArchived('task', true, CancellationToken.None);
+		await response.complete();
+		const invalidated = await discovery;
+		repositories.set(42, { full_name: 'owner/new-name' });
+		const refreshed = await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			invalidated: invalidated.kind,
+			generationInvalidated: h.discoveryEvents[0].generationInvalidated,
+			names: refreshed.kind === 'failed' ? [] : refreshed.sessions.map(session => session.repoName),
+			lookups,
+		}, { invalidated: 'failed', generationInvalidated: true, names: ['owner/new-name'], lookups: 2 });
+	});
+
 	test('a later list-page failure preserves the previous checkpoint instead of publishing partial pages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const original = task('old', 'Old', undefined, 'session', 'environment');
 		const tasks = [original];
@@ -2486,6 +2539,18 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	}
 
+	for (const status of [200, 201]) {
+		test(`preserves malformed successful read errors without converting HTTP ${status} to a sandbox HTTP failure`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => ({ res: { statusCode: status, headers: {} }, stream: bufferToStream(VSBuffer.fromString('invalid JSON')) }),
+			});
+			await assert.rejects(service.getEnvironment('environment', CancellationToken.None), {
+				name: 'GitHubRequestError', kind: 'malformedResponse', statusCode: status,
+			});
+		});
+	}
+
 	test('preserves transport errors from environment reads without classifying them for connection retries', async () => {
 		const failure = new Error('network unavailable');
 		const { service } = createService(store, {
@@ -4292,6 +4357,44 @@ suite('CloudSandboxApiService discovery without recorded history', () => {
 
 suite('CloudSandboxApiService task catalog resolution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves a cold session without a preceding inventory scan', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [task('task', 'Conversation', undefined, 'session', 'environment')], repositories: new Map(),
+		});
+		const resolved = await service.resolveSession('task', CancellationToken.None);
+		assert.deepStrictEqual({
+			binding: [resolved.taskId, resolved.sessionId, resolved.environmentId],
+			paths: requestedUrls.map(url => new URL(url).pathname),
+		}, { binding: ['task', 'session', 'environment'], paths: ['/agents/tasks/task'] });
+	});
+
+	for (const ending of ['cancellation', 'disposal'] as const) {
+		test(`${ending} stops cold session authorization without dispatching a task read`, async () => {
+			const started = new DeferredPromise<void>();
+			const authorization = new DeferredPromise<readonly AuthenticationSession[]>();
+			const source = store.add(new CancellationTokenSource());
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: () => {
+					void started.complete();
+					return authorization.p;
+				},
+			});
+			const resolving = service.resolveSession('task', source.token);
+			const rejected = assert.rejects(resolving, isCancellationError);
+			await started.p;
+			if (ending === 'cancellation') {
+				source.cancel();
+			} else {
+				service.dispose();
+			}
+			await rejected;
+			await authorization.complete([{ id: 'auth', accessToken: 'token', account: { id: 'a', label: 'Account' }, scopes: [] }]);
+			await timeout(0);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+	}
 
 	test('reports queued state from listing metadata without execution reads', async () => {
 		const queued = { ...task('queued', 'New remote session', undefined, 'session', 'environment'), state: 'queued' };

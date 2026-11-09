@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MAX_TIMEOUT_DELAY, raceCancellationError } from '../../../../../base/common/async.js';
+import { CachedFunction } from '../../../../../base/common/cache.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -324,7 +325,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (error instanceof MutationUncertainError) {
 				throw error;
 			}
-			if (error instanceof ApiRequestError) {
+			if (error instanceof ApiRequestError && error.statusCode >= 400) {
 				const metadata = {
 					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
 				};
@@ -332,7 +333,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					? this._createRequestError(context.action, error.statusCode, error.retryAfterSeconds, metadata, error.outcome)
 					: new CloudSandboxRequestError(error.statusCode, error.message, error.retryAfterSeconds, metadata, error.outcome);
 			}
-			if (error instanceof GitHubRequestError && error.statusCode !== undefined) {
+			if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.statusCode >= 400) {
 				const metadata = parseMissionControlError(error.responseBody, error.responseMetadata?.requestId);
 				throw context?.action
 					? this._createRequestError(context.action, error.statusCode, error.responseMetadata?.retryAfterSeconds, metadata)
@@ -816,6 +817,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		let unresolved = 0;
+		// A large repository group must occupy only one transport waiter per discovery pass.
+		const repositoryLookups = new CachedFunction((repositoryId: number) => this._resolveRepositoryName(repositoryId, token));
 		const discovered = await Promise.all(sandboxTasks.map(async (task): Promise<ICloudSandboxTask | undefined> => {
 			try {
 				if (token.isCancellationRequested) {
@@ -823,7 +826,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				}
 				const previous = cache.get(task.id);
 				const binding = previous?.session;
-				const { repositoryId, session: summary } = await this._taskSummary(task, previous, token);
+				const { repositoryId, session: summary } = await this._taskSummary(task, previous, repositoryId => repositoryLookups.get(repositoryId));
 				const session: ICloudSandboxTask = {
 					...summary,
 					...(binding?.environmentId && binding.sessionId ? { environmentId: binding.environmentId, sessionId: binding.sessionId } : {}),
@@ -953,7 +956,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
-	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
+	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, resolveRepositoryName: (repositoryId: number) => Promise<string | undefined>): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
 		const application = task.clients?.find(client => client.creator === true)?.slug;
 		const repositoryId = [task.repository?.id, previous?.repositoryId].find(id => id !== undefined && id > 0);
 		const status = taskSessionStatus(task.state);
@@ -961,7 +964,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const creatingApplication = application ?? previous?.session?.application;
 		const repoName = previous?.repositoryId === repositoryId ? previous?.session?.repoName : undefined;
 		const repositoryName = task.repository?.full_name || repoName
-			|| (repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined);
+			|| (repositoryId !== undefined ? await resolveRepositoryName(repositoryId) : undefined);
 		return {
 			repositoryId,
 			session: {
@@ -980,8 +983,23 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async resolveSession(taskId: string, token: CancellationToken): Promise<ICloudSandboxDiscoveredSession> {
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
+		}
+		let authentication: AuthenticationSession | undefined;
+		const authorizationLifetime = new DisposableStore();
+		try {
+			const source = authorizationLifetime.add(new CancellationTokenSource(this._lifetimeToken));
+			authorizationLifetime.add(token.onCancellationRequested(() => source.cancel()));
+			authentication = await raceCancellationError(this._resolveDiscoveryAuthorization(), source.token);
+		} finally {
+			authorizationLifetime.dispose();
+		}
+		if (token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		if (!authentication) {
+			throw new CloudSandboxAuthenticationRequiredError();
 		}
 		const cached = this._discoveredTasks.get(taskId)?.session;
 		if (cached?.environmentId && cached.sessionId) {
@@ -994,7 +1012,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			this._sessionResolutionSources.set(taskId, source);
 			const pending = raceCancellationError((async () => {
 				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
-					(client, signal, options) => client.tasks.get(taskId, signal, options));
+					(client, signal, options) => client.tasks.get(taskId, signal, options), { authentication });
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
 					throw new CancellationError();
 				}
@@ -1007,7 +1025,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				}
 				const previous = this._discoveredTasks.get(taskId);
 				const summary = previous?.summary ?? { ...full, hasRepository: (full.repository?.id ?? 0) > 0 };
-				const fallback = previous?.session ? undefined : await this._taskSummary(summary, previous, source.token);
+				const fallback = previous?.session ? undefined : await this._taskSummary(summary, previous, repositoryId => this._resolveRepositoryName(repositoryId, source.token));
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
 					throw new CancellationError();
 				}
@@ -1415,10 +1433,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			const repository = await this._withApiClient(token, { caller: 'mc.repositoryClient.get', priority: 'enrichment' },
 				(client, signal, options) => client.repositories.getById(repositoryId, signal, options));
-			if (generation !== this._discoveryGeneration) {
-				throw new CancellationError();
+			if (generation === this._discoveryGeneration) {
+				this._repositoryNames.set(repositoryId, repository.full_name);
 			}
-			this._repositoryNames.set(repositoryId, repository.full_name);
 			return repository.full_name;
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
