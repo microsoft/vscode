@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as marked from './marked/marked.js';
+import { escapeRegExpCharacters } from './strings.js';
 
 export interface IMarkdownEdit {
 	readonly start: number;
@@ -44,6 +45,22 @@ function childrenOf(token: marked.Token): readonly marked.Token[] {
 	return candidate.tokens ?? [];
 }
 
+/**
+ * Finds a token's `raw` source in `markdown` at or after `from`. The lexer turns `\r\n` and `\r`
+ * into `\n` before tokenizing, so in a document with other line endings `raw` matches the source
+ * only once each of its line breaks is allowed to be any of them.
+ */
+function locate(markdown: string, raw: string, from: number): { start: number; end: number } | undefined {
+	if (!raw.includes('\n')) {
+		const start = markdown.indexOf(raw, from);
+		return start < 0 ? undefined : { start, end: start + raw.length };
+	}
+	const pattern = new RegExp(escapeRegExpCharacters(raw).replace(/\n/g, '(?:\\r\\n|\\r|\\n)'), 'g');
+	pattern.lastIndex = from;
+	const match = pattern.exec(markdown);
+	return match ? { start: match.index, end: match.index + match[0].length } : undefined;
+}
+
 /** The text a reader saw, with markdown emphasis and code markers removed. */
 export function markdownTokensToPlainText(tokens: readonly marked.Token[]): string {
 	let text = '';
@@ -79,7 +96,8 @@ export interface IMarkdownRewriter {
  * rewrites the sample and leaves the real link in place.
  *
  * Known limitation: a link label spanning lines inside a blockquote or list has its block
- * prefixes stripped from `raw`, so the offset lookup fails and the link is left alone.
+ * prefixes stripped from `raw`, so the offset lookup fails and the link is left alone. Blocks
+ * whose lines start with tabs cannot be located either, as the lexer expands those to spaces.
  */
 function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor: number, rewriter: IMarkdownRewriter, edits: IMarkdownEdit[], codeRanges: { start: number; end: number }[], unlocatable: (marked.Tokens.Link | marked.Tokens.Image)[]): number {
 	for (const token of tokens) {
@@ -96,14 +114,14 @@ function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor:
 			continue;
 		}
 
-		const start = markdown.indexOf(raw, cursor);
-		if (start < 0) {
+		const range = locate(markdown, raw, cursor);
+		if (!range) {
 			if (token.type === 'link' || token.type === 'image') {
 				unlocatable.push(token as marked.Tokens.Link | marked.Tokens.Image);
 			}
 			continue;
 		}
-		const end = start + raw.length;
+		const { start, end } = range;
 		cursor = end;
 
 		if (token.type === 'code' || token.type === 'codespan') {
@@ -138,16 +156,16 @@ function findDefinitionRanges(tokens: readonly marked.Token[], markdown: string)
 	let cursor = 0;
 	for (const token of tokens) {
 		const raw = (token as { raw?: string }).raw ?? '';
-		const start = raw ? markdown.indexOf(raw, cursor) : -1;
-		if (start < 0) {
+		const range = raw ? locate(markdown, raw, cursor) : undefined;
+		if (!range) {
 			// A block that cannot be placed leaves everything after it unaccounted for, which
 			// would read as one enormous definition. Claim nothing rather than cut live text.
 			return [];
 		}
-		if (start > cursor && markdown.substring(cursor, start).trim()) {
-			ranges.push({ start: cursor, end: start });
+		if (range.start > cursor && markdown.substring(cursor, range.start).trim()) {
+			ranges.push({ start: cursor, end: range.start });
 		}
-		cursor = start + raw.length;
+		cursor = range.end;
 	}
 
 	if (markdown.substring(cursor).trim()) {

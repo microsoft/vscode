@@ -26,6 +26,26 @@ suite('rewriteMarkdownLinks', () => {
 			]);
 	});
 
+	test('locates tokens in markdown with CRLF line endings', () => {
+		// The lexer normalizes line endings before tokenizing, so a block's source no longer matches
+		// it verbatim. Searching for it as-is skipped the fence and rewrote the sample inside it.
+		const markdown = '```\r\n[a](./x.txt)\r\n```\r\n\r\n[a](./x.txt)\r\n\r\n[b]: ./y.txt\r\n';
+		let definitions: string[] = [];
+		const rewritten = rewriteMarkdownLinks(markdown, {
+			...rewriteToMarker,
+			additionalEdits: (_markdown, context) => {
+				definitions = context.definitionRanges.map(range => markdown.substring(range.start, range.end));
+				return [];
+			},
+		});
+		assert.deepStrictEqual(
+			{ rewritten, definitions },
+			{
+				rewritten: '```\r\n[a](./x.txt)\r\n```\r\n\r\nREWRITTEN\r\n\r\n[b]: ./y.txt\r\n',
+				definitions: ['[b]: ./y.txt\r\n'],
+			});
+	});
+
 	test('keeps tokens the rewriter declines', () => {
 		const markdown = 'See [a](./x.txt) and ![b](./y.png).';
 		assert.strictEqual(rewriteMarkdownLinks(markdown, { rewriteLink: () => undefined }), markdown);
