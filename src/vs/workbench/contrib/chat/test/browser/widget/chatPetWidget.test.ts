@@ -36,6 +36,7 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite
 import '../../../browser/widget/media/chat.css';
 import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
+import { ChatPetJumpGameRetry } from '../../../browser/widget/chatPetJumpGame.js';
 import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
@@ -126,6 +127,7 @@ suite('ChatPetWidget', () => {
 		disposables.add(toDisposable(() => root.remove()));
 		const platformChanged = disposables.add(new Emitter<void>());
 		const inputChanged = disposables.add(new Emitter<void>());
+		const activeWindowChanged = disposables.add(new Emitter<number>());
 		const additionalPlatforms: HTMLElement[] = [];
 		const reducedMotionChanged = disposables.add(new Emitter<void>());
 		let contextMenu: IContextMenuDelegate | undefined;
@@ -183,7 +185,7 @@ suite('ChatPetWidget', () => {
 			new class extends mock<IHostService>() {
 				override readonly hasFocus = true;
 				override readonly onDidChangeFocus = Event.None;
-				override readonly onDidChangeActiveWindow = Event.None;
+				override readonly onDidChangeActiveWindow = activeWindowChanged.event;
 			}(),
 			instantiationService,
 		));
@@ -193,7 +195,7 @@ suite('ChatPetWidget', () => {
 		const effectImage = overlay.querySelector<HTMLImageElement>(':scope > img.chat-pet-spritesheet')!;
 		button.classList.remove('entering');
 		return {
-			root, firstParent, secondParent, firstHost, secondHost, widget, service, storageService, button, overlay, effect, effectImage, platformChanged, inputChanged, additionalPlatforms,
+			root, firstParent, secondParent, firstHost, secondHost, widget, service, storageService, button, overlay, effect, effectImage, platformChanged, inputChanged, activeWindowChanged, additionalPlatforms,
 			layout: () => layout(),
 			getContextMenu: () => contextMenu,
 			setReducedMotion: (value: boolean) => {
@@ -247,6 +249,20 @@ suite('ChatPetWidget', () => {
 		return event;
 	}
 
+	async function nextPetFrames(): Promise<void> {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+	}
+
+	async function fallInJumpGame(button: HTMLElement, root: HTMLElement): Promise<HTMLElement> {
+		for (let i = 0; i < 3; i++) {
+			dispatchJumpGameKey(button, 39);
+			await waitForPetAnimation(() => button.dataset.state === 'falling');
+			await waitForPetAnimation(() => !root.querySelector('.chat-pet-jump-game') || button.dataset.state === 'idle');
+		}
+		await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-retry'));
+		return root.querySelector<HTMLElement>('.chat-pet-jump-retry .monaco-button')!;
+	}
+
 	test('jump game is opt-in for the welcome perch, not ordinary chat surfaces', async () => {
 		const ordinary = createHostTransitionHarness(true);
 		await waitForPetAnimation(() => ordinary.button.dataset.state === 'idle');
@@ -286,11 +302,11 @@ suite('ChatPetWidget', () => {
 				fits: hint.scrollWidth <= hint.clientWidth,
 				accessibleLabel: button.getAttribute('aria-label'),
 			}, {
-				text: `Hold Space to charge, release to jump. ${left} / ${right} to hop or aim. Escape to exit.`,
-				keys: ['Space', left, right, 'Escape'],
+				text: `Hold Space to charge, release to jump. ${left} / ${right} to hop or aim. Escape to exit. After a fall: R to retry, Z to reset.`,
+				keys: ['Space', left, right, 'Escape', 'R', 'Z'],
 				inline: true,
 				fits: true,
-				accessibleLabel: 'Blobby\'s jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.',
+				accessibleLabel: 'Blobby\'s jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit. After a fall, wait for Blobby to land. Retry or R returns to the last safe spot in the same game; Reset or Z starts a new game.',
 			});
 		});
 	}
@@ -354,13 +370,14 @@ suite('ChatPetWidget', () => {
 	});
 
 	for (const scale of [1, 2]) {
-		test(`keeps controls inside the minimum game height and cancels below it (scale: ${scale})`, async () => {
+		test(`keeps charging controls inside the minimum game height and suspends below it (scale: ${scale})`, async () => {
 			const { root, firstParent, widget, service, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
 			service.setScale(scale);
 			await waitForPetAnimation(() => button.dataset.state === 'idle');
 			button.click();
 			const game = widget.jumpGame;
 			assert.ok(game);
+			dispatchJumpGameKey(button, 32);
 			const minimumHeight = 48 * scale + 80;
 			root.style.height = `${minimumHeight}px`;
 			firstParent.style.top = `${48 * scale + 48}px`;
@@ -386,7 +403,7 @@ suite('ChatPetWidget', () => {
 	}
 
 	for (const height of [60, 80]) {
-		test(`cancels the game after shrinking its playfield to ${height}px`, async () => {
+		test(`suspends the game after shrinking its playfield to ${height}px`, async () => {
 			const { root, widget, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
 			await waitForPetAnimation(() => button.dataset.state === 'idle');
 			button.click();
@@ -397,6 +414,39 @@ suite('ChatPetWidget', () => {
 			}, { playing: false, effects: 0 });
 		});
 	}
+
+	test('shows the charge bar only while holding Space on a platform', async () => {
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const game = widget.jumpGame!;
+		const gauge = root.querySelector<HTMLElement>('.chat-pet-jump-charge')!;
+		const initiallyVisible = gauge.checkVisibility();
+		dispatchJumpGameKey(button, 32);
+		const chargingVisible = gauge.checkVisibility();
+		await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge.full'));
+		dispatchJumpGameKey(button, 32, 'keyup');
+		const afterReleaseVisible = gauge.checkVisibility();
+		dispatchJumpGameKey(button, 32);
+		const airborneVisible = gauge.checkVisibility();
+		game.pause();
+		assert.deepStrictEqual({ initiallyVisible, chargingVisible, afterReleaseVisible, airborneVisible, pausedVisible: gauge.checkVisibility() }, {
+			initiallyVisible: false, chargingVisible: true, afterReleaseVisible: false, airborneVisible: false, pausedVisible: false,
+		});
+	});
+
+	test('achievement reactions do not interrupt an active jump game', async () => {
+		const { root, widget, button, service } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const game = widget.jumpGame!;
+		dispatchJumpGameKey(button, 32);
+		await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge.full'));
+		service.unlockAchievement(ChatPetAchievementIds.Blobby);
+		assert.deepStrictEqual({
+			sameGame: widget.jumpGame === game,
+			charge: game.model.charge,
+			visible: root.querySelector<HTMLElement>('.chat-pet-jump-charge')?.checkVisibility(),
+		}, { sameGame: true, charge: 1, visible: true });
+	});
 
 	test('shows hops above the device-local high score and retains only the high score between runs', async () => {
 		let hops = 0;
@@ -543,23 +593,243 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('leaving the game returns keyboard ownership to the product without stealing focus', async () => {
+	for (const variant of ['stable', 'insiders'] as const) {
+		test(`jump charge holds progressively crouched ${variant} sprites without changing the body footprint`, async () => {
+			let charge = 0;
+			sinon.stub(ChatPetJumpGameModel.prototype, 'charge').get(() => charge);
+			const { root, widget, button, setReducedMotion } = createHostTransitionHarness(false, 'teleport', variant, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			const game = widget.jumpGame!;
+			const footprint = button.getBoundingClientRect().toJSON();
+			charge = 0.25;
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => button.dataset.state === 'jump');
+			const image = button.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img')!;
+			const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+			const expected = mainWindow.document.createElement('canvas');
+			expected.width = expected.height = 96;
+			const context = expected.getContext('2d')!;
+			const matchesFrame = (frame: number, direction: 'left' | 'right' = 'right') => {
+				drawChatPetComposite(context, image, undefined, frame, frame, 96, 96, direction, 'jump');
+				return canvas.toDataURL() === expected.toDataURL();
+			};
+			const partial = matchesFrame(1);
+			charge = 0.75;
+			dispatchJumpGameKey(button, 32);
+			const full = matchesFrame(4);
+			await timeout(650);
+			const held = matchesFrame(4);
+			dispatchJumpGameKey(button, 37);
+			const aimed = matchesFrame(4, 'left');
+			setReducedMotion(true);
+			dispatchJumpGameKey(button, 32);
+			const reduced = matchesFrame(1, 'left');
+			setReducedMotion(false);
+			dispatchJumpGameKey(button, 32);
+			const restored = matchesFrame(4, 'left');
+			const unchangedFootprint = button.getBoundingClientRect().toJSON();
+			charge = 0;
+			game.pause();
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			const cancelled = root.querySelectorAll('.chat-pet-jump-charge-cell.filled').length === 0;
+			game.resume();
+			charge = 0.75;
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => button.dataset.state === 'jump');
+			dispatchJumpGameKey(button, 32, 'keyup');
+			charge = 0;
+			await waitForPetAnimation(() => button.dataset.state === 'falling');
+			assert.deepStrictEqual({
+				partial, full, held, aimed, reduced, restored, cancelled,
+				footprint: unchangedFootprint,
+				airborne: game.getAccessibleContent().includes('Rising.'),
+			}, { partial: true, full: true, held: true, aimed: true, reduced: true, restored: true, cancelled: true, footprint, airborne: true });
+		});
+	}
+
+	for (const { previousDirection, reducedMotion } of [{ previousDirection: -1, reducedMotion: false }, { previousDirection: 1, reducedMotion: true }]) {
+		test(`charged crouch follows left and right aiming after a normal hop (reduced motion: ${reducedMotion})`, async () => {
+			const { root, widget, button } = createHostTransitionHarness(reducedMotion, 'teleport', undefined, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			dispatchJumpGameKey(button, previousDirection < 0 ? 37 : 39);
+			await waitForPetAnimation(() => button.dataset.state === 'jump');
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			const game = widget.jumpGame!;
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge.full'));
+			const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+			const player = { ...game.model.player };
+			const aiming = [-1, 1, -1, 1].map(direction => {
+				dispatchJumpGameKey(button, direction < 0 ? 37 : 39);
+				const transform = new mainWindow.DOMMatrix(mainWindow.getComputedStyle(canvas).transform);
+				return {
+					facing: transform.a,
+					direction: game.model.direction,
+					charge: game.model.charge,
+					charging: game.model.charging,
+					player: { ...game.model.player },
+					pose: button.dataset.state,
+				};
+			});
+			dispatchJumpGameKey(button, 32, 'keyup');
+			assert.deepStrictEqual({ aiming, launchVelocityX: game.model.player.velocityX }, {
+				aiming: [-1, 1, -1, 1].map(direction => ({
+					facing: direction, direction, charge: 1, charging: true, player: { ...player }, pose: 'jump',
+				})),
+				launchVelocityX: 280,
+			});
+		});
+	}
+
+	test('moving focus away pauses the game and returns keyboard ownership without losing the run', async () => {
 		const { widget, root, button, overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
 		const input = mainWindow.document.createElement('textarea');
 		root.appendChild(input);
 		button.click();
+		const game = widget.jumpGame!;
 		dispatchJumpGameKey(button, 32);
 		const focusedBefore = mainWindow.document.activeElement === button;
 		input.focus();
 		const space = dispatchJumpGameKey(input, 32);
-		await waitForPetAnimation(() => !widget.jumpGame);
+		await nextPetFrames();
+		const paused = { ...game.model.player };
+		await nextPetFrames();
 		assert.deepStrictEqual({
-			gameActive: !!widget.jumpGame,
+			sameGame: widget.jumpGame === game,
 			focusedBefore,
 			captured: space.defaultPrevented,
 			focus: mainWindow.document.activeElement === input,
 			overlay: overlay.classList.contains('chat-pet-jump-game'),
-		}, { gameActive: false, focusedBefore: true, captured: false, focus: true, overlay: false });
+			frozen: game.model.player,
+			chargeVisible: root.querySelector<HTMLElement>('.chat-pet-jump-charge')!.checkVisibility(),
+		}, { sameGame: true, focusedBefore: true, captured: false, focus: true, overlay: true, frozen: paused, chargeVisible: false });
+		button.focus();
+		button.dispatchEvent(new mainWindow.FocusEvent('focusin', { bubbles: true }));
+		dispatchJumpGameKey(button, 32, 'keyup');
+		assert.equal(game.model.player.platform, 0, 'Returning focus must not release a stale jump charge');
+		dispatchJumpGameKey(button, 32);
+		await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge-cell.filled'));
+	});
+
+	for (const reason of ['tab', 'window blur']) {
+		test(`${reason} pauses without exiting and resumes without a phantom jump`, async () => {
+			const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			button.click();
+			const game = widget.jumpGame!;
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge.full'));
+			if (reason === 'tab') {
+				dispatchJumpGameKey(button, 9);
+			} else {
+				mainWindow.dispatchEvent(new mainWindow.Event('blur'));
+			}
+			const before = { ...game.model.player };
+			await nextPetFrames();
+			const paused = { player: { ...game.model.player }, charge: game.model.charge, sameGame: widget.jumpGame === game };
+			if (reason === 'window blur') {
+				mainWindow.dispatchEvent(new mainWindow.Event('focus'));
+			} else {
+				button.dispatchEvent(new mainWindow.FocusEvent('focusin', { bubbles: true }));
+			}
+			dispatchJumpGameKey(button, 32, 'keyup');
+			assert.deepStrictEqual({ paused, after: game.model.player }, {
+				paused: { player: before, charge: 0, sameGame: true }, after: before,
+			});
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge-cell.filled'));
+		});
+	}
+
+	for (const recreated of [false, true]) {
+		test(`restores the same run after switching sessions (${recreated ? 'recreated' : 'retained'} welcome host)`, async () => {
+			const { root, widget, button, firstHost, firstParent, secondHost } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			button.click();
+			const model = widget.jumpGame!.model;
+			dispatchJumpGameKey(button, 39);
+			model.advance(100);
+			widget.jumpGame!.layout();
+			const snapshot = () => ({
+				player: { ...model.player },
+				platforms: model.platforms.map(platform => ({ ...platform })),
+				hops: model.hops,
+				bestHeight: model.bestHeight,
+			});
+			const before = snapshot();
+			widget.setHost(secondHost);
+			await nextPetFrames();
+			const away = { noGame: !widget.jumpGame, noEffects: !root.querySelector('.chat-pet-jump-effects'), snapshot: snapshot() };
+			if (recreated) {
+				const parent = root.appendChild(mainWindow.document.createElement('div'));
+				parent.style.cssText = firstParent.style.cssText;
+				firstParent.remove();
+				widget.setHost({
+					...firstHost, parent,
+					getPlatforms: () => {
+						const bounds = parent.getBoundingClientRect();
+						return [{ left: bounds.left, right: bounds.right, top: bounds.top, element: parent, isDefault: true, supportsJumpGame: true }];
+					},
+				});
+			} else {
+				widget.setHost(firstHost);
+			}
+			assert.deepStrictEqual({
+				away,
+				sameModel: widget.jumpGame?.model === model,
+				restored: snapshot(),
+				effects: root.querySelectorAll('.chat-pet-jump-effects').length,
+				chargeVisible: root.querySelector<HTMLElement>('.chat-pet-jump-charge')?.checkVisibility(),
+			}, {
+				away: { noGame: true, noEffects: true, snapshot: before },
+				sameModel: true, restored: before, effects: 1, chargeVisible: false,
+			});
+			button.focus();
+			dispatchJumpGameKey(button, 27);
+			widget.setHost(secondHost);
+			widget.setHost(firstHost);
+			assert.equal(widget.jumpGame, undefined, 'Escape must end the run instead of restoring it again');
+		});
+	}
+
+	test('restores a hidden or too-small game when its playfield becomes available again', () => {
+		const { root, widget, button, firstParent, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const model = widget.jumpGame!.model;
+		root.style.height = '60px';
+		layout();
+		const tooSmall = !widget.jumpGame && !root.querySelector('.chat-pet-jump-effects');
+		root.style.height = '640px';
+		layout();
+		const resized = widget.jumpGame?.model === model;
+		firstParent.style.display = 'none';
+		layout();
+		const hidden = !widget.jumpGame && !root.querySelector('.chat-pet-jump-effects');
+		firstParent.style.display = '';
+		layout();
+		assert.deepStrictEqual({ tooSmall, resized, hidden, restored: widget.jumpGame?.model === model }, {
+			tooSmall: true, resized: true, hidden: true, restored: true,
+		});
+	});
+
+	test('switching active windows preserves the run, but disabling the pet discards it', () => {
+		const { root, widget, button, service, activeWindowChanged } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const model = widget.jumpGame!.model;
+		dispatchJumpGameKey(button, 39);
+		model.advance(100);
+		const player = { ...model.player };
+		activeWindowChanged.fire(mainWindow.vscodeWindowId + 1);
+		const away = { active: !!widget.jumpGame, effects: root.querySelectorAll('.chat-pet-jump-effects').length };
+		activeWindowChanged.fire(mainWindow.vscodeWindowId);
+		const returned = { sameModel: widget.jumpGame?.model === model, player: { ...model.player } };
+		activeWindowChanged.fire(mainWindow.vscodeWindowId + 1);
+		service.toggle();
+		activeWindowChanged.fire(mainWindow.vscodeWindowId);
+		service.toggle();
+		assert.deepStrictEqual({ away, returned, restoredAfterDisabling: !!widget.jumpGame }, {
+			away: { active: false, effects: 0 }, returned: { sameModel: true, player }, restoredAfterDisabling: false,
+		});
 	});
 
 	test('accessibility help pauses the game and resumes without a stuck charge', () => {
@@ -608,7 +878,7 @@ suite('ChatPetWidget', () => {
 	});
 
 	for (const surface of ['input', 'raised']) {
-		test(`typing ends the game with a straight fall onto the ${surface} surface`, async () => {
+		test(`typing suspends the run without falling onto the ${surface} surface`, async () => {
 			const { root, widget, button, overlay, firstParent, secondParent, inputChanged, additionalPlatforms } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
 			const shelf = mainWindow.document.createElement('div');
 			shelf.style.cssText = 'position:absolute;left:40px;top:340px;width:720px;height:20px';
@@ -619,84 +889,351 @@ suite('ChatPetWidget', () => {
 			const input = mainWindow.document.createElement('textarea');
 			secondParent.appendChild(input);
 			button.click();
+			const model = widget.jumpGame!.model;
 			dispatchJumpGameKey(button, 39);
 			const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
 			await waitForPetAnimation(() => button.getBoundingClientRect().left > 380);
-			const departure = button.getBoundingClientRect();
+			const departure = { ...model.player };
 			input.value = 'Keep typing here';
 			inputChanged.fire();
 			input.focus();
-			const handoff = {
+			const suspended = {
 				gameActive: !!widget.jumpGame,
 				falling: button.classList.contains('throwing'),
-				left: button.getBoundingClientRect().left,
-				top: button.getBoundingClientRect().top,
-				fading: effects.classList.contains('exiting'),
+				player: { ...model.player },
+				effectsRemoved: !effects.isConnected,
 				foregroundLayer: overlay.classList.contains('relocating'),
 			};
-			const target = surface === 'raised' ? shelf : secondParent;
-			await waitForPetAnimation(() => !button.classList.contains('throwing') && Math.abs(button.getBoundingClientRect().bottom - target.getBoundingClientRect().top) < 1);
-			await waitForPetAnimation(() => !effects.isConnected);
+			await nextPetFrames();
 			assert.deepStrictEqual({
-				handoff,
-				landingLeft: button.getBoundingClientRect().left,
+				suspended,
 				focusKept: mainWindow.document.activeElement === input,
 				draft: input.value,
 				dead: button.classList.contains('hidden'),
 				effectsRemaining: root.querySelectorAll('.chat-pet-jump-effects').length,
 				hostRestored: overlay.parentElement === firstParent && !overlay.classList.contains('relocating'),
 			}, {
-				handoff: { gameActive: false, falling: true, left: departure.left, top: departure.top, fading: true, foregroundLayer: true },
-				landingLeft: departure.left,
+				suspended: { gameActive: false, falling: false, player: departure, effectsRemoved: true, foregroundLayer: false },
 				focusKept: true,
 				draft: 'Keep typing here',
 				dead: false,
 				effectsRemaining: 0,
 				hostRestored: true,
 			});
+			button.click();
+			assert.equal(widget.jumpGame?.model, model);
 		});
 	}
 
-	test('falling past the generated platforms hands off to normal input collisions', async () => {
-		const { root, widget, button, secondParent } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
-		button.click();
-		for (let i = 0; i < 3; i++) {
+	for (const activation of ['click', 'Z', 'Enter', 'Space'] as const) {
+		test(`resets a fallen jump game using ${activation} and keeps the high score`, async () => {
+			const { root, widget, button, storageService, firstParent } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			storageService.store('chat.vscodePet.jumpGame.highScore', 7, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			button.click();
+			const game = widget.jumpGame!;
+			const startPlatform = firstParent.getBoundingClientRect();
+			const petSize = button.getBoundingClientRect().width;
+			const initiallyHidden = !root.querySelector('.chat-pet-jump-retry');
+			const previousPlatforms = [...root.querySelectorAll('.chat-pet-jump-platform')];
+			await fallInJumpGame(button, root);
+			const reset = root.querySelector<HTMLElement>('.chat-pet-jump-retry .monaco-button:nth-child(2)')!;
+			const fallen = {
+				playing: !!widget.jumpGame,
+				focused: mainWindow.document.activeElement === button,
+				outlines: [...root.querySelectorAll<HTMLElement>('.chat-pet-jump-retry .monaco-button')].map(element => mainWindow.getComputedStyle(element).outlineStyle),
+				accessible: reset.closest('[aria-hidden="true"]') === null && reset.getAttribute('aria-label') === 'Reset Blobby\'s Jump Game to the Start (Z)',
+				keycap: reset.querySelector('.monaco-keybinding-key')?.textContent,
+				abovePet: reset.getBoundingClientRect().bottom < button.getBoundingClientRect().top,
+			};
+			if (activation === 'click') {
+				reset.dispatchEvent(new mainWindow.PointerEvent('pointerdown', { bubbles: true }));
+				reset.click();
+			} else if (activation === 'Z') {
+				dispatchJumpGameKey(button, 90);
+			} else {
+				reset.focus();
+				dispatchJumpGameKey(reset, activation === 'Enter' ? 13 : 32);
+				if (activation === 'Space') {
+					dispatchJumpGameKey(button, 32, 'keyup');
+				}
+			}
+			const restarted = {
+				playing: !!widget.jumpGame && widget.jumpGame !== game,
+				focused: mainWindow.document.activeElement === button,
+				recoveryHidden: !reset.checkVisibility(),
+				grounded: widget.jumpGame?.getAccessibleContent().includes('On platform 0.'),
+				score: [...root.querySelectorAll('.chat-pet-jump-hops, .chat-pet-jump-high-score')].map(element => element.textContent),
+				oldPlatformsRemoved: previousPlatforms.every(platform => !platform.isConnected),
+				charge: root.querySelectorAll('.chat-pet-jump-charge-cell.filled').length,
+				teleported: { left: button.getBoundingClientRect().left, top: button.getBoundingClientRect().top },
+				falling: button.classList.contains('throwing'),
+			};
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge-cell.filled'));
+			assert.deepStrictEqual({ initiallyHidden, fallen, restarted }, {
+				initiallyHidden: true,
+				fallen: { playing: false, focused: true, outlines: ['none', 'none'], accessible: true, keycap: 'Z', abovePet: true },
+				restarted: {
+					playing: true, focused: true, recoveryHidden: true, grounded: true,
+					score: ['Hops: 0', 'High score: 7'], oldPlatformsRemoved: true, charge: 0,
+					teleported: { left: (startPlatform.left + startPlatform.right - petSize) / 2, top: startPlatform.top - petSize }, falling: false,
+				},
+			});
+		});
+	}
+
+	for (const reducedMotion of [false, true]) {
+		test(`retry teleports to the last takeoff position in the same game (reduced motion: ${reducedMotion})`, async () => {
+			const { root, widget, button } = createHostTransitionHarness(reducedMotion, 'teleport', undefined, undefined, undefined, true);
+			button.click();
+			const game = widget.jumpGame!;
+			for (let hop = 0; hop < 2; hop++) {
+				dispatchJumpGameKey(button, 39);
+				await waitForPetAnimation(() => button.dataset.state === 'falling');
+				await waitForPetAnimation(() => button.dataset.state === 'idle');
+			}
+			const before = { ...game.model.player };
+			const position = button.getBoundingClientRect().toJSON();
+			const platforms = game.model.platforms.map(platform => ({ left: platform.left, height: platform.height, kind: platform.kind }));
 			dispatchJumpGameKey(button, 39);
-			await waitForPetAnimation(() => button.dataset.state === 'falling');
-			await waitForPetAnimation(() => !widget.jumpGame || button.dataset.state === 'idle');
-		}
-		const handoff = { playing: !!widget.jumpGame, falling: button.classList.contains('throwing') };
-		await waitForPetAnimation(() => !button.classList.contains('throwing') && Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-retry'));
+			const buttons = [...root.querySelectorAll<HTMLElement>('.chat-pet-jump-retry .monaco-button')];
+			const labels = buttons.map(button => button.getAttribute('aria-label'));
+			const keys = [...root.querySelectorAll('.chat-pet-jump-retry .monaco-keybinding-key')].map(element => element.textContent);
+			buttons[1].focus();
+			dispatchJumpGameKey(buttons[1], 37);
+			const retryFocused = mainWindow.document.activeElement === buttons[0];
+			if (reducedMotion) {
+				dispatchJumpGameKey(buttons[0], 82);
+			} else {
+				buttons[0].click();
+			}
+			assert.deepStrictEqual({
+				labels, keys, retryFocused,
+				sameModel: widget.jumpGame?.model === game.model,
+				player: widget.jumpGame?.model.player,
+				position: button.getBoundingClientRect().toJSON(),
+				platforms: widget.jumpGame?.model.platforms.map(platform => ({ left: platform.left, height: platform.height, kind: platform.kind })),
+				falling: button.classList.contains('throwing'),
+				recoveryRemoved: !root.querySelector('.chat-pet-jump-retry'),
+				focused: mainWindow.document.activeElement === button,
+				charge: widget.jumpGame?.model.charge,
+			}, {
+				labels: ['Retry Blobby\'s Jump from Before the Fall (R)', 'Reset Blobby\'s Jump Game to the Start (Z)'],
+				keys: ['R', 'Z'], retryFocused: true,
+				sameModel: true, player: before, position, platforms,
+				falling: false, recoveryRemoved: true, focused: true, charge: 0,
+			});
+			dispatchJumpGameKey(button, 32);
+			await waitForPetAnimation(() => !!root.querySelector('.chat-pet-jump-charge-cell.filled'));
+		});
+	}
+
+	test('Escape dismisses the landed recovery prompt and releases both shortcuts', async () => {
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const game = widget.jumpGame!;
+		const retry = await fallInJumpGame(button, root);
+		dispatchJumpGameKey(button, 27);
+		const keys = [82, 90].map(key => dispatchJumpGameKey(button, key).defaultPrevented);
 		assert.deepStrictEqual({
-			handoff,
-			leftOfInputRightEdge: button.getBoundingClientRect().right <= secondParent.getBoundingClientRect().right,
-			alive: !button.classList.contains('hidden'),
+			describesRetry: game.getHelp().includes('Once Blobby has landed and recovered, Retry and Reset appear above the pet.'),
+			game: widget.jumpGame,
+			retryRemoved: !retry.isConnected,
+			focused: mainWindow.document.activeElement === button,
+			keysConsumed: keys,
+		}, { describesRetry: true, game: undefined, retryRemoved: true, focused: true, keysConsumed: [false, false] });
+	});
+
+	suite('jump game recovery controls', () => {
+		function createRecoveryHarness() {
+			const root = mainWindow.document.createElement('div');
+			root.className = 'monaco-workbench';
+			root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
+			mainWindow.document.body.appendChild(root);
+			disposables.add(toDisposable(() => root.remove()));
+			const overlay = root.appendChild(mainWindow.document.createElement('div'));
+			overlay.className = 'chat-pet-overlay';
+			const pet = overlay.appendChild(mainWindow.document.createElement('button'));
+			pet.className = 'chat-pet-button';
+			pet.style.cssText = 'left:376px;top:400px';
+			const input = root.appendChild(mainWindow.document.createElement('input'));
+			const actions: string[] = [];
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const recovery = disposables.add(instantiationService.createInstance(ChatPetJumpGameRetry, overlay, pet, root,
+				() => actions.push('retry'),
+				() => actions.push('reset'),
+				() => {
+					actions.push('dismiss');
+					recovery.dispose();
+				},
+			));
+			const retry = overlay.querySelector<HTMLElement>('.chat-pet-jump-retry .monaco-button')!;
+			return { root, recovery, pet, input, retry, actions };
+		}
+
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			test(`opaque buttons cover overlapping text when secondary colors are translucent (${theme})`, () => {
+				const { root, retry } = createRecoveryHarness();
+				root.classList.add(theme);
+				root.style.setProperty('--vscode-editor-background', '#202020');
+				root.style.setProperty('--vscode-button-secondaryBackground', 'rgba(255, 255, 255, 0.06)');
+				root.style.setProperty('--vscode-button-secondaryHoverBackground', 'rgba(255, 255, 255, 0.12)');
+				const bounds = retry.getBoundingClientRect();
+				const title = root.appendChild(mainWindow.document.createElement('h2'));
+				title.textContent = 'Welcome text behind the recovery buttons';
+				title.style.cssText = `position:fixed;left:${bounds.left}px;top:${bounds.top}px;width:${bounds.width}px;height:${bounds.height}px;margin:0`;
+				const appearance = () => {
+					const style = mainWindow.getComputedStyle(retry);
+					return { background: style.backgroundColor, tint: style.backgroundImage };
+				};
+				const normal = appearance();
+				const frontmost = retry.contains(mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
+				retry.focus();
+				retry.dispatchEvent(new mainWindow.MouseEvent('mouseover', { bubbles: true }));
+				const interactiveBackground = appearance().background;
+				assert.deepStrictEqual({ normal, interactiveBackground, frontmost }, {
+					normal: { background: 'rgb(32, 32, 32)', tint: 'linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06))' },
+					interactiveBackground: 'rgb(32, 32, 32)',
+					frontmost: true,
+				});
+			});
+		}
+
+		for (const focus of ['recovery', 'input']) {
+			test(`dismisses after exactly five seconds and preserves ${focus} focus appropriately`, () => {
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const { pet, input, retry, actions } = createRecoveryHarness();
+				(focus === 'recovery' ? retry : input).focus();
+				clock.tick(4_999);
+				const before = { visible: retry.checkVisibility(), actions: [...actions] };
+				clock.tick(1);
+				assert.deepStrictEqual({
+					before,
+					removed: !retry.isConnected,
+					actions,
+					focused: mainWindow.document.activeElement === (focus === 'recovery' ? pet : input),
+					keysConsumed: [82, 90].map(key => dispatchJumpGameKey(pet, key).defaultPrevented),
+				}, {
+					before: { visible: true, actions: [] },
+					removed: true, actions: ['dismiss'], focused: true, keysConsumed: [false, false],
+				});
+			});
+		}
+
+		test('disposal cancels the old timeout and a later prompt gets its own five seconds', () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			disposables.add(toDisposable(() => clock.restore()));
+			const first = createRecoveryHarness();
+			clock.tick(2_000);
+			first.recovery.dispose();
+			const second = createRecoveryHarness();
+			clock.tick(3_000);
+			const atOldDeadline = { first: [...first.actions], second: [...second.actions], visible: second.retry.checkVisibility() };
+			clock.tick(1_999);
+			const beforeNewDeadline = second.retry.checkVisibility();
+			clock.tick(1);
+			assert.deepStrictEqual({
+				atOldDeadline, beforeNewDeadline,
+				first: first.actions, second: second.actions, removed: !second.retry.isConnected,
+			}, {
+				atOldDeadline: { first: [], second: [], visible: true }, beforeNewDeadline: true,
+				first: [], second: ['dismiss'], removed: true,
+			});
+		});
+	});
+
+	test('finishes falling and landing before offering retry without stealing input focus', async () => {
+		const { root, widget, button, secondParent, inputChanged } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		button.click();
+		const retryReady = fallInJumpGame(button, root);
+		await waitForPetAnimation(() => !widget.jumpGame);
+		const handoff = {
+			playing: !!widget.jumpGame,
+			falling: button.classList.contains('throwing'),
+			retry: !!root.querySelector('.chat-pet-jump-retry'),
+		};
+		const input = mainWindow.document.createElement('textarea');
+		secondParent.appendChild(input);
+		input.focus();
+		const retry = await retryReady;
+		const landed = {
+			onInput: Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1,
+			recovered: button.dataset.state === 'idle' && !button.classList.contains('throwing'),
+			abovePet: retry.getBoundingClientRect().bottom < button.getBoundingClientRect().top,
+			focusKept: mainWindow.document.activeElement === input,
+		};
+		const key = dispatchJumpGameKey(input, 82);
+		inputChanged.fire();
+		assert.deepStrictEqual({
+			handoff, landed,
+			keyConsumed: key.defaultPrevented,
+			retryRemoved: !retry.isConnected,
 			gameEffects: root.querySelectorAll('.chat-pet-jump-effects').length,
-		}, { handoff: { playing: false, falling: true }, leftOfInputRightEdge: true, alive: true, gameEffects: 0 });
+		}, {
+			handoff: { playing: false, falling: true, retry: false },
+			landed: { onInput: true, recovered: true, abovePet: true, focusKept: true },
+			keyConsumed: false, retryRemoved: true, gameEffects: 0,
+		});
+	});
+
+	test('waits for respawn and landing before offering retry when no surface catches the fall', async () => {
+		const { root, widget, button, secondParent, effect } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		secondParent.style.width = '100px';
+		button.click();
+		const retryReady = fallInJumpGame(button, root);
+		await waitForPetAnimation(() => button.classList.contains('hidden') && !effect.classList.contains('hidden'));
+		const despawning = { game: !!widget.jumpGame, retry: !!root.querySelector('.chat-pet-jump-retry') };
+		secondParent.style.width = '720px';
+		const retry = await retryReady;
+		assert.deepStrictEqual({
+			despawning,
+			landed: !button.classList.contains('hidden') && Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1,
+			abovePet: retry.getBoundingClientRect().bottom < button.getBoundingClientRect().top,
+		}, { despawning: { game: false, retry: false }, landed: true, abovePet: true });
+	});
+
+	test('host changes and disabling the pet remove the landed retry prompt', async () => {
+		const results = [];
+		for (const action of ['host', 'disable']) {
+			const { root, widget, button, service, secondHost } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			button.click();
+			const retry = await fallInJumpGame(button, root);
+			if (action === 'host') {
+				widget.setHost(secondHost);
+			} else {
+				service.toggle();
+			}
+			results.push(!retry.isConnected);
+		}
+		assert.deepStrictEqual(results, [true, true]);
 	});
 
 	test('missing all normal surfaces uses the existing despawn and respawn sequence', async () => {
-		const { root, widget, button, firstParent, secondParent, inputChanged, effect } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		const { root, widget, button, firstParent, secondParent, effect } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
 		button.click();
 		const departure = button.getBoundingClientRect();
 		secondParent.style.width = '100px';
-		inputChanged.fire();
+		const recovery = fallInJumpGame(button, root);
+		await waitForPetAnimation(() => !widget.jumpGame);
 		const handoffLeft = button.getBoundingClientRect().left;
 		await waitForPetAnimation(() => button.classList.contains('hidden') && !effect.classList.contains('hidden'));
 		const despawning = { game: !!widget.jumpGame, effects: root.querySelectorAll('.chat-pet-jump-effects').length };
 		secondParent.style.width = '720px';
 		await waitForPetAnimation(() => !button.classList.contains('hidden') && !button.classList.contains('throwing')
 			&& Math.abs(button.getBoundingClientRect().bottom - secondParent.getBoundingClientRect().top) < 1);
+		await recovery;
 		assert.deepStrictEqual({
-			handoffLeft,
+			leftStartingPlatform: handoffLeft > departure.left,
 			despawning,
 			respawnEffectHidden: effect.classList.contains('hidden'),
 			landedBelowWelcome: button.getBoundingClientRect().bottom > firstParent.getBoundingClientRect().top,
-		}, { handoffLeft: departure.left, despawning: { game: false, effects: 0 }, respawnEffectHidden: true, landedBelowWelcome: true });
+		}, { leftStartingPlatform: true, despawning: { game: false, effects: 0 }, respawnEffectHidden: true, landedBelowWelcome: true });
 	});
 
 	test('game and backdrop fade together without outlining the pet or intercepting the input', async () => {
-		const { root, button, inputChanged } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
+		const { root, button } = createHostTransitionHarness(false, 'teleport', undefined, undefined, undefined, true);
 		button.click();
 		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
 		const backdrop = effects.querySelector<HTMLElement>('.chat-pet-jump-backdrop')!;
@@ -715,7 +1252,7 @@ suite('ChatPetWidget', () => {
 			backdropPointerEvents: backdropStyle.pointerEvents,
 			backdropBounds: backdrop.getBoundingClientRect().toJSON(),
 		};
-		inputChanged.fire();
+		dispatchJumpGameKey(button, 27);
 		const fadeOut = effects.getAnimations()[0];
 		assert.ok(fadeOut.effect instanceof mainWindow.KeyframeEffect);
 		const exiting = fadeOut.effect.getKeyframes().map(frame => Number(frame.opacity));
@@ -732,12 +1269,12 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('reduced motion skips fades and keeps normal landing behavior', () => {
-		const { root, button, secondParent, inputChanged } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+	test('reduced motion skips fades and keeps normal landing behavior', async () => {
+		const { root, button, secondParent } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
 		button.click();
 		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
 		const entryAnimations = effects.getAnimations().length;
-		inputChanged.fire();
+		await fallInJumpGame(button, root);
 		assert.deepStrictEqual({
 			entryAnimations,
 			effectsConnected: effects.isConnected,

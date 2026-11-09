@@ -208,7 +208,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			});
 		});
 
-		test(`replacing ${type} releases the pause without taking replacement focus`, async () => {
+		test(`replacing ${type} keeps the game paused without taking replacement focus`, async () => {
 			const { root, exits, replace, focusPet } = await createHarness(type);
 			const replacement = replace();
 			await nextFrames();
@@ -217,7 +217,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 				focused: mainWindow.document.activeElement === replacement,
 				petFocusCalls: focusPet.callCount,
 				gameLayers: root.querySelectorAll('.chat-pet-jump-effects, .chat-pet-jump-game').length,
-			}, { exits: ['blur'], focused: true, petFocusCalls: 0, gameLayers: 0 });
+			}, { exits: [], focused: true, petFocusCalls: 0, gameLayers: 2 });
 		});
 	}
 
@@ -255,7 +255,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			focused: mainWindow.document.activeElement === replacement,
 			petFocusCalls: focusPet.callCount,
 			gameLayers: root.querySelectorAll('.chat-pet-jump-effects, .chat-pet-jump-game').length,
-		}, { exits: ['blur'], focused: true, petFocusCalls: 0, gameLayers: 0 });
+		}, { exits: [], focused: true, petFocusCalls: 0, gameLayers: 2 });
 	});
 
 	test('replacing the view restored from nested help still releases its pause', async () => {
@@ -270,7 +270,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			focused: mainWindow.document.activeElement === replacement,
 			petFocusCalls: focusPet.callCount,
 			gameLayers: root.querySelectorAll('.chat-pet-jump-effects, .chat-pet-jump-game').length,
-		}, { exits: ['blur'], focused: true, petFocusCalls: 0, gameLayers: 0 });
+		}, { exits: [], focused: true, petFocusCalls: 0, gameLayers: 2 });
 	});
 
 	test('refreshing the same provider preserves its pause and final replacement cleanup', async () => {
@@ -282,7 +282,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 		const replacement = replace();
 		await nextFrames();
 		assert.deepStrictEqual({ refreshed, exits, focused: mainWindow.document.activeElement === replacement }, {
-			refreshed: { exits: [], focused: false }, exits: ['blur'], focused: true,
+			refreshed: { exits: [], focused: false }, exits: [], focused: true,
 		});
 	});
 
@@ -318,7 +318,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 				const replacement = replace();
 				await nextFrames();
 				assert.deepStrictEqual({ exits, focused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount }, {
-					exits: ['blur'], focused: true, petFocusCalls: 0,
+					exits: [], focused: true, petFocusCalls: 0,
 				});
 			}
 			assert.deepStrictEqual({ whilePicking, afterPicking }, {
@@ -344,9 +344,9 @@ suite('ChatPetJumpGameAccessibleView', () => {
 					whilePicking, exits, commands, focused: mainWindow.document.activeElement === commandTarget,
 					petFocusCalls: focusPet.callCount, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
 				}, {
-					whilePicking: { exits: [], focused: true }, exits: ['blur'],
+					whilePicking: { exits: [], focused: true }, exits: [],
 					commands: [{ id: 'workbench.action.openGlobalKeybindings', args: ['editor.action.accessibleView'] }],
-					focused: true, petFocusCalls: 0, effects: 0,
+					focused: true, petFocusCalls: 0, effects: 1,
 				});
 			} else {
 				picker.hide();
@@ -357,7 +357,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 				await nextFrames();
 				assert.deepStrictEqual({ whilePicking, afterPicking, exits, focused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount }, {
 					whilePicking: { exits: [], focused: true }, afterPicking: { exits: [], focusedPet: false },
-					exits: ['blur'], focused: true, petFocusCalls: 0,
+					exits: [], focused: true, petFocusCalls: 0,
 				});
 			}
 		});
@@ -393,7 +393,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 				afterPicker, afterHelp, exits, replacementFocused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount,
 			}, {
 				afterPicker: { exits: [], focusedPet: false, type: AccessibleViewType.Help },
-				afterHelp: { exits: [], focusedPet: false }, exits: ['blur'], replacementFocused: true, petFocusCalls: 0,
+				afterHelp: { exits: [], focusedPet: false }, exits: [], replacementFocused: true, petFocusCalls: 0,
 			});
 		});
 
@@ -424,7 +424,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 					exits, shows: show.callCount, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
 					focusKept: mainWindow.document.activeElement === (abandon === 'replace' ? pickerInput : commandTarget),
 					petFocusCalls: focusPet.callCount,
-				}, { exits: ['blur'], shows, effects: 0, focusKept: true, petFocusCalls: 0 });
+				}, { exits: [], shows, effects: 1, focusKept: true, petFocusCalls: 0 });
 			});
 		}
 	}
