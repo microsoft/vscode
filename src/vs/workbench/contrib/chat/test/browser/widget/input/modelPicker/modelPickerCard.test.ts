@@ -1253,6 +1253,60 @@ suite('ModelCard', () => {
 		});
 	});
 
+	test('a refresh during selection motion waits, keeping a reversed selection continuous', async () => {
+		const result = await createAnimatedCard();
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const indicator = element(result.card.element, '.monaco-radio-selection');
+		const systemReduced = getWindow(indicator).matchMedia('(prefers-reduced-motion: reduce)').matches;
+		effortOption('Low').focus();
+		effortOption('Low').click();
+		indicator.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 80; });
+		result.card.refresh();
+		const before = indicator.getBoundingClientRect().left;
+		effortOption('High').focus();
+		effortOption('High').click();
+		const animations = indicator.getAnimations();
+		animations.forEach(animation => animation.pause());
+		const after = indicator.getBoundingClientRect().left;
+		await timeout(0);
+		const during = { connected: systemReduced || indicator.isConnected, continuous: systemReduced || Math.abs(before - after) < 1, accepted: result.accepted };
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			during,
+			values: result.values,
+			accepted: result.accepted,
+			selected: selectedOptions(result.card),
+			focused: document.activeElement?.textContent,
+		}, {
+			during: { connected: true, continuous: true, accepted: systemReduced ? 1 : 0 },
+			values: { effort: 'high' },
+			accepted: 1,
+			selected: ['High', '264K'],
+			focused: 'High',
+		});
+	});
+
+	test('turning on reduced motion releases a refresh waiting for selection motion', async () => {
+		const result = await createAnimatedCard();
+		const group = element(result.card.element, '[role="radiogroup"]');
+		const indicator = element(group, '.monaco-radio-selection');
+		group.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+		indicator.getAnimations().forEach(animation => animation.pause());
+		result.card.refresh();
+		result.card.element.classList.add('monaco-reduce-motion');
+		const animations = indicator.getAnimations().length;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			values: result.values,
+			accepted: result.accepted,
+			selected: selectedOptions(result.card),
+			animations,
+		}, { values: { effort: 'low' }, accepted: 1, selected: ['Low', '264K'], animations: 0 });
+	});
+
 	test('reduced motion accepts a configuration change immediately without an animation delay', async () => {
 		const result = createCard();
 		const group = element(result.card.element, '[role="radiogroup"]');

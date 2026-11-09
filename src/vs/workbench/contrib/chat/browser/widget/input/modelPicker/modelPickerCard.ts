@@ -172,6 +172,7 @@ export class ModelCard extends DisposableStore {
 	private readonly _groupControls = new Map<string, Radio>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
+	private _renderPending = false;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
 	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
@@ -255,6 +256,14 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderPreservingFocus(fallbackGroup?: string): void {
+		if (this._renderPending) {
+			return;
+		}
+		if ([...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
+			this._renderPending = true;
+			this._renderAfterSelectionAnimation(fallbackGroup).catch(onUnexpectedError);
+			return;
+		}
 		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
 		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
 		const group = focusedControl?.[0] ?? fallbackGroup;
@@ -272,6 +281,18 @@ export class ModelCard extends DisposableStore {
 			this._headerActions?.focus(actionIndex);
 		} else {
 			this._restoreFocus(group, optionIndex);
+		}
+	}
+
+	/** Rebuilding the setting controls would cut their selection motion short, so a rebuild waits for it to settle. */
+	private async _renderAfterSelectionAnimation(fallbackGroup?: string): Promise<void> {
+		try {
+			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
+		} finally {
+			this._renderPending = false;
+		}
+		if (!this.isDisposed) {
+			this._renderPreservingFocus(fallbackGroup);
 		}
 	}
 
