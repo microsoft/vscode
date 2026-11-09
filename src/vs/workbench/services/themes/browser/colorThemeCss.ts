@@ -8,7 +8,7 @@ import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/
 import { asCssVariableName as asSizeCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
-import { getMotionCssVariables } from '../../../../platform/theme/common/motionRecipes.js';
+import { getMotionCssVariables } from '../../../../platform/theme/common/motion/motionRecipes.js';
 
 /**
  * Generates CSS content (variables + theming participant rules) for a color theme.

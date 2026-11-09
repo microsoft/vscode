@@ -8,6 +8,22 @@
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
+	position: relative;
+
+	.agent-sessions-load-progress {
+		position: absolute;
+		inset: 0 0 auto;
+		z-index: 1;
+	}
+
+	.agent-sessions-loading {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		color: var(--vscode-descriptionForeground);
+		pointer-events: none;
+	}
 
 	.pane-body & .monaco-scrollable-element {
 		padding: 0 6px;

@@ -1,0 +1,63 @@
+{
+	"version": 1,
+	"id": "dropdown",
+	"className": "MultiSelectDropdown",
+	"summary": {
+		"$text": {
+			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"anchor",
+			"HTMLElement",
+			"The element that anchors the opened menu.",
+			"readonly anchor: HTMLElement;"
+		],
+		[
+			"sections",
+			"readonly IMultiSelectDropdownSection[]",
+			"Labeled groups of selectable items.",
+			"readonly sections: readonly IMultiSelectDropdownSection[];"
+		],
+		[
+			"selectedIds",
+			"readonly string[]",
+			"Known selected item identifiers supplied to show().",
+			"readonly selectedIds: readonly string[];"
+		],
+		[
+			"searchable",
+			"boolean?",
+			"Adds a filterable listbox presentation.",
+			"readonly searchable?: boolean;"
+		],
+		[
+			"onDidChangeSelection",
+			"Event<readonly string[]>",
+			"Receives fresh selection snapshots for user toggles.",
+			"readonly onDidChangeSelection = this._onDidChangeSelection.event;"
+		]
+	]
+}

@@ -27,8 +27,9 @@ import { registerActionWidgetTestKeybindings } from './actionWidgetTestUtils.js'
 suite('MultiSelectDropdown', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function create(options: Partial<IMultiSelectDropdownOptions> = {}) {
+	function create(options: Partial<IMultiSelectDropdownOptions> = {}, motionClasses?: string) {
 		const container = dom.append(document.body, dom.$('div'));
+		container.className = motionClasses ?? '';
 		store.add(toDisposable(() => container.remove()));
 		const anchor = dom.append(container, dom.$('button', { 'aria-expanded': 'false', 'aria-haspopup': 'menu' }, 'Choose'));
 		const nextButton = dom.append(container, dom.$('button', undefined, 'Next'));
@@ -92,6 +93,98 @@ suite('MultiSelectDropdown', () => {
 			label: 'Days', sections: ['Weekdays', 'Weekend'], checks: ['true', 'false', 'true', 'false'],
 			labels: ['Monday, Weekdays', 'Wednesday, Weekdays', 'Friday, Weekdays, disabled', 'Saturday, Weekend'],
 		});
+	});
+
+	for (const classes of ['modern-ui', 'modern-ui-frosted-glass']) {
+		test(`animates the real dropdown once with ${classes} and keeps selection immediate`, () => {
+			const { container, row, changes } = create({}, `${classes} monaco-enable-motion`);
+			const popup = container.querySelector<HTMLElement>('.multi-select-dropdown')!;
+			const animation = popup.getAnimations()[0];
+			assert.ok(animation);
+			animation.pause();
+			animation.currentTime = 30;
+			const arrivingOpacity = Number(dom.getWindow(popup).getComputedStyle(popup).opacity);
+			row('Wednesday').click();
+			assert.deepStrictEqual({
+				arriving: arrivingOpacity > 0 && arrivingOpacity < 1,
+				changes,
+				settled: popup.getAnimations().every(animation => animation.playState === 'finished'),
+				opacity: dom.getWindow(popup).getComputedStyle(popup).opacity,
+			}, { arriving: true, changes: [['mon', 'wed', 'fri']], settled: true, opacity: '1' });
+		});
+	}
+
+	for (const reduceMotion of [false, true]) {
+		test(`dismissal releases focus and interaction immediately, then completes with reduced motion ${reduceMotion}`, async () => {
+			const { container, dropdown, service, anchor, contextView, hides } = create({}, 'modern-ui monaco-enable-motion');
+			const popup = container.querySelector<HTMLElement>('.multi-select-dropdown')!;
+			const entrance = popup.getAnimations()[0];
+			assert.ok(entrance);
+			entrance.pause();
+			entrance.currentTime = 30;
+			const before = dom.getWindow(popup).getComputedStyle(popup);
+			const starting = { opacity: before.opacity, transform: before.transform };
+			dropdown.hide();
+			const exit = popup.getAnimations()[0];
+			assert.ok(exit);
+			exit.pause();
+			exit.currentTime = 0;
+			const initial = {
+				visible: dropdown.isVisible || service.isVisible,
+				inert: popup.inert,
+				focused: document.activeElement === anchor,
+				expanded: anchor.getAttribute('aria-expanded'),
+				opacity: dom.getWindow(popup).getComputedStyle(popup).opacity,
+				transform: dom.getWindow(popup).getComputedStyle(popup).transform,
+			};
+			const completed = new Promise<void>(resolve => store.add(dom.addDisposableListener(exit, reduceMotion ? 'cancel' : 'finish', () => resolve(), { once: true })));
+			if (reduceMotion) {
+				container.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+				popup.getAnimations();
+			} else {
+				exit.finish();
+			}
+			await completed;
+			assert.deepStrictEqual({
+				initial,
+				hidden: contextView.getContextViewElement().style.display === 'none',
+				hides: hides(),
+			}, {
+				initial: { visible: false, inert: true, focused: true, expanded: 'false', ...starting },
+				hidden: true,
+				hides: 1,
+			});
+		});
+	}
+
+	test('reopening during departure preserves the displayed state and cancels the stale close', async () => {
+		const { container, dropdown, showOptions, contextView } = create({}, 'modern-ui monaco-enable-motion');
+		const departing = container.querySelector<HTMLElement>('.multi-select-dropdown')!;
+		const opening = departing.getAnimations()[0];
+		assert.ok(opening);
+		opening.pause();
+		opening.currentTime = 120;
+		dropdown.hide();
+		const exit = departing.getAnimations()[0];
+		assert.ok(exit);
+		exit.pause();
+		exit.currentTime = 30;
+		const before = dom.getWindow(departing).getComputedStyle(departing);
+		const starting = { opacity: before.opacity, transform: before.transform };
+		const cancelled = new Promise<void>(resolve => store.add(dom.addDisposableListener(exit, 'cancel', () => resolve(), { once: true })));
+		dropdown.show(showOptions);
+		const popup = container.querySelector<HTMLElement>('.multi-select-dropdown')!;
+		const entrance = popup.getAnimations()[0];
+		assert.ok(entrance);
+		entrance.pause();
+		entrance.currentTime = 0;
+		await cancelled;
+		assert.deepStrictEqual({
+			visible: dropdown.isVisible && contextView.getContextViewElement().style.display !== 'none',
+			inert: popup.inert,
+			opacity: dom.getWindow(popup).getComputedStyle(popup).opacity,
+			transform: dom.getWindow(popup).getComputedStyle(popup).transform,
+		}, { visible: true, inert: false, ...starting });
 	});
 
 	for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey'] as const) {

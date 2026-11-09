@@ -1,0 +1,87 @@
+{
+	"version": 1,
+	"id": "button",
+	"className": "Button / ButtonBar",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"label",
+			"string | IMarkdownString",
+			"The visible label, assigned on the instance.",
+			"set label(value: string | IMarkdownString);"
+		],
+		[
+			"secondary",
+			"boolean?",
+			"Construction option for the secondary appearance.",
+			"readonly secondary?: boolean;"
+		],
+		[
+			"disabled",
+			"boolean?",
+			"Initial disabled state; update enabled on the instance afterwards.",
+			"readonly disabled?: boolean;"
+		],
+		[
+			"ariaLabel",
+			"string?",
+			"An explicit accessible name.",
+			"readonly ariaLabel?: string;"
+		],
+		[
+			"onDidClick",
+			"BaseEvent<Event | undefined>",
+			"Subscribe to activation, rather than adding a second DOM click path.",
+			"readonly onDidClick: BaseEvent<Event | undefined>;"
+		],
+		[
+			"ButtonBar.addButton(options)",
+			"IButton",
+			"Creates and adds a button from IButtonOptions.",
+			"addButton(options: IButtonOptions): IButton"
+		],
+		[
+			"ButtonBar.addButtonWithDescription(options)",
+			"IButtonWithDescription",
+			"Adds a button with descriptive text.",
+			"addButtonWithDescription(options: IButtonOptions): IButtonWithDescription"
+		],
+		[
+			"ButtonBar.buttons",
+			"IButton[]",
+			"The buttons in the group.",
+			"get buttons(): IButton[]"
+		],
+		[
+			"ButtonBar.clear()",
+			"void",
+			"Disposes and removes the current buttons.",
+			"clear(): void"
+		]
+	]
+}

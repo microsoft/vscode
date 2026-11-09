@@ -1,0 +1,35 @@
+{
+	"version": 1,
+	"id": "size",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/sizes/size.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"glyphs": {
+			"title": "Choose a glyph size",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/size.md",
+					"heading": "Choose a glyph size",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"reference": {
+			"title": "Size reference",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/size.md",
+					"heading": "Size reference",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	}
+}

@@ -198,10 +198,7 @@
 	grid-template-rows: 1fr;
 	opacity: 1;
 	visibility: visible;
-	transition:
-		grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
-		opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-		visibility 0s;
+	transition: var(--vscode-motion-disclosure-transition);
 
 	> .chat-confirmation-widget-message-animation-inner {
 		min-height: 0;
@@ -215,10 +212,7 @@
 	grid-template-rows: 0fr;
 	opacity: 0;
 	visibility: hidden;
-	transition:
-		grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
-		opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-		visibility 0s linear 180ms;
+	transition: var(--vscode-motion-disclosure-exit-transition);
 }
 
 .monaco-reduce-motion .chat-confirmation-widget-message-animation,

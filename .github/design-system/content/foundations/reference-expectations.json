@@ -1,0 +1,159 @@
+{
+	"version": 1,
+	"structures": {
+		"principles": [
+			"Values",
+			"Principles",
+			"Applied examples"
+		],
+		"typography": [
+			"Type roles",
+			"Composition",
+			"Emphasis",
+			"Reading metrics",
+			"Font families",
+			"Language and localization"
+		],
+		"spacing": [
+			"Grouping and hierarchy",
+			"Spacing ramp and tokens",
+			"Product spacing patterns",
+			"Spacing ownership",
+			"Narrow layouts"
+		],
+		"layout": [
+			"Pane hierarchy",
+			"Reflow and constraints",
+			"Responsive rules",
+			"Density",
+			"Composition recipes"
+		],
+		"shape": [
+			"Corner scale",
+			"Surface-role mapping"
+		],
+		"size": [
+			"Glyph dimensions",
+			"Component dimensions",
+			"Density and interaction targets"
+		],
+		"stroke": [
+			"Stroke thickness",
+			"Boundary roles",
+			"Scrollbar geometry"
+		],
+		"colors": [
+			"Color roles",
+			"Neutral hierarchy",
+			"Accent and actions",
+			"Semantic feedback",
+			"Interaction states",
+			"Multi-theme token reference"
+		],
+		"theming": [
+			"Theme model",
+			"Available variants",
+			"Contrast and high-contrast guidance"
+		],
+		"iconography": [
+			"Usage principles",
+			"Glyph catalog",
+			"Selected glyph and implementation usage"
+		],
+		"motion": [
+			"Principles",
+			"Motion foundations",
+			"Motion recipes",
+			"Progress indication",
+			"Expression and delight",
+			"Accessibility"
+		],
+		"elevation": [
+			"Layering model",
+			"Shadow definitions",
+			"Role mappings",
+			"Implementation evidence"
+		],
+		"tokens": [
+			"Design scales",
+			"Semantic roles",
+			"Usage guidance",
+			"Legacy replacements"
+		],
+		"accessibility": [
+			"Interaction principles",
+			"Keyboard and focus",
+			"Names and state",
+			"Validation scenarios"
+		],
+		"content": [
+			"Writing principles",
+			"Labels and actions",
+			"Messages and recovery",
+			"Localization"
+		],
+		"components": [
+			"Overview",
+			"Anatomy",
+			"States and variants",
+			"Usage",
+			"Accessibility",
+			"API"
+		]
+	},
+	"capabilities": {
+		"principles": [
+			"Design principles",
+			"Application across the product"
+		],
+		"typography": [
+			"UI role scale",
+			"Font families",
+			"Role-specific line height and tracking"
+		],
+		"spacing": [
+			"Spacing scale",
+			"Product spacing patterns",
+			"Named semantic spacing roles"
+		],
+		"shape": [
+			"Radius scale",
+			"Surface-role guidance"
+		],
+		"size": [
+			"Icon dimensions",
+			"Control height, density and hit-area scales",
+			"Product control geometry"
+		],
+		"stroke": [
+			"Registered stroke",
+			"Boundary and scrollbar recipes"
+		],
+		"colors": [
+			"Semantic color roles",
+			"Runtime color-default coverage"
+		],
+		"theming": [
+			"Theme mappings",
+			"High-contrast guidance"
+		],
+		"iconography": [
+			"Glyph catalog",
+			"Glyph sizing and naming guidance"
+		],
+		"motion": [
+			"Motion intent",
+			"Named timing and easing system",
+			"Current implementation examples"
+		],
+		"layout": [
+			"Constraint-based layout guidance",
+			"Named composition recipes"
+		],
+		"elevation": [
+			"Shadow definitions",
+			"Shadow-tier usage guidance",
+			"Product usage"
+		]
+	}
+}

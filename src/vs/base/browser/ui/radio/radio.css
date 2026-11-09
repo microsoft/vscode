@@ -64,7 +64,7 @@
 	outline-offset: -1px
 }
 
-.monaco-custom-radio > .monaco-button:hover:not(.active) {
+.monaco-custom-radio:not(.segmented) > .monaco-button:hover:not(.active) {
 	background-color: var(--vscode-radio-inactiveHoverBackground);
 }
 
@@ -111,9 +111,8 @@
 	pointer-events: none;
 }
 
-.monaco-custom-radio.segmented > .monaco-button:hover:not(.active) {
-	color: var(--vscode-foreground);
-	background: var(--vscode-toolbar-hoverBackground);
+.monaco-custom-radio.segmented > .monaco-button:hover:not(.disabled) {
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .monaco-custom-radio.segmented > .monaco-button.active,
@@ -149,17 +148,24 @@
 	box-shadow: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-	.monaco-custom-radio.segmented > .monaco-radio-selection {
-		transition: var(--vscode-motion-press-transition, scale 100ms ease-out);
-	}
+.monaco-custom-radio.segmented > .monaco-radio-selection {
+	transition: var(--vscode-motion-press-transition, scale 100ms ease-out);
+}
 
-	.monaco-custom-radio.segmented.animate-selection > .monaco-radio-selection {
-		transition: var(--vscode-motion-selection-transition, transform 250ms cubic-bezier(0.2, 0, 0, 1), width 250ms cubic-bezier(0.2, 0, 0, 1), scale 100ms ease-out);
-	}
+.monaco-custom-radio.segmented.animate-selection > .monaco-radio-selection {
+	transition: var(--vscode-motion-selection-transition, transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), width 160ms cubic-bezier(0.2, 0.8, 0.2, 1), scale 100ms ease-out);
+}
 
-	.monaco-custom-radio.segmented:active > .monaco-radio-selection {
-		scale: var(--vscode-motion-scale-press, 0.96);
+.monaco-custom-radio.segmented:active > .monaco-radio-selection {
+	scale: var(--vscode-motion-press-scale, 0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-custom-radio.segmented:where(:not(.monaco-enable-motion *)) > .monaco-radio-selection,
+	.monaco-custom-radio.segmented.animate-selection:where(:not(.monaco-enable-motion *)) > .monaco-radio-selection,
+	.monaco-custom-radio.segmented:active:where(:not(.monaco-enable-motion *)) > .monaco-radio-selection {
+		transition: none;
+		scale: 1;
 	}
 }
 

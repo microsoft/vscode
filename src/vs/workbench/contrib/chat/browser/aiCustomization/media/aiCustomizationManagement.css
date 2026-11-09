@@ -691,7 +691,7 @@ per-word capitalization does not survive translation. */
 }
 
 .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
-	left: calc(50% - 50cqh);
+	transform: translateX(calc(50cqw - 50cqh));
 }
 
 .customization-toggle .monaco-switch.mixed {

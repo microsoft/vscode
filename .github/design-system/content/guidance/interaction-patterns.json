@@ -1,0 +1,7 @@
+{
+	"version": 1,
+	"id": "patterns",
+	"status": "book-authored",
+	"intro": { "$text": { "file": ".github/design-system/guidance/interaction-patterns.md", "heading": "Introduction" } },
+	"sections": {}
+}

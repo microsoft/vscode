@@ -7,6 +7,7 @@ import './media/voiceGlow.css';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { motionTokenRegistry } from '../../../../../platform/theme/common/motionRegistry.js';
 import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, VoiceRimMood } from './voiceGlow.js';
 
 export type { GlowThemeKind };
@@ -25,9 +26,9 @@ export type { GlowThemeKind };
  * light, and light dissolves — scaling it would read as the box "zooming", which
  * pulls the eye to a size change that isn't happening.
  */
-const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1)';
+const FADE = `opacity ${motionTokenRegistry.getValueCss('motion.voice.fade.duration', 'duration')} ${motionTokenRegistry.getValueCss('motion.easing.easeInOut', 'easing')}`;
 /** How long a faded-out slot is kept mounted before its layer is torn down. */
-const FADE_OUT_MS = 650;
+const FADE_OUT_MS = motionTokenRegistry.getNumber('motion.voice.fade.duration', 'duration') + 50;
 
 /** Base strength of an active rim, before the audio level is applied. */
 const ACTIVE_RIM_STRENGTH = 1.02;
@@ -39,7 +40,8 @@ const RIM_LAYER_OPACITY = {
 } as const;
 
 /** Seconds for one full breath cycle. */
-const RIM_DURATION = 2.3;
+const RIM_DURATION = motionTokenRegistry.getNumber('motion.voice.duration', 'duration') / 1000;
+const RIM_REFERENCE_DURATION = 2.3;
 
 /**
  * Which of the two talking states the rim is showing. Published as a class so
@@ -84,7 +86,7 @@ interface IOscillator {
 /** Breathing parameters, theme-tuned. */
 function rimMotionParams(theme: GlowThemeKind, duration: number) {
 	const dark = theme === 'dark';
-	const scale = duration / RIM_DURATION;
+	const scale = duration / RIM_REFERENCE_DURATION;
 	return {
 		/** How much the blobs grow and shrink. */
 		spread: 0.28,
@@ -164,6 +166,8 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly speedGain: number;
 	/** Scales the rim's absolute blob sizes to the host (1 = a chat input box). */
 	readonly size?: number;
+	/** Optional clock in seconds for hosts that pause their rendering timeline. */
+	readonly now?: () => number;
 }): IMountedLayer {
 	const store = new DisposableStore();
 
@@ -195,7 +199,7 @@ function mountRimLayers(host: HTMLElement, options: {
 
 	const apply = (input: number, animate: boolean): void => {
 		if (animate) {
-			const timestamp = nowSeconds(host);
+			const timestamp = options.now?.() ?? nowSeconds(host);
 			const delta = previousTimestamp === undefined ? 0 : Math.min(0.05, timestamp - previousTimestamp);
 			previousTimestamp = timestamp;
 			const target = clamp01(input);
@@ -272,7 +276,7 @@ const RIM_SIZE_FLOOR = 0.35;
  * The rim lives in its own absolutely-positioned slot, so hosts that rebuild
  * their button contents don't tear it out.
  */
-export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool', background?: Color): IVoiceRimLight {
+export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool', background?: Color, options?: { readonly now?: () => number }): IVoiceRimLight {
 	const store = new DisposableStore();
 
 	if (!target.style.position) {
@@ -304,6 +308,7 @@ export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: G
 			peakGain: 0.95,
 			speedGain: 0.9,
 			size: RIM_SIZE_FLOOR + (1 - RIM_SIZE_FLOOR) * proportion,
+			now: options?.now,
 		});
 		mount.value.driveStatic(level);
 	};
@@ -379,6 +384,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		// `clear()`, and a `DisposableStore` disposes in insertion order — so
 		// `clear()` can run after this. Flag it up front so that call is a no-op
 		// and can't arm a teardown timer nothing will cancel.
+		this.clear();
 		this._disposed = true;
 		super.dispose();
 	}
@@ -387,7 +393,14 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		if (this._disposed) {
 			return;
 		}
+		const motionChanged = reducedMotion !== this._reducedMotion;
 		this._reducedMotion = reducedMotion;
+		if (motionChanged && reducedMotion) {
+			for (const slot of this._slots) {
+				slot.style.transition = 'none';
+			}
+			this._front?.driveStatic(0.4);
+		}
 		if (!this._active) {
 			this._active = true;
 			if (this._clearTimer !== undefined) {
@@ -418,8 +431,12 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const previous = this._front;
 		this._front = undefined;
 		if (previous) {
-			this._fadeOut(previous.host);
-			this._scheduleTeardown(previous.host);
+			this._fadeOut(previous.host, this._reducedMotion ? 'none' : FADE);
+			if (this._reducedMotion) {
+				this._mounts.get(previous.host)?.clear();
+			} else {
+				this._scheduleTeardown(previous.host);
+			}
 		}
 	}
 

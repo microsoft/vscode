@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "content",
+	"renderer": "guidance",
+	"content": "content/guidance/writing.json",
+	"sources": [
+		{
+			"file": ".github/instructions/coding-guidelines.instructions.md"
+		}
+	],
+	"sections": []
+}

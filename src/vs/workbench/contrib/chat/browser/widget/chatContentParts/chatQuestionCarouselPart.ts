@@ -623,6 +623,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
+		const hadFocus = dom.isAncestorOfActiveElement(this.domNode);
 		this._isSkipped = true;
 		this.domNode.classList.add('chat-question-carousel-used');
 
@@ -635,6 +636,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.renderSubmissionAcknowledgement(this._options.submissionAcknowledgement);
 		} else {
 			this.renderSummary();
+		}
+		if (hadFocus) {
+			this.domNode.focus();
 		}
 		this._onDidChangeHeight.fire();
 	}

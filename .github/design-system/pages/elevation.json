@@ -1,0 +1,28 @@
+{
+	"version": 1,
+	"id": "elevation",
+	"renderer": "foundations",
+	"content": "content/foundations/elevation.json",
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/skills/ux-theming/SKILL.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "elevation-tiers",
+			"title": "Surface tiers"
+		},
+		{
+			"id": "elevation-shadows",
+			"title": "Shadows"
+		},
+		{
+			"id": "elevation-guidance",
+			"title": "High contrast"
+		}
+	]
+}

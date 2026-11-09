@@ -20,9 +20,23 @@
 .codicon-loading,
 .codicon-tree-item-loading::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
-	animation: codicon-spin 1.5s steps(30) infinite;
+	animation: codicon-spin var(--vscode-motion-spinner-duration, 1.5s) var(--vscode-motion-spinner-easing, steps(30)) infinite;
 	/* Ensure rotation happens around exact center to prevent wobble */
 	transform-origin: center center;
+}
+
+.monaco-reduce-motion .codicon-modifier-spin,
+.monaco-reduce-motion .codicon-loading,
+.monaco-reduce-motion .codicon-tree-item-loading::before {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.codicon-modifier-spin:not(.monaco-enable-motion *),
+	.codicon-loading:not(.monaco-enable-motion *),
+	.codicon-tree-item-loading:not(.monaco-enable-motion *)::before {
+		animation: none;
+	}
 }
 
 .codicon-modifier-disabled {

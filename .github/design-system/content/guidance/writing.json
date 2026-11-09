@@ -1,0 +1,17 @@
+{
+	"version": 1,
+	"id": "content",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": ".github/design-system/guidance/writing.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {},
+	"headingOrder": [
+		"UI labels",
+		"Strings",
+		"Localization"
+	]
+}

@@ -1,0 +1,24 @@
+{
+	"version": 1,
+	"id": "principles",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": ".github/design-system/guidance/principles.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"practice": {
+			"title": "Principles in practice",
+			"description": {
+				"$text": {
+					"file": ".github/design-system/guidance/principles.md",
+					"heading": "Principles in practice",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	}
+}

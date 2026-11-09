@@ -1,0 +1,40 @@
+{
+	"version": 1,
+	"id": "typography",
+	"renderer": "typography",
+	"content": "content/foundations/typography.json",
+	"guidance": [
+		{ "id": "typography-role-guidance", "title": "Choosing a type role", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "font-size" },
+		{ "id": "typography-weight-guidance", "title": "Choosing emphasis", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "font-weight" }
+	],
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "typography-composition",
+			"title": "Hierarchy"
+		},
+		{
+			"id": "typography-emphasis",
+			"title": "Emphasis"
+		},
+		{
+			"id": "typography-styles",
+			"title": "Type roles"
+		},
+		{
+			"id": "typography-metrics",
+			"title": "Reading metrics"
+		},
+		{
+			"id": "typography-families",
+			"title": "Font families"
+		}
+	]
+}

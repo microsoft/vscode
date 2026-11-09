@@ -1,0 +1,182 @@
+{
+	"version": 1,
+	"id": "colors",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"usage": {
+			"title": "Choose color by purpose",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Choose color by purpose",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Choose color by purpose",
+						"paragraph": 1
+					}
+				},
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Choose color by purpose",
+						"paragraph": 2
+					}
+				}
+			]
+		},
+		"surfaces": {
+			"title": "Let neutrals establish hierarchy",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Let neutrals establish hierarchy",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"accent": {
+			"title": "Reserve accent for the leading action",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Reserve accent for the leading action",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Reserve accent for the leading action",
+						"paragraph": 1
+					}
+				}
+			]
+		},
+		"feedback": {
+			"title": "Use semantic color only when it has meaning",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Use semantic color only when it has meaning",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Use semantic color only when it has meaning",
+						"paragraph": 1
+					}
+				},
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Use semantic color only when it has meaning",
+						"paragraph": 2
+					}
+				}
+			]
+		},
+		"states": {
+			"title": "Keep selection separate from focus",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Keep selection separate from focus",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Keep selection separate from focus",
+						"paragraph": 1
+					}
+				},
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"heading": "Keep selection separate from focus",
+						"paragraph": 2
+					}
+				}
+			]
+		},
+		"palette": {
+			"title": "Color reference",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"heading": "Color reference",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		}
+	},
+	"roles": [
+		[
+			"Text and icons",
+			"Readable content, supporting information, and recognizable status"
+		],
+		[
+			"Surfaces",
+			"Neutral structure, editable areas, and restrained accent"
+		],
+		[
+			"Boundaries",
+			"Focus, separation, and messages that need attention"
+		]
+	],
+	"statusRoles": [
+		[
+			"Error",
+			"Explain what went wrong and how to recover"
+		],
+		[
+			"Warning",
+			"Explain the risk before someone makes a mistake"
+		],
+		[
+			"Information",
+			"Give useful context without implying a problem"
+		],
+		[
+			"Success",
+			"Confirm what completed; don’t use green for an ordinary action"
+		]
+	],
+	"previews": {
+		"surfaces": [
+			"icon-label",
+			"Names, icons, and supporting descriptions in light and dark themes."
+		],
+		"accent": [
+			"button",
+			"Primary, secondary, and disabled buttons. Use Tab to compare keyboard focus states."
+		],
+		"feedback": [
+			"input",
+			"Information, warning, and error validation. Edit a field to see validation change."
+		],
+		"states": [
+			"radio",
+			"Use Tab to focus a group and the arrow keys to change its selected option."
+		]
+	}
+}

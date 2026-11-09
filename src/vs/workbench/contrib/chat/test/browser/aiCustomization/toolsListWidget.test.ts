@@ -5,11 +5,14 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { getMotionCssVariables } from '../../../../../../platform/theme/common/motion/motionRecipes.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
 import { getPluginToolsGroup, isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
 import { IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -97,6 +100,64 @@ suite('toolsListWidget', () => {
 			[`workspace:${api.toString()}`]: ['host-only: host source'],
 			workspace: [],
 			application: [],
+		});
+	});
+
+	test('mixed switch feedback retargets without jumping or moving its layout', () => {
+		const toggle = disposables.add(new CustomizationToggle({ ariaLabel: 'Tools' }));
+		const container = mainWindow.document.createElement('div');
+		container.className = 'monaco-enable-motion';
+		container.style.cssText = `
+			--vscode-spacing-size280: 28px;
+			--vscode-spacing-size160: 16px;
+			--vscode-strokeThickness: 1px;
+			--vscode-cornerRadius-circle: 9999px;
+		`;
+		for (const [name, value] of Object.entries(getMotionCssVariables())) {
+			container.style.setProperty(name, value);
+		}
+		container.appendChild(toggle.domNode);
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const button = toggle.domNode.firstElementChild as HTMLButtonElement;
+		const thumb = button.firstElementChild as HTMLElement;
+		const bounds = button.getBoundingClientRect().toJSON();
+		const off = thumb.getBoundingClientRect().x;
+		const states = ['mixed', true, 'mixed', false, true, false] as const;
+		const results = states.map(state => {
+			const before = thumb.getBoundingClientRect().x;
+			toggle.checked = state;
+			const immediate = thumb.getBoundingClientRect().x;
+			const animation = thumb.getAnimations()[0] as CSSTransition;
+			assert.ok(animation);
+			animation.finish();
+			return {
+				state: toggle.checked, aria: button.getAttribute('aria-checked'),
+				continuous: Math.abs(immediate - before) < 0.001, property: animation.transitionProperty,
+				bounds: button.getBoundingClientRect().toJSON(), layoutLeft: thumb.offsetLeft,
+				travel: thumb.getBoundingClientRect().x - off,
+			};
+		});
+
+		toggle.checked = 'mixed';
+		const animation = thumb.getAnimations()[0];
+		assert.ok(animation);
+		animation.pause();
+		animation.currentTime = 60;
+		const before = thumb.getBoundingClientRect().x;
+		toggle.checked = true;
+		const continuous = Math.abs(thumb.getBoundingClientRect().x - before) < 0.001;
+		container.classList.add('monaco-reduce-motion');
+
+		assert.deepStrictEqual({
+			results, continuous, reducedTravel: thumb.getBoundingClientRect().x - off,
+			animations: thumb.getAnimations().length,
+		}, {
+			results: states.map(state => ({
+				state, aria: String(state), continuous: true, property: 'transform', bounds, layoutLeft: 0,
+				travel: state === 'mixed' ? 6 : state ? 12 : 0,
+			})),
+			continuous: true, reducedTravel: 12, animations: 0,
 		});
 	});
 

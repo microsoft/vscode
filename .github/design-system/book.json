@@ -1,0 +1,2535 @@
+{
+	"version": 1,
+	"id": "vscode-design-system",
+	"title": "Visual Studio Code Design System",
+	"defaultTopic": "principles",
+	"documentSources": [
+		{
+			"id": "product",
+			"title": "Product documentation",
+			"root": "src/vs",
+			"origin": "product",
+			"excludeDirectories": [
+				"__snapshots__",
+				"fixtures"
+			]
+		},
+		{
+			"id": "extensions",
+			"title": "Built-in extension documentation",
+			"root": "extensions",
+			"origin": "product",
+			"excludeDirectories": [
+				"test",
+				"tests",
+				"fixtures",
+				"test-workspace",
+				"testWorkspace"
+			]
+		},
+		{
+			"id": "instructions",
+			"title": "Repository instructions",
+			"root": ".github/instructions",
+			"origin": "instruction"
+		},
+		{
+			"id": "skills",
+			"title": "Authoring workflows",
+			"root": ".github/skills",
+			"origin": "skill"
+		},
+		{
+			"id": "design-system",
+			"title": "Design-system guidance",
+			"root": ".github/design-system",
+			"origin": "book"
+		}
+	],
+	"topics": [
+		{
+			"id": "principles",
+			"title": "Design philosophy",
+			"group": "Foundations",
+			"section": "principles",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "pages/principles.json"
+		},
+		{
+			"id": "layout",
+			"title": "Layout",
+			"group": "Foundations",
+			"section": "layout",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/layout.json"
+		},
+		{
+			"id": "spacing",
+			"title": "Spacing",
+			"group": "Foundations",
+			"section": "spacing",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "foundations",
+			"page": "pages/spacing.json"
+		},
+		{
+			"id": "typography",
+			"title": "Typography",
+			"group": "Foundations",
+			"section": "typography",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "typography",
+			"page": "pages/typography.json"
+		},
+		{
+			"id": "colors",
+			"title": "Colors",
+			"group": "Foundations",
+			"section": "colors",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "foundations",
+			"page": "pages/colors.json"
+		},
+		{
+			"id": "theming",
+			"title": "Theming",
+			"group": "Foundations",
+			"section": "theming",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "theming",
+			"page": "pages/theming.json"
+		},
+		{
+			"id": "shape",
+			"title": "Shape",
+			"group": "Foundations",
+			"section": "shape",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/shape.json"
+		},
+		{
+			"id": "elevation",
+			"title": "Elevation",
+			"group": "Foundations",
+			"section": "elevation",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/elevation.json"
+		},
+		{
+			"id": "stroke",
+			"title": "Stroke",
+			"group": "Foundations",
+			"section": "stroke",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/stroke.json"
+		},
+		{
+			"id": "size",
+			"title": "Size",
+			"group": "Foundations",
+			"section": "size",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/size.json"
+		},
+		{
+			"id": "iconography",
+			"title": "Iconography",
+			"group": "Foundations",
+			"section": "iconography",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "icons",
+			"page": "pages/iconography.json"
+		},
+		{
+			"id": "motion",
+			"title": "Motion",
+			"group": "Foundations",
+			"section": "motion",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "motion",
+			"page": "pages/motion.json"
+		},
+		{
+			"id": "tokens",
+			"title": "Design tokens",
+			"group": "Foundations",
+			"section": "tokens",
+			"aliases": [
+				"token lookup"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "tokens",
+			"page": "pages/tokens.json"
+		},
+		{
+			"id": "component-activity-bar",
+			"title": "Activity bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "activity-bar",
+			"aliases": [
+				"activity-bar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-activity-bar-item",
+			"title": "Activity bar item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "activity-bar-item",
+			"aliases": [
+				"activity-bar-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-breadcrumbs",
+			"title": "Breadcrumbs",
+			"group": "Components",
+			"section": "components",
+			"controlId": "breadcrumbs",
+			"aliases": [
+				"breadcrumbs"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-button",
+			"title": "Button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "button",
+			"aliases": [
+				"button",
+				"split-button",
+				"dropdown-button",
+				"button-bar",
+				"icon-button",
+				"split-icon-button",
+				"toolbar-dropdown"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-button-bar",
+			"title": "Button bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "button-bar",
+			"aliases": [
+				"button-bar"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-attachment",
+			"title": "Chat attachment",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-attachment",
+			"aliases": [
+				"chat-attachment"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-attachments-group",
+			"title": "Chat attachments group",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-attachments-group",
+			"aliases": [
+				"chat-attachments-group"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-checkpoint",
+			"title": "Chat checkpoint",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-checkpoint",
+			"aliases": [
+				"chat-checkpoint"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-checkpoint-button",
+			"title": "Chat checkpoint button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-checkpoint-button",
+			"aliases": [
+				"chat-checkpoint-button"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-code-toolbar",
+			"title": "Chat code block toolbar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-code-toolbar",
+			"aliases": [
+				"chat-code-toolbar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-confirmation",
+			"title": "Chat confirmation",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-confirmation",
+			"aliases": [
+				"chat-confirmation"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-drawer",
+			"title": "Chat drawer",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-drawer",
+			"aliases": [
+				"chat-drawer"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-edit-session",
+			"title": "Chat edit session",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-edit-session",
+			"aliases": [
+				"chat-edit-session"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-edit-summary",
+			"title": "Chat edit summary",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-edit-summary",
+			"aliases": [
+				"chat-edit-summary"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-empty-state",
+			"title": "Chat empty state",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-empty-state",
+			"aliases": [
+				"chat-empty-state"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-file-list",
+			"title": "Chat file list",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-file-list",
+			"aliases": [
+				"chat-file-list"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-footer",
+			"title": "Chat footer",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-footer",
+			"aliases": [
+				"chat-footer"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-input",
+			"title": "Chat input",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-input",
+			"aliases": [
+				"chat-input"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-input-action",
+			"title": "Chat input action",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-input-action",
+			"aliases": [
+				"chat-input-action"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-input-container",
+			"title": "Chat input container",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-input-container",
+			"aliases": [
+				"chat-input-container"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-input-element",
+			"title": "Chat input element",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-input-element",
+			"aliases": [
+				"chat-input-element"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-input-menu",
+			"title": "Chat input menu",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-input-menu",
+			"aliases": [
+				"chat-input-menu"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-message",
+			"title": "Chat message",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-message",
+			"aliases": [
+				"chat-message"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-avatar",
+			"title": "Chat message avatar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-avatar",
+			"aliases": [
+				"chat-avatar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-message-content",
+			"title": "Chat message content",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-message-content",
+			"aliases": [
+				"chat-message-content"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-message-header",
+			"title": "Chat message header",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-message-header",
+			"aliases": [
+				"chat-message-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-notification",
+			"title": "Chat notification",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-notification",
+			"aliases": [
+				"chat-notification"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-participant-avatar",
+			"title": "Chat participant avatar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-participant-avatar",
+			"aliases": [
+				"chat-participant-avatar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-progress-label",
+			"title": "Chat progress label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-progress-label",
+			"aliases": [
+				"chat-progress-label"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-reference-item",
+			"title": "Chat reference list item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-reference-item",
+			"aliases": [
+				"chat-reference-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-reference",
+			"title": "Chat references",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-reference",
+			"aliases": [
+				"chat-reference"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-references-list",
+			"title": "Chat references list",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-references-list",
+			"aliases": [
+				"chat-references-list"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-references-header",
+			"title": "Chat references list header",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-references-header",
+			"aliases": [
+				"chat-references-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-response-toolbar",
+			"title": "Chat response toolbar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-response-toolbar",
+			"aliases": [
+				"chat-response-toolbar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-sidebar",
+			"title": "Chat sidebar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-sidebar",
+			"aliases": [
+				"chat-sidebar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-suggestion",
+			"title": "Chat suggestion",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-suggestion",
+			"aliases": [
+				"chat-suggestion"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-suggestion-group",
+			"title": "Chat suggestion group",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-suggestion-group",
+			"aliases": [
+				"chat-suggestion-group"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-thread",
+			"title": "Chat thread",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-thread",
+			"aliases": [
+				"chat-thread"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-chat-tool-output",
+			"title": "Chat tool output row",
+			"group": "Components",
+			"section": "components",
+			"controlId": "chat-tool-output",
+			"aliases": [
+				"chat-tool-output"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-checkbox",
+			"title": "Checkbox",
+			"group": "Components",
+			"section": "components",
+			"controlId": "checkbox",
+			"aliases": [
+				"checkbox",
+				"checkbox-label"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-checkbox-label",
+			"title": "Checkbox label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "checkbox-label",
+			"aliases": [
+				"checkbox-label"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-pane",
+			"title": "Collapsible pane",
+			"group": "Components",
+			"section": "components",
+			"controlId": "pane",
+			"aliases": [
+				"pane",
+				"sidebar-header",
+				"sidebar-title",
+				"panel-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-combobox",
+			"title": "Combobox",
+			"group": "Components",
+			"section": "components",
+			"controlId": "combobox",
+			"aliases": [
+				"combobox"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-badge",
+			"title": "Count badge",
+			"group": "Components",
+			"section": "components",
+			"controlId": "badge",
+			"aliases": [
+				"badge"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-dialog",
+			"title": "Dialog",
+			"group": "Components",
+			"section": "components",
+			"controlId": "dialog",
+			"aliases": [
+				"dialog"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor",
+			"title": "Editor",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor",
+			"aliases": [
+				"editor"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-code",
+			"title": "Editor code",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-code",
+			"aliases": [
+				"editor-code"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-folding",
+			"title": "Editor folding control",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-folding",
+			"aliases": [
+				"editor-folding"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-glyph",
+			"title": "Editor glyph",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-glyph",
+			"aliases": [
+				"editor-glyph"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-glyph-margin",
+			"title": "Editor glyph margin",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-glyph-margin",
+			"aliases": [
+				"editor-glyph-margin"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-minimap",
+			"title": "Editor minimap",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-minimap",
+			"aliases": [
+				"editor-minimap"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-editor-toolbar",
+			"title": "Editor toolbar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "editor-toolbar",
+			"aliases": [
+				"editor-toolbar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-extension-header",
+			"title": "Extension header",
+			"group": "Components",
+			"section": "components",
+			"controlId": "extension-header",
+			"aliases": [
+				"extension-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-extension-icon",
+			"title": "Extension icon",
+			"group": "Components",
+			"section": "components",
+			"controlId": "extension-icon",
+			"aliases": [
+				"extension-icon"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-extension-row",
+			"title": "Extension row",
+			"group": "Components",
+			"section": "components",
+			"controlId": "extension-row",
+			"aliases": [
+				"extension-row"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-extensions-sidebar",
+			"title": "Extensions sidebar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "extensions-sidebar",
+			"aliases": [
+				"extensions-sidebar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-form-label",
+			"title": "Field",
+			"group": "Components",
+			"section": "components",
+			"controlId": "form-label",
+			"aliases": [
+				"form-label"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-file-icon",
+			"title": "File icon",
+			"group": "Components",
+			"section": "components",
+			"controlId": "file-icon",
+			"aliases": [
+				"file-icon"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-file-row",
+			"title": "File row",
+			"group": "Components",
+			"section": "components",
+			"controlId": "file-row",
+			"aliases": [
+				"file-row"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-folder-row",
+			"title": "Folder row",
+			"group": "Components",
+			"section": "components",
+			"controlId": "folder-row",
+			"aliases": [
+				"folder-row"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-hover",
+			"title": "Hover card",
+			"group": "Components",
+			"section": "components",
+			"controlId": "hover",
+			"aliases": [
+				"hover"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-icon-button",
+			"title": "Icon button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "icon-button",
+			"aliases": [
+				"icon-button"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-icon-label",
+			"title": "Icon label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "icon-label",
+			"aliases": [
+				"icon-label"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-identifier",
+			"title": "Identifier",
+			"group": "Components",
+			"section": "components",
+			"controlId": "identifier",
+			"aliases": [
+				"identifier"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-inline-chat",
+			"title": "Inline chat",
+			"group": "Components",
+			"section": "components",
+			"controlId": "inline-chat",
+			"aliases": [
+				"inline-chat"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-inline-chat-hint",
+			"title": "Inline chat hint",
+			"group": "Components",
+			"section": "components",
+			"controlId": "inline-chat-hint",
+			"aliases": [
+				"inline-chat-hint"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-inline-chat-message",
+			"title": "Inline chat message",
+			"group": "Components",
+			"section": "components",
+			"controlId": "inline-chat-message",
+			"aliases": [
+				"inline-chat-message"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-inline-chat-thread",
+			"title": "Inline chat thread",
+			"group": "Components",
+			"section": "components",
+			"controlId": "inline-chat-thread",
+			"aliases": [
+				"inline-chat-thread"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-keybinding-label",
+			"title": "Keybinding label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "keybinding-label",
+			"aliases": [
+				"keybinding-label"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-label",
+			"title": "Label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "label",
+			"aliases": [
+				"label",
+				"icon-label",
+				"text-label",
+				"identifier"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-text-label",
+			"title": "Label",
+			"group": "Components",
+			"section": "components",
+			"controlId": "text-label",
+			"aliases": [
+				"text-label"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-link",
+			"title": "Link",
+			"group": "Components",
+			"section": "components",
+			"controlId": "link",
+			"aliases": [
+				"link"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-list",
+			"title": "List",
+			"group": "Components",
+			"section": "components",
+			"controlId": "list",
+			"aliases": [
+				"list",
+				"file-row"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-menu",
+			"title": "Menu",
+			"group": "Components",
+			"section": "components",
+			"controlId": "menu",
+			"aliases": [
+				"menu",
+				"menu-item",
+				"menu-section-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-dropdown-button",
+			"title": "Menu button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "dropdown-button",
+			"aliases": [
+				"dropdown-button"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-menu-item",
+			"title": "Menu item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "menu-item",
+			"aliases": [
+				"menu-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-menu-section-title",
+			"title": "Menu section title",
+			"group": "Components",
+			"section": "components",
+			"controlId": "menu-section-title",
+			"aliases": [
+				"menu-section-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-model-picker",
+			"title": "Model picker menu",
+			"group": "Components",
+			"section": "components",
+			"controlId": "model-picker",
+			"aliases": [
+				"model-picker"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-dropdown",
+			"title": "Multi-select",
+			"group": "Components",
+			"section": "components",
+			"controlId": "dropdown",
+			"aliases": [
+				"dropdown"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook",
+			"title": "Notebook",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook",
+			"aliases": [
+				"notebook"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook-add-cell",
+			"title": "Notebook add-cell control",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook-add-cell",
+			"aliases": [
+				"notebook-add-cell"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook-cell-status-bar",
+			"title": "Notebook cell status bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook-cell-status-bar",
+			"aliases": [
+				"notebook-cell-status-bar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook-code-cell",
+			"title": "Notebook code cell",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook-code-cell",
+			"aliases": [
+				"notebook-code-cell"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook-markdown-cell",
+			"title": "Notebook markdown cell",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook-markdown-cell",
+			"aliases": [
+				"notebook-markdown-cell"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notebook-toolbar",
+			"title": "Notebook toolbar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notebook-toolbar",
+			"aliases": [
+				"notebook-toolbar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-message",
+			"title": "Notification",
+			"group": "Components",
+			"section": "components",
+			"controlId": "message",
+			"aliases": [
+				"message",
+				"notification",
+				"notification-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notification",
+			"title": "Notification",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notification",
+			"aliases": [
+				"notification"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notification-center",
+			"title": "Notification center",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notification-center",
+			"aliases": [
+				"notification-center"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-notification-header",
+			"title": "Notification header",
+			"group": "Components",
+			"section": "components",
+			"controlId": "notification-header",
+			"aliases": [
+				"notification-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-panel",
+			"title": "Panel",
+			"group": "Components",
+			"section": "components",
+			"controlId": "panel",
+			"aliases": [
+				"panel"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-panel-title",
+			"title": "Panel title",
+			"group": "Components",
+			"section": "components",
+			"controlId": "panel-title",
+			"aliases": [
+				"panel-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-peek-view",
+			"title": "Peek view",
+			"group": "Components",
+			"section": "components",
+			"controlId": "peek-view",
+			"aliases": [
+				"peek-view"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-progress",
+			"title": "Progress bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "progress",
+			"aliases": [
+				"progress"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-quick-pick",
+			"title": "Quick Pick",
+			"group": "Components",
+			"section": "components",
+			"controlId": "quick-pick",
+			"aliases": [
+				"quick-pick",
+				"quick-pick-item",
+				"quick-pick-title",
+				"quick-pick-shortcut"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-quick-pick-item",
+			"title": "Quick Pick item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "quick-pick-item",
+			"aliases": [
+				"quick-pick-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-quick-pick-shortcut",
+			"title": "Quick Pick shortcut",
+			"group": "Components",
+			"section": "components",
+			"controlId": "quick-pick-shortcut",
+			"aliases": [
+				"quick-pick-shortcut"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-quick-pick-title",
+			"title": "Quick Pick title",
+			"group": "Components",
+			"section": "components",
+			"controlId": "quick-pick-title",
+			"aliases": [
+				"quick-pick-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-radio",
+			"title": "Radio group",
+			"group": "Components",
+			"section": "components",
+			"controlId": "radio",
+			"aliases": [
+				"radio"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-sash",
+			"title": "Resize handle",
+			"group": "Components",
+			"section": "components",
+			"controlId": "sash",
+			"aliases": [
+				"sash"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-pill",
+			"title": "Resource pill",
+			"group": "Components",
+			"section": "components",
+			"controlId": "pill",
+			"aliases": [
+				"pill",
+				"chat-attachment",
+				"chat-attachments-group",
+				"chat-reference",
+				"chat-reference-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-scroll-area",
+			"title": "Scroll area",
+			"group": "Components",
+			"section": "components",
+			"controlId": "scroll-area",
+			"aliases": [
+				"scroll-area"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-select",
+			"title": "Select box",
+			"group": "Components",
+			"section": "components",
+			"controlId": "select",
+			"aliases": [
+				"select"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-separator",
+			"title": "Separator",
+			"group": "Components",
+			"section": "components",
+			"controlId": "separator",
+			"aliases": [
+				"separator"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-session-indicator",
+			"title": "Session indicator",
+			"group": "Components",
+			"section": "components",
+			"controlId": "session-indicator",
+			"aliases": [
+				"session-indicator"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-setting",
+			"title": "Setting row",
+			"group": "Components",
+			"section": "components",
+			"controlId": "setting",
+			"aliases": [
+				"setting"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-settings-category",
+			"title": "Settings category",
+			"group": "Components",
+			"section": "components",
+			"controlId": "settings-category",
+			"aliases": [
+				"settings-category"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-settings-list",
+			"title": "Settings list",
+			"group": "Components",
+			"section": "components",
+			"controlId": "settings-list",
+			"aliases": [
+				"settings-list"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-settings-tab",
+			"title": "Settings tab",
+			"group": "Components",
+			"section": "components",
+			"controlId": "settings-tab",
+			"aliases": [
+				"settings-tab"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-settings-navigation",
+			"title": "Settings table of contents",
+			"group": "Components",
+			"section": "components",
+			"controlId": "settings-navigation",
+			"aliases": [
+				"settings-navigation"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-sidebar",
+			"title": "Sidebar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "sidebar",
+			"aliases": [
+				"sidebar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-sidebar-header",
+			"title": "Sidebar header",
+			"group": "Components",
+			"section": "components",
+			"controlId": "sidebar-header",
+			"aliases": [
+				"sidebar-header"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-sidebar-icon-tab",
+			"title": "Sidebar icon tab",
+			"group": "Components",
+			"section": "components",
+			"controlId": "sidebar-icon-tab",
+			"aliases": [
+				"sidebar-icon-tab"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-sidebar-title",
+			"title": "Sidebar title",
+			"group": "Components",
+			"section": "components",
+			"controlId": "sidebar-title",
+			"aliases": [
+				"sidebar-title"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-spinner",
+			"title": "Spinner",
+			"group": "Components",
+			"section": "components",
+			"controlId": "spinner",
+			"aliases": [
+				"spinner",
+				"loading-spinner"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-loading-spinner",
+			"title": "Spinner",
+			"group": "Components",
+			"section": "components",
+			"controlId": "loading-spinner",
+			"aliases": [
+				"loading-spinner"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-split-button",
+			"title": "Split button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "split-button",
+			"aliases": [
+				"split-button"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-split-icon-button",
+			"title": "Split icon button",
+			"group": "Components",
+			"section": "components",
+			"controlId": "split-icon-button",
+			"aliases": [
+				"split-icon-button"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-squiggle",
+			"title": "Squiggle",
+			"group": "Components",
+			"section": "components",
+			"controlId": "squiggle",
+			"aliases": [
+				"squiggle"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-squiggle-text",
+			"title": "Squiggle text",
+			"group": "Components",
+			"section": "components",
+			"controlId": "squiggle-text",
+			"aliases": [
+				"squiggle-text"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-status-bar",
+			"title": "Status bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "status-bar",
+			"aliases": [
+				"status-bar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-status-bar-item",
+			"title": "Status bar item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "status-bar-item",
+			"aliases": [
+				"status-bar-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-status-icon",
+			"title": "Status indicator",
+			"group": "Components",
+			"section": "components",
+			"controlId": "status-icon",
+			"aliases": [
+				"status-icon"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-suggest-item",
+			"title": "Suggest item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "suggest-item",
+			"aliases": [
+				"suggest-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-suggest-icon",
+			"title": "Suggest item icon",
+			"group": "Components",
+			"section": "components",
+			"controlId": "suggest-icon",
+			"aliases": [
+				"suggest-icon"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-suggest-widget",
+			"title": "Suggest widget",
+			"group": "Components",
+			"section": "components",
+			"controlId": "suggest-widget",
+			"aliases": [
+				"suggest-widget"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-switch",
+			"title": "Switch",
+			"group": "Components",
+			"section": "components",
+			"controlId": "switch",
+			"aliases": [
+				"switch"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-tab-group",
+			"title": "Tab group",
+			"group": "Components",
+			"section": "components",
+			"controlId": "tab-group",
+			"aliases": [
+				"tab-group"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-table",
+			"title": "Table",
+			"group": "Components",
+			"section": "components",
+			"controlId": "table",
+			"aliases": [
+				"table"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-tabs",
+			"title": "Tabs",
+			"group": "Components",
+			"section": "components",
+			"controlId": "tabs",
+			"aliases": [
+				"tabs",
+				"tab-group",
+				"settings-tab",
+				"sidebar-icon-tab"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-textarea",
+			"title": "Text area",
+			"group": "Components",
+			"section": "components",
+			"controlId": "textarea",
+			"aliases": [
+				"textarea"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-cursor",
+			"title": "Text cursor",
+			"group": "Components",
+			"section": "components",
+			"controlId": "cursor",
+			"aliases": [
+				"cursor"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-input",
+			"title": "Text field",
+			"group": "Components",
+			"section": "components",
+			"controlId": "input",
+			"aliases": [
+				"input",
+				"textarea"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-title-bar",
+			"title": "Title bar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "title-bar",
+			"aliases": [
+				"title-bar"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-titlebar-menu-item",
+			"title": "Title bar menu item",
+			"group": "Components",
+			"section": "components",
+			"controlId": "titlebar-menu-item",
+			"aliases": [
+				"titlebar-menu-item"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-toggle",
+			"title": "Toggle",
+			"group": "Components",
+			"section": "components",
+			"controlId": "toggle",
+			"aliases": [
+				"toggle"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-action-bar",
+			"title": "Toolbar",
+			"group": "Components",
+			"section": "components",
+			"controlId": "action-bar",
+			"aliases": [
+				"action-bar",
+				"editor-toolbar"
+			],
+			"compare": true,
+			"fixture": true,
+			"content": "ready",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-toolbar-dropdown",
+			"title": "Toolbar dropdown",
+			"group": "Components",
+			"section": "components",
+			"controlId": "toolbar-dropdown",
+			"aliases": [
+				"toolbar-dropdown"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-tooltip",
+			"title": "Tooltip",
+			"group": "Components",
+			"section": "components",
+			"controlId": "tooltip",
+			"aliases": [
+				"tooltip"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-tree",
+			"title": "Tree",
+			"group": "Components",
+			"section": "components",
+			"controlId": "tree",
+			"aliases": [
+				"tree",
+				"folder-row"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": false,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-window-actions",
+			"title": "Window actions",
+			"group": "Components",
+			"section": "components",
+			"controlId": "window-actions",
+			"aliases": [
+				"window-actions"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "component-window-control",
+			"title": "Window control",
+			"group": "Components",
+			"section": "components",
+			"controlId": "window-control",
+			"aliases": [
+				"window-control"
+			],
+			"compare": true,
+			"fixture": false,
+			"content": "tbd",
+			"hidden": true,
+			"renderer": "components",
+			"page": "pages/components.json"
+		},
+		{
+			"id": "accessibility",
+			"title": "Accessibility",
+			"group": "Guidance",
+			"section": "accessibility",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "pages/accessibility.json"
+		},
+		{
+			"id": "content",
+			"title": "Content",
+			"group": "Guidance",
+			"section": "content",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "pages/content.json"
+		},
+		{
+			"id": "documentation",
+			"title": "Documentation",
+			"group": "Guidance",
+			"section": "documentation",
+			"aliases": [
+				"specifications",
+				"authored guidance",
+				"documents"
+			],
+			"compare": false,
+			"fixture": false,
+			"renderer": "documents",
+			"page": "pages/documentation.json"
+		},
+		{
+			"id": "patterns",
+			"title": "Interaction patterns",
+			"group": "Guidance",
+			"section": "patterns",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": true,
+			"renderer": "guidance",
+			"page": "pages/patterns.json"
+		}
+	]
+}

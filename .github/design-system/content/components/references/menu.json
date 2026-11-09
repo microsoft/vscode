@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "menu",
+	"className": "Menu",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/menu/menu-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/menu/menu-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/menu/menu-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/menu/menu-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"ariaLabel",
+			"string?",
+			"Accessible name in IMenuOptions.",
+			"ariaLabel?: string;"
+		],
+		[
+			"enableMnemonics",
+			"boolean?",
+			"Enables mnemonic activation.",
+			"enableMnemonics?: boolean;"
+		],
+		[
+			"getKeyBinding",
+			"callback?",
+			"Resolves shortcut labels for actions.",
+			"getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;"
+		],
+		[
+			"constructor(container, actions, options, styles)",
+			"Menu",
+			"Renders shared menu behavior from the action model.",
+			"constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions, private readonly menuStyles: IMenuStyles)"
+		]
+	]
+}

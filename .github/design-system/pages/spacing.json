@@ -1,0 +1,46 @@
+{
+	"version": 1,
+	"id": "spacing",
+	"renderer": "foundations",
+	"content": "content/foundations/spacing.json",
+	"guidance": [
+		{ "id": "spacing-guidance", "title": "Using spacing", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "spacing" }
+	],
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		},
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "spacing-grouping",
+			"title": "Relationships"
+		},
+		{
+			"id": "spacing-ownership",
+			"title": "Padding, gap, and margin"
+		},
+		{
+			"id": "spacing-patterns",
+			"title": "Usage patterns"
+		},
+		{
+			"id": "spacing-product",
+			"title": "Live example"
+		},
+		{
+			"id": "spacing-responsive",
+			"title": "Narrow layouts"
+		},
+		{
+			"id": "layout-spacing",
+			"title": "Spacing tokens"
+		}
+	]
+}

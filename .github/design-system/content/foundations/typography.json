@@ -1,0 +1,100 @@
+{
+	"version": 1,
+	"id": "typography",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": "src/vs/platform/theme/common/sizes/typography.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {
+		"composition": {
+			"title": "Hierarchy and reading rhythm",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"heading": "Hierarchy and reading rhythm",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"emphasis": {
+			"title": "Weight and emphasis",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"heading": "Weight and emphasis",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"styles": {
+			"title": "UI type roles",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"heading": "UI type roles",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"metrics": {
+			"title": "Reading metrics",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"heading": "Reading metrics",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": []
+		},
+		"families": {
+			"title": "Font families",
+			"description": {
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"heading": "Font families",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": {
+						"file": "src/vs/platform/theme/common/sizes/typography.md",
+						"heading": "Font families",
+						"paragraph": 1
+					}
+				}
+			]
+		}
+	},
+	"sampleText": "Code with precision, collaborate with or orchestrate a team of agents, and continue your work wherever you are.",
+	"baseline": "Workbench baseline: {fontSize} text with {lineHeight} line-height. Individual widgets can override this.",
+	"composition": [
+		[
+			"fontSize.heading2",
+			"Review your workspace"
+		],
+		[
+			"fontSize.body1",
+			"Keep the main task readable. Use a quieter style for supporting context, and reserve strong emphasis for the information that needs to lead."
+		],
+		[
+			"fontSize.body2",
+			"Supporting description · body2"
+		],
+		[
+			"fontSize.label1",
+			"Section label · label1"
+		],
+		[
+			"fontSize.label3",
+			"Metadata badge · label3"
+		]
+	]
+}

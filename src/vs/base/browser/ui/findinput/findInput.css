@@ -31,22 +31,32 @@
 /* Highlighting */
 .monaco-findInput.highlight-0 .controls,
 .hc-light .monaco-findInput.highlight-0 .controls {
-	animation: monaco-findInput-highlight-0 100ms linear 0s;
+	animation: monaco-findInput-highlight-0 var(--vscode-motion-attention-duration, 100ms) var(--vscode-motion-attention-easing, linear);
 }
 
 .monaco-findInput.highlight-1 .controls,
 .hc-light .monaco-findInput.highlight-1 .controls {
-	animation: monaco-findInput-highlight-1 100ms linear 0s;
+	animation: monaco-findInput-highlight-1 var(--vscode-motion-attention-duration, 100ms) var(--vscode-motion-attention-easing, linear);
 }
 
 .hc-black .monaco-findInput.highlight-0 .controls,
 .vs-dark  .monaco-findInput.highlight-0 .controls {
-	animation: monaco-findInput-highlight-dark-0 100ms linear 0s;
+	animation: monaco-findInput-highlight-dark-0 var(--vscode-motion-attention-duration, 100ms) var(--vscode-motion-attention-easing, linear);
 }
 
 .hc-black .monaco-findInput.highlight-1 .controls,
 .vs-dark  .monaco-findInput.highlight-1 .controls {
-	animation: monaco-findInput-highlight-dark-1 100ms linear 0s;
+	animation: monaco-findInput-highlight-dark-1 var(--vscode-motion-attention-duration, 100ms) var(--vscode-motion-attention-easing, linear);
+}
+
+.monaco-reduce-motion .monaco-findInput:is(.highlight-0, .highlight-1) .controls {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-findInput:is(.highlight-0, .highlight-1):not(.monaco-enable-motion *) .controls {
+		animation: none;
+	}
 }
 
 @keyframes monaco-findInput-highlight-0 {

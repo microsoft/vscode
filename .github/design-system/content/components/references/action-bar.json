@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "action-bar",
+	"className": "ActionBar",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/actionbar/action-bar-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/actionbar/action-bar-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/actionbar/action-bar-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/actionbar/action-bar-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"orientation",
+			"ActionsOrientation?",
+			"Horizontal or vertical action layout.",
+			"readonly orientation?: ActionsOrientation;"
+		],
+		[
+			"ariaLabel",
+			"string?",
+			"Accessible name for the action group.",
+			"readonly ariaLabel?: string;"
+		],
+		[
+			"focusOnlyEnabledItems",
+			"boolean?",
+			"Controls keyboard focus behavior for unavailable items.",
+			"readonly focusOnlyEnabledItems?: boolean;"
+		],
+		[
+			"push(actions, options)",
+			"method",
+			"Adds one or more actions with view-item options.",
+			"push(arg: IAction | ReadonlyArray<IAction>"
+		]
+	]
+}

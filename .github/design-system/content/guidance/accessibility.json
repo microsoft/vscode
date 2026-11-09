@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"id": "accessibility",
+	"status": "book-authored",
+	"intro": {
+		"$text": {
+			"file": ".github/design-system/guidance/accessibility.md",
+			"heading": "Introduction"
+		}
+	},
+	"sections": {},
+	"headingOrder": [
+		"Keyboard Navigation",
+		"ARIA Labels",
+		"Announcement Patterns",
+		"Multi-Modal",
+		"Keybinding Scoping"
+	]
+}

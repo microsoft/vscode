@@ -37,23 +37,9 @@
 				position: relative;
 			}
 
-			&.monaco-enable-motion .action-widget.action-widget-animated:not(.action-widget-dropdown-closing) {
-				animation: action-widget-scale-open 250ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
-				transform-origin: bottom left;
-			}
-
-			&.monaco-enable-motion .context-view.bottom .action-widget.action-widget-animated {
-				transform-origin: top left;
-			}
-
 			&.monaco-enable-motion .action-widget.action-widget-dropdown {
 				/* Keep the existing containing block without retaining opacity isolation. */
 				will-change: transform;
-			}
-
-			&.monaco-enable-motion .action-widget.action-widget-dropdown-closing {
-				animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
-				pointer-events: none;
 			}
 
 			& .monaco-resizable-hover,

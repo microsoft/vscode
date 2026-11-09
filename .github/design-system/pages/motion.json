@@ -1,0 +1,110 @@
+{
+	"version": 1,
+	"id": "motion",
+	"renderer": "motion",
+	"source": "src/vs/platform/theme/common/motion/MOTION.md",
+	"intro": { "$text": { "file": "src/vs/platform/theme/common/motion/MOTION.md", "heading": "Motion", "paragraph": 0 } },
+	"sections": [
+		{
+			"id": "principles", "heading": "principles",
+			"blocks": [
+				{ "type": "guidance", "heading": "purposeful" },
+				{ "type": "guidance", "heading": "natural" },
+				{ "type": "guidance", "heading": "responsive" },
+				{ "type": "guidance", "heading": "consistent" },
+				{ "type": "guidance", "heading": "accessible" }
+			]
+		},
+		{
+			"id": "foundations", "heading": "foundations",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Foundations" } },
+			"blocks": [
+				{
+					"type": "group", "id": "timing", "heading": "timing",
+					"blocks": [
+						{ "type": "duration", "heading": "duration", "level": 4, "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Duration" } } },
+						{ "type": "easing", "heading": "easing", "level": 4, "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Easing" } } }
+					]
+				},
+				{ "type": "properties", "heading": "visual-changes", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Visual changes" } } },
+				{ "type": "recipe", "id": "feedback" },
+				{ "type": "transitions", "id": "transitions", "heading": "transitions", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Transitions" } }, "recipes": ["surface", "layout", "content"] },
+				{ "type": "examples", "id": "progress", "heading": "progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Progress" } }, "examples": ["compact-activity", "agent-activity", "progress", "unknown-progress"] },
+				{ "type": "examples", "id": "attention", "heading": "attention-and-awareness", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Attention" } }, "examples": ["notification"] },
+				{ "type": "examples", "id": "expression", "heading": "expression-and-delight", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Expression" } }, "examples": ["working-logo", "image-generation", "blobby", "completion"] }
+			]
+		},
+		{
+			"id": "practices", "heading": "product-usage", "title": "Best practices",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Best practices" } },
+			"blocks": [
+				{ "type": "guidance", "heading": "define-intent", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Best-practice steps" } } }
+			]
+		},
+		{
+			"id": "accessibility", "heading": "accessibility",
+			"blocks": [
+				{ "type": "guidance", "heading": "let-one-cue-lead" },
+				{ "type": "guidance", "heading": "keep-people-in-control" },
+				{ "type": "guidance", "heading": "avoid-flashing-and-aggressive-movement" },
+				{ "type": "guidance", "heading": "offer-reduced-motion", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Reduced motion" } } },
+				{ "type": "guidance", "heading": "preserve-meaning-and-access" }
+			]
+		}
+	],
+	"durationIntro": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Interaction timing" } },
+	"durationNote": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Use duration in context" } },
+	"durations": [
+		{ "id": "brief", "title": "Brief tactile feedback", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Brief duration" } }, "tokens": ["motion.duration.faster"] },
+		{ "id": "short", "title": "Short local feedback", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Short duration" } }, "tokens": ["motion.duration.fast"] },
+		{ "id": "moderate", "title": "Moderate, readable change", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Moderate duration" } }, "tokens": ["motion.duration.normal"] },
+		{ "id": "gentle", "title": "Gentler emphasis", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Gentle duration" } }, "tokens": ["motion.duration.gentle"] },
+		{ "id": "longer", "title": "Longer, deliberate change", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Longer duration" } }, "tokens": ["motion.duration.slow"] }
+	],
+	"curveNote": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Curve illustration" } },
+	"analyses": [
+		{ "id": "control", "recipeId": "motion.control.position", "exampleId": "control" },
+		{ "id": "menu", "recipeId": "motion.menu.enter", "exampleId": "anchored-menu" },
+		{ "id": "selection", "recipeId": "motion.selection", "exampleId": "selection" },
+		{ "id": "disclosure", "recipeId": "motion.disclosure", "exampleId": "disclosure" },
+		{ "id": "notification", "recipeId": "motion.toast.enter", "exampleId": "notification" }
+	],
+	"properties": [
+		{ "id": "fade", "heading": "fade", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Fade" } }, "example": "fade" },
+		{ "id": "scale", "heading": "scale", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Scale" } }, "tokens": ["motion.press.duration", "motion.press.easing"] },
+		{ "id": "position", "heading": "position", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Position" } }, "example": "selection" },
+		{ "id": "color", "heading": "color", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Color" } }, "example": "listening-color" }
+	],
+	"easings": [
+		{ "heading": "feedback", "title": "Local acknowledgment", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Local response" } }, "variants": [["motion.control.easing", "Responsive"]], "tokens": ["motion.control.duration", "motion.control.easing"] },
+		{ "heading": "decelerate", "title": "Arrive and settle", "variants": [["motion.surface.easing", "Settled"]], "tokens": ["motion.surface.enter.duration", "motion.surface.easing"], "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Arrival use" } } },
+		{ "heading": "ease-in-out", "title": "Change a persistent state", "variants": [["motion.easing.easeInOut", "Ease-in-out"]], "tokens": ["motion.voice.fade.duration", "motion.easing.easeInOut"], "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Change in place use" } } },
+		{ "heading": "linear", "title": "Interpolate reported progress", "variants": [["motion.easing.linear", "Linear"]], "tokens": ["motion.progress.determinate.duration", "motion.easing.linear"], "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Continuous use" } } }
+	],
+	"recipes": [
+		{ "id": "surface", "heading": "appear-and-dismiss", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Appear and dismiss" } }, "reference": "overlay-surface-composition", "tokens": ["motion.surface.enter.duration", "motion.surface.exit.duration", "motion.surface.easing", "motion.surface.exit.easing", "motion.surface.enter.scale", "motion.surface.exit.scale"], "examples": ["anchored-menu"] },
+		{ "id": "layout", "heading": "changes-in-layout", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Layout transitions" } }, "reference": "layout-expansion-composition", "tokens": ["motion.disclosure.duration", "motion.disclosure.opacity.duration", "motion.disclosure.easing"], "examples": ["disclosure"] },
+		{ "id": "content", "heading": "waiting-for-content", "title": "Replace content without losing context", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Content transitions" } }, "reference": "content-replacement-composition", "tokens": ["motion.content.duration", "motion.content.easing"], "examples": ["delayed-content"] },
+		{ "id": "feedback", "heading": "feedback", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Feedback" } }, "reference": "control-feedback-composition", "tokens": ["motion.control.duration", "motion.control.easing", "motion.selection.duration", "motion.selection.easing", "motion.press.duration"], "examples": ["input-focus", "control"] },
+		{ "id": "notification", "heading": "notification-awareness", "reference": "notification-arrival-composition", "tokens": ["motion.toast.duration", "motion.toast.easing"] }
+	],
+	"examples": [
+		{ "id": "input-focus", "heading": "choosing-no-motion", "title": "Immediate acknowledgment", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Immediate feedback" } }, "interactive": true, "playback": false, "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Focus caption" } } },
+		{ "id": "fade", "heading": "visibility-change", "title": "Hover", "bare": true, "interactive": true, "presetBindingId": "visibility", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Hover caption" } } },
+		{ "id": "listening-color", "heading": "listening-activity", "bare": true, "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Listening caption" } } },
+		{ "id": "anchored-menu", "heading": "menu-transition", "bare": true, "interactive": true, "presetBindingId": "surface", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Menu caption" } } },
+		{ "id": "delayed-content", "heading": "waiting-for-content", "action": "working", "presetBindingId": "replacement", "variantLabel": "Response", "variants": [{ "id": "slow", "name": "Slow" }, { "id": "fast", "name": "Fast" }, { "id": "failure", "name": "Failure" }], "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Waiting caption" } } },
+		{ "id": "control", "heading": "toggle-feedback", "bare": true, "interactive": true, "action": "toggle", "presetBindingId": "control", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Toggle caption" } } },
+		{ "id": "selection", "heading": "selection-feedback", "bare": true, "interactive": true, "action": "advance", "presetBindingId": "selection", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Selection caption" } } },
+		{ "id": "disclosure", "heading": "anchored-disclosure", "interactive": true, "presetBindingId": "disclosure", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Disclosure caption" } } },
+		{ "id": "notification", "heading": "notification-awareness", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Notification guidance" } }, "presetBindingId": "notification", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Notification caption" } } },
+		{ "id": "compact-activity", "heading": "compact-activity", "title": "Loading and refreshing", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Generic loading" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Activity caption" } } },
+		{ "id": "agent-activity", "heading": "patterned-activity", "title": "Agent working status", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Agent status" } }, "action": "working", "variants": [{ "id": "grid", "name": "Matrix" }, { "id": "ring", "name": "Ring" }], "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Patterned caption" } } },
+		{ "id": "progress", "heading": "known-progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Measured progress" } }, "action": "advance", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Known progress caption" } } },
+		{ "id": "unknown-progress", "heading": "unknown-progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Region loading" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Unknown progress caption" } } },
+		{ "id": "working-logo", "heading": "illustrated-activity", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Working illustration guidance" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Working illustration caption" } } },
+		{ "id": "image-generation", "heading": "creation-in-progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Image creation guidance" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Image creation caption" } } },
+		{ "id": "blobby", "heading": "character-animation", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Character guidance" } }, "action": "enter", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Character caption" } } },
+		{ "id": "completion", "heading": "completion-burst", "title": "Confirm an asynchronous action", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Completion guidance" } }, "action": "complete", "interactive": true, "variantLabel": "Result", "variants": [{ "id": "success", "name": "Success" }, { "id": "failure", "name": "Failure" }], "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Completion caption" } } }
+	]
+}

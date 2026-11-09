@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "button-bar",
+	"className": "ButtonBar",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-bar-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-bar-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-bar-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/button/button-bar-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"addButton(options)",
+			"IButton",
+			"Creates and adds a button from IButtonOptions.",
+			"addButton(options: IButtonOptions): IButton"
+		],
+		[
+			"addButtonWithDescription(options)",
+			"IButtonWithDescription",
+			"Adds a button with descriptive text.",
+			"addButtonWithDescription(options: IButtonOptions): IButtonWithDescription"
+		],
+		[
+			"buttons",
+			"IButton[]",
+			"The buttons in the group.",
+			"get buttons(): IButton[]"
+		],
+		[
+			"clear()",
+			"void",
+			"Disposes and removes the current buttons.",
+			"clear(): void"
+		]
+	]
+}

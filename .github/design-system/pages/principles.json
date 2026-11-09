@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "principles",
+	"renderer": "guidance",
+	"content": "content/foundations/principles.json",
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		}
+	],
+	"sections": []
+}

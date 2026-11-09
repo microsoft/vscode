@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from '../../dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../animationSync.js';
 import { getProgressAccessibilitySignalScheduler } from './progressAccessibilitySignal.js';
 import { RunOnceScheduler } from '../../../common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
@@ -53,6 +54,7 @@ export class ProgressBar extends Disposable {
 	private totalWork: number | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
 	private longRunningScheduler: RunOnceScheduler;
+	private readonly doneScheduler = this._register(new RunOnceScheduler(() => this.off(), 200));
 	private readonly progressSignal = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
@@ -64,6 +66,16 @@ export class ProgressBar extends Disposable {
 		this.longRunningScheduler = this._register(new RunOnceScheduler(() => this.infiniteLongRunning(), ProgressBar.LONG_RUNNING_INFINITE_THRESHOLD));
 
 		this.create(container, options);
+		this._register(pauseCSSAnimationsWhenHidden(this.element, {
+			pausedClass: 'monaco-progress-paused',
+			subtree: true,
+			animationNames: new Set(['progress']),
+		}));
+	}
+
+	override dispose(): void {
+		this.stop();
+		super.dispose();
 	}
 
 	private create(container: HTMLElement, options?: IProgressBarOptions): void {
@@ -81,9 +93,16 @@ export class ProgressBar extends Disposable {
 	}
 
 	private off(): void {
+		const wasDiscrete = this.element.classList.contains(CSS_DISCRETE);
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
 		this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_INFINITE_LONG_RUNNING, CSS_DISCRETE);
+		this.element.removeAttribute('aria-valuenow');
+		this.element.removeAttribute('aria-valuemax');
+		if (wasDiscrete) {
+			// Commit the hidden state before a synchronous restart can tween from the previous operation.
+			this.bit.getBoundingClientRect();
+		}
 
 		this.workedVal = 0;
 		this.totalWork = undefined;
@@ -107,27 +126,29 @@ export class ProgressBar extends Disposable {
 	}
 
 	private doDone(delayed: boolean): ProgressBar {
+		this.doneScheduler.cancel();
+		this.showDelayedScheduler.cancel();
+		this.longRunningScheduler.cancel();
+		this.progressSignal.clear();
 		this.element.classList.add(CSS_DONE);
 
 		// discrete: let it grow to 100% width and hide afterwards
 		if (!this.element.classList.contains(CSS_INFINITE)) {
-			this.bit.style.width = 'inherit';
-
-			if (delayed) {
-				setTimeout(() => this.off(), 200);
-			} else {
-				this.off();
+			this.bit.style.width = '100%';
+			if (delayed && this.element.classList.contains(CSS_DISCRETE)) {
+				this.element.setAttribute('aria-valuenow', (this.totalWork || 100).toString());
 			}
 		}
 
 		// infinite: let it fade out and hide afterwards
 		else {
 			this.bit.style.opacity = '0';
-			if (delayed) {
-				setTimeout(() => this.off(), 200);
-			} else {
-				this.off();
-			}
+		}
+
+		if (delayed) {
+			this.doneScheduler.schedule();
+		} else {
+			this.off();
 		}
 
 		return this;
@@ -137,7 +158,8 @@ export class ProgressBar extends Disposable {
 	 * Use this mode to indicate progress that has no total number of work units.
 	 */
 	infinite(): ProgressBar {
-		this.bit.style.width = '2%';
+		this.doneScheduler.cancel();
+		this.bit.style.width = '10%';
 		this.bit.style.opacity = '1';
 		this.element.removeAttribute('aria-valuenow');
 
@@ -158,6 +180,7 @@ export class ProgressBar extends Disposable {
 	 * the progress bar show the actual progress based on the work that is done.
 	 */
 	total(value: number): ProgressBar {
+		this.doneScheduler.cancel();
 		this.workedVal = 0;
 		this.totalWork = value;
 		this.element.setAttribute('aria-valuemax', value.toString());
@@ -185,12 +208,14 @@ export class ProgressBar extends Disposable {
 	 * Tells the progress bar the total amount of work (0 to 100) that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
-		value = Math.max(1, Number(value));
+		value = Math.max(0, Number(value));
 
 		return this.doSetWorked(value);
 	}
 
 	private doSetWorked(value: number): ProgressBar {
+		this.doneScheduler.cancel();
+		this.longRunningScheduler.cancel();
 		const totalWork = this.totalWork || 100;
 
 		this.workedVal = value;
@@ -198,9 +223,10 @@ export class ProgressBar extends Disposable {
 
 		this.element.classList.remove(CSS_INFINITE, CSS_INFINITE_LONG_RUNNING, CSS_DONE);
 		this.element.classList.add(CSS_ACTIVE, CSS_DISCRETE);
-		this.element.setAttribute('aria-valuenow', value.toString());
+		this.element.setAttribute('aria-valuenow', this.workedVal.toString());
 
 		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
+		this.bit.style.opacity = '1';
 
 		return this;
 	}

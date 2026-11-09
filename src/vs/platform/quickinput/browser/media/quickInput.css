@@ -14,20 +14,20 @@
 }
 
 .modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
-	animation: quick-input-widget-open var(--vscode-motion-surface-enter-duration, 300ms) var(--vscode-motion-surface-easing, cubic-bezier(0.2, 0, 0, 1)) both;
+	animation: quick-input-widget-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-easing, cubic-bezier(0.22, 1, 0.36, 1)) both;
 	transform-origin: top center;
 	will-change: transform, opacity;
 }
 
 .modern-ui.monaco-enable-motion .quick-input-widget.quick-input-widget-closing:not(.quick-input-widget-overlay) {
-	animation: quick-input-widget-close var(--vscode-motion-surface-exit-duration, 200ms) var(--vscode-motion-surface-easing, cubic-bezier(0.2, 0, 0, 1)) both;
+	animation: quick-input-widget-close var(--vscode-motion-surface-exit-duration, 150ms) var(--vscode-motion-surface-exit-easing, cubic-bezier(0.22, 1, 0.36, 1)) both;
 	pointer-events: none;
 }
 
 @keyframes quick-input-widget-open {
 	0% {
 		opacity: 0;
-		transform: scale(var(--vscode-motion-scale-enter, 0.97));
+		transform: scale(var(--vscode-motion-surface-enter-scale, 0.97));
 	}
 
 	100% {
@@ -38,13 +38,13 @@
 
 @keyframes quick-input-widget-close {
 	0% {
-		opacity: 1;
-		transform: scale(1);
+		opacity: var(--vscode-quick-input-close-opacity, 1);
+		transform: var(--vscode-quick-input-close-transform, scale(1));
 	}
 
 	100% {
 		opacity: 0;
-		transform: scale(var(--vscode-motion-scale-exit, 0.99));
+		transform: scale(var(--vscode-motion-surface-exit-scale, 0.99));
 	}
 }
 

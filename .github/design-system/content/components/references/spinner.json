@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"id": "spinner",
+	"className": "createPixelSpinner",
+	"summary": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/pixelSpinner/spinner-design.md",
+			"heading": "Overview"
+		}
+	},
+	"usage": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/pixelSpinner/spinner-design.md",
+			"heading": "Usage",
+			"list": true
+		}
+	},
+	"accessibility": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/pixelSpinner/spinner-design.md",
+			"heading": "Accessibility",
+			"list": true
+		}
+	},
+	"preview": {
+		"$text": {
+			"file": "src/vs/base/browser/ui/pixelSpinner/spinner-design.md",
+			"heading": "Preview"
+		}
+	},
+	"api": [
+		[
+			"variant",
+			"'grid' | 'ring'?",
+			"Chooses the visual treatment; grid is the default.",
+			"readonly variant?: 'grid' | 'ring';"
+		],
+		[
+			"ariaLabel",
+			"string?",
+			"Adds role status; omission makes the spinner decorative.",
+			"readonly ariaLabel?: string;"
+		],
+		[
+			"element",
+			"HTMLElement",
+			"Root element returned by the factory.",
+			"readonly element: HTMLElement;"
+		],
+		[
+			"createPixelSpinner(parent, options)",
+			"IPixelSpinner",
+			"Creates the indicator and its animation-tracking disposable.",
+			"export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinnerOptions): IPixelSpinner"
+		]
+	]
+}

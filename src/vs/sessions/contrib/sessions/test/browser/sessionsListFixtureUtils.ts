@@ -10,6 +10,7 @@ import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -29,6 +30,7 @@ import { MenuService } from '../../../../../platform/actions/common/menuService.
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -42,12 +44,18 @@ import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybin
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotification, INotificationHandle, INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
+import { CLEAR_NOTIFICATION, COLLAPSE_NOTIFICATION, EXPAND_NOTIFICATION } from '../../../../../workbench/browser/parts/notifications/notificationsCommands.js';
+import { NotificationsToasts } from '../../../../../workbench/browser/parts/notifications/notificationsToasts.js';
+import { isNotificationViewItem, NotificationsModel } from '../../../../../workbench/common/notifications.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
@@ -68,7 +76,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestQuickInputService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -216,6 +224,12 @@ export interface ISessionsListFixtureHeader {
 /** Everything a sessions list fixture renders. */
 export interface ISessionsListFixtureState {
 	readonly sessions: readonly ISessionsListFixtureSession[];
+	/** Simulates provider latency without changing the product action or its pending presentation. */
+	readonly archiveDelayMs?: number;
+	/** Renders notifications emitted by product actions through native workbench toasts. */
+	readonly notifications?: boolean;
+	/** Limits a focused example to these production menu actions. */
+	readonly menuActions?: readonly string[];
 	readonly groups?: readonly ISessionsListFixtureGroup[];
 	/** Comparisons reference fixture-local group ids. */
 	readonly comparisons?: readonly ISessionComparison[];
@@ -240,6 +254,10 @@ export interface ISessionsListFixture {
 	/** Built sessions by fixture id, with handles to change their state. */
 	readonly sessions: ReadonlyMap<string, ITestSession>;
 	resolve(row: SessionsListFixtureRow): SessionsListItemReference;
+	setArchiveOutcome(outcome: 'success' | 'error'): void;
+	cancelPendingArchives(): void;
+	clearNotifications(): void;
+	setReducedMotion(reduced: boolean): void;
 }
 
 /** Defines a themed fixture that renders the given state. */
@@ -380,6 +398,8 @@ const REGISTERED_ARCHIVE_WORDING = ChatSessionArchiveActionWording.Archive;
  * bundle does not register. Archive actions show in this fixture's wording.
  */
 class SessionsListFixtureMenuService extends MenuService {
+	protected readonly visibleActionIds: ReadonlySet<string> | undefined = undefined;
+
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -416,6 +436,10 @@ class SessionsListFixtureMenuService extends MenuService {
 	 * wording's action descriptors replace the registered presentation by id.
 	 */
 	private applyArchiveWording(groups: MenuActionGroups, contextKeyService: IContextKeyService, options: IMenuActionOptions | undefined): MenuActionGroups {
+		if (this.visibleActionIds) {
+			groups = groups.map(([group, actions]): MenuActionGroups[number] => [group, actions.filter(action => this.visibleActionIds!.has(action.id))])
+				.filter(([, actions]) => actions.length > 0);
+		}
 		const wording = getChatSessionArchiveActionWording(this.configurationService);
 		if (wording === REGISTERED_ARCHIVE_WORDING) {
 			return groups;
@@ -474,13 +498,19 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	override readonly onDidAcceptNewSessionRequest = Event.None;
 	override readonly onDidEndNewSessionRequest = Event.None;
 	override readonly onDidMoveChat = Event.None;
+	private readonly pendingArchives = new Set<CancellationTokenSource>();
+	archiveOutcome: 'success' | 'error' = 'success';
 
-	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>) {
+	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>, private readonly archiveDelayMs = 0) {
 		super();
 	}
 
 	override getSessions(): ISession[] {
 		return [...this.sessions.values()].map(session => session.session);
+	}
+
+	override getInFlightNewSessionRequests(): readonly ISession[] {
+		return [];
 	}
 
 	override canMoveChat(): boolean {
@@ -528,6 +558,20 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async archiveSession(session: ISession): Promise<void> {
+		const outcome = this.archiveOutcome;
+		const cancellation = new CancellationTokenSource();
+		this.pendingArchives.add(cancellation);
+		try {
+			if (this.archiveDelayMs > 0) {
+				await timeout(this.archiveDelayMs, cancellation.token);
+			}
+			if (outcome === 'error') {
+				throw new Error('Simulated archive failure. Try again.');
+			}
+		} finally {
+			this.pendingArchives.delete(cancellation);
+			cancellation.dispose();
+		}
 		this.find(session.resource)?.isArchived.set(true, undefined);
 		this.archiveEmitter.fire(session);
 		this.changeEmitter.fire({ added: [], removed: [], changed: [session] });
@@ -544,7 +588,14 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 
 	override async importSession(): Promise<void> { }
 
+	cancelPendingArchives(): void {
+		for (const cancellation of this.pendingArchives) {
+			cancellation.cancel();
+		}
+	}
+
 	dispose(): void {
+		this.cancelPendingArchives();
 		this.store.dispose();
 	}
 
@@ -641,6 +692,16 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
 	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const sessionsManagement = disposableStore.add(new FixtureSessionsManagementService(sessions, state.archiveDelayMs));
+	const notifications = state.notifications ? disposableStore.add(new NotificationsModel()) : undefined;
+	const clearNotifications = () => {
+		for (const notification of [...notifications?.notifications ?? []]) {
+			notification.close();
+		}
+	};
+	disposableStore.add(toDisposable(clearNotifications));
+	let reducedMotion = view.reducedMotion ?? true;
+	const reducedMotionEmitter = disposableStore.add(new Emitter<void>());
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -659,27 +720,34 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() { }());
 			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { }());
 			reg.define(IContextKeyService, ContextKeyService);
-			reg.define(IMenuService, SessionsListFixtureMenuService);
+			reg.define(IMenuService, class extends SessionsListFixtureMenuService {
+				protected override readonly visibleActionIds = state.menuActions ? new Set(state.menuActions) : undefined;
+			});
 			reg.defineInstance(IActionViewItemService, new FixtureActionViewItemService());
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, TestProductService);
-			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
+			reg.defineInstance(ISessionsManagementService, sessionsManagement);
 			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
 			reg.defineInstance(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
 				override readonly enabled = constObservable(false);
 				override readonly entries = constObservable([]);
 				override readonly selected = constObservable(undefined);
 			}());
+			if (notifications) {
+				reg.defineInstance(INotificationService, new class extends TestNotificationService {
+					override notify(notification: INotification): INotificationHandle {
+						return notifications.addNotification(notification);
+					}
+				}());
+			}
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
-			const reducedMotion = view.reducedMotion;
-			if (reducedMotion !== undefined) {
-				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
-					override isMotionReduced(): boolean { return reducedMotion; }
-				}());
-			}
+			reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+				override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+				override isMotionReduced(): boolean { return reducedMotion; }
+			}());
 			if (newSessionKeybinding) {
 				reg.defineInstance(IKeybindingService, new class extends MockKeybindingService {
 					override lookupKeybinding(commandId: string) {
@@ -757,6 +825,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		},
 	});
 
+	instantiationService.stub(ICommandService, new TestCommandService(instantiationService));
 	const failingCISessions = state.sessions.filter(spec => spec.hasFailingCI).map(spec => getSession(spec.id).session);
 	instantiationService.stub(IContextMenuService, disposableStore.add(instantiationService.createInstance(FixtureContextMenuService, container, target => context.focus(target))));
 	instantiationService.stubInstance(BlockedSessions, new class extends mock<BlockedSessions>() {
@@ -915,7 +984,55 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	applyInteraction(context, list, interaction, resolve, getSession, groupIds, interactionStore);
 	await timeout(SETTLE_DELAY);
 
-	return { list, container, listHost, instantiationService, sessions, resolve };
+	if (notifications) {
+		container.classList.add('monaco-workbench');
+		container.style.position = 'relative';
+		const notificationServices = workbenchInstantiationService(undefined, disposableStore);
+		notificationServices.stub(IThemeService, instantiationService.get(IThemeService));
+		notificationServices.stub(IAccessibilityService, instantiationService.get(IAccessibilityService));
+		notificationServices.stub(INotificationService, instantiationService.get(INotificationService));
+		const commandService = instantiationService.get(ICommandService);
+		// Keep notification controllers local instead of registering model-bound commands process-wide.
+		notificationServices.stub(ICommandService, new class extends mock<ICommandService>() {
+			override readonly onWillExecuteCommand = Event.None;
+			override readonly onDidExecuteCommand = Event.None;
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				const notification = args[0];
+				if (isNotificationViewItem(notification)) {
+					switch (id) {
+						case CLEAR_NOTIFICATION:
+							if (!notification.hasActiveProgress) { notification.close(); }
+							return undefined;
+						case EXPAND_NOTIFICATION:
+							notification.expand();
+							return undefined;
+						case COLLAPSE_NOTIFICATION:
+							notification.collapse();
+							return undefined;
+					}
+				}
+				return commandService.executeCommand<T>(id, ...args);
+			}
+		}());
+		const toasts = disposableStore.add(notificationServices.createInstance(NotificationsToasts, container, notifications));
+		const layout = () => toasts.layout(new DOM.Dimension(container.clientWidth, container.clientHeight));
+		const resize = disposableStore.add(new DOM.DisposableResizeObserver('sessionsFixture.notifications', layout, DOM.getWindow(container)));
+		disposableStore.add(resize.observe(container));
+		layout();
+	}
+
+	return {
+		list, container, listHost, instantiationService, sessions, resolve,
+		setArchiveOutcome: outcome => { sessionsManagement.archiveOutcome = outcome; },
+		cancelPendingArchives: () => sessionsManagement.cancelPendingArchives(),
+		clearNotifications,
+		setReducedMotion: reduced => {
+			if (reducedMotion !== reduced) {
+				reducedMotion = reduced;
+				reducedMotionEmitter.fire();
+			}
+		},
+	};
 }
 
 /** Seeds pins, groups, and group order through the list-state services, returning real group ids by fixture id. */

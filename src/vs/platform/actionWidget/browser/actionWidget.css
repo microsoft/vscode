@@ -18,18 +18,19 @@
 	box-shadow: var(--vscode-shadow-lg);
 }
 
-.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown {
-	animation: action-widget-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+:is(.modern-ui, .modern-ui-frosted-glass).monaco-enable-motion .action-widget.action-widget-animated {
+	animation: action-widget-dropdown-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-easing, cubic-bezier(0.22, 1, 0.36, 1)) backwards;
 	transform-origin: bottom left;
 	will-change: transform, opacity;
 }
 
-.modern-ui.monaco-enable-motion .context-view.bottom .action-widget.action-widget-dropdown {
+:is(.modern-ui, .modern-ui-frosted-glass).monaco-enable-motion .context-view.bottom .action-widget {
 	transform-origin: top left;
 }
 
-.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.action-widget-dropdown-closing {
-	animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+:is(.modern-ui, .modern-ui-frosted-glass).monaco-enable-motion .action-widget.action-widget-dropdown-closing {
+	animation: action-widget-dropdown-close var(--vscode-motion-surface-exit-duration, 150ms) var(--vscode-motion-surface-exit-easing, cubic-bezier(0.22, 1, 0.36, 1)) both;
+	transform-origin: bottom left;
 	pointer-events: none;
 }
 
@@ -39,21 +40,12 @@
 	}
 
 	0% {
-		opacity: 0;
-		transform: scale(0.97);
+		opacity: var(--action-widget-close-start-opacity, 0);
+		transform: var(--action-widget-close-start-transform, scale(var(--vscode-motion-surface-enter-scale, 0.97)));
 	}
 
 	100% {
 		opacity: 1;
-		transform: scale(1);
-	}
-}
-
-@keyframes action-widget-scale-open {
-	from {
-		transform: scale(0.97);
-	}
-	to {
 		transform: scale(1);
 	}
 }
@@ -70,7 +62,7 @@
 
 	100% {
 		opacity: 0;
-		transform: scale(0.99);
+		transform: scale(var(--vscode-motion-surface-exit-scale, 0.99));
 	}
 }
 

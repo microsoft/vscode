@@ -1,0 +1,12 @@
+{
+	"version": 1,
+	"id": "theming",
+	"renderer": "theming",
+	"content": "content/foundations/theming.json",
+	"sources": [
+		{
+			"file": ".github/skills/ux-theming/SKILL.md"
+		}
+	],
+	"sections": []
+}

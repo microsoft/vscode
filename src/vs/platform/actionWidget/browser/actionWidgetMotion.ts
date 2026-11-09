@@ -12,7 +12,7 @@ export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdo
 /** Completes the scale entrance before measuring or positioning dependent UI. */
 export function finishActionWidgetOpeningAnimation(widget: HTMLElement): void {
 	for (const animation of widget.getAnimations()) {
-		if (animation instanceof getWindow(widget).CSSAnimation && animation.animationName === 'action-widget-scale-open') {
+		if (animation instanceof getWindow(widget).CSSAnimation && animation.animationName === 'action-widget-dropdown-open') {
 			animation.finish();
 		}
 	}

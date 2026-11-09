@@ -1,0 +1,378 @@
+{
+	"version": 1,
+	"spacing": {
+		"id": "button",
+		"name": "Action spacing",
+		"groups": [
+			"baseUI/Buttons"
+		],
+		"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
+		"owner": "src/vs/base/browser/ui/button/button.ts",
+		"docs": {
+			"summary": "Button groups with 8px between sibling actions and 12px between rows."
+		}
+	},
+	"motion": [
+		{
+			"id": "motion-fade",
+			"name": "Fade",
+			"groups": [
+				"motion/Fade"
+			],
+			"groupLabels": {
+				"motion/Fade": "Fade"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/hover/browser/hoverWidget.ts",
+			"docs": {
+				"summary": "The native hover service supplies pointer intent delay, source-bound appearance and keyboard access."
+			}
+		},
+		{
+			"id": "motion-scale",
+			"name": "Scale",
+			"groups": [
+				"motion/Scale"
+			],
+			"groupLabels": {
+				"motion/Scale": "Scale"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "QuickInputController owns Quick Pick’s native opacity-and-scale composition."
+			}
+		},
+		{
+			"id": "motion-anchored-menu",
+			"name": "AnchoredMenu",
+			"groups": [
+				"motion/AnchoredMenu"
+			],
+			"groupLabels": {
+				"motion/AnchoredMenu": "AnchoredMenu"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/actionWidget/browser/multiSelectDropdown.ts",
+			"docs": {
+				"summary": "An anchored dropdown applies selections immediately while its surface settles into place."
+			}
+		},
+		{
+			"id": "motion-action-widget",
+			"name": "ActionWidget",
+			"groups": ["motion/ActionWidget"],
+			"groupLabels": { "motion/ActionWidget": "ActionWidget" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/actionWidget/browser/actionWidget.ts",
+			"docs": { "summary": "An anchored action surface preserves its trigger relationship and native dismissal behavior." }
+		},
+		{
+			"id": "motion-context-usage", "name": "ContextUsage",
+			"groups": ["motion/ContextUsage"], "groupLabels": { "motion/ContextUsage": "ContextUsage" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widgetHosts/viewPane/chatContextUsageWidget.ts",
+			"docs": { "summary": "Contextual information becomes visible on intent without moving the surrounding content." }
+		},
+		{
+			"id": "motion-input-focus", "name": "InputFocus",
+			"groups": ["motion/InputFocus"], "groupLabels": { "motion/InputFocus": "InputFocus" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/base/browser/ui/inputbox/inputBox.ts",
+			"docs": { "summary": "The native InputBox preserves its actual focus border, editing behavior and keyboard access." }
+		},
+		{
+			"id": "motion-content-change", "name": "ContentChange",
+			"groups": ["motion/ContentChange"], "groupLabels": { "motion/ContentChange": "ContentChange" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.ts",
+			"docs": { "summary": "The actual question carousel replaces its question content while preserving navigation, input state, and focus." }
+		},
+		{
+			"id": "motion-delayed-content", "name": "DelayedContent",
+			"groups": ["motion/DelayedContent"], "groupLabels": { "motion/DelayedContent": "DelayedContent" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/agentSessions/agentSessionsControl.ts",
+			"docs": { "summary": "The real sessions control retains usable rows during a simulated provider refresh, with source-owned progress and failure handling." }
+		},
+		{
+			"id": "motion-visibility",
+			"name": "Visibility",
+			"groups": ["motion/Visibility"],
+			"groupLabels": { "motion/Visibility": "Visibility" },
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/editor/browser/widget/codeEditor/codeEditorWidget.ts",
+			"docs": { "summary": "The real code editor reveals its scrollbar while scrolling a file; contextual chrome recedes when interaction ends." }
+		},
+		{
+			"id": "motion-interaction",
+			"name": "Interaction",
+			"groups": [
+				"motion/Interaction"
+			],
+			"groupLabels": {
+				"motion/Interaction": "Interaction"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "Compact List rows demonstrate pointer and keyboard highlight feedback."
+			}
+		},
+		{
+			"id": "motion-listening-color",
+			"name": "ListeningColor",
+			"groups": [
+				"motion/ListeningColor"
+			],
+			"groupLabels": {
+				"motion/ListeningColor": "ListeningColor"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/voiceClient/voiceGlowController.ts",
+			"docs": {
+				"summary": "A changing input boundary conveys active listening without moving content; reduced motion preserves a stationary equivalent."
+			}
+		},
+		{
+			"id": "motion-translate",
+			"name": "Translate",
+			"groups": [
+				"motion/Translate"
+			],
+			"groupLabels": {
+				"motion/Translate": "Translate"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "NotificationsToasts owns native edge arrival and immediate dismissal."
+			}
+		},
+		{
+			"id": "motion-control",
+			"name": "Control",
+			"groups": [
+				"motion/Control"
+			],
+			"groupLabels": {
+				"motion/Control": "Control"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "A contained thumb and color response acknowledges a binary state change without delaying its effect."
+			}
+		},
+		{
+			"id": "motion-selection",
+			"name": "Selection",
+			"groups": [
+				"motion/Selection"
+			],
+			"groupLabels": {
+				"motion/Selection": "Selection"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "A selection indicator connects old and new positions while labels, targets, and keyboard focus stay steady."
+			}
+		},
+		{
+			"id": "motion-find-options",
+			"name": "FindOptions",
+			"groups": [
+				"motion/FindOptions"
+			],
+			"groupLabels": {
+				"motion/FindOptions": "FindOptions"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "A local signal draws attention to the find options without moving the text."
+			}
+		},
+		{
+			"id": "motion-surface",
+			"name": "Surface",
+			"groups": [
+				"motion/Surface"
+			],
+			"groupLabels": {
+				"motion/Surface": "Surface"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "The same Quick Pick composition, retained for existing fixture links."
+			}
+		},
+		{
+			"id": "motion-disclosure",
+			"name": "Disclosure",
+			"groups": [
+				"motion/Disclosure"
+			],
+			"groupLabels": {
+				"motion/Disclosure": "Disclosure"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.ts",
+			"docs": {
+				"summary": "Related detail expands and collapses from its heading while preserving the reading anchor."
+			}
+		},
+		{
+			"id": "motion-notification",
+			"name": "Notification",
+			"groups": [
+				"motion/Notification"
+			],
+			"groupLabels": {
+				"motion/Notification": "Notification"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/browser/parts/notifications/notificationsToasts.ts",
+			"docs": {
+				"summary": "A bounded notification arrival establishes awareness without taking focus; normal persistence and interaction-deferred dismissal remain intact."
+			}
+		},
+		{
+			"id": "motion-compact-activity",
+			"name": "CompactActivity",
+			"groups": [
+				"motion/CompactActivity"
+			],
+			"groupLabels": {
+				"motion/CompactActivity": "CompactActivity"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/platform/theme/common/motion/motionRecipes.ts",
+			"docs": {
+				"summary": "A local operation runs beside a readable label."
+			}
+		},
+		{
+			"id": "motion-progress",
+			"name": "Progress",
+			"groups": [
+				"motion/Progress"
+			],
+			"groupLabels": {
+				"motion/Progress": "Progress"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/browser/parts/notifications/notificationsToasts.ts",
+			"docs": {
+				"summary": "The progress value changes immediately; the visible width catches up."
+			}
+		},
+		{
+			"id": "motion-unknown-progress",
+			"name": "UnknownProgress",
+			"groups": [
+				"motion/UnknownProgress"
+			],
+			"groupLabels": {
+				"motion/UnknownProgress": "UnknownProgress"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/browser/parts/notifications/notificationsToasts.ts",
+			"docs": {
+				"summary": "Work is running, but its amount is unknown."
+			}
+		},
+		{
+			"id": "motion-agent-activity",
+			"name": "AgentActivity",
+			"groups": [
+				"motion/AgentActivity"
+			],
+			"groupLabels": {
+				"motion/AgentActivity": "AgentActivity"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/base/browser/ui/pixelSpinner/pixelSpinner.ts",
+			"docs": {
+				"summary": "One agent operation changes from working to input needed."
+			}
+		},
+		{
+			"id": "motion-ring-activity",
+			"name": "RingActivity",
+			"groups": [
+				"motion/RingActivity"
+			],
+			"groupLabels": {
+				"motion/RingActivity": "RingActivity"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/base/browser/ui/pixelSpinner/pixelSpinner.ts",
+			"docs": {
+				"summary": "A compact ring pulses while work is active."
+			}
+		},
+		{
+			"id": "motion-working-logo",
+			"name": "WorkingLogo",
+			"groups": [
+				"motion/WorkingLogo"
+			],
+			"groupLabels": {
+				"motion/WorkingLogo": "WorkingLogo"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widget/chatWorkingLogo.ts",
+			"docs": {
+				"summary": "The existing logo component owns the illustrated activity choreography."
+			}
+		},
+		{
+			"id": "motion-image-generation",
+			"name": "ImageGeneration",
+			"groups": [
+				"motion/ImageGeneration"
+			],
+			"groupLabels": {
+				"motion/ImageGeneration": "ImageGeneration"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.ts",
+			"docs": {
+				"summary": "The existing image-generation component owns its working animation."
+			}
+		},
+		{
+			"id": "motion-blobby",
+			"name": "Blobby",
+			"groups": [
+				"motion/Blobby"
+			],
+			"groupLabels": {
+				"motion/Blobby": "Blobby"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/motion.fixture.ts",
+			"owner": "src/vs/workbench/contrib/chat/browser/widget/chatPetAccessoryRenderer.ts",
+			"docs": {
+				"summary": "The existing character component owns its expressive animation."
+			}
+		},
+		{
+			"id": "motion-completion",
+			"name": "Completion",
+			"groups": [
+				"sessions/motionSessions/MotionCommit"
+			],
+			"groupLabels": {
+				"sessions/motionSessions/MotionCommit": "Completion"
+			},
+			"file": "src/vs/sessions/contrib/sessions/test/browser/motionSessions.fixture.ts",
+			"owner": "src/vs/workbench/contrib/sessions/browser/sessionActionViewItem.ts",
+			"docs": {
+				"summary": "A meaningful completed action receives a one-time acknowledgment while its final state remains clear."
+			}
+		}
+	]
+}

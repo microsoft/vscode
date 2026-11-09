@@ -14,10 +14,11 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { motionTokenRegistry } from '../../../../../platform/theme/common/motionRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
-import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, chatWorkingLogoDrawDuration, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
+import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
 import { acquireChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, hasChatWorkingLogoAtlas, loadChatWorkingLogoAtlasImage } from './chatWorkingLogoAtlas.js';
 import './media/chatWorkingLogo.css';
 
@@ -71,7 +72,7 @@ function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean)
 /** Plays the product mark from a shared 120 Hz atlas, with a 60 Hz SVG fallback and static reduced-motion artwork. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
-	readonly drawDurationMs = chatWorkingLogoDrawDuration;
+	readonly drawDurationMs = motionTokenRegistry.getNumber('motion.logo.duration', 'duration');
 
 	private animationFrame: MutableDisposable<IDisposable> | undefined;
 	private readonly atlasRequest = this._register(new MutableDisposable<DisposableStore>());

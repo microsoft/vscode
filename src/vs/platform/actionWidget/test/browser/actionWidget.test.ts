@@ -33,10 +33,13 @@ import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTI
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function showWidget(filterAsCombobox?: boolean, contextViewLayer?: number) {
+	function showWidget(filterAsCombobox?: boolean, contextViewLayer?: number, motion = false) {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionWidgetService)?.[1];
 		assert.ok(descriptor);
 		const container = document.createElement('div');
+		if (motion) {
+			container.classList.add('modern-ui', 'monaco-enable-motion');
+		}
 		container.style.cssText = 'position: relative; width: 400px; height: 400px;';
 		document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
@@ -81,7 +84,7 @@ suite('ActionWidgetService', () => {
 	}
 
 	test('opts plain popups into shared motion without a caller-provided dropdown class', () => {
-		const { service, input } = showWidget(true);
+		const { service, input } = showWidget(true, undefined, true);
 		const widget = input.closest('.action-widget')!;
 		assert.deepStrictEqual({
 			animated: widget.classList.contains(ACTION_WIDGET_ANIMATED_CLASS),
@@ -179,7 +182,7 @@ suite('ActionWidgetService', () => {
 		{ name: 'Editor reduced motion', classes: 'modern-ui monaco-reduce-motion', animate: false },
 		{ name: 'legacy motion', classes: 'monaco-enable-motion', animate: false },
 	]) {
-		test(`picker closing motion with ${name}`, () => {
+		test(`picker closing motion with ${name}`, async () => {
 			const { container, service, contextView } = setup();
 			const clock = sinon.useFakeTimers();
 			disposables.add(toDisposable(() => clock.restore()));
@@ -199,6 +202,12 @@ suite('ActionWidgetService', () => {
 			clock.tick(actionWidgetDropdownCloseAnimation.duration - 1);
 			const beforeEnd = read();
 			clock.tick(1);
+			const animation = widget.getAnimations()[0];
+			if (animation) {
+				const finished = new Promise<void>(resolve => disposables.add(dom.addDisposableListener(animation, 'finish', () => resolve(), { once: true })));
+				animation.finish();
+				await finished;
+			}
 			assert.deepStrictEqual({ initial, beforeEnd, finished: read() }, {
 				initial: { hides: 1, hidden: !animate, closing: animate },
 				beforeEnd: { hides: 1, hidden: !animate },

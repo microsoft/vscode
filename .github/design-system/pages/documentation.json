@@ -1,0 +1,8 @@
+{
+	"version": 1,
+	"id": "documentation",
+	"renderer": "documents",
+	"content": "content/guidance/documentation.json",
+	"sources": [],
+	"sections": []
+}
