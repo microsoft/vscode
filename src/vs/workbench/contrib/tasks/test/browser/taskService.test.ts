@@ -9,6 +9,8 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -30,6 +32,7 @@ suite('Task service rerun errors', () => {
 		for (const rejects of [false, true]) {
 			test(`${entry} rerun ${rejects ? 'reports execution errors without an unhandled rejection' : 'completes without an error notification'}`, async () => {
 				const instantiationService = workbenchInstantiationService(undefined, store);
+				instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 				instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 					override readonly remoteAuthority = undefined;
 				});
