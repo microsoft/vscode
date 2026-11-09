@@ -76,7 +76,7 @@
 	gap: 4px;
 	min-width: 0;
 	flex: 1;
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	border-radius: 0 var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) 0;
 	color: var(--vscode-dropdown-foreground);
 	outline-offset: -1px;
 }

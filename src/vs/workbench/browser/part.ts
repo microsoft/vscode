@@ -7,9 +7,9 @@ import './media/part.css';
 import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition, isHTMLElement } from '../../base/browser/dom.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Grid, GridNode, ISerializableView, IViewSize, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
@@ -26,6 +26,91 @@ export interface ILayoutContentResult {
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
 	readonly footerSize: IDimension;
+}
+
+/** Reapplies content metrics when allocations are unchanged and the grid would skip its leaves. */
+export function relayoutWorkbenchParts(grid: Grid<ISerializableView>): void {
+	const relayout = (node: GridNode<ISerializableView>): void => {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(relayout);
+		} else if (node.cachedVisibleSize === undefined && node.box.width > 0 && node.box.height > 0) {
+			node.view.layout(node.box.width, node.box.height, node.box.top, node.box.left);
+		}
+	};
+	relayout(grid.getViews());
+}
+
+/** Meets perpendicular dividers at their visible gap centers without changing sash thickness. */
+export function updateSashEndpoints(gridElement: HTMLElement, enabled: boolean): void {
+	const elements: HTMLElement[] = [];
+	const findChild = (element: Element, className: string) => Array.from(element.children)
+		.find((child): child is HTMLElement => isHTMLElement(child) && child.classList.contains(className));
+	const visit = (branch: HTMLElement): void => {
+		const split = findChild(branch, 'monaco-split-view2');
+		const sashContainer = split && findChild(split, 'sash-container');
+		if (sashContainer) {
+			elements.push(...Array.from(sashContainer.children).filter(isHTMLElement).filter(child => child.classList.contains('monaco-sash')));
+		}
+		const scrollable = split && findChild(split, 'monaco-scrollable-element');
+		const views = scrollable && findChild(scrollable, 'split-view-container');
+		for (const view of views?.children ?? []) {
+			const child = view.firstElementChild;
+			if (isHTMLElement(child) && child.classList.contains('monaco-grid-branch-node')) {
+				visit(child);
+			}
+		}
+	};
+	const branch = findChild(gridElement, 'monaco-grid-branch-node');
+	if (branch) {
+		visit(branch);
+	}
+	const topLevel = !gridElement.closest('.part');
+	const root = gridElement.closest('.monaco-workbench');
+	const panelHasNoGap = root?.classList.contains('nopanel')
+		|| (root?.classList.contains('floating-panels') && root.classList.contains('nomaineditorarea'));
+	const sashes = elements.flatMap(element => {
+		const vertical = element.classList.contains('vertical');
+		const parent = element.parentElement;
+		if (!enabled || !parent || element.classList.contains('disabled') || (topLevel && panelHasNoGap && !vertical)
+			|| parent.clientWidth === 0 || parent.clientHeight === 0) {
+			return [];
+		}
+		const position = Number.parseFloat(vertical ? element.style.left : element.style.top);
+		if (!Number.isFinite(position)) {
+			return [];
+		}
+		const bounds = parent.getBoundingClientRect();
+		const rect = element.getBoundingClientRect();
+		const scaleX = bounds.width / parent.clientWidth;
+		const scaleY = bounds.height / parent.clientHeight;
+		return [{
+			element,
+			vertical,
+			nativeCenter: vertical ? bounds.left + position * scaleX + rect.width / 2 : bounds.top + position * scaleY + rect.height / 2,
+			center: vertical ? rect.left + rect.width / 2 : rect.top + rect.height / 2,
+			start: vertical ? bounds.top : bounds.left,
+			end: vertical ? bounds.bottom : bounds.right,
+			scale: vertical ? scaleY : scaleX,
+		}];
+	});
+	for (const element of elements) {
+		const sash = sashes.find(sash => sash.element === element);
+		for (const edge of ['start', 'end'] as const) {
+			const crossing = sash && sashes.find(candidate => candidate.vertical !== sash.vertical
+				&& Math.abs(candidate.nativeCenter - sash[edge]) <= 0.5
+				&& sash.nativeCenter >= candidate.start - 0.5 && sash.nativeCenter <= candidate.end + 0.5);
+			element.classList.toggle(`workbench-sash-${edge}-at-gap`, !!crossing);
+			const property = `--workbench-sash-${edge}`;
+			if (sash && crossing) {
+				const value = `${(edge === 'start' ? crossing.center - sash.start : sash.end - crossing.center) / sash.scale}px`;
+				if (element.style.getPropertyValue(property) !== value) {
+					element.style.setProperty(property, value);
+				}
+			} else {
+				element.style.removeProperty(property);
+			}
+		}
+	}
 }
 
 /**

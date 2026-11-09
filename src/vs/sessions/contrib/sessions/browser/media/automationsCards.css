@@ -368,7 +368,7 @@
 	height: 24px;
 	padding: 0;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
 	background: transparent;
 	color: var(--vscode-icon-foreground);
 	cursor: pointer;

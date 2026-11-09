@@ -15,13 +15,13 @@
 	max-width: 700px;
 	background: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: 5px;
+	border-radius: var(--workbench-custom-hovers-corner-radius, 5px);
 	color: var(--vscode-editorHoverWidget-foreground);
 	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-hover.workbench-hover.with-pointer {
-	border-radius: 3px;
+	border-radius: var(--workbench-custom-hovers-corner-radius, 3px);
 }
 
 .monaco-hover.workbench-hover .monaco-action-bar .action-item .codicon {

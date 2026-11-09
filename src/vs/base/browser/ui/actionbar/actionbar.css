@@ -53,6 +53,10 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+.monaco-action-bar:not(.vertical) .action-label {
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-medium));
+}
+
 .monaco-action-bar .action-item.disabled .action-label:not(.icon) ,
 .monaco-action-bar .action-item.disabled .action-label:not(.icon)::before,
 .monaco-action-bar .action-item.disabled .action-label:not(.icon):hover {

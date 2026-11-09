@@ -18,7 +18,7 @@
 	font-size: 20px;
 	align-items: center;
 	justify-content: center;
-	border-radius: 5px;
+	border-radius: var(--workbench-custom-controls-corner-radius, 5px);
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container.focused {

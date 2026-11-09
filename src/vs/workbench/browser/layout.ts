@@ -26,7 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../services/environment/bro
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
-import { Part } from './part.js';
+import { Part, relayoutWorkbenchParts, updateSashEndpoints } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
@@ -34,6 +34,8 @@ import { coalesce } from '../../base/common/arrays.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { ISizeService } from '../../platform/theme/common/sizeService.js';
+import { panelsSpacing } from '../../platform/theme/common/sizeRegistry.js';
 import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
@@ -309,6 +311,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private logService!: ILogService;
 	private telemetryService!: ITelemetryService;
 	private auxiliaryWindowService!: IAuxiliaryWindowService;
+	private panelSpacing = 4;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -335,6 +338,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.logService = accessor.get(ILogService);
 		this.telemetryService = accessor.get(ITelemetryService);
 		this.auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
+		const sizeService = accessor.get(ISizeService);
+		const updatePanelSpacing = () => {
+			const spacing = sizeService.getSize(panelsSpacing, this.themeService.getColorTheme())!.value;
+			if (spacing !== this.panelSpacing) {
+				this.panelSpacing = spacing;
+				if (this.workbenchGrid && this.isFloatingPanelsEnabled()) {
+					this.layout();
+					relayoutWorkbenchParts(this.workbenchGrid);
+				}
+			}
+		};
+		updatePanelSpacing();
+		this._register(sizeService.onDidChangeSizes(updatePanelSpacing));
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -537,6 +553,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
 		if (container === this.mainContainer) {
+			if (this.workbenchGrid) {
+				updateSashEndpoints(this.workbenchGrid.element, this.isFloatingPanelsEnabled() && !this.isModernUICompact());
+			}
 			this._onDidLayoutMainContainer.fire(dimension);
 		}
 
@@ -638,6 +657,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	isModernUICompact(): boolean {
 		return this.isFloatingPanelsEnabled() && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
+	}
+
+	getPanelSpacing(): number {
+		return this.isModernUICompact() ? 0 : this.panelSpacing;
 	}
 
 	private updateFloatingPanels(): void {

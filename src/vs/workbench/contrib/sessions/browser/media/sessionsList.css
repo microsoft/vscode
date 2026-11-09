@@ -1498,7 +1498,7 @@
 	}
 
 	.session-section-toolbar .monaco-action-bar .action-label {
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	}
 
 	.session-section-chevron {

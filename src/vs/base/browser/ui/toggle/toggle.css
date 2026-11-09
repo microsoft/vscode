@@ -10,7 +10,7 @@
 	overflow: hidden;
 	width: 20px;
 	height: 20px;
-	border-radius: 3px;
+	border-radius: var(--workbench-custom-controls-corner-radius, 3px);
 	border: var(--vscode-strokeThickness, 1px) solid var(--monaco-custom-toggle-border-color, transparent);
 	padding: 1px;
 	box-sizing:	border-box;
@@ -55,7 +55,7 @@ div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
 	height: 18px;
 	width: 18px;
 	border: 1px solid transparent;
-	border-radius: 3px;
+	border-radius: var(--workbench-custom-controls-corner-radius, 3px);
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
@@ -66,7 +66,7 @@ div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
 .monaco-action-bar .checkbox-action-item {
 	display: flex;
 	align-items: center;
-	border-radius: 2px;
+	border-radius: var(--workbench-custom-controls-corner-radius, 2px);
 	padding-right: 2px;
 }
 

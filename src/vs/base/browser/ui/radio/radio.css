@@ -16,13 +16,13 @@
 }
 
 .monaco-custom-radio > .monaco-button:first-child {
-	border-top-left-radius: 3px;
-	border-bottom-left-radius: 3px;
+	border-top-left-radius: var(--workbench-custom-controls-corner-radius, 3px);
+	border-bottom-left-radius: var(--workbench-custom-controls-corner-radius, 3px);
 }
 
 .monaco-custom-radio > .monaco-button:last-child {
-	border-top-right-radius: 3px;
-	border-bottom-right-radius: 3px;
+	border-top-right-radius: var(--workbench-custom-controls-corner-radius, 3px);
+	border-bottom-right-radius: var(--workbench-custom-controls-corner-radius, 3px);
 }
 
 .monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
@@ -76,7 +76,7 @@
 	gap: var(--vscode-spacing-size20);
 	padding: var(--vscode-spacing-size20);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-radio-inactiveBorder, transparent));
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-medium));
 	background: transparent;
 }
 
@@ -89,7 +89,7 @@
 	height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-foreground);
 	background: transparent;
 	font-size: var(--vscode-fontSize-label2);
@@ -133,7 +133,7 @@
 	left: 0;
 	box-sizing: border-box;
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-small));
 	pointer-events: none;
 	transition: none;
 }

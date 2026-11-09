@@ -70,7 +70,7 @@
 	width: 24px;
 	height: 24px;
 	font-size: 16px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-activityBar-inactiveForeground);
 }
 

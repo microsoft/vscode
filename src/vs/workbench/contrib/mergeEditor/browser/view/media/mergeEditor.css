@@ -188,7 +188,7 @@
 .accept-conflict-group.monaco-custom-toggle {
 	height: 18px;
 	width: 18px;
-	border-radius: 3px;
+	border-radius: var(--workbench-custom-controls-corner-radius, 3px);
 	margin-right: 0px;
 	margin-left: 0px;
 	padding: 0px;

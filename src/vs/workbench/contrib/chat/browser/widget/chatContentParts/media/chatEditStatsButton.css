@@ -10,7 +10,7 @@
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	margin-block: calc(-1 * var(--vscode-spacing-size20));
 	margin-left: var(--vscode-spacing-sizeNone);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	gap: var(--vscode-spacing-size40);
 	background: transparent;
 	color: inherit;

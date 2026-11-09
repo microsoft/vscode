@@ -190,7 +190,7 @@
 	padding: 0 var(--vscode-spacing-size60);
 	background-color: transparent;
 	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	cursor: pointer;
 	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);

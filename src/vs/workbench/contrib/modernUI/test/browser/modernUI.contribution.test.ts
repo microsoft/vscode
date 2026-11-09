@@ -22,7 +22,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -32,7 +31,7 @@ import { foreground } from '../../../../../platform/theme/common/colors/baseColo
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, PanelCornerStyle } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -41,7 +40,6 @@ import { ColorThemeData } from '../../../../services/themes/common/colorThemeDat
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/media/style.css';
 import '../../../../browser/media/part.css';
-import '../../../../browser/workbench.contribution.js';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -53,7 +51,6 @@ import '../../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
-import { PanelCornerStyleContribution } from '../../../../browser/panelCornerStyle.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
@@ -160,195 +157,6 @@ suite('ModernUIContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 	const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
-
-	test('registers the panel corner presets with the existing appearance as the default', () => {
-		const setting = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[LayoutSettings.PANEL_CORNER_STYLE];
-		assert.deepStrictEqual({
-			key: LayoutSettings.PANEL_CORNER_STYLE,
-			type: setting.type,
-			enum: setting.enum,
-			labels: setting.enumItemLabels,
-			default: setting.default,
-		}, {
-			key: 'workbench.panelCornerStyle',
-			type: 'string',
-			enum: ['square', 'subtle', 'default', 'rounded'],
-			labels: ['Square', 'Subtle', 'Default', 'Rounded'],
-			default: 'default',
-		});
-	});
-
-	test('updates panel corner presets across windows without relayout and cleans up on disable and disposal', async () => {
-		const configurationService = new TestConfigurationService({
-			[LayoutSettings.MODERN_UI]: true,
-			[LayoutSettings.PANEL_CORNER_STYLE]: PanelCornerStyle.Subtle,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const layoutService = new ModernUITestLayoutService();
-		store.add(layoutService.onDidAddContainerEmitter);
-		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
-		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
-		const contribution = store.add(new PanelCornerStyleContribution(configurationService, layoutService, TestEnvironmentService));
-		const getState = () => ({
-			radii: layoutService.containers.map(container => container.style.getPropertyValue('--workbench-panel-border-radius')),
-			layoutCount: layoutService.layoutCount,
-			auxiliaryLayoutCount: auxiliaryWindowService.auxiliaryWindow.layoutCount,
-		});
-		const update = async (key: string, value: boolean | PanelCornerStyle) => {
-			await configurationService.setUserConfiguration(key, value);
-			configurationService.onDidChangeConfigurationEmitter.fire({
-				affectsConfiguration: setting => setting === key,
-				source: ConfigurationTarget.USER,
-				affectedKeys: new Set([key]),
-				change: { keys: [key], overrides: [] },
-			});
-		};
-
-		const startup = getState();
-		layoutService.addContainer(document.createElement('div'), store.add(new DisposableStore()));
-		const auxiliaryStartup = getState();
-		await update(LayoutSettings.PANEL_CORNER_STYLE, PanelCornerStyle.Square);
-		const square = getState();
-		await update(LayoutSettings.PANEL_CORNER_STYLE, PanelCornerStyle.Rounded);
-		const rounded = getState();
-		await update(LayoutSettings.PANEL_CORNER_STYLE, PanelCornerStyle.Default);
-		const defaultStyle = getState();
-		await update(LayoutSettings.PANEL_CORNER_STYLE, PanelCornerStyle.Subtle);
-		await update(LayoutSettings.MODERN_UI, false);
-		const disabled = getState();
-		await update(LayoutSettings.PANEL_CORNER_STYLE, PanelCornerStyle.Rounded);
-		const changedWhileDisabled = getState();
-		await update(LayoutSettings.MODERN_UI, true);
-		const reenabled = getState();
-		contribution.dispose();
-
-		assert.deepStrictEqual({
-			startup, auxiliaryStartup, square, rounded, defaultStyle, disabled, changedWhileDisabled, reenabled, disposed: getState(),
-		}, {
-			startup: { radii: ['var(--vscode-cornerRadius-small)'], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			auxiliaryStartup: { radii: ['var(--vscode-cornerRadius-small)', 'var(--vscode-cornerRadius-small)'], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			square: { radii: ['0px', '0px'], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			rounded: { radii: ['var(--vscode-cornerRadius-xLarge)', 'var(--vscode-cornerRadius-xLarge)'], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			defaultStyle: { radii: ['', ''], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			disabled: { radii: ['', ''], layoutCount: 1, auxiliaryLayoutCount: 1 },
-			changedWhileDisabled: { radii: ['', ''], layoutCount: 1, auxiliaryLayoutCount: 1 },
-			reenabled: { radii: ['var(--vscode-cornerRadius-xLarge)', 'var(--vscode-cornerRadius-xLarge)'], layoutCount: 2, auxiliaryLayoutCount: 2 },
-			disposed: { radii: ['', ''], layoutCount: 2, auxiliaryLayoutCount: 2 },
-		});
-	});
-
-	for (const { preset, radius } of [
-		{ preset: PanelCornerStyle.Square, radius: 0 },
-		{ preset: PanelCornerStyle.Subtle, radius: 4 },
-		{ preset: PanelCornerStyle.Default, radius: 8 },
-		{ preset: PanelCornerStyle.Rounded, radius: 12 },
-	]) {
-		for (const compact of [false, true]) {
-			test(`applies ${preset} panel corners with compact density ${compact} while preserving seams and other radius tiers`, () => {
-				const configurationService = new TestConfigurationService({
-					[LayoutSettings.MODERN_UI]: true,
-					[LayoutSettings.PANEL_CORNER_STYLE]: preset,
-					[LayoutSettings.MODERN_UI_DENSITY]: compact ? ModernUIDensity.Compact : ModernUIDensity.Default,
-				});
-				store.add(configurationService.onDidChangeConfigurationEmitter);
-				const layoutService = new ModernUITestLayoutService();
-				store.add(layoutService.onDidAddContainerEmitter);
-				const root = layoutService.mainContainer;
-				root.className = 'monaco-workbench floating-panels';
-				for (const [token, value] of Object.entries({
-					'cornerRadius-small': '4px',
-					'cornerRadius-large': '8px',
-					'cornerRadius-xLarge': '12px',
-					'spacing-sizeNone': '0px',
-					'spacing-size40': '4px',
-					'strokeThickness': '1px',
-				})) {
-					root.style.setProperty(`--vscode-${token}`, value);
-				}
-				document.body.appendChild(root);
-				store.add(toDisposable(() => root.remove()));
-				store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService()));
-				store.add(new PanelCornerStyleContribution(configurationService, layoutService, TestEnvironmentService));
-
-				const grid = appendElement(root, 'monaco-grid-view');
-				const leftSideBar = appendElement(grid, 'part sidebar left');
-				const rightSideBar = appendElement(grid, 'part sidebar right');
-				const auxiliaryBar = appendElement(grid, 'part auxiliarybar');
-				const panel = appendElement(grid, 'part panel bottom');
-				const editor = appendElement(grid, 'part editor');
-				const editorContent = appendElement(editor, 'content');
-				const leftRail = appendElement(grid, 'part activitybar left');
-				const rightRail = appendElement(grid, 'part activitybar right');
-				const webview = appendElement(root, 'webview-overlay-content');
-				const modalWebview = appendElement(root, 'webview-overlay-content webview-overlay-modal');
-				const modalEditor = appendElement(appendElement(root, 'monaco-modal-editor-block'), 'part editor modal-editor-part');
-				const input = appendElement(root, 'monaco-inputbox');
-				const hover = appendElement(root, 'monaco-hover');
-				const targetWindow = getWindow(root);
-				const corners = (element: HTMLElement) => {
-					const style = targetWindow.getComputedStyle(element);
-					return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
-				};
-				const corner = `${compact ? 0 : radius}px`;
-				const allCorners = [corner, corner, corner, corner];
-				const joined = {
-					leftSideBar: corners(leftSideBar),
-					rightSideBar: corners(rightSideBar),
-					leftRail: corners(leftRail),
-					rightRail: corners(rightRail),
-				};
-				root.classList.add('panel-position-bottom', 'panel-alignment-justify');
-				const exposedRailCorners = { left: corners(leftRail), right: corners(rightRail) };
-				root.classList.add('nosidebar', 'noactivitybar');
-
-				const state = {
-					surfaces: [auxiliaryBar, panel, editor, editorContent, webview].map(corners),
-					joined,
-					exposedRailCorners,
-					standalone: [leftSideBar, rightSideBar, leftRail, rightRail].map(corners),
-					unaffected: [input, hover, modalEditor, modalWebview].map(element => targetWindow.getComputedStyle(element).borderRadius),
-					panelMarginLeft: targetWindow.getComputedStyle(panel).marginLeft,
-					panelBorderWidth: targetWindow.getComputedStyle(panel).borderLeftWidth,
-					clipping: [leftSideBar, panel, editor].map(element => targetWindow.getComputedStyle(element).overflow),
-				};
-				root.classList.add('mac', 'nostatusbar');
-				root.style.setProperty('--window-corner-radius', '16px');
-				panel.classList.add('floating-part-outer-left', 'floating-part-outer-right', 'floating-part-outer-bottom');
-				editor.classList.add('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-bottom');
-				webview.classList.add('webview-overlay-outer-left', 'webview-overlay-outer-right', 'webview-overlay-outer-bottom');
-				const nativeCorner = `${compact ? 0 : preset === PanelCornerStyle.Default ? 12 : radius}px`;
-				const nativeContentCorner = `${compact ? 0 : Math.max(0, (preset === PanelCornerStyle.Default ? 12 : radius) - 1)}px`;
-
-				assert.deepStrictEqual({
-					...state,
-					nativeWindowCorners: [panel, editor, editorContent, webview].map(corners),
-				}, {
-					surfaces: [allCorners, allCorners, allCorners, allCorners, allCorners],
-					joined: {
-						leftSideBar: ['0px', corner, corner, '0px'],
-						rightSideBar: [corner, '0px', '0px', corner],
-						leftRail: [corner, '0px', '0px', corner],
-						rightRail: ['0px', corner, corner, '0px'],
-					},
-					exposedRailCorners: {
-						left: [corner, '0px', corner, corner],
-						right: ['0px', corner, corner, corner],
-					},
-					standalone: [allCorners, allCorners, allCorners, allCorners],
-					unaffected: ['4px', '8px', '8px', '8px'],
-					panelMarginLeft: compact ? '0px' : '4px',
-					panelBorderWidth: '1px',
-					clipping: ['hidden', 'hidden', 'hidden'],
-					nativeWindowCorners: [
-						[corner, corner, nativeCorner, nativeCorner],
-						[corner, corner, nativeCorner, nativeCorner],
-						[corner, corner, nativeContentCorner, nativeContentCorner],
-						[corner, corner, nativeContentCorner, nativeContentCorner],
-					],
-				});
-			});
-		}
-	}
 
 	test('shows layout density options in the Settings menu only when Modern UI is enabled', () => {
 		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)

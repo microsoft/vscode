@@ -11,20 +11,21 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
-import { mock } from '../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { PanelCornerStyleContribution } from '../../../workbench/browser/panelCornerStyle.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { SIZE_CUSTOMIZATIONS_SETTING } from '../../../platform/theme/common/sizeService.js';
+import { TestColorTheme } from '../../../platform/theme/test/common/testThemeService.js';
+import { WorkbenchSizeService } from '../../../workbench/services/themes/browser/workbenchSizeService.js';
+import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
-import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
-import { LayoutSettings, PanelCornerStyle, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { IWorkbenchEnvironmentService } from '../../../workbench/services/environment/common/environmentService.js';
-import { TestLayoutService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
 import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
@@ -59,83 +60,109 @@ suite('Sessions - Agents Part Card', () => {
 		return { container, card };
 	}
 
-	for (const { preset, radius } of [
-		{ preset: PanelCornerStyle.Square, radius: 0 },
-		{ preset: PanelCornerStyle.Subtle, radius: 4 },
-		{ preset: PanelCornerStyle.Default, radius: 8 },
-		{ preset: PanelCornerStyle.Rounded, radius: 12 },
-	]) {
-		for (const compact of [false, true]) {
-			test(`applies the shared ${preset} corner preset to Agents panels with compact density ${compact} independently of Modern UI`, () => {
-				const { container, card } = createCard(true, true, false, compact);
-				container.style.setProperty('--vscode-cornerRadius-small', '4px');
-				container.style.setProperty('--vscode-cornerRadius-xLarge', '12px');
-				container.style.setProperty('--window-corner-radius', '16px');
-				container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+	for (const compact of [false, true]) {
+		test(`resolves component-specific semantic corners in Agents with compact layout ${compact}`, () => {
+			const configuration = new TestConfigurationService({
+				[SIZE_CUSTOMIZATIONS_SETTING]: {
+					'panels.cornerRadius': 3,
+					'agentsWindow.toolsPanel.cornerRadius': 1,
+					'agentsWindow.chatPanels.cornerRadius': 2,
+					'agentsWindow.editorArea.cornerRadius': 4,
+					'pages.cornerRadius': 5,
+					'agentsWindow.secondarySideBar.cornerRadius': 6,
+				},
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const sizes = store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService())));
+			const sheet = createStyleSheet(undefined, undefined, store.add(new DisposableStore()));
+			sheet.textContent = generateColorThemeCSS(new TestColorTheme(), '.semantic-agents-sizes', undefined, undefined, sizes).code;
+			const { container, card } = createCard(true, true, false, compact);
+			container.classList.add('semantic-agents-sizes', 'modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+			card.classList.add('part', 'sessionspart');
+			const session = append(card, $('.session-view'));
+			const customView = append(container, $('.agents-part-card'));
+			const grid = append(container, $('.monaco-grid-view'));
+			const editor = append(grid, $('.part.editor'));
+			const auxiliary = append(grid, $('.part.auxiliarybar'));
+			const panel = append(grid, $('.part.panel'));
+			const read = (element: HTMLElement) => {
+				const css = mainWindow.getComputedStyle(element);
+				return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius];
+			};
+			assert.deepStrictEqual([card, session, customView, editor, auxiliary, panel].map(read), compact
+				? Array.from({ length: 6 }, () => ['0px', '0px', '0px', '0px'])
+				: [
+					['2px', '2px', '2px', '2px'],
+					['1px', '1px', '1px', '1px'],
+					['5px', '5px', '5px', '5px'],
+					['4px', '0px', '0px', '4px'],
+					['0px', '6px', '6px', '0px'],
+					['1px', '1px', '1px', '1px'],
+				]);
+		});
+	}
+
+	for (const spacing of [0, 1, 4, 8, 16]) {
+		for (const connected of [false, true]) {
+			test(`matches ${spacing}px Agents gaps and content sizes with ${connected ? 'connected' : 'pill'} tabs`, () => {
+				const { container, card } = createCard(true, true);
+				container.classList.add('modern-ui-tabs', 'dock-detail-panel', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
+				container.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				container.style.setProperty('--vscode-agentsWindow-panels-spacing', `${spacing}px`);
+				container.style.setProperty('--vscode-sash-size', '4px');
 				card.classList.add('part', 'sessionspart');
-				const configurationService = new TestConfigurationService({
-					[LayoutSettings.MODERN_UI]: false,
-					[LayoutSettings.PANEL_CORNER_STYLE]: preset,
-				});
-				store.add(configurationService.onDidChangeConfigurationEmitter);
-				const layoutService = new class extends TestLayoutService {
-					override mainContainer = container;
-					override containers = [container];
-				}();
-				const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
-					override isSessionsWindow = true;
-				}();
-				store.add(new PanelCornerStyleContribution(configurationService, layoutService, environmentService));
-
-				const session = append(card, $('.session-view'));
-				const group = append(append(session, $('.chat-groups-view-has-gaps')), $('.chat-group-view-surface'));
-				const customView = append(container, $('.agents-part-card'));
-				const grid = append(container, $('.monaco-grid-view'));
-				const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
-				const editorGroup = append(append(editor, $('.content')), $('.editor-group-container'));
-				const auxiliaryBar = append(grid, $('.part.auxiliarybar'));
-				const panel = append(grid, $('.part.panel'));
-				const webview = append(container, $('.webview-overlay-content'));
-				const modalWebview = append(container, $('.webview-overlay-content.webview-overlay-modal'));
-				const corners = (element: HTMLElement, pseudoElement?: string) => {
-					const style = mainWindow.getComputedStyle(element, pseudoElement);
-					return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
-				};
-				const corner = `${compact ? 0 : radius}px`;
-				const innerCorner = `${compact ? 0 : Math.max(0, radius - 1)}px`;
-				const allCorners = [corner, corner, corner, corner];
-				const joined = { editor: corners(editor), auxiliaryBar: corners(auxiliaryBar) };
-				const framedContent = [session, group].map(element => mainWindow.getComputedStyle(element).borderRadius);
-				container.classList.add('dock-detail-panel', 'noauxiliarybar');
-				const standaloneEditor = corners(editor);
-				const editorFrame = mainWindow.getComputedStyle(editorGroup, '::after').borderRadius;
-				const outerCorner = `${compact ? 0 : preset === PanelCornerStyle.Default ? 12 : radius}px`;
-				container.classList.add('mac', 'nosidebar', 'nopanel', 'noeditorpane');
-				const nativeWindowCorners = corners(card);
-				container.classList.remove('nopanel');
-				const nativePanelCorners = corners(panel);
-
+				const row = append(container, $('.monaco-grid-view'));
+				row.style.display = 'flex';
+				row.style.position = 'relative';
+				const allocation = append(row, $('.session-allocation'));
+				allocation.style.cssText = 'width: 500px; height: 300px; flex-shrink: 0;';
+				append(allocation, card);
+				card.style.height = '100%';
+				const sessionInset = getSessionsPartFrameInset(container, spacing);
+				const sideInset = getSidePaneFrameInset(container, spacing);
+				const margin = getSessionsPartCardMarginRight(container, spacing);
+				const cardSize = getAgentsPartCardContentSize(500, 300, true, true, false, false, margin, sessionInset);
+				const content = append(card, $('.content'));
+				content.style.width = `${cardSize.width}px`;
+				content.style.height = `${cardSize.height}px`;
+				const session = append(content, $('.session-view'));
+				session.style.cssText = 'width: 100%; height: 100%;';
+				const editor = append(row, $('.part.editor.editor-tabs-multiple'));
+				editor.style.cssText = 'width: 300px; height: 300px; flex-shrink: 0;';
+				const divider = append(row, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+				divider.style.left = '498px';
+				const targetWindow = mainWindow;
+				const actualGap = editor.getBoundingClientRect().left + sideInset - session.getBoundingClientRect().right;
+				const cssSessionInset = targetWindow.getComputedStyle(container).getPropertyValue('--agents-session-frame-inset');
+				const cssSideInset = targetWindow.getComputedStyle(container).getPropertyValue('--agents-side-pane-frame-inset');
+				const sashBounds = divider.getBoundingClientRect();
+				const sessionBounds = session.getBoundingClientRect();
 				assert.deepStrictEqual({
-					surfaces: [card, customView, webview].map(element => mainWindow.getComputedStyle(element).borderTopLeftRadius),
-					joined,
-					framedContent,
-					standaloneEditor,
-					editorFrame,
-					nativeWindowCorners,
-					nativePanelCorners,
-					modalWebview: mainWindow.getComputedStyle(modalWebview).borderRadius,
+					actualGap,
+					contentWidth: content.clientWidth,
+					availableWidth: card.clientWidth,
+					contentHeight: content.clientHeight,
+					availableHeight: card.clientHeight,
+					insets: [sessionInset, sideInset],
+					borderWidths: [targetWindow.getComputedStyle(card).borderLeftWidth, targetWindow.getComputedStyle(editor).borderLeftWidth],
+					nonnegativeMargins: Number.parseFloat(targetWindow.getComputedStyle(card).marginRight) >= 0,
+					sashSize: sashBounds.width,
+					sashCenter: sashBounds.left + sashBounds.width / 2 - sessionBounds.right,
+					outerGutter: targetWindow.getComputedStyle(row).marginRight,
+					insetVariablesPresent: cssSessionInset.length > 0 && cssSideInset.length > 0,
 				}, {
-					surfaces: [corner, corner, corner],
-					joined: {
-						editor: [corner, '0px', '0px', corner],
-						auxiliaryBar: ['0px', corner, corner, '0px'],
-					},
-					framedContent: [innerCorner, innerCorner],
-					standaloneEditor: allCorners,
-					editorFrame: innerCorner,
-					nativeWindowCorners: [corner, corner, outerCorner, outerCorner],
-					nativePanelCorners: [corner, corner, outerCorner, outerCorner],
-					modalWebview: '0px',
+					actualGap: spacing,
+					contentWidth: cardSize.width,
+					availableWidth: cardSize.width,
+					contentHeight: cardSize.height,
+					availableHeight: cardSize.height,
+					insets: [Math.min(1, spacing), connected ? Math.min(1, Math.max(0, spacing - 1)) : 0],
+					borderWidths: [`${sessionInset}px`, connected ? `${sideInset}px` : '1px'],
+					nonnegativeMargins: true,
+					sashSize: 4,
+					sashCenter: spacing / 2,
+					outerGutter: '4px',
+					insetVariablesPresent: true,
 				});
 			});
 		}
@@ -327,6 +354,7 @@ suite('Sessions - Agents Part Card', () => {
 				mainContainer: container,
 				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
 					|| partId === Parts.SESSIONS_PART
 					|| partId === Parts.PANEL_PART,
@@ -400,6 +428,7 @@ suite('Sessions - Agents Part Card', () => {
 			mainContainer: container,
 			agentWorkbenchLayout: AgentWorkbenchLayout.Mobile,
 			isModernUICompact: () => false,
+			getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 			isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
 				|| partId === Parts.AUXILIARYBAR_PART
 				|| partId === Parts.SESSIONS_PART
@@ -458,6 +487,7 @@ suite('Sessions - Agents Part Card', () => {
 			layoutService: {
 				mainContainer: container,
 				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
 					|| partId === Parts.SIDEBAR_PART
 					|| (partId === Parts.SESSIONS_PART && sessionsVisible),
@@ -519,6 +549,7 @@ suite('Sessions - Agents Part Card', () => {
 						mainContainer: workbench,
 						agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile,
 						isModernUICompact: () => false,
+						getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
 							|| (partId === Parts.SIDEBAR_PART && state.sidebar)
 							|| (partId === Parts.SESSIONS_PART && state.sessions),
@@ -567,6 +598,7 @@ suite('Sessions - Agents Part Card', () => {
 						mainContainer: workbench,
 						agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile,
 						isModernUICompact: () => compact,
+						getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART,
 					},
 				};
@@ -640,6 +672,7 @@ suite('Sessions - Agents Part Card', () => {
 				layoutService: {
 					mainContainer: container,
 					isModernUICompact: () => compact,
+					getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 					isVisible: () => true,
 					getPanelAlignment: () => 'justify' as const,
 				},
@@ -682,6 +715,7 @@ suite('Sessions - Agents Part Card', () => {
 			layoutService: {
 				mainContainer: container,
 				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
 					|| (partId === Parts.SIDEBAR_PART && sidebarVisible)
 					|| ((partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART) && editorPaneVisible),
@@ -725,7 +759,7 @@ suite('Sessions - Agents Part Card', () => {
 
 	test('keeps connected chat and editor frames flush in compact density', () => {
 		const { container, card } = createCard(true, true);
-		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
 		container.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
 		card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
@@ -844,6 +878,7 @@ suite('Sessions - Agents Part Card', () => {
 			const layoutService = {
 				mainContainer: container,
 				isModernUICompact: () => true,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: () => true,
 				getPanelAlignment: () => 'justify' as const,
 			};
@@ -928,6 +963,7 @@ suite('Sessions - Agents Part Card', () => {
 				layoutService: {
 					mainContainer: container,
 					isModernUICompact: () => compact && !container.classList.contains('phone-layout'),
+					getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 					isVisible: (partId: Parts) => partId !== Parts.SIDEBAR_PART,
 				},
 				agentWorkbenchLayoutService: {

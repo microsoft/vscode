@@ -652,7 +652,7 @@
 	width: auto;
 	height: var(--vscode-spacing-size200);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size160) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	font-size: var(--vscode-fontSize-label2);

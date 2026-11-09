@@ -339,7 +339,7 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
-		const borderRadius = 'var(--vscode-cornerRadius-large)';
+		const borderRadius = 'var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large))';
 
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
@@ -1154,7 +1154,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
 	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
 }
@@ -1368,7 +1368,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu-container {
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
 }
 
 /* Context Menu */

@@ -63,7 +63,7 @@
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-medium));
 
 		&:has(.browser-url-display:focus) {
 			border-color: var(--vscode-focusBorder);
@@ -84,7 +84,7 @@
 		white-space: nowrap;
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-disabledForeground);
-		border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+		border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small)) 0 0 var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
 
 		&.connected {
 			background-color: var(--vscode-statusBarItem-remoteBackground);

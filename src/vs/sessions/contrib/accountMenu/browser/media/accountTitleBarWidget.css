@@ -184,7 +184,7 @@
 	padding: 0 8px;
 	font-size: var(--vscode-fontSize-label2);
 	line-height: 20px;
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-medium));
 }
 
 .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover,
@@ -334,7 +334,7 @@
 	min-height: 24px;
 	padding: 2px 6px;
 	justify-content: flex-start;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 20px;
 	color: var(--vscode-foreground);
@@ -601,7 +601,7 @@
 	height: 26px;
 	margin: 0;
 	padding: 0 12px;
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-medium));
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;

@@ -255,7 +255,7 @@
 	margin-left: var(--vscode-spacing-size80);
 	padding: 0;
 	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-codiconFontSize-compact);
 	cursor: pointer;
@@ -298,7 +298,7 @@
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background: transparent;
 	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	line-height: var(--vscode-spacing-size160);
@@ -621,7 +621,7 @@
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-button-secondaryForeground);
 }
 
@@ -745,7 +745,7 @@
 	padding: 0 var(--vscode-spacing-size40);
 	background-color: transparent;
 	border-color: transparent;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	color: var(--vscode-icon-foreground);
 	font-size: var(--vscode-fontSize-label2);
 }
@@ -941,7 +941,7 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	min-width: 0;
 	overflow: hidden;
 }

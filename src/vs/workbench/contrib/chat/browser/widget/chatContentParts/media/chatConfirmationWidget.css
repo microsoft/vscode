@@ -442,7 +442,7 @@
 			max-width: 100%;
 			padding: 4px 6px 4px 0;
 			border: none;
-			border-radius: 2px;
+			border-radius: var(--workbench-custom-buttons-corner-radius, 2px);
 			background-color: unset;
 			color: var(--vscode-descriptionForeground);
 		}
@@ -498,7 +498,7 @@
 	.chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 		cursor: pointer;
 		padding: 2px;
-		border-radius: 4px;
+		border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
 		display: inline-flex;
 	}
 

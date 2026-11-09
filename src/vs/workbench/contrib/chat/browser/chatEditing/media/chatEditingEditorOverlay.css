@@ -63,7 +63,7 @@
 	padding: 4px 6px;
 	font-size: 11px;
 	line-height: 14px;
-	border-radius: 4px; /* same as overlay widget */
+	border-radius: var(--workbench-custom-buttons-corner-radius, 4px); /* same as overlay widget */
 }
 
 .chat-editor-overlay-widget .monaco-action-bar .actions-container {

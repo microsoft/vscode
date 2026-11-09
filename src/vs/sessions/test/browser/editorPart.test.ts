@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
 import { renderSessionsEmptyState } from '../../../workbench/browser/parts/sessions/sessionsEmptyState.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/style.css';
@@ -149,7 +150,9 @@ suite('Sessions - EditorPart', () => {
 
 	test('connected detail tabs keep rounded corners while sharing the single card frame', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
+		workbench.classList.add(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		for (const [name, value] of Object.entries({
+			'--vscode-agents-layout-floatingPanelGap': '4px',
 			'--vscode-spacing-size20': '2px',
 			'--vscode-spacing-size40': '4px',
 			'--vscode-spacing-size60': '6px',

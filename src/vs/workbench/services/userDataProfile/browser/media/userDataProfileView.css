@@ -125,5 +125,5 @@
 	cursor: pointer;
 	line-height: 17px;
 	padding: 2px 23px 2px 8px;
-	border-radius: 2px;
+	border-radius: var(--workbench-custom-inputs-corner-radius, 2px);
 }

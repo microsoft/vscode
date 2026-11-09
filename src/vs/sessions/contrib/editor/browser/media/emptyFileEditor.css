@@ -28,5 +28,5 @@
 }
 
 .empty-file-editor-search .monaco-inputbox {
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
 }

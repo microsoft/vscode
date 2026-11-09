@@ -17,7 +17,7 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/
 import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString, LayoutSettings, ModernUIDensity } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
-import { Part } from '../../workbench/browser/part.js';
+import { Part, relayoutWorkbenchParts, updateSashEndpoints } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { ContentPart } from '../../workbench/browser/parts/editor/contentPart.js';
@@ -89,6 +89,9 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/comm
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
+import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { ISizeService } from '../../platform/theme/common/sizeService.js';
+import { agentsPanelsSpacing } from '../../platform/theme/common/sizeRegistry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -367,6 +370,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	//#region Properties
 
 	readonly mainContainer = document.createElement('div');
+	private panelSpacing = AGENTS_FLOATING_PANEL_GAP;
 
 	get activeContainer(): HTMLElement {
 		return this.getContainerFromDocument(getActiveDocument());
@@ -603,6 +607,21 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
+				const sizeService = accessor.get(ISizeService);
+				const themeService = accessor.get(IThemeService);
+				const updatePanelSpacing = () => {
+					const spacing = sizeService.getSize(agentsPanelsSpacing, themeService.getColorTheme())!.value;
+					if (spacing !== this.panelSpacing) {
+						this.panelSpacing = spacing;
+						if (this.workbenchGrid) {
+							this.layout();
+							relayoutWorkbenchParts(this.workbenchGrid);
+							this._layoutSidePane();
+						}
+					}
+				};
+				updatePanelSpacing();
+				this._register(sizeService.onDidChangeSizes(updatePanelSpacing));
 				this.chatLayoutPresentation = this._register(new ChatLayoutPresentation(configurationService, this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop, this.layoutPolicy.isPhoneLayout));
 				const hostService = accessor.get(IHostService);
 				const hoverService = accessor.get(IHoverService);
@@ -2201,6 +2220,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
+		if (container === this.mainContainer && this.workbenchGrid) {
+			updateSashEndpoints(this.workbenchGrid.element, !this.isModernUICompact() && this.layoutPolicy.viewportClass.get() !== 'phone');
+		}
 		this._onDidLayoutContainer.fire({ container, dimension });
 		if (container === this.mainContainer) {
 			this._onDidLayoutMainContainer.fire(dimension);
@@ -2226,6 +2248,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	isModernUICompact(): boolean {
 		return this.layoutDensity === ModernUIDensity.Compact && this.layoutPolicy.viewportClass.get() !== 'phone';
+	}
+
+	getPanelSpacing(): number {
+		return this.isModernUICompact() || this.layoutPolicy.viewportClass.get() === 'phone' ? 0 : this.panelSpacing;
 	}
 
 	getLayoutClasses(): string[] {

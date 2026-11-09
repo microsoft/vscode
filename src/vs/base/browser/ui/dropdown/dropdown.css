@@ -21,14 +21,14 @@
 }
 
 .monaco-dropdown .dropdown-menu {
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
 	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-dropdown-with-primary {
 	display: flex !important;
 	flex-direction: row;
-	border-radius: 5px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 5px);
 }
 
 .monaco-dropdown-with-primary > .action-container > .action-label {

@@ -26,7 +26,7 @@
 	padding: 4px 6px;
 	font-size: var(--vscode-fontSize-body2);
 	line-height: 14px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 }
 
 .agent-editor-comments-overlay-widget .monaco-action-bar .actions-container {

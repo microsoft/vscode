@@ -14,6 +14,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
@@ -66,6 +68,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
@@ -76,6 +80,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
+		const updateCorners = () => {
+			if (this._anchorState) {
+				this._syncOuterEdgeClasses(this._anchorState.anchorElement.closest('.part'));
+			}
+		};
+		this._register(sizeService.onDidChangeSizes(updateCorners));
+		this._register(themeService.onDidColorThemeChange(updateCorners));
 	}
 
 	public get isFocused() {
@@ -213,6 +224,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			if (part) {
 				const observer = new (getWindow(part).MutationObserver)(() => this._syncOuterEdgeClasses(part));
 				observer.observe(part, { attributes: true, attributeFilter: ['class'] });
+				const root = part.closest('.monaco-workbench');
+				if (root) {
+					observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+				}
 				this._outerEdgeObserver.value = toDisposable(() => observer.disconnect());
 			}
 		}
@@ -236,6 +251,23 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 					|| part?.classList.contains(`floating-editor-outer-${edge}`)
 					|| false);
 			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
+		}
+
+		this.overlayLayout.content.style.removeProperty('border-radius');
+		const root = part?.closest('.monaco-workbench');
+		if (part && anchorBounds && contentBounds && !part.classList.contains('modal-editor-part')
+			&& root?.matches('.floating-panels, .agent-sessions-workbench:not(.phone-layout)')) {
+			const touches = (edge: 'left' | 'right' | 'top' | 'bottom') => Math.abs(anchorBounds[edge] - contentBounds[edge]) <= 1;
+			// The anchor can cover only a subregion of the card, so resolve its actual exposed corners.
+			const css = getWindow(part).getComputedStyle(part);
+			const radius = (value: string, firstBorder: string, secondBorder: string) =>
+				Math.max(0, Number.parseFloat(value) - Math.max(Number.parseFloat(firstBorder), Number.parseFloat(secondBorder)));
+			this.overlayLayout.content.style.borderRadius = [
+				touches('top') && touches('left') ? radius(css.borderTopLeftRadius, css.borderTopWidth, css.borderLeftWidth) : 0,
+				touches('top') && touches('right') ? radius(css.borderTopRightRadius, css.borderTopWidth, css.borderRightWidth) : 0,
+				touches('bottom') && touches('right') ? radius(css.borderBottomRightRadius, css.borderBottomWidth, css.borderRightWidth) : 0,
+				touches('bottom') && touches('left') ? radius(css.borderBottomLeftRadius, css.borderBottomWidth, css.borderLeftWidth) : 0,
+			].map(value => `${value}px`).join(' ');
 		}
 	}
 

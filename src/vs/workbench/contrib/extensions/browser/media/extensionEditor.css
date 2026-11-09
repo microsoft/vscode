@@ -268,17 +268,17 @@
 /* single install */
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
-	border-radius: 4px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
 }
 
 /* split install */
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label {
-	border-radius: 4px 0 0 4px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 4px) 0 0 var(--workbench-custom-buttons-corner-radius, 4px);
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
-	border-radius: 0 4px 4px 0;
+	border-radius: 0 var(--workbench-custom-buttons-corner-radius, 4px) var(--workbench-custom-buttons-corner-radius, 4px) 0;
 	padding: 0 2px;
 }
 

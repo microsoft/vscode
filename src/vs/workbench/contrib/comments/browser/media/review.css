@@ -99,7 +99,7 @@
 	width: 30px;
 	background-color: transparent;
 	border: 1px solid grey;
-	border-radius: 3px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 3px);
 }
 
 .review-widget .body .review-comment .review-comment-contents {

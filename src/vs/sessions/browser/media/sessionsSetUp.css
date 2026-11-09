@@ -55,7 +55,7 @@
 	margin: var(--vscode-spacing-size80) auto 0;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);

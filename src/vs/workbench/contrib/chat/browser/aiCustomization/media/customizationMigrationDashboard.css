@@ -114,7 +114,7 @@
 	width: auto;
 	flex-shrink: 0;
 	font-size: var(--vscode-fontSize-label1);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 }
 
 .customization-migration-dashboard .migration-secondary-button {

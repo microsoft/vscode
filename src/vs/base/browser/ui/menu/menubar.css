@@ -53,7 +53,7 @@
 
 .menubar-menu-title {
 	padding: 0px 8px;
-	border-radius: 5px;
+	border-radius: var(--workbench-custom-buttons-corner-radius, 5px);
 }
 
 .menubar .menubar-menu-items-holder {

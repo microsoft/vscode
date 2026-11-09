@@ -1683,7 +1683,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-button {
 		padding: 2px 6px 2px 0px;
-		border-radius: var(--vscode-cornerRadius-xSmall);
+		border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-xSmall));
 		border: none;
 		background-color: unset;
 		color: var(--vscode-descriptionForeground);
@@ -1723,7 +1723,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
 	padding: 2px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	display: inline-flex;
 }
 
@@ -1824,7 +1824,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: var(--vscode-cornerRadius-xSmall);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-xSmall));
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2100,7 +2100,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -2211,7 +2211,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -2221,7 +2221,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -3031,7 +3031,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-artifacts-widget .chat-artifacts-list-actions .action-item .action-label {
 	padding: 2px;
-	border-radius: var(--vscode-cornerRadius-xSmall);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-xSmall));
 	cursor: pointer;
 }
 
@@ -3534,7 +3534,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	width: fit-content;
 	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
 	gap: 0;
 	text-align: initial;
 	justify-content: initial;
