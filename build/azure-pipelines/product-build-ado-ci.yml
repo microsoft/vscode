@@ -406,6 +406,7 @@ extends:
                 VSCODE_TEST_IDS:
                   - smoke-electron
                   - smoke-wsl-kerberos-proxy
+                  - smoke-wsl-basic-proxy
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
@@ -544,5 +545,6 @@ extends:
                   - smoke-electron
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy
 
 
