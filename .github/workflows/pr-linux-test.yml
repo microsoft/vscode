@@ -696,9 +696,9 @@ jobs:
 
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
   # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
-  # Linux machines are plentiful, so it uses three shards to keep them out of the slowest jobs.
+  # Linux machines are plentiful, so it uses four shards to keep them out of the slowest jobs.
   electron-smoke-1:
-    name: Electron-Smoke (shard 1/3)
+    name: Electron-Smoke (shard 1/4)
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: ${{ inputs.runner }}
     env:
@@ -706,11 +706,11 @@ jobs:
       ELECTRON_TESTS: 'true'
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '1'
-      SMOKE_SHARD_TOTAL: '3'
+      SMOKE_SHARD_TOTAL: '4'
     steps: *steps
 
   electron-smoke-2:
-    name: Electron-Smoke (shard 2/3)
+    name: Electron-Smoke (shard 2/4)
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: ${{ inputs.runner }}
     env:
@@ -718,11 +718,11 @@ jobs:
       ELECTRON_TESTS: 'true'
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '2'
-      SMOKE_SHARD_TOTAL: '3'
+      SMOKE_SHARD_TOTAL: '4'
     steps: *steps
 
   electron-smoke-3:
-    name: Electron-Smoke (shard 3/3)
+    name: Electron-Smoke (shard 3/4)
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: ${{ inputs.runner }}
     env:
@@ -730,7 +730,19 @@ jobs:
       ELECTRON_TESTS: 'true'
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '3'
-      SMOKE_SHARD_TOTAL: '3'
+      SMOKE_SHARD_TOTAL: '4'
+    steps: *steps
+
+  electron-smoke-4:
+    name: Electron-Smoke (shard 4/4)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: ${{ inputs.runner }}
+    env:
+      ARTIFACT_NAME: electron-smoke-shard4
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '4'
+      SMOKE_SHARD_TOTAL: '4'
     steps: *steps
 
   browser-unit:
