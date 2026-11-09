@@ -171,7 +171,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
 				cwd: launchConfig.isRemoteResolverTerminal ? shellLaunchConfig.cwd : undefined,
-				location: await this._deserializeParentTerminal(launchConfig.location)
+				location: await this._deserializeParentTerminal(launchConfig.location, launchConfig.hideFromUser)
 			});
 			r(terminal);
 		});
@@ -187,13 +187,14 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		}));
 	}
 
-	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
+	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }, hideFromUser = false): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
 		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
 			const parentTerminal = await this._getTerminalInstance(location.parentTerminal);
 			if (!parentTerminal) {
 				return undefined;
 			}
-			return parentTerminal.target === TerminalLocation.Editor || this._terminalService.foregroundInstances.includes(parentTerminal) ? { parentTerminal } : TerminalLocation.Panel;
+			// Hidden children inherit the parent's cwd without splitting its group.
+			return hideFromUser || parentTerminal.target === TerminalLocation.Editor || this._terminalService.foregroundInstances.includes(parentTerminal) ? { parentTerminal } : TerminalLocation.Panel;
 		}
 		return location;
 	}

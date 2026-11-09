@@ -13,8 +13,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CwdDetectionCapability } from '../../../../platform/terminal/common/capabilities/cwdDetectionCapability.js';
+import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 import { TerminalEditorService } from '../../../contrib/terminal/browser/terminalEditorService.js';
@@ -96,7 +99,8 @@ suite('MainThreadTerminalService', () => {
 		instantiationService.stub(ITerminalCompletionService, {});
 		service = store.add(instantiationService.createInstance(MainThreadTerminalService, AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$startExtensionTerminal' | '$acceptProcessInput'>>({
 			$startExtensionTerminal: async id => {
-				service.$sendProcessReady(id, -1, '', undefined);
+				const cwd = terminals.getInstanceFromId(id)?.shellLaunchConfig.cwd;
+				service.$sendProcessReady(id, -1, typeof cwd === 'string' ? cwd : '', undefined);
 				return undefined;
 			},
 			$acceptProcessInput: (_id, data) => input.push(data)
@@ -104,6 +108,18 @@ suite('MainThreadTerminalService', () => {
 		// TerminalService initializes its editor styles asynchronously, even when the test skips.
 		await timeout(0);
 	});
+
+	async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...configurationService.getValue<ITerminalConfiguration>('terminal.integrated'),
+			...configuration
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+	}
 
 	function createBridge(remoteAuthority: string | null, onInitialCollections: (collections: [string, ISerializableEnvironmentVariableCollection][]) => void, remoteOS = OperatingSystem.Linux): MainThreadTerminalService {
 		const rpc = AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$initEnvironmentVariableCollections'>>({
@@ -367,15 +383,7 @@ suite('MainThreadTerminalService', () => {
 
 			for (const hideChild of [false, true]) {
 				test(`preserves the panel location of a ${state} parent referenced by its ${identifier} with an editor default and a ${hideChild ? 'hidden' : 'visible'} child`, async () => {
-					await configurationService.setUserConfiguration('terminal.integrated', {
-						...configurationService.getValue<ITerminalConfiguration>('terminal.integrated'),
-						defaultLocation: 'editor'
-					});
-					configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-						override affectsConfiguration(section: string): boolean {
-							return section.startsWith('terminal.integrated');
-						}
-					});
+					await setTerminalConfiguration({ defaultLocation: TerminalLocationConfigValue.Editor });
 					await service.$createTerminal('parent-terminal', {
 						name: 'Parent',
 						hideFromUser: state === 'hidden',
@@ -411,6 +419,59 @@ suite('MainThreadTerminalService', () => {
 					} finally {
 						child.dispose();
 						parent.dispose();
+					}
+				});
+			}
+
+			for (const splitCwd of ['initial', 'inherited'] as const) {
+				test(`preserves ${splitCwd} cwd for a hidden child of a ${state} panel parent referenced by its ${identifier}`, async () => {
+					await setTerminalConfiguration({ defaultLocation: TerminalLocationConfigValue.Editor, splitCwd });
+					await service.$createTerminal('parent-terminal', {
+						name: 'Parent',
+						cwd: '/parent-initial',
+						hideFromUser: state === 'hidden',
+						isExtensionCustomPtyTerminal: true,
+						location: TerminalLocation.Panel
+					});
+					const parent = store.add(terminals.instances[0]);
+					await parent.processReady;
+					if (state === 'backgrounded') {
+						terminals.moveToBackground(parent);
+					}
+					const cwdDetection = store.add(new CwdDetectionCapability());
+					const capabilities = store.add(new TerminalCapabilityStore());
+					capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
+					assert.ok(parent.capabilities instanceof TerminalCapabilityStoreMultiplexer);
+					parent.capabilities.add(capabilities);
+					cwdDetection.updateCwd('/parent-current');
+					try {
+						const children = [];
+						for (const cwd of [undefined, '/child-explicit']) {
+							const childId = cwd ? 'explicit-child-terminal' : 'child-terminal';
+							await service.$createTerminal(childId, {
+								name: childId,
+								cwd,
+								hideFromUser: true,
+								isExtensionCustomPtyTerminal: true,
+								location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+							});
+							const child = store.add(terminals.instances.find(instance => instance.shellLaunchConfig.extHostTerminalId === childId)!);
+							children.push({ cwd: child.shellLaunchConfig.cwd, location: child.target });
+						}
+						assert.deepStrictEqual({
+							children,
+							foreground: terminals.foregroundInstances.map(instance => instance.instanceId)
+						}, {
+							children: [
+								{ cwd: splitCwd === 'initial' ? '/parent-initial' : '/parent-current', location: TerminalLocation.Panel },
+								{ cwd: '/child-explicit', location: TerminalLocation.Panel }
+							],
+							foreground: []
+						});
+					} finally {
+						for (const instance of [...terminals.instances]) {
+							instance.dispose();
+						}
 					}
 				});
 			}
