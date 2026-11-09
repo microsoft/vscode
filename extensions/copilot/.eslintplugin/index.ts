@@ -16,4 +16,4 @@ await Promise.all(
 		})
 );
 
-export { rules };
+export default { meta: { name: 'copilot-local' }, rules } satisfies ESLint.Plugin;

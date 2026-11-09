@@ -2705,7 +2705,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (index < 0) {
 			return null;
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 

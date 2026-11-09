@@ -132,7 +132,7 @@ It enforces the rules between folders of `extensions/copilot/src` and `extension
 
 ## PascalCase class names
 
-`local/code-class-name-pascal-case` requires class names to be PascalCase as typescript-eslint defines it: the first character is not lowercase, and the name has no underscores. It replaces `@typescript-eslint/naming-convention` configured with `{ selector: 'class', format: ['PascalCase'] }`, with the same message, because that rule's general selector matching is expensive to run on every TypeScript file. Anonymous class expressions are not checked. The terminal contributions turn it off, because their full `@typescript-eslint/naming-convention` configuration already checks class names. Run its tests with `node --test .eslint-plugin-local/tests/code-class-name-pascal-case.test.ts`.
+`local/code-class-name-pascal-case` requires class names to be PascalCase as typescript-eslint defines it: the first character is not lowercase, and the name has no underscores. It replaces `@typescript-eslint/naming-convention` configured with `{ selector: 'class', format: ['PascalCase'] }`, with the same message, because that rule's general selector matching is expensive to run on every TypeScript file. Anonymous class expressions are not checked. The terminal contributions turn it off, because their full naming convention configuration (`ts-eslint-js/naming-convention`) already checks class names. Run its tests with `node --test .eslint-plugin-local/tests/code-class-name-pascal-case.test.ts`.
 
 
 ## Asynchronous production filesystem operations

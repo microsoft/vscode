@@ -235,9 +235,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.304
         version: 0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
-      '@eslint/compat':
-        specifier: ^2.1.0
-        version: 2.1.0(eslint@10.8.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -373,9 +370,6 @@ importers:
       eslint-formatter-compact:
         specifier: ^8.40.0
         version: 8.40.0
-      eslint-plugin-header:
-        specifier: 3.1.1
-        version: 3.1.1(eslint@10.8.0)
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
@@ -518,6 +512,9 @@ importers:
 
   .eslint-plugin-local:
     devDependencies:
+      '@eslint/compat':
+        specifier: ^2.1.0
+        version: 2.1.0(eslint@10.8.0)
       '@types/estree':
         specifier: ^1.0.9
         version: 1.0.9
@@ -533,6 +530,9 @@ importers:
       eslint:
         specifier: 10.8.0
         version: 10.8.0
+      eslint-plugin-header:
+        specifier: 3.1.1
+        version: 3.1.1(eslint@10.8.0)
       eslint-visitor-keys:
         specifier: ^5.0.1
         version: 5.0.1

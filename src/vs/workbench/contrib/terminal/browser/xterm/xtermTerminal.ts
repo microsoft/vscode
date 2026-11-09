@@ -547,7 +547,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
@@ -1209,7 +1209,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
 	}
