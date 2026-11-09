@@ -12388,6 +12388,57 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		for (const themeClass of ['hc-black', 'hc-light']) {
+			test(`keeps grid-pin and attention markers separate in ${themeClass}`, () => {
+				const session = createTestSession('Pinned needs input', { status: SessionStatus.NeedsInput }).session;
+				const sticky = observableValue('sticky', true);
+				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
+				const harness = createListHarness(disposables, [session], instantiationService => {
+					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						readonly activeSession = constObservable(undefined);
+						readonly gridShown = constObservable([gridSession]);
+						override readonly slotPanes = testGridPanes(this.gridShown);
+					});
+				});
+				const container = harness.createContainer();
+				container.classList.add(themeClass);
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-spacing-size80', '8px');
+				container.style.setProperty('--vscode-focusBorder', 'rgb(0, 128, 255)');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 211, 112)');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const item = container.querySelector<HTMLElement>('.session-item.needs-input')!;
+				const indicator = item.querySelector<HTMLElement>('.session-attention-indicator')!;
+				const snapshot = () => {
+					const pin = mainWindow.getComputedStyle(item, '::before');
+					const attention = mainWindow.getComputedStyle(indicator);
+					const pinRight = Number.parseFloat(pin.left) + Number.parseFloat(pin.width);
+					const attentionLeft = indicator.getBoundingClientRect().left - item.getBoundingClientRect().left;
+					return {
+						pinned: item.classList.contains('sticky'),
+						idle: !item.closest('.monaco-list-row')!.matches('.selected, .focused, :hover'),
+						attentionVisible: attention.display === 'block',
+						attentionColor: attention.backgroundColor,
+						separateFromPin: pin.content === 'none' || pinRight <= attentionLeft,
+						pinColor: pin.content === 'none' ? undefined : pin.backgroundColor,
+					};
+				};
+				const pinned = snapshot();
+				sticky.set(false, undefined);
+
+				assert.deepStrictEqual({ pinned, unpinned: snapshot() }, {
+					pinned: { pinned: true, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: 'rgb(0, 128, 255)' },
+					unpinned: { pinned: false, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: undefined },
+				});
+			});
+		}
+
 		test('coalesces restored active chat selection without flashing the parent session', async () => {
 			const main = createChat('Main chat');
 			const first = createChat('First chat', ChatOriginKind.User);

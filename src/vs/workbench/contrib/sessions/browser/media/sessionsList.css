@@ -450,6 +450,10 @@
 			border-radius: var(--vscode-cornerRadius-circle);
 			background-color: var(--vscode-focusBorder);
 		}
+
+		> .session-attention-indicator {
+			left: var(--vscode-spacing-size40);
+		}
 	}
 
 	/* Quick-chat rows are compact single-line entries — no second (details) row.
