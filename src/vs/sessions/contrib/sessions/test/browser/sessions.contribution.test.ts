@@ -91,7 +91,7 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('hides archived sessions by default with automatic experiments', () => {
+	test('shows archived sessions by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: showArchivedByDefaultProperty.type,
 			default: showArchivedByDefaultProperty.default,
@@ -100,7 +100,7 @@ suite('Sessions Contribution', () => {
 			experiment: showArchivedByDefaultProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },

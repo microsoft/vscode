@@ -10,7 +10,7 @@ import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../../base/common/errorMessage.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -58,7 +58,7 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
-import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
@@ -9065,29 +9065,33 @@ suite('SessionsManagementService', () => {
 
 	suite('createSideChatInSession', () => {
 
-		test('asks the provider to create the side chat when the session supports it', async () => {
+		test('asks the provider to create side chats with the requested source context', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///side') };
 			const session = stubSession({ sessionId: 'side', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }) });
 			const selection = { text: '  selected text  ' };
-			let createSideChatArgs: readonly [string, URI, string, ISideChatSelection | undefined] | undefined;
+			const createSideChatArgs: [string, URI, string, ISideChatSelection | undefined, boolean | undefined][] = [];
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
-					createSideChatArgs = [sessionId, sourceChat, turnId, selection];
+				override async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat> {
+					createSideChatArgs.push([sessionId, sourceChat, turnId, selection, includeSourceContext]);
 					return sideChat;
 				}
 			};
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
 			const result = await service.createSideChatInSession(session, sourceChat, 'turn-1', selection);
+			await service.createSideChatInSession(session, sourceChat, 'turn-1', undefined, false);
 
 			assert.deepStrictEqual({
 				result: result.resource.toString(),
-				args: createSideChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+				args: createSideChatArgs.map(args => args.map(arg => URI.isUri(arg) ? arg.toString() : arg)),
 			}, {
 				result: sideChat.resource.toString(),
-				args: ['side', sourceChat.toString(), 'turn-1', selection],
+				args: [
+					['side', sourceChat.toString(), 'turn-1', selection, undefined],
+					['side', sourceChat.toString(), 'turn-1', undefined, false],
+				],
 			});
 		});
 
@@ -10388,6 +10392,470 @@ suite('SessionsManagementService', () => {
 					{ providerId: 'quick-provider', sessionTypeId: 'other' },
 				],
 			);
+		});
+	});
+
+	suite('new-session draft slots', () => {
+
+		const folder = URI.parse('test:///folder');
+		const listed = stubSession({ sessionId: 'listed', providerId: 'test' });
+
+		function draft(sessionId: string): ISession {
+			return stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		}
+
+		/** Creates the given drafts in order, and records deleted drafts. */
+		class DraftsProvider extends TestSessionsProvider {
+			readonly deleted: string[] = [];
+			readonly created: ISession[] = [];
+			readonly changes = new Emitter<ISessionChangeEvent>();
+			override readonly onDidChangeSessions = this.changes.event;
+			/** Runs while a request is being sent; throwing fails the send. */
+			onSend: (sessionId: string) => void = () => { };
+			private readonly _drafts: ISession[];
+
+			constructor(drafts: readonly ISession[]) {
+				super(listed);
+				this._drafts = [...drafts];
+			}
+
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: folder, label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+
+			override readonly supportsQuickChats = true;
+
+			override createNewSession(): ISession {
+				return this._next();
+			}
+
+			override createQuickChat(): ISession {
+				return this._next();
+			}
+
+			private _next(): ISession {
+				const next = this._drafts.shift();
+				if (!next) {
+					throw new Error('No more drafts');
+				}
+				this.created.push(next);
+				return next;
+			}
+
+			override deleteNewSession(sessionId: string): void {
+				this.deleted.push(sessionId);
+			}
+
+			override async sendRequest(sessionId: string): Promise<ISession> {
+				this.onSend(sessionId);
+				return this.created.find(session => session.sessionId === sessionId)!;
+			}
+
+			dispose(): void {
+				this.changes.dispose();
+			}
+		}
+
+		/** A provider whose preparation replaces each draft with `<id>-prepared`, once `preparation` completes. */
+		class PreparingProvider extends DraftsProvider {
+			preparation: Promise<void> = Promise.resolve();
+			override async prepareNewSession(sessionId: string) {
+				await this.preparation;
+				const prepared = draft(`${sessionId}-prepared`);
+				this.created.push(prepared);
+				return { session: prepared };
+			}
+		}
+
+		/** Names the slots in the event log: `main` for the default slot, `none` for no owner. */
+		function recordEvents(service: ISessionsManagementService, names: Map<INewSessionDraftSlot, string>): { log: string[]; ownerOf: (sessionId: string) => string } {
+			const nameOf = (slot: INewSessionDraftSlot | undefined) => !slot ? 'none' : slot === service.defaultNewSessionSlot ? 'main' : names.get(slot) ?? 'unknown';
+			const ownerOf = (sessionId: string) => nameOf(service.getNewSessionOwner(sessionId));
+			const log: string[] = [];
+			disposables.add(service.onDidAcceptNewSessionRequest(e => log.push(`accept ${e.session.sessionId} ${nameOf(e.owner)} ${e.background ? 'background' : 'foreground'}, its draft still ${e.owner.newSession.get()?.sessionId}`)));
+			disposables.add(service.onWillSendRequest(session => log.push(`willSend ${session.sessionId} ${ownerOf(session.sessionId)}`)));
+			disposables.add(service.onDidEndNewSessionRequest(e => log.push(`end ${e.session.sessionId} ${nameOf(e.owner)} started=${e.started} readopted=${e.readopted}${e.error ? ` error=${e.error instanceof Error ? e.error.message : String(e.error)}` : ''}`)));
+			disposables.add(service.onDidDiscardNewSession(session => log.push(`discard ${session.sessionId} ${ownerOf(session.sessionId)}`)));
+			disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => log.push(`replace ${from.sessionId}->${to.sessionId} ${ownerOf(to.sessionId)}`)));
+			return { log, ownerOf };
+		}
+
+		test('a slot holds its own draft: creating, replacing, discarding and disposing it leave the main composer\'s draft alone', () => {
+			const provider = disposables.add(new DraftsProvider([draft('main'), draft('a1'), draft('a2'), draft('a3')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const names = new Map<INewSessionDraftSlot, string>();
+			const { log, ownerOf } = recordEvents(service, names);
+			service.createNewSession(folder);
+			const slot = service.createNewSessionSlot();
+			names.set(slot, 'A');
+
+			slot.createNewSession(folder);
+			slot.createNewSession(folder);
+			const owners = ['main', 'a1', 'a2'].map(ownerOf);
+			slot.discardNewSession();
+			slot.createNewSession(folder);
+			slot.dispose();
+
+			assert.deepStrictEqual({
+				main: service.newSession.get()?.sessionId,
+				slot: slot.newSession.get()?.sessionId,
+				owners,
+				ownersAfter: ['main', 'a2', 'a3'].map(ownerOf),
+				deleted: provider.deleted,
+				log,
+			}, {
+				main: 'main',
+				slot: undefined,
+				owners: ['main', 'none', 'A'],
+				ownersAfter: ['main', 'none', 'none'],
+				deleted: ['a1', 'a2', 'a3'],
+				log: ['replace a1->a2 A', 'discard a2 A', 'discard a3 A'],
+			});
+		});
+
+		test('a background send from a slot is accepted before the slot lets go of its draft, follows its preparation and ends once', async () => {
+			const provider = disposables.add(new PreparingProvider([draft('main'), draft('a1'), draft('a2')]));
+			const preparation = new DeferredPromise<void>();
+			provider.preparation = preparation.p;
+			const { service, notifications } = createSessionsManagementService(listed, disposables, provider);
+			const names = new Map<INewSessionDraftSlot, string>();
+			const { log, ownerOf } = recordEvents(service, names);
+			service.createNewSession(folder);
+			const slot = disposables.add(service.createNewSessionSlot());
+			names.set(slot, 'A');
+			slot.createNewSession(folder);
+
+			await service.sendNewChatRequest(slot.newSession.get()!, { query: 'hi', background: true });
+			const whilePreparing = { slot: slot.newSession.get()?.sessionId, owner: ownerOf('a1') };
+			slot.createNewSession(folder);
+			const ended = Event.toPromise(service.onDidEndNewSessionRequest);
+			preparation.complete();
+			await ended;
+
+			assert.deepStrictEqual({
+				whilePreparing,
+				main: service.newSession.get()?.sessionId,
+				slot: slot.newSession.get()?.sessionId,
+				owners: ['a1', 'a1-prepared'].map(ownerOf),
+				deleted: provider.deleted,
+				notifications,
+				log,
+			}, {
+				whilePreparing: { slot: undefined, owner: 'A' },
+				main: 'main',
+				slot: 'a2',
+				owners: ['none', 'none'],
+				deleted: ['a1'],
+				notifications: [],
+				log: [
+					'accept a1 A background, its draft still a1',
+					'replace a1->a1-prepared A',
+					'willSend a1-prepared A',
+					'end a1-prepared A started=true readopted=false',
+				],
+			});
+		});
+
+		test('a foreground send from a slot is accepted after its preparation, with the prepared session', async () => {
+			const provider = disposables.add(new PreparingProvider([draft('main'), draft('a1')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const names = new Map<INewSessionDraftSlot, string>();
+			const { log } = recordEvents(service, names);
+			service.createNewSession(folder);
+			const slot = disposables.add(service.createNewSessionSlot());
+			names.set(slot, 'A');
+			slot.createNewSession(folder);
+
+			await service.sendNewChatRequest(slot.newSession.get()!, { query: 'hi' });
+
+			assert.deepStrictEqual({
+				main: service.newSession.get()?.sessionId,
+				slot: slot.newSession.get()?.sessionId,
+				log,
+			}, {
+				main: 'main',
+				slot: undefined,
+				log: [
+					'replace a1->a1-prepared A',
+					'accept a1-prepared A foreground, its draft still a1',
+					'willSend a1-prepared A',
+					'end a1-prepared A started=true readopted=false',
+				],
+			});
+		});
+
+		const failureCases: { readonly name: string; readonly readopt: boolean; readonly duringSend?: (slot: INewSessionDraftSlot & IDisposable, provider: DraftsProvider) => void; readonly expected: { readonly slot: string | undefined; readonly owner: string; readonly deleted: readonly string[]; readonly readopted: boolean; readonly asked: readonly string[] } }[] = [
+			{ name: 'a live slot that accepts it gets the session back as its draft', readopt: true, expected: { slot: 'a1', owner: 'A', deleted: [], readopted: true, asked: ['a1'] } },
+			{ name: 'a slot that declines it deletes it', readopt: false, expected: { slot: undefined, owner: 'none', deleted: ['a1'], readopted: false, asked: ['a1'] } },
+			{ name: 'a slot holding another draft deletes it', readopt: true, duringSend: slot => slot.createNewSession(folder), expected: { slot: 'a2', owner: 'none', deleted: ['a1'], readopted: false, asked: [] } },
+			{ name: 'a closed slot deletes it', readopt: true, duringSend: slot => slot.dispose(), expected: { slot: undefined, owner: 'none', deleted: ['a1'], readopted: false, asked: [] } },
+			{ name: 'a session its provider removed is neither re-adopted nor deleted', readopt: true, duringSend: (_slot, provider) => provider.changes.fire({ added: [], removed: [provider.created[1]], changed: [] }), expected: { slot: undefined, owner: 'none', deleted: [], readopted: false, asked: [] } },
+		];
+		for (const { name, readopt, duringSend, expected } of failureCases) {
+			test(`a failed foreground send of a slot: ${name}`, async () => {
+				const provider = disposables.add(new DraftsProvider([draft('main'), draft('a1'), draft('a2')]));
+				const { service, notifications } = createSessionsManagementService(listed, disposables, provider);
+				const names = new Map<INewSessionDraftSlot, string>();
+				const { log, ownerOf } = recordEvents(service, names);
+				service.createNewSession(folder);
+				const asked: string[] = [];
+				const slot = disposables.add(service.createNewSessionSlot({ readoptOnFailure: session => { asked.push(session.sessionId); return readopt; } }));
+				names.set(slot, 'A');
+				slot.createNewSession(folder);
+				provider.onSend = () => {
+					duringSend?.(slot, provider);
+					throw new Error('send failed');
+				};
+
+				await assert.rejects(service.sendNewChatRequest(slot.newSession.get()!, { query: 'hi' }), /send failed/);
+
+				assert.deepStrictEqual({
+					main: service.newSession.get()?.sessionId,
+					slot: slot.newSession.get()?.sessionId,
+					owner: ownerOf('a1'),
+					deleted: provider.deleted,
+					asked,
+					notifications,
+					end: log.filter(entry => entry.startsWith('end ')),
+				}, {
+					main: 'main',
+					slot: expected.slot,
+					owner: expected.owner,
+					deleted: expected.deleted,
+					asked: expected.asked,
+					notifications: [],
+					end: [`end a1 A started=false readopted=${expected.readopted} error=send failed`],
+				});
+			});
+		}
+
+		test('a failed foreground send of the main composer keeps its behavior: neither re-adopted nor deleted', async () => {
+			const provider = disposables.add(new DraftsProvider([draft('main')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const { log, ownerOf } = recordEvents(service, new Map());
+			service.createNewSession(folder);
+			provider.onSend = () => { throw new Error('send failed'); };
+
+			await assert.rejects(service.sendNewChatRequest(service.newSession.get()!, { query: 'hi' }), /send failed/);
+
+			assert.deepStrictEqual({
+				main: service.newSession.get()?.sessionId,
+				owner: ownerOf('main'),
+				deleted: provider.deleted,
+				log,
+			}, {
+				main: undefined,
+				owner: 'none',
+				deleted: [],
+				log: [
+					'accept main main foreground, its draft still main',
+					'willSend main main',
+					'end main main started=false readopted=false error=send failed',
+				],
+			});
+		});
+
+		test('a failed background send of a slot is reported on its end event, not as a notification', async () => {
+			const provider = disposables.add(new class extends DraftsProvider {
+				override async prepareNewSession(): Promise<never> {
+					throw new Error('setup failed');
+				}
+			}([draft('a1'), draft('a2')]));
+			const { service, notifications } = createSessionsManagementService(listed, disposables, provider);
+			const names = new Map<INewSessionDraftSlot, string>();
+			const { log } = recordEvents(service, names);
+			const slot = disposables.add(service.createNewSessionSlot());
+			names.set(slot, 'A');
+			slot.createNewSession(folder);
+			const ended = Event.toPromise(service.onDidEndNewSessionRequest);
+
+			await service.sendNewChatRequest(slot.newSession.get()!, { query: 'hi', background: true });
+			slot.createNewSession(folder);
+			await ended;
+
+			assert.deepStrictEqual({
+				slot: slot.newSession.get()?.sessionId,
+				deleted: provider.deleted,
+				notifications,
+				log,
+			}, {
+				slot: 'a2',
+				deleted: ['a1'],
+				notifications: [],
+				log: [
+					'accept a1 A background, its draft still a1',
+					'end a1 A started=false readopted=false error=setup failed',
+				],
+			});
+		});
+
+		test('closing a slot while its draft is being prepared cancels the send and discards the draft', async () => {
+			const provider = disposables.add(new class extends DraftsProvider {
+				override prepareNewSession(_sessionId: string, token: CancellationToken): Promise<never> {
+					return new Promise((_resolve, reject) => {
+						const listener = token.onCancellationRequested(() => {
+							listener.dispose();
+							reject(new CancellationError());
+						});
+					});
+				}
+			}([draft('a1')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const names = new Map<INewSessionDraftSlot, string>();
+			const { log } = recordEvents(service, names);
+			const slot = service.createNewSessionSlot();
+			names.set(slot, 'A');
+			slot.createNewSession(folder);
+
+			const sending = service.sendNewChatRequest(slot.newSession.get()!, { query: 'hi' });
+			await timeout(0);
+			slot.dispose();
+			await assert.rejects(sending, (error: Error) => isCancellationError(error));
+
+			assert.deepStrictEqual({ deleted: provider.deleted, log }, { deleted: ['a1'], log: ['discard a1 A'] });
+		});
+
+		test('a disposed slot creates no drafts, with either creation API', () => {
+			const provider = disposables.add(new DraftsProvider([draft('a1'), draft('a2')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const slot = service.createNewSessionSlot();
+			slot.dispose();
+
+			assert.deepStrictEqual({
+				newSession: (() => { try { slot.createNewSession(folder); return 'created'; } catch { return 'rejected'; } })(),
+				quickChat: (() => { try { slot.createQuickChat(); return 'created'; } catch { return 'rejected'; } })(),
+				created: provider.created.map(session => session.sessionId),
+				slot: slot.newSession.get()?.sessionId,
+			}, {
+				newSession: 'rejected',
+				quickChat: 'rejected',
+				created: [],
+				slot: undefined,
+			});
+		});
+
+		test('openNewSession creates no draft for a slot disposed while the folder\'s trust is requested', async () => {
+			const provider = disposables.add(new class extends DraftsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { ...super.resolveWorkspace(), requiresWorkspaceTrust: true };
+				}
+			}([draft('a1')]));
+			const trust = new DeferredPromise<boolean>();
+			let trustRequested = false;
+			const trustRequestService = upcastPartial<IWorkspaceTrustRequestService>({
+				requestResourcesTrust: () => { trustRequested = true; return trust.p; },
+			});
+			const { service, view } = createSessionsManagementService(listed, disposables, provider, undefined, trustRequestService);
+			const slot = service.createNewSessionSlot();
+
+			const opening = view.openNewSession({ folderUri: folder, draftSlot: slot });
+			await timeout(0);
+			slot.dispose();
+			trust.complete(true);
+			const result = await opening;
+
+			assert.deepStrictEqual({ trustRequested, result: result.session?.sessionId, created: provider.created.map(session => session.sessionId) }, { trustRequested: true, result: undefined, created: [] });
+		});
+
+		test('a send of another session lets the main composer go of its draft without deleting it or reporting it as its own', async () => {
+			const provider = disposables.add(new DraftsProvider([draft('main'), draft('other')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const { log, ownerOf } = recordEvents(service, new Map());
+			service.createNewSession(folder);
+			const other = draft('other');
+			provider.created.push(other);
+
+			await service.sendNewChatRequest(other, { query: 'hi' });
+
+			assert.deepStrictEqual({
+				main: service.newSession.get()?.sessionId,
+				owner: ownerOf('main'),
+				deleted: provider.deleted,
+				log,
+			}, {
+				main: undefined,
+				owner: 'none',
+				deleted: [],
+				log: ['willSend other none'],
+			});
+		});
+
+		test('a send of a slot neither starts nor ends the grid\'s follow of an overlapping send of the main window', async () => {
+			const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/main'), title: constObservable('main') };
+			const nextChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/next'), title: constObservable('next') };
+			const chats = observableValue<readonly IChat[]>('chats', [mainChat]);
+			const shown = stubSession({ sessionId: 'shown', providerId: 'test', chats, mainChat: constObservable(mainChat), capabilities: constObservable({ supportsMultipleChats: true }) });
+			const mainSend = new DeferredPromise<void>();
+			const provider = disposables.add(new class extends DraftsProvider {
+				override getSessions(): ISession[] { return [shown]; }
+				override async sendRequest(sessionId: string): Promise<ISession> {
+					if (sessionId === shown.sessionId) {
+						await mainSend.p;
+						return shown;
+					}
+					return super.sendRequest(sessionId);
+				}
+			}([draft('a1')]));
+			const { service, view } = createSessionsManagementService(listed, disposables, provider);
+			await view.openSession(shown.resource);
+			const slot = disposables.add(service.createNewSessionSlot());
+			slot.createNewSession(folder);
+
+			const sendingInMain = service.sendRequest(shown, mainChat, { query: 'main' });
+			const slotSent = Event.toPromise(Event.filter(service.onDidSendRequest, event => event.session.sessionId === 'a1'));
+			await service.sendNewChatRequest(slot.newSession.get()!, { query: 'slot', background: true });
+			await slotSent;
+			chats.set([mainChat, nextChat], undefined);
+			const activeChat = activeChatOf(view)?.resource.toString();
+			mainSend.complete();
+			await sendingInMain;
+
+			assert.strictEqual(activeChat, nextChat.resource.toString());
+		});
+
+		test('trackNewSessionRequestEnd follows a background request of a slot through its replacement to its end, also after the slot is gone', async () => {
+			const provider = disposables.add(new PreparingProvider([draft('a1'), draft('b1')]));
+			provider.onSend = sessionId => { throw new Error(`${sessionId} failed`); };
+			const { service, notifications } = createSessionsManagementService(listed, disposables, provider);
+			const slot = service.createNewSessionSlot();
+			const other = disposables.add(service.createNewSessionSlot());
+			const sent = slot.createNewSession(folder);
+			other.createNewSession(folder);
+			const ends: string[] = [];
+			const tracking = disposables.add(trackNewSessionRequestEnd(service, slot, sent, event => ends.push(`${event.session.sessionId} started=${event.started} error=${event.error instanceof Error ? event.error.message : undefined}`)));
+
+			const otherEnded = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === other));
+			await service.sendNewChatRequest(other.newSession.get()!, { query: 'other', background: true });
+			await otherEnded;
+			const ended = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === slot));
+			await service.sendNewChatRequest(sent, { query: 'hi', background: true });
+			slot.dispose();
+			await ended;
+			tracking.dispose();
+
+			assert.deepStrictEqual({ ends, notifications }, { ends: ['a1-prepared started=false error=a1-prepared failed'], notifications: [] });
+		});
+
+		test('openNewSession creates the draft of the given slot without navigating or changing the main composer\'s draft', async () => {
+			const provider = disposables.add(new DraftsProvider([draft('main'), draft('a1')]));
+			const { service, view } = createSessionsManagementService(listed, disposables, provider);
+			service.createNewSession(folder);
+			const slot = disposables.add(service.createNewSessionSlot());
+			const navigationRequest = view.navigationRequest.get();
+
+			const result = await view.openNewSession({ folderUri: folder, draftSlot: slot });
+
+			assert.deepStrictEqual({
+				result: result.session?.sessionId,
+				slot: slot.newSession.get()?.sessionId,
+				main: service.newSession.get()?.sessionId,
+				navigated: view.navigationRequest.get() !== navigationRequest,
+			}, {
+				result: 'a1',
+				slot: 'a1',
+				main: 'main',
+				navigated: false,
+			});
 		});
 	});
 

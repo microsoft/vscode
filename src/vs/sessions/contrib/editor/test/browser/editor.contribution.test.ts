@@ -554,6 +554,8 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		});
 		const changesTab = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/1')));
 		const filesTab = store.add(instantiationService.createInstance(EmptyFileEditorInput, undefined));

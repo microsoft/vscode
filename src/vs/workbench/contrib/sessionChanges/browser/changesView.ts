@@ -17,7 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -73,6 +73,7 @@ import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -92,7 +93,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesEditorScope, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../browser/changesStatsWidget.js';
 import { Menus } from '../../sessions/browser/menus.js';
@@ -152,6 +153,35 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
 	const isMainWindow = windowHost.kind === SessionHostKind.MainWindow;
 	const { session, chat } = windowHost;
 	return { session, chat, isMainWindow, hostCommandContext: windowHost.commandContext, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
+}
+
+/**
+ * The scope of a Changes editor that shows the changes of `source`. Outside the main window, one that names a chat is the scope
+ * of that chat, as are its diffs, whichever chat its window shows; otherwise it is the scope of the window of `host`.
+ */
+export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>): IChangesSessionScope {
+	const windowHost = getWindowHost(host);
+	if (windowHost.kind === SessionHostKind.MainWindow) {
+		return createChangesSessionScope(changesViewService, host);
+	}
+	const sessionsChanged = observableSignalFromEvent('changesEditorScope.sessions', sessionsManagementService.onDidChangeSessions);
+	const named = derived(reader => {
+		const value = source.read(reader);
+		if (!value?.chat) {
+			return undefined;
+		}
+		sessionsChanged.read(reader);
+		return { session: sessionsManagementService.getSession(value.session), chat: value.chat };
+	});
+	const session = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session : windowHost.session.read(reader);
+	});
+	const chat = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat)) : windowHost.chat.read(reader);
+	});
+	return { session, chat, isMainWindow: false, hostCommandContext: windowHost.commandContext, changes: changesViewService.getSessionChanges(session, chat) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
@@ -2222,6 +2252,8 @@ export class ChangesPickerSummary extends Disposable {
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
+	/** Whether the Changes editor of this picker does not show the changes its summary is of yet. */
+	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
@@ -2237,6 +2269,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChangesEditorScope editorScope: IChangesEditorScope,
 	) {
 		// Without an explicit scope the picker follows the active session.
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
@@ -2288,13 +2321,16 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
+		const changesPendingObs = this._changesPendingObs = editorScope.changesPendingObs ?? constObservable(false);
+		// Stats of other changes must not show over the editor's diffs, nor be announced, while it does not show these.
 		this._summaryObs = this._summary
-			? changes.changesSummaryObs
+			? derived(reader => changesPendingObs.read(reader) ? undefined : changes.changesSummaryObs.read(reader))
 			: undefined;
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
 			const pickerEnabled = this._pickerEnabledObs.read(reader);
+			this._container?.classList.toggle('changes-pending', changesPendingObs.read(reader));
 
 			if (this.element) {
 				this.updatePickerLabel();
@@ -2315,6 +2351,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		container.classList.add('changes-picker-action-rich');
 		container.classList.toggle('changes-picker-action-with-summary', !!this._summary);
+		container.classList.toggle('changes-pending', this._changesPendingObs.get());
 		this.updateAvailability(this._pickerEnabledObs.get());
 	}
 

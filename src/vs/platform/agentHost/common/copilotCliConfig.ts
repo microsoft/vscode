@@ -41,6 +41,8 @@ export const enum CopilotCliConfigKey {
 	RuntimePath = 'runtimePath',
 	/** Copilot runtime policy helper executable. An empty path disables it. */
 	PolicyHelper = 'policyHelper',
+	/** Requested M365 account-choice rollout value, not the startup-effective account/service mode. */
+	M365Enabled = 'm365Enabled',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
@@ -285,6 +287,12 @@ export const copilotCliConfigSchema = createSchema({
 			},
 		},
 		required: ['path'],
+	}),
+	[CopilotCliConfigKey.M365Enabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.m365Enabled.title', "Microsoft 365 Copilot"),
+		description: localize('agentHost.config.m365Enabled.description', "Requested enablement of Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. Requires restarting VS Code; changing this value must not switch an active account or service."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',

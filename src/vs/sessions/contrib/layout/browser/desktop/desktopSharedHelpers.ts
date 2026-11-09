@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { IReader } from '../../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../../workbench/common/editor.js';
@@ -14,7 +15,8 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionWorkspace, isWorkspacelessQuickChat } from '../../../../../workbench/services/sessions/common/session.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
@@ -28,6 +30,21 @@ export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): bool
 		}
 	}
 	return true;
+}
+
+/** Whether the main window lays `shown` out as a Quick Chat: a workspace-less chat of a quick chat. */
+export function isQuickChatShown(shown: IShownChat | undefined, reader?: IReader): boolean {
+	return !!shown && isWorkspacelessQuickChat(shown.session, shown.chat, reader);
+}
+
+/**
+ * The workspace the main window lays `shown` out for: its session's, or, for a chat of a quick chat, which works in a
+ * folder of its own rather than in its session's, the chat's.
+ */
+export function getLayoutWorkspace(shown: IShownChat, reader?: IReader): ISessionWorkspace | undefined {
+	const isQuickChat = shown.session.isQuickChat ? (reader ? shown.session.isQuickChat.read(reader) : shown.session.isQuickChat.get()) : false;
+	const workspace = isQuickChat ? shown.chat.workspace : shown.session.workspace;
+	return reader ? workspace.read(reader) : workspace.get();
 }
 
 /** Whether `editor` is (or shows) a managed Changes multi-diff for some session. Shared by the New/Existing detail-panel mapping. */

@@ -140,7 +140,7 @@ suite('SessionsListModelService', () => {
 
 		assert.deepStrictEqual(
 			{ id: icon.id, color: icon.color?.id },
-			{ id: Codicon.reportQuestion.id, color: 'list.warningForeground' },
+			{ id: Codicon.reportQuestion.id, color: 'agentSessionNeedsInput.foreground' },
 		);
 	});
 

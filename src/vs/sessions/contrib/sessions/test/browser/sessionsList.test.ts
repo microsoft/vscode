@@ -2742,7 +2742,7 @@ suite('Sessions - SessionsList', () => {
 					hiddenNeedsInput: true,
 					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
 					preservesReportQuestionIcon: true,
-					color: 'var(--vscode-list-warningForeground)',
+					color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 					needsInputAria: `${label}, 6, session needs attention`,
 					unreadAria: `${label}, 6, contains unread sessions`,
 					expandedPulse: false,
@@ -2890,7 +2890,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				hasSpinner: false,
 				hasReportQuestionIcon: true,
-				color: 'var(--vscode-list-warningForeground)',
+				color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 				ariaLabel: 'Workspace, 1, session needs attention',
 			});
 		});
@@ -3470,6 +3470,8 @@ suite('Sessions - SessionsList', () => {
 				onDidReplaceSession: Event.None,
 				onDidStartSession: Event.None,
 				onDidDiscardNewSession: Event.None,
+				onDidAcceptNewSessionRequest: Event.None,
+				onDidEndNewSessionRequest: Event.None,
 				onDidMoveChat: Event.None,
 				getSessions: () => [],
 				getInFlightNewSessionRequests: () => [],
@@ -4471,13 +4473,13 @@ suite('Sessions - SessionsList', () => {
 					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude'],
 					showMore: ['Show less', '+1 more workspace'],
 					excludeArchived: true,
-					stored: { filters: undefined, excludeArchived: true, sessionGroupExpansionState: undefined },
+					stored: { filters: undefined, excludeArchived: undefined, sessionGroupExpansionState: undefined },
 				},
 				undone: before,
 			});
 		});
 
-		test('undoing a reset restores Show All and an archived filter that follows its default setting', () => {
+		test('a reset leaves the archived filter following its default setting, and undoing it restores Show All', () => {
 			const { list, stored } = createList([createTestSession('session').session], {}, true);
 			list.setWorkspaceGroupCapped(false);
 			const state = () => ({ capped: list.isWorkspaceGroupCapped(), excludeArchived: list.isExcludeArchived(), storedExcludeArchived: stored('excludeArchived') });
@@ -4489,7 +4491,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, reset, undone: state() }, {
 				before: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
-				reset: { capped: true, excludeArchived: true, storedExcludeArchived: true },
+				reset: { capped: true, excludeArchived: false, storedExcludeArchived: undefined },
 				undone: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
 			});
 		});
@@ -6385,6 +6387,8 @@ suite('Sessions - SessionsList', () => {
 					onDidReplaceNewDraftSession: Event.None,
 					onDidStartSession: Event.None,
 					onDidDiscardNewSession: Event.None,
+					onDidAcceptNewSessionRequest: Event.None,
+					onDidEndNewSessionRequest: Event.None,
 					onDidMoveChat: Event.None,
 					getSessions: () => harness.managementService.sessions,
 					getInFlightNewSessionRequests: () => [],
@@ -6737,6 +6741,8 @@ suite('Sessions - SessionsList', () => {
 				onDidReplaceSession: Event.None,
 				onDidStartSession: Event.None,
 				onDidDiscardNewSession: Event.None,
+				onDidAcceptNewSessionRequest: Event.None,
+				onDidEndNewSessionRequest: Event.None,
 				onDidMoveChat: Event.None,
 				getSessions: () => sessions,
 				getInFlightNewSessionRequests: () => [],
@@ -6798,6 +6804,8 @@ suite('Sessions - SessionsList', () => {
 				onDidReplaceSession: Event.None,
 				onDidStartSession: Event.None,
 				onDidDiscardNewSession: Event.None,
+				onDidAcceptNewSessionRequest: Event.None,
+				onDidEndNewSessionRequest: Event.None,
 				onDidMoveChat: Event.None,
 				getSessions: () => sessions,
 				getInFlightNewSessionRequests: () => [],
@@ -9214,7 +9222,7 @@ suite('Sessions - SessionsList', () => {
 					solidTitle: true,
 					inProgress: false,
 					warningIcon: true,
-					color: 'var(--vscode-list-warningForeground)',
+					color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 					ariaLabel: 'Waiting, updated now, State: Attention Needed',
 				});
 			});
@@ -11769,7 +11777,8 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			const container = renderSessionChats(session, undefined, true);
-			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
+			container.style.setProperty('--vscode-list-warningForeground', 'rgb(0, 0, 255)');
+			container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 0, 0)');
 			const parent = container.querySelector<HTMLElement>('.session-item')!;
 			const child = container.querySelector<HTMLElement>('.session-chat-item')!;
 			assert.deepStrictEqual([parent, child].map(item => {
@@ -11788,6 +11797,74 @@ suite('Sessions - SessionsList', () => {
 				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
 			]);
 		});
+
+		for (const themeClass of ['hc-black', 'hc-light']) {
+			test(`needs-input rows use left-edge markers instead of tint in ${themeClass}`, () => {
+				const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const session: ISession = {
+					...createTestSession('Session', { status: SessionStatus.NeedsInput }).session,
+					chats: constObservable([main, waiting]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const container = renderSessionChats(session);
+				container.classList.add(themeClass);
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 211, 112)');
+				const parent = container.querySelector<HTMLElement>('.session-item')!;
+				const child = container.querySelector<HTMLElement>('.session-chat-item')!;
+
+				assert.deepStrictEqual([parent, child].map(item => {
+					const row = item.closest<HTMLElement>('.monaco-list-row')!;
+					const background = item === parent ? row : item;
+					const style = mainWindow.getComputedStyle(background);
+					const indicator = item.querySelector<HTMLElement>('.session-attention-indicator')!;
+					const indicatorStyle = mainWindow.getComputedStyle(indicator);
+					const initial = {
+						background: style.backgroundColor,
+						borderWidth: style.borderLeftWidth,
+						marker: {
+							ariaHidden: indicator.getAttribute('aria-hidden'),
+							display: indicatorStyle.display,
+							width: indicatorStyle.width,
+							top: indicatorStyle.top,
+							bottom: indicatorStyle.bottom,
+							cornerRadius: indicatorStyle.borderRadius,
+							color: indicatorStyle.backgroundColor,
+							pointerEvents: indicatorStyle.pointerEvents,
+						},
+					};
+					const height = row.getBoundingClientRect().height;
+					const title = item.querySelector<HTMLElement>('.session-title, .session-chat-title')!;
+					const titleLeft = title.getBoundingClientRect().left;
+					row.classList.add('selected');
+					const selected = {
+						markerDisplay: mainWindow.getComputedStyle(indicator).display,
+						sameHeight: row.getBoundingClientRect().height === height,
+						sameTitlePosition: title.getBoundingClientRect().left === titleLeft,
+					};
+					row.classList.remove('selected');
+					return { initial, selected };
+				}), [
+					{
+						initial: {
+							background: 'rgba(0, 0, 0, 0)', borderWidth: '0px',
+							marker: { ariaHidden: 'true', display: 'block', width: '2px', top: '4px', bottom: '4px', cornerRadius: '0px', color: 'rgb(255, 211, 112)', pointerEvents: 'none' },
+						},
+						selected: { markerDisplay: 'none', sameHeight: true, sameTitlePosition: true },
+					},
+					{
+						initial: {
+							background: 'rgba(0, 0, 0, 0)', borderWidth: '0px',
+							marker: { ariaHidden: 'true', display: 'block', width: '2px', top: '4px', bottom: '4px', cornerRadius: '0px', color: 'rgb(255, 211, 112)', pointerEvents: 'none' },
+						},
+						selected: { markerDisplay: 'none', sameHeight: true, sameTitlePosition: true },
+					},
+				]);
+			});
+		}
 
 		test('needs-input chat row keeps its attention indicator without looping animations', () => {
 			const main = createChat('Main chat');
@@ -12310,6 +12387,57 @@ suite('Sessions - SessionsList', () => {
 				{ title: 'Pinned', sticky: true },
 			]);
 		});
+
+		for (const themeClass of ['hc-black', 'hc-light']) {
+			test(`keeps grid-pin and attention markers separate in ${themeClass}`, () => {
+				const session = createTestSession('Pinned needs input', { status: SessionStatus.NeedsInput }).session;
+				const sticky = observableValue('sticky', true);
+				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
+				const harness = createListHarness(disposables, [session], instantiationService => {
+					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						readonly activeSession = constObservable(undefined);
+						readonly gridShown = constObservable([gridSession]);
+						override readonly slotPanes = testGridPanes(this.gridShown);
+					});
+				});
+				const container = harness.createContainer();
+				container.classList.add(themeClass);
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-spacing-size80', '8px');
+				container.style.setProperty('--vscode-focusBorder', 'rgb(0, 128, 255)');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 211, 112)');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const item = container.querySelector<HTMLElement>('.session-item.needs-input')!;
+				const indicator = item.querySelector<HTMLElement>('.session-attention-indicator')!;
+				const snapshot = () => {
+					const pin = mainWindow.getComputedStyle(item, '::before');
+					const attention = mainWindow.getComputedStyle(indicator);
+					const pinRight = Number.parseFloat(pin.left) + Number.parseFloat(pin.width);
+					const attentionLeft = indicator.getBoundingClientRect().left - item.getBoundingClientRect().left;
+					return {
+						pinned: item.classList.contains('sticky'),
+						idle: !item.closest('.monaco-list-row')!.matches('.selected, .focused, :hover'),
+						attentionVisible: attention.display === 'block',
+						attentionColor: attention.backgroundColor,
+						separateFromPin: pin.content === 'none' || pinRight <= attentionLeft,
+						pinColor: pin.content === 'none' ? undefined : pin.backgroundColor,
+					};
+				};
+				const pinned = snapshot();
+				sticky.set(false, undefined);
+
+				assert.deepStrictEqual({ pinned, unpinned: snapshot() }, {
+					pinned: { pinned: true, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: 'rgb(0, 128, 255)' },
+					unpinned: { pinned: false, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: undefined },
+				});
+			});
+		}
 
 		test('coalesces restored active chat selection without flashing the parent session', async () => {
 			const main = createChat('Main chat');
@@ -13218,37 +13346,54 @@ suite('Sessions - SessionsList', () => {
 			}
 		}
 
-		test('keeps the static warning tint on a sticky needs-input session row', async () => {
-			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
-			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
-			const session: ISession = {
-				...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
-				chats: constObservable([main, ...peers]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session]);
-			const container = harness.createContainer(400, 600);
-			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				compact: () => true,
-				onSessionOpen: () => { },
-			}));
-			list.layout(600, 400);
-			setSessionChatsExpanded(container, true);
-			await timeout(0);
-			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
-			let stickyImage: string | undefined;
-			for (let position = 0; position < 900 && !stickyImage; position += 75) {
-				tree.scrollTop = position;
+		for (const themeClass of ['', 'hc-black', 'hc-light']) {
+			test(`keeps the attention ${themeClass ? 'marker' : 'tint'} on a sticky needs-input session row${themeClass ? ` in ${themeClass}` : ''}`, async () => {
+				const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
+				const session: ISession = {
+					...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
+					chats: constObservable([main, ...peers]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer(400, 600);
+				if (themeClass) {
+					container.classList.add(themeClass);
+				}
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-list-warningForeground', 'rgb(0, 0, 255)');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 0, 0)');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					compact: () => true,
+					onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				setSessionChatsExpanded(container, true);
 				await timeout(0);
-				const sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
-				stickyImage = sticky ? mainWindow.getComputedStyle(sticky).backgroundImage : undefined;
-			}
-			assert.ok(stickyImage && stickyImage !== 'none');
-		});
+				const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+				let sticky: HTMLElement | undefined;
+				for (let position = 0; position < 900 && !sticky; position += 75) {
+					tree.scrollTop = position;
+					await timeout(0);
+					sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
+				}
+				assert.ok(sticky);
+				const style = mainWindow.getComputedStyle(sticky);
+				const indicator = sticky.querySelector<HTMLElement>('.session-attention-indicator')!;
+				assert.deepStrictEqual({
+					hasTint: style.backgroundImage !== 'none',
+					borderWidth: style.borderLeftWidth,
+					hasAttentionMarker: mainWindow.getComputedStyle(indicator).display === 'block',
+				}, {
+					hasTint: !themeClass,
+					borderWidth: '0px',
+					hasAttentionMarker: !!themeClass,
+				});
+			});
+		}
 
 		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
 			const main = createChat('Main chat');

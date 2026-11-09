@@ -23,11 +23,12 @@ import { IEditorPart } from '../../../../workbench/services/editor/common/editor
 import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { ChatEditorContent } from './chatEditorContent.js';
+import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
+
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorInputCapabilities, Verbosity } from '../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../workbench/common/editor.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
@@ -69,6 +70,8 @@ export interface ISessionChatViewHost {
 	 * chat in the window it shows in.
 	 */
 	readonly content: IObservable<ISessionPaneContent | undefined>;
+	/** A new-session composer that its pane shows while {@link content} is undefined, until the composer's session is created. */
+	readonly composer?: IObservable<IChatEditorComposer | undefined>;
 	/** The window the view shows in, once it shows. */
 	readonly window: IObservable<IChatEditorWindow | undefined>;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
@@ -322,15 +325,17 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		if (!host) {
 			return;
 		}
-		this._register(host.attach(sessionView));
-		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
-		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it.
+		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it. Its
+		// host sees it shown or hidden from the moment the view attaches, such as to mark its chat read only while it shows.
 		this._register(autorun(reader => {
 			const mode = host.window.read(reader)?.layoutMode.read(reader);
 			const visible = mode !== ChatWindowLayoutMode.EditorOnly && this._visible.read(reader);
 			sessionView.setVisible(visible, visible);
 		}));
+		this._register(host.attach(sessionView));
+		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
+		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		this._register(autorun(reader => sessionView.setActive(host.active.read(reader))));
 	}
 
@@ -391,6 +396,13 @@ export interface IChatEditorInputDetails {
 	readonly ariaLabel: string;
 }
 
+/** Where a chat editor can move to ({@link ChatEditorInput.setMoveRestriction}). */
+export interface IChatEditorMoveRestriction {
+	/** Shown when a move is refused. */
+	readonly reason: string;
+	canMoveTo(group: GroupIdentifier): boolean;
+}
+
 /**
  * The editor of a chat, keyed by the chat's resource: one per chat, in the chat part of a chat window. Its tab shows the
  * title of the chat.
@@ -400,9 +412,30 @@ export class ChatEditorInput extends ViewEditorInput {
 	private _name = '';
 	private _details: IChatEditorInputDetails | undefined;
 	private _cannotClose = false;
+	private _moveRestriction: IChatEditorMoveRestriction | undefined;
 
 	constructor(readonly chatResource: URI) {
 		super(SESSION_CHAT_VIEW_TYPE, chatResource);
+	}
+
+	/**
+	 * Keeps the editor in the groups `restriction` allows, such as those of its own window, with its reason elsewhere and
+	 * for a new window. A copy of it is a move, as for any editor of a view.
+	 */
+	setMoveRestriction(restriction: IChatEditorMoveRestriction | undefined): void {
+		if (this._moveRestriction !== restriction) {
+			this._moveRestriction = restriction;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const restriction = this._moveRestriction;
+		return !restriction || restriction.canMoveTo(targetGroup) ? super.canMove(sourceGroup, targetGroup) : restriction.reason;
+	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): true | string {
+		return this._moveRestriction?.reason ?? super.canMoveToNewWindow(sourceGroup);
 	}
 
 	setName(name: string): void {
