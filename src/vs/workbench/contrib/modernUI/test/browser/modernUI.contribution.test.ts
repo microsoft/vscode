@@ -1299,7 +1299,84 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
-	test('pane and Activity Bar caps use the same convex radius as editor tabs', () => {
+	test('selected horizontal tab shoulders retain their shape through focus and blur', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = [];
+		for (const position of ['header', 'footer']) {
+			const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+			actionItem.closest('.part')!.classList.add('sidebar');
+			actionItem.closest('.title')!.className = `header-or-footer ${position}`;
+			const previous = appendElement(actionItem.parentElement!, 'action-item icon');
+			actionItem.before(previous);
+			const targetWindow = getWindow(root);
+			const capture = () => ['::before', '::after'].map(pseudo => {
+				const style = targetWindow.getComputedStyle(indicator, pseudo);
+				return { radius: style.borderRadius, top: style.top, bottom: style.bottom };
+			});
+			const initial = capture();
+			actionItem.focus();
+			assert.strictEqual(document.activeElement, actionItem);
+			const focused = capture();
+			actionItem.blur();
+			actual.push({ initial, focused, blurred: capture() });
+		}
+		const shoulders = [
+			{ radius: '0px 0px 7px', top: '24px', bottom: '0px' },
+			{ radius: '0px 0px 0px 7px', top: '24px', bottom: '0px' },
+		];
+		assert.deepStrictEqual(actual, [
+			{ initial: shoulders, focused: shoulders, blurred: shoulders },
+			{ initial: shoulders, focused: shoulders, blurred: shoulders },
+		]);
+	});
+
+	test('the first horizontal tab retains its leading edge while a compact menu precedes it', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = [];
+		for (const position of ['header', 'footer']) {
+			const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+			actionItem.closest('.part')!.classList.add('sidebar');
+			actionItem.closest('.title')!.className = `header-or-footer ${position}`;
+			const bar = actionItem.closest<HTMLElement>('.composite-bar')!;
+			const targetWindow = getWindow(root);
+			const capture = () => ({
+				radius: targetWindow.getComputedStyle(indicator).borderTopLeftRadius,
+				stroke: targetWindow.getComputedStyle(indicator.querySelector('.tab-connected-edge')!).borderLeftWidth,
+				shoulder: targetWindow.getComputedStyle(indicator, '::before').content,
+			});
+			const initial = capture();
+			const menu = document.createElement('div');
+			menu.className = 'menubar compact';
+			menu.style.width = '38px';
+			menu.style.flexShrink = '0';
+			bar.before(menu);
+			const menuVisible = capture();
+			menu.remove();
+			actual.push({ initial, menuVisible, menuRemoved: capture() });
+		}
+		const frameEdge = { radius: '0px', stroke: '0px', shoulder: 'none' };
+		const freestanding = { radius: '7px', stroke: '1px', shoulder: '""' };
+		assert.deepStrictEqual(actual, [
+			{ initial: frameEdge, menuVisible: freestanding, menuRemoved: frameEdge },
+			{ initial: frameEdge, menuVisible: freestanding, menuRemoved: frameEdge },
+		]);
+	});
+
+	test('pane caps use the same convex radius as editor tabs', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels';
 		root.style.setProperty('--vscode-strokeThickness', '1px');
@@ -1315,119 +1392,79 @@ suite('ModernUIContribution', () => {
 		const tabs = appendElement(strip, 'tabs-container');
 		const editorFill = appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
 		const paneFill = createCompositeAction(root, 32, true).indicator;
-		const rail = appendElement(root, 'part activitybar left');
-		const railContent = appendElement(rail, 'content');
-		const actionBar = appendElement(appendElement(railContent, 'composite-bar'), 'monaco-action-bar');
-		const activityFill = appendElement(appendElement(actionBar, 'action-item checked'), 'active-item-indicator');
 		const targetWindow = getWindow(root);
 		const actual = ['6px', '8px'].map(radius => {
 			root.style.setProperty('--vscode-cornerRadius-medium', radius);
 			return [
 				targetWindow.getComputedStyle(editorFill).borderTopRightRadius,
 				targetWindow.getComputedStyle(paneFill).borderTopRightRadius,
-				targetWindow.getComputedStyle(activityFill).borderTopLeftRadius,
 			];
 		});
-		assert.deepStrictEqual(actual, [['7px', '7px', '7px'], ['9px', '9px', '9px']]);
+		assert.deepStrictEqual(actual, [['7px', '7px'], ['9px', '9px']]);
 	});
 
-	test('connects Activity Bar views toward either side bar across densities and retains standalone pills', () => {
-		const actual = [];
-		const expected = [];
+	test('connected tabs leave the default Activity Bar selection unchanged', () => {
 		for (const { compact, baseWidth } of [
 			{ compact: false, baseWidth: 36 },
 			{ compact: false, baseWidth: 28 },
 			{ compact: true, baseWidth: 36 },
 			{ compact: true, baseWidth: 28 },
 		]) {
-			const actionHeight = baseWidth + (compact ? 4 : 8);
 			for (const side of ['left', 'right']) {
-				const root = document.createElement('div');
-				root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels${compact ? ' modern-ui-compact' : ''}`;
-				root.style.display = 'inline-flex';
-				for (const [name, value] of Object.entries({
-					'--vscode-spacing-sizeNone': '0px',
-					'--vscode-spacing-size20': '2px',
-					'--vscode-spacing-size40': '4px',
-					'--vscode-spacing-size80': '8px',
-					'--vscode-strokeThickness': '1px',
-					'--vscode-cornerRadius-small': '4px',
-					'--vscode-cornerRadius-medium': '6px',
-					'--activity-bar-width': `${baseWidth}px`,
-					'--activity-bar-action-height': `${actionHeight}px`,
-					'--vscode-sideBar-background': '#123456',
-					'--vscode-modernPanel-border': '#778899',
-					'--vscode-contrastBorder': '#abcdef',
-				})) {
-					root.style.setProperty(name, value);
+				for (const theme of ['', 'hc-black', 'hc-light']) {
+					const root = document.createElement('div');
+					root.className = `monaco-workbench modern-ui modern-ui-tabs floating-panels ${theme}${compact ? ' modern-ui-compact' : ''}`;
+					root.style.display = 'inline-flex';
+					for (const [name, value] of Object.entries({
+						'--vscode-spacing-sizeNone': '0px',
+						'--vscode-spacing-size20': '2px',
+						'--vscode-spacing-size40': '4px',
+						'--vscode-spacing-size80': '8px',
+						'--vscode-strokeThickness': '1px',
+						'--vscode-cornerRadius-small': '4px',
+						'--vscode-cornerRadius-medium': '6px',
+						'--activity-bar-width': `${baseWidth}px`,
+						'--activity-bar-action-height': `${baseWidth}px`,
+						'--vscode-sideBar-background': '#123456',
+						'--vscode-modernActivityBarItem-activeBackground': '#234567',
+						'--vscode-modernPanel-border': '#778899',
+						'--vscode-contrastBorder': '#abcdef',
+					})) {
+						root.style.setProperty(name, value);
+					}
+					document.body.appendChild(root);
+					store.add(toDisposable(() => root.remove()));
+					const activityBar = appendElement(root, `part activitybar ${side}`);
+					activityBar.classList.toggle('compact', baseWidth === 28);
+					const content = appendElement(activityBar, 'content');
+					const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar vertical');
+					const actions = appendElement(actionBar, 'actions-container');
+					const item = appendElement(actions, 'action-item checked');
+					appendElement(item, 'action-label codicon');
+					const indicator = appendElement(item, 'active-item-indicator');
+					appendElement(indicator, 'tab-connected-edge');
+					const targetWindow = getWindow(root);
+					const capture = () => {
+						const style = targetWindow.getComputedStyle(indicator);
+						const bounds = indicator.getBoundingClientRect();
+						return {
+							size: [bounds.width, bounds.height],
+							radius: style.borderRadius,
+							background: style.backgroundColor,
+							outline: style.outline,
+							overflow: targetWindow.getComputedStyle(activityBar).overflow,
+							frameOverlay: targetWindow.getComputedStyle(activityBar, '::after').content,
+							shoulder: targetWindow.getComputedStyle(indicator, '::after').content,
+						};
+					};
+					const pill = capture();
+					root.classList.add('modern-ui-connected-editor-tabs');
+					const connected = capture();
+					root.classList.remove('modern-ui-connected-editor-tabs');
+					assert.deepStrictEqual({ connected, restored: capture() }, { connected: pill, restored: pill });
 				}
-				document.body.appendChild(root);
-				store.add(toDisposable(() => root.remove()));
-				const activityBar = appendElement(root, `part activitybar ${side}`);
-				activityBar.classList.toggle('compact', baseWidth === 28);
-				const content = appendElement(activityBar, 'content');
-				const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar vertical');
-				const actions = appendElement(actionBar, 'actions-container');
-				const previous = appendElement(actions, 'action-item');
-				const item = appendElement(actions, 'action-item checked');
-				appendElement(item, 'action-label codicon');
-				const indicator = appendElement(item, 'active-item-indicator');
-				const edge = appendElement(indicator, 'tab-connected-edge');
-				const targetWindow = getWindow(root);
-				const bounds = activityBar.getBoundingClientRect();
-				const capBounds = indicator.getBoundingClientRect();
-				const style = targetWindow.getComputedStyle(indicator);
-				actual.push({
-					compact, side, actionHeight,
-					seam: side === 'left' ? capBounds.right - bounds.right : bounds.left - capBounds.left,
-					fullBarSpan: [capBounds.left - bounds.left, bounds.right - capBounds.right],
-					background: style.backgroundColor,
-					borderRight: style.borderRightWidth,
-					squareSize: [capBounds.width, capBounds.height],
-					shoulders: ['::before', '::after'].map(pseudo => targetWindow.getComputedStyle(indicator, pseudo).width),
-				});
-				expected.push({
-					compact, side, actionHeight, seam: 0,
-					fullBarSpan: [0, 0],
-					background: 'rgb(18, 52, 86)',
-					borderRight: '0px',
-					squareSize: [actionHeight, actionHeight],
-					shoulders: ['7px', '7px'],
-				});
-				root.classList.add('hc-black');
-				const contrastStyle = targetWindow.getComputedStyle(indicator);
-				assert.deepStrictEqual({
-					display: contrastStyle.display,
-					background: contrastStyle.backgroundColor,
-					border: targetWindow.getComputedStyle(edge).borderTopColor,
-				}, {
-					display: 'block',
-					background: 'rgb(18, 52, 86)',
-					border: 'rgb(171, 205, 239)',
-				});
-				previous.remove();
-				assert.deepStrictEqual({
-					firstTopInset: indicator.getBoundingClientRect().top - activityBar.getBoundingClientRect().top,
-					topStroke: targetWindow.getComputedStyle(edge).borderTopWidth,
-					topRadius: targetWindow.getComputedStyle(indicator).borderTopLeftRadius,
-					topShoulder: targetWindow.getComputedStyle(indicator, '::before').content,
-					squareSize: [indicator.getBoundingClientRect().width, indicator.getBoundingClientRect().height],
-				}, {
-					firstTopInset: 1,
-					topStroke: '0px',
-					topRadius: '0px',
-					topShoulder: 'none',
-					squareSize: [actionHeight, actionHeight],
-				});
-				const menu = document.createElement('div');
-				menu.className = 'menubar compact';
-				content.prepend(menu);
-				assert.strictEqual(targetWindow.getComputedStyle(edge).borderTopWidth, '1px');
-				root.classList.add('nosidebar');
-				assert.strictEqual(targetWindow.getComputedStyle(indicator).borderRadius, '4px');
 			}
 		}
-		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('connected icon hover fills remain square and centered in top and bottom strips', () => {

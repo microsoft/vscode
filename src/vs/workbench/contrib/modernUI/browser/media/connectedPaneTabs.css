@@ -22,7 +22,7 @@
 	display: block;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) :is(.part.sidebar, .part.auxiliarybar, .part.activitybar) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) :is(.part.sidebar, .part.auxiliarybar) {
 	--modern-ui-connected-tab-surface: var(--vscode-sideBar-background);
 	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-sideBar-border, transparent));
 }
@@ -32,7 +32,7 @@
 	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-panel-border, transparent));
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench):is(.hc-black, .hc-light) :is(.part.sidebar, .part.auxiliarybar, .part.panel, .part.activitybar) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench):is(.hc-black, .hc-light) :is(.part.sidebar, .part.auxiliarybar, .part.panel) {
 	--modern-ui-connected-tab-border: var(--vscode-contrastBorder);
 }
 
@@ -101,7 +101,7 @@
 	top: calc(-1 * var(--modern-ui-floating-card-stroke-width));
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator {
 	border-left-width: 0;
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
@@ -120,7 +120,7 @@
 	pointer-events: none;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator > .tab-connected-edge {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator > .tab-connected-edge {
 	left: 0;
 	border-left-width: 0;
 }
@@ -136,6 +136,7 @@
 	height: var(--modern-ui-connected-tab-shoulder-radius);
 	box-sizing: border-box;
 	border: 0;
+	border-radius: 0;
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	clip-path: inset(0);
 	pointer-events: none;
@@ -156,7 +157,7 @@
 	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator::before {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator::before {
 	content: none;
 }
 
@@ -170,119 +171,4 @@
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > .footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
 	top: 0;
 	bottom: calc(-1 * var(--modern-ui-floating-card-stroke-width));
-}
-
-/* Only view-switching actions connect to the side bar, never Accounts or Settings. */
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .part.activitybar {
-	--modern-ui-floating-card-edge-color: var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
-	position: relative;
-	overflow: visible clip;
-}
-
-/* The rail frame retains its outer corners when a selection reaches the perimeter. */
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .part.activitybar::after {
-	content: '';
-	position: absolute;
-	inset: calc(-1 * var(--modern-ui-floating-card-stroke-width));
-	box-sizing: border-box;
-	border: var(--vscode-strokeThickness) solid var(--modern-ui-floating-card-edge-color);
-	border-top-color: var(--modern-ui-floating-card-top-border-color, var(--modern-ui-floating-card-edge-color));
-	border-bottom-color: var(--modern-ui-floating-card-stroke-color, var(--modern-ui-floating-card-edge-color));
-	border-left-color: var(--modern-ui-floating-card-left-border-color, var(--modern-ui-floating-card-edge-color));
-	border-right: 0;
-	border-radius: inherit;
-	z-index: 3;
-	pointer-events: none;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .part.activitybar.right::after {
-	border-left: 0;
-	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-floating-card-stroke-color, var(--modern-ui-floating-card-edge-color));
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
-	top: 0;
-	bottom: 0;
-	left: calc(-1 * ((var(--modern-ui-activitybar-lane) - var(--vscode-spacing-size20)) / 2 + var(--modern-ui-floating-card-stroke-width)));
-	right: auto;
-	width: calc(var(--activity-bar-width, 36px) + var(--modern-ui-activitybar-lane));
-	height: auto;
-	margin: 0;
-	box-sizing: border-box;
-	background-color: var(--modern-ui-connected-tab-surface);
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-right: 0;
-	border-radius: var(--modern-ui-connected-tab-cap-radius) 0 0 var(--modern-ui-connected-tab-cap-radius);
-	overflow: visible;
-	z-index: 0;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar.right > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
-	transform: scaleX(-1);
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator > .tab-connected-edge {
-	display: block;
-	position: absolute;
-	inset: calc(-1 * var(--modern-ui-floating-card-stroke-width)) 0 calc(-1 * var(--modern-ui-floating-card-stroke-width)) calc(-1 * var(--modern-ui-floating-card-stroke-width));
-	box-sizing: border-box;
-	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-right: 0;
-	border-radius: inherit;
-	clip-path: inset(0 var(--modern-ui-connected-tab-shoulder-radius) 0 0);
-	pointer-events: none;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar:first-child > .monaco-action-bar > .actions-container > .action-item.checked:first-child > .active-item-indicator {
-	border-top-width: 0;
-	border-top-left-radius: 0;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar:first-child {
-	margin-top: 0;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar:first-child > .monaco-action-bar > .actions-container > .action-item.checked:first-child > .active-item-indicator > .tab-connected-edge {
-	top: 0;
-	border-top-width: 0;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked:focus-visible > .active-item-indicator {
-	outline: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
-	outline-offset: calc(-1 * (var(--vscode-spacing-size20) + var(--vscode-strokeThickness)));
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::before,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::after {
-	content: '';
-	display: block;
-	position: absolute;
-	right: 0;
-	left: auto;
-	width: var(--modern-ui-connected-tab-shoulder-radius);
-	height: var(--modern-ui-connected-tab-shoulder-radius);
-	box-sizing: border-box;
-	border: 0;
-	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	clip-path: inset(0);
-	pointer-events: none;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::before {
-	top: auto;
-	bottom: 100%;
-	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
-	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::after {
-	top: 100%;
-	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-top-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
-	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.nosidebar) .activitybar > .content > .composite-bar:first-child > .monaco-action-bar > .actions-container > .action-item.checked:first-child > .active-item-indicator::before {
-	content: none;
 }

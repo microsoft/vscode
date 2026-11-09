@@ -12,6 +12,7 @@ import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDispos
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
@@ -96,6 +97,8 @@ export class PaneCompositeBar extends Disposable {
 	private readonly compositeActions = this._register(new DisposableMap<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction; dispose: () => void }>());
 
 	private hasExtensionsRegistered: boolean = false;
+	private dimension: Dimension | undefined;
+	private needsSizeRecompute = false;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -134,7 +137,10 @@ export class PaneCompositeBar extends Disposable {
 
 		if (this.options.recomputeSizes) {
 			// Measure after the Modern UI contribution has applied the new tab geometry.
-			const recomputeSizes = this._register(new RunOnceScheduler(() => this.compositeBar.recomputeSizes(), 0));
+			const recomputeSizes = this._register(new RunOnceScheduler(() => {
+				this.needsSizeRecompute = true;
+				this.recomputeSizesIfVisible();
+			}, 0));
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
 					recomputeSizes.schedule();
@@ -527,7 +533,16 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		this.compositeBar.layout(new Dimension(width, height));
+		this.dimension = new Dimension(width, height);
+		this.compositeBar.layout(this.dimension);
+		this.recomputeSizesIfVisible();
+	}
+
+	private recomputeSizesIfVisible(): void {
+		if (this.needsSizeRecompute && this.dimension && this.dimension.width > 0 && this.dimension.height > 0 && this.layoutService.isVisible(this.part, mainWindow)) {
+			this.needsSizeRecompute = false;
+			this.compositeBar.recomputeSizes();
+		}
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {

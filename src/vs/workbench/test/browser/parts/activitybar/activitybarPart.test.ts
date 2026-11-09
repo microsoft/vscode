@@ -68,6 +68,7 @@ interface ILayoutTestHarness {
 	lastLayoutDimensions?: Dimension;
 	options: { orientation: ActionsOrientation };
 	compositeBar: { layout: (dimension: Dimension) => void };
+	recomputeSizesIfVisible(): void;
 }
 
 // `super.layout()` resolves through the prototype chain, so calling the extracted method
@@ -562,7 +563,7 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
-	test('connected activity backgrounds match the opaque tab strip and retain Pill colors', async () => {
+	test('default Activity Bar keeps its own colors when connected tabs are enabled', async () => {
 		const actual = [];
 		for (const colors of [
 			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ffffff80', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#123456' },
@@ -586,9 +587,9 @@ suite('ActivitybarPart', () => {
 			actual.push({ active, inactive, pill: element.style.backgroundColor });
 		}
 		assert.deepStrictEqual(actual, [
-			{ active: 'rgb(128, 128, 128)', inactive: 'rgb(128, 128, 128)', pill: 'rgb(101, 67, 33)' },
-			{ active: 'rgb(52, 86, 120)', inactive: 'rgb(52, 86, 120)', pill: 'rgb(101, 67, 33)' },
-			{ active: 'rgb(16, 32, 48)', inactive: 'rgb(16, 32, 48)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
 		]);
 	});
 
@@ -720,7 +721,7 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('connected activity rows are square and overflow uses the same dimensions', () => {
+	test('default Activity Bar retains its existing row and overflow sizes with connected tabs', () => {
 		const actual = [];
 		for (const compactDensity of [false, true]) {
 			for (const compactIcons of [false, true]) {
@@ -734,14 +735,14 @@ suite('ActivitybarPart', () => {
 			}
 		}
 		assert.deepStrictEqual(actual, [
-			{ actionHeight: 44, actionGap: 8, compositeSize: 52, overflowActionSize: 52 },
-			{ actionHeight: 36, actionGap: 0, compositeSize: 36, overflowActionSize: 36 },
-			{ actionHeight: 40, actionGap: 4, compositeSize: 44, overflowActionSize: 44 },
-			{ actionHeight: 32, actionGap: 0, compositeSize: 32, overflowActionSize: 32 },
+			{ actionHeight: 36, actionGap: 8, compositeSize: 44, overflowActionSize: 44 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
+			{ actionHeight: 36, actionGap: 4, compositeSize: 40, overflowActionSize: 40 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
 		]);
 	});
 
-	test('changing the tab style updates connected activity row height without changing width', async () => {
+	test('changing the tab style leaves the default Activity Bar dimensions unchanged', async () => {
 		const { part, configService } = createActivitybarPart(false, true, Position.LEFT, {}, false, undefined, ModernUIEditorTabStyle.Connected);
 		const element = document.createElement('div');
 		fixture.appendChild(element);
@@ -757,9 +758,9 @@ suite('ActivitybarPart', () => {
 		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
 		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
 		assert.deepStrictEqual({ connected, pill, restored: capture() }, {
-			connected: { width: '36px', height: '44px' },
+			connected: { width: '36px', height: '36px' },
 			pill: { width: '36px', height: '36px' },
-			restored: { width: '36px', height: '44px' },
+			restored: { width: '36px', height: '36px' },
 		});
 	});
 
@@ -831,6 +832,7 @@ suite('ActivitybarPart', () => {
 			globalActivities: { actionHeight: itemHeight, actionGap: gap },
 			options: { orientation: ActionsOrientation.VERTICAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH, 300);
 
 		return laidOut!.height;
@@ -867,6 +869,7 @@ suite('ActivitybarPart', () => {
 			globalActivities: undefined,
 			options: { orientation: ActionsOrientation.HORIZONTAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, 300, 35);
 
 		assert.deepStrictEqual(laidOut, new Dimension(265, 35));
