@@ -1069,6 +1069,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._getGroupedTasks(filter, true, true).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
+	public async getKnownTask(folder: IWorkspace | IWorkspaceFolder | string, id: string): Promise<Task | undefined> {
+		if (!this._versionAndEngineCompatible()) {
+			return undefined;
+		}
+		const map = await this._getGroupedTasks(undefined, true, true);
+		const values = map.get(folder).concat(map.get(USER_TASKS_GROUP_KEY));
+		const matchedTasks = values.filter(task => task.matches(id, true));
+		matchedTasks.sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		return matchedTasks[0];
+	}
+
 	public taskTypes(): string[] {
 		const types: string[] = [];
 		if (this._isProvideTasksEnabled()) {

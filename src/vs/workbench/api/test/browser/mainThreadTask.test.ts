@@ -323,13 +323,18 @@ suite('MainThreadTask task handle lookup', () => {
 			});
 		});
 
-		test(`${operation} retries without the task type when a typed lookup misses`, async () => {
+		test(`${operation} resolves a known task when the typed lookup misses`, async () => {
 			const lookups: Parameters<ITaskService['getTask']>[] = [];
+			const knownTaskLookups: Parameters<ITaskService['getKnownTask']>[] = [];
 			const taskService = new class extends mock<ITaskService>() {
 				override readonly onDidStateChange: Event<ITaskEvent> = Event.None;
 				override async getTask(...args: Parameters<ITaskService['getTask']>) {
 					lookups.push(args);
-					return args.length === 4 ? undefined : workspaceTask;
+					return undefined;
+				}
+				override async getKnownTask(...args: Parameters<ITaskService['getKnownTask']>) {
+					knownTaskLookups.push(args);
+					return workspaceTask;
 				}
 				override run() {
 					return Promise.resolve(undefined);
@@ -353,12 +358,13 @@ suite('MainThreadTask task handle lookup', () => {
 
 			assert.deepStrictEqual({
 				lookups,
+				knownTaskLookups,
 				taskName: result.task?.name
 			}, {
 				lookups: [
-					['test-workspace', 'fetched-task', true, 'shell'],
-					['test-workspace', 'fetched-task', true]
+					['test-workspace', 'fetched-task', true, 'shell']
 				],
+				knownTaskLookups: [['test-workspace', 'fetched-task']],
 				taskName: 'fetched-task'
 			});
 		});

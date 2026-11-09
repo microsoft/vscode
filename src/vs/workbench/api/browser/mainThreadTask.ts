@@ -651,7 +651,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	private async getTaskFromHandle(workspace: string | IWorkspace | IWorkspaceFolder, value: ITaskHandleDTO): Promise<Task | undefined> {
 		const task = await this._taskService.getTask(workspace, value.id, true, value.type);
 		if (!task && value.type !== undefined && this._workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return this._taskService.getTask(workspace, value.id, true);
+			return this._taskService.getKnownTask(workspace, value.id);
 		}
 		return task;
 	}

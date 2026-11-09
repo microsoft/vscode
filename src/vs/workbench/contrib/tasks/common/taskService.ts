@@ -85,6 +85,10 @@ export interface ITaskService {
 	 * this does not activate extensions or prompt for workspace trust.
 	 */
 	getKnownTasks(filter?: ITaskFilter): Promise<Task[]>;
+	/**
+	 * Finds a task by ID in a workspace or user scope without activating extensions.
+	 */
+	getKnownTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, id: string): Promise<Task | undefined>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
