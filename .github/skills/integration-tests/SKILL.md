@@ -83,7 +83,7 @@ The `css`, `html`, and `json` suites are standalone extension tests that run in 
 
 Runs only the node.js integration tests, or only the extension host tests (all suites, including `css`, `html` and `json`). `--grep` still applies to both. `--only-node-tests` cannot be combined with `--suite`, and `--only-extension-host-tests` cannot be combined with `--run` or `--runGlob`.
 
-GitHub pull request CI runs the two parts as separate steps. `🧪 Run integration tests (Electron)` runs the node.js integration tests and reruns failed tests (`--rerun-failed-files 2`). `🧪 Run extension host integration tests (Electron)` runs the extension host suites, which are not rerun; it also runs after the integration tests or Agent Host E2E failed.
+GitHub pull request CI runs the two parts as separate steps. `🧪 Run integration tests (Electron)` runs the node.js integration tests and reruns failed tests (`--rerun-failed-files 2`). `🧪 Run extension host integration tests (Electron)` runs the extension host suites, which are not rerun; it also runs after the integration tests or Agent Host E2E failed. The Azure Pipelines product build runs both parts in one step with `--rerun-failed-files 2`, which only reruns the failed node.js integration tests.
 
 ```bash
 ./scripts/test-integration.sh --only-node-tests --rerun-failed-files 2

@@ -9,10 +9,10 @@ import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { type IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { getSidePaneBottomFrameInset } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
-import { EDITOR_PART_MINIMUM_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/editorPartSizing.js';
-import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { getSidePaneBottomFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { EDITOR_PART_MINIMUM_WIDTH } from '../../../workbench/browser/parts/sessions/editorPartSizing.js';
+import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;

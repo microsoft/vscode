@@ -14,6 +14,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { DraggedChatReferenceIdentifier, CodeDataTransfers, containsDragType, extractChatReferenceDropData, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
@@ -69,6 +70,7 @@ export class ChatDragAndDrop extends Themable {
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(themeService);
 
@@ -267,7 +269,7 @@ export class ChatDragAndDrop extends Themable {
 		const droppedClientResource = this.getDraggedClientResource(e);
 		if (droppedClientResource !== undefined
 			&& (isSelfChatReferenceDrop(droppedClientResource, sessionResource.toString())
-				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString()))) {
+				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString(), this.agentHostConnectionsService))) {
 			return undefined;
 		}
 		return ChatDragAndDropType.CHAT_REFERENCE;
@@ -386,7 +388,7 @@ export class ChatDragAndDrop extends Themable {
 			? sessionResource.toString()
 			: undefined;
 
-		const entry = resolveChatReferenceDropEntry(data, ownClientResource);
+		const entry = resolveChatReferenceDropEntry(data, ownClientResource, this.agentHostConnectionsService);
 		return entry ? [entry] : [];
 	}
 

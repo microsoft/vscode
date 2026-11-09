@@ -57,6 +57,15 @@ Conversion functions in `colorUtils.ts`:
 }
 ```
 
+Trace the rendered control before choosing a token or selector; custom editor overlays may not use native input pseudo-elements. Inspect inherited and nested styles as well as the component's own declarations.
+
+### Contrast and Interaction States
+
+- Treat foreground and background as a semantic pair. A background change requires checking text, placeholders, links, operable inactive icons, hover, selection, and focus against the final composited surface.
+- Resolve defaults, opacity, and user overrides before measuring contrast. For example, an opaque icon color may meet contrast requirements while its translucent inactive variant does not.
+- Normal-size text and placeholders need at least 4.5:1 contrast; visual information needed to identify controls and focus needs at least 3:1 against adjacent colors. Apply the relevant accessibility criteria rather than extending these thresholds to decorative or disabled content. Unselected but operable controls are not disabled.
+- Check nested labels and descriptions in combined states; an explicit child foreground can defeat a correctly paired selection background.
+
 ## 4. Widget Styles Pattern
 
 **File**: `src/vs/platform/theme/browser/defaultStyles.ts`
@@ -74,6 +83,12 @@ const button = new Button(container, getButtonStyles({
 ```
 
 Available defaults: `defaultButtonStyles`, `defaultInputBoxStyles`, `defaultCheckboxStyles`, `defaultToggleStyles`, `defaultDialogStyles`, `defaultListStyles`, `defaultSelectBoxStyles`, `defaultMenuStyles`, `defaultProgressBarStyles`, `defaultCountBadgeStyles`, `defaultBreadcrumbsWidgetStyles`, `defaultKeybindingLabelStyles`, `defaultFindWidgetStyles`.
+
+### Transient Theme Overrides
+
+Use the owning theme service for temporary palettes so CSS variables and programmatic color consumers remain consistent. Keep overrides scoped to the intended window and preserve the base theme and user customizations.
+
+Verify enabling, disabling, replacement, disposal, and theme changes, including stale asynchronous results. Clearing an override must restore the original colors without persisting generated values or changing another window's theme or startup colors.
 
 ## 5. Focus Indicators
 
@@ -94,6 +109,8 @@ Defined in `src/vs/workbench/browser/media/style.css`:
 - Active elements suppress focus ring: `.my-widget:active { outline: 0 !important; }`
 - Use `.synthetic-focus` class for programmatic focus indication.
 - Toggle buttons use `border: 1px dashed var(--vscode-focusBorder)` instead of outline.
+- Check keyboard focus independently from selection and hover, including ordinary links without explicit `tabindex` and icon-only controls. Inspect computed outlines and pseudo-elements under production styles; token registration alone does not establish visibility.
+- Preserve a clear focus boundary through clipping and modal wrappers. Resolve competing border/outline ownership rather than adding duplicate rings or removing focus visibility.
 
 ### Focus Trapping
 
@@ -121,6 +138,10 @@ Modal dialogs must trap focus within the dialog until dismissed. Use `dom.trackF
   }
   ```
 
+Validate both HC themes explicitly when changing borders, focus, or theme-dependent visibility; default dark/light screenshots do not cover them. Render through the production state-owning services so intentionally omitted decoration remains absent.
+
+Test runtime theme changes and custom color overrides, including transitions where a previously defined token becomes absent. Clear stale inline colors or classes rather than leaving the previous theme's state behind. Include competing workbench styles when inspecting the cascade.
+
 ## 7. No Hardcoded Visual Values
 
 Reviewers will always flag hardcoded colors, shadows, sizes that should use theme tokens or CSS variables.
@@ -141,7 +162,6 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 **Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
 
 **Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
-
 
 ---
 

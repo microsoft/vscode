@@ -19,7 +19,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { registerSessionChatDragEndHandler } from '../../../../workbench/contrib/sessions/browser/dnd.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ChatWindowsEnabledContext, openChatInWindow } from './openChatInWindow.js';
 
 /**

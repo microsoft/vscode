@@ -167,6 +167,9 @@ importers:
       '@octokit/types':
         specifier: ^14.1.0
         version: 14.1.0
+      '@parcel/watcher':
+        specifier: ^2.5.6
+        version: 2.5.6
       '@types/eslint':
         specifier: ^9.0.0
         version: 9.6.1
@@ -213,8 +216,8 @@ importers:
         specifier: ^8.26.1
         version: 8.36.0(@typescript/typescript6@6.0.2)
       '@typescript/native':
-        specifier: npm:typescript@7.1.0-dev.20261027.1
-        version: typescript@7.1.0-dev.20261027.1
+        specifier: npm:typescript@7.1.0-dev.20261105.1
+        version: typescript@7.1.0-dev.20261105.1
       '@vitest/snapshot':
         specifier: ^1.5.0
         version: 1.6.1
@@ -1702,6 +1705,94 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
+  '@parcel/watcher-android-arm64@2.5.6':
+    resolution: {integrity: sha512-YQxSS34tPF/6ZG7r/Ih9xy+kP/WwediEUsqmtf0cuCV5TPPKw/PQHRhueUo6JdeFJaqV3pyjm0GdYjZotbRt/A==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm64]
+    os: [android]
+
+  '@parcel/watcher-darwin-arm64@2.5.6':
+    resolution: {integrity: sha512-Z2ZdrnwyXvvvdtRHLmM4knydIdU9adO3D4n/0cVipF3rRiwP+3/sfzpAwA/qKFL6i1ModaabkU7IbpeMBgiVEA==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@parcel/watcher-darwin-x64@2.5.6':
+    resolution: {integrity: sha512-HgvOf3W9dhithcwOWX9uDZyn1lW9R+7tPZ4sug+NGrGIo4Rk1hAXLEbcH1TQSqxts0NYXXlOWqVpvS1SFS4fRg==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@parcel/watcher-freebsd-x64@2.5.6':
+    resolution: {integrity: sha512-vJVi8yd/qzJxEKHkeemh7w3YAn6RJCtYlE4HPMoVnCpIXEzSrxErBW5SJBgKLbXU3WdIpkjBTeUNtyBVn8TRng==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@parcel/watcher-linux-arm-glibc@2.5.6':
+    resolution: {integrity: sha512-9JiYfB6h6BgV50CCfasfLf/uvOcJskMSwcdH1PHH9rvS1IrNy8zad6IUVPVUfmXr+u+Km9IxcfMLzgdOudz9EQ==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm]
+    os: [linux]
+    libc: [glibc]
+
+  '@parcel/watcher-linux-arm-musl@2.5.6':
+    resolution: {integrity: sha512-Ve3gUCG57nuUUSyjBq/MAM0CzArtuIOxsBdQ+ftz6ho8n7s1i9E1Nmk/xmP323r2YL0SONs1EuwqBp2u1k5fxg==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm]
+    os: [linux]
+    libc: [musl]
+
+  '@parcel/watcher-linux-arm64-glibc@2.5.6':
+    resolution: {integrity: sha512-f2g/DT3NhGPdBmMWYoxixqYr3v/UXcmLOYy16Bx0TM20Tchduwr4EaCbmxh1321TABqPGDpS8D/ggOTaljijOA==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@parcel/watcher-linux-arm64-musl@2.5.6':
+    resolution: {integrity: sha512-qb6naMDGlbCwdhLj6hgoVKJl2odL34z2sqkC7Z6kzir8b5W65WYDpLB6R06KabvZdgoHI/zxke4b3zR0wAbDTA==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@parcel/watcher-linux-x64-glibc@2.5.6':
+    resolution: {integrity: sha512-kbT5wvNQlx7NaGjzPFu8nVIW1rWqV780O7ZtkjuWaPUgpv2NMFpjYERVi0UYj1msZNyCzGlaCWEtzc+exjMGbQ==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@parcel/watcher-linux-x64-musl@2.5.6':
+    resolution: {integrity: sha512-1JRFeC+h7RdXwldHzTsmdtYR/Ku8SylLgTU/reMuqdVD7CtLwf0VR1FqeprZ0eHQkO0vqsbvFLXUmYm/uNKJBg==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@parcel/watcher-win32-arm64@2.5.6':
+    resolution: {integrity: sha512-3ukyebjc6eGlw9yRt678DxVF7rjXatWiHvTXqphZLvo7aC5NdEgFufVwjFfY51ijYEWpXbqF5jtrK275z52D4Q==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@parcel/watcher-win32-ia32@2.5.6':
+    resolution: {integrity: sha512-k35yLp1ZMwwee3Ez/pxBi5cf4AoBKYXj00CZ80jUz5h8prpiaQsiRPKQMxoLstNuqe2vR4RNPEAEcjEFzhEz/g==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@parcel/watcher-win32-x64@2.5.6':
+    resolution: {integrity: sha512-hbQlYcCq5dlAX9Qx+kFb0FHue6vbjlf0FrNzSKdYK2APUf7tGfGxQCk2ihEREmbR6ZMc0MVAD5RIX/41gpUzTw==}
+    engines: {node: '>= 10.0.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@parcel/watcher@2.5.6':
+    resolution: {integrity: sha512-tmmZ3lQxAe/k/+rNnXQRawJ4NjxO2hqiOLTHvWchtGZULp4RyFeh6aU4XdOYBFe2KE1oShQTv4AblOs2iOrNnQ==}
+    engines: {node: '>= 10.0.0'}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -2075,44 +2166,44 @@ packages:
     resolution: {integrity: sha512-vZrhV2lRPWDuGoxcmrzRZyxAggPL+qp3WzUrlZD+slFueDiYHxeBa34dUXPuC0RmGKzl4lS5kFJYvKCq9cnNDA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript/typescript-darwin-arm64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-UJjLBpNLvWKszxNNoEsl+2Y5YOsgwIJHfwq8k/FPBzMcz5UDyH+mOMjTm6MsHhU4EVyfUJYCcESHdbvH0J6sRg==}
+  '@typescript/typescript-darwin-arm64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-W2JkCxq8H2HU6A0f/JZyRKR6HGtFnkjJLmHpheqqRgKpuSbtNDvphuv3JZJ2QRes+sX3Qv/1IpbAzbTUGe5lFQ==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@typescript/typescript-darwin-x64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-kccP5mZQTs93noTIelNoT3bSjbeh2j4Ol5+2Vfd6y6GsI40NcwVg3VKyKBf9VDdFveXp5LgkLykHerZPiSuPsQ==}
+  '@typescript/typescript-darwin-x64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-NYxfN+FSuPDhWeAzVr4h9l58eiqGMYtr9N6Y0+crz2keq4WdArN2T5PEtxqF8mGuqY4PrCpXWuOCXcNazNMHhw==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@typescript/typescript-linux-arm64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-EZmsRYvs1MH2syqc+5t2k7XOYpB7xw7sqq0Xzs7EHmHxI5jMswfJbpNFRbmpg7g70y2b8v1dbBEsle9KwHKJsQ==}
+  '@typescript/typescript-linux-arm64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-joBc5eDI3g/CAl0OqZU9NGk7ATk3ufqhwdm2FRR+SMzcPdXO5mwMeBXDpYKjIk72LQ+w29xYNJiQZ/G7BXBNVQ==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [linux]
 
-  '@typescript/typescript-linux-arm@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-cIwCj9x+an2vLDkdNnxgFeLF/Q8+kjVcZisntc1gA8nISoRII/QePVNbG3jDBt2zqU7GxU71egvQbxuV5eQ59A==}
+  '@typescript/typescript-linux-arm@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-APxTWtvSYlTe7KP8G7xqAKlIlBzM3ssYm1ihK59ZWRQsw1vBOQYN6WmaIJRMkWGYDF0DWQkmO2SEty7PrprVyg==}
     engines: {node: '>=16.20.0'}
     cpu: [arm]
     os: [linux]
 
-  '@typescript/typescript-linux-x64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-LRXiR7cP44Sg0sz0SmfkMKAsImesb4yiGqIzDOsEZE3dbvQEU72VknlXlc4qcs2E8R+Qzuri2KkRRGiyy2oI1Q==}
+  '@typescript/typescript-linux-x64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-0kvOA7UyRugbsEsPPyXIfa2hgml5FuaRMOsZOZ3Wmtw7qEWw5KGgxN26PQWjscLnN9UZ1j6fv5ss8/cedbzleA==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [linux]
 
-  '@typescript/typescript-win32-arm64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-p6JMGiKWY7fNCP1nptqnGeDp/OSZG4qyxXN0zkDR99pN4G2mBWN1tvOAw8qjs9MKX7Q5AU57cMDxTBc3L/kLDA==}
+  '@typescript/typescript-win32-arm64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-pKcT8mLBwTcKuYZJw4nz7ZMWU2TXNJSJSV/NxeM8YB/pIq8kdvdGHYJkc6CYOoyt30w4DCXoiWEsQt6NBBoQ6g==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [win32]
 
-  '@typescript/typescript-win32-x64@7.1.0-dev.20261027.1':
-    resolution: {integrity: sha512-rCsJOawGaofI6+aV5BCJm2YfoBUJGgIf6ej6r14atoeo9zHhJqy0VSyhgGUo1vvrP7ArtwiHWnGOqz6gGAxO7g==}
+  '@typescript/typescript-win32-x64@7.1.0-dev.20261105.1':
+    resolution: {integrity: sha512-C/dBfi8L/g4dd58xy5mDdL0uAkYtOhae+wMHsbNl9nlNxo6sQl/BhjylHI4jv2tE3zajnZOM4YdHD/T+EmHhiQ==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [win32]
@@ -3934,6 +4025,9 @@ packages:
   node-addon-api@4.3.0:
     resolution: {integrity: sha512-73sE9+3UaLYYFmDsFZnqCInzPyh3MqIwZO9cw58yIqAZhONrrabrYyYe3TuIqtIiOuTXVhsGau8hcrhhwSsDIQ==}
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -4826,8 +4920,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@7.1.0-dev.20261027.1:
-    resolution: {integrity: sha512-pPXjJFnHoJGGZxw9qy6lSrW29TihO6LZcn39TkNP787WNA0g4/W/MYkhXQo/WL+NyGIPMa+1bmedrr3ixhqD2w==}
+  typescript@7.1.0-dev.20261105.1:
+    resolution: {integrity: sha512-/IHg+L3KpEzR5YgEklCa6kgILQz+dewocB0PObwwN5IPSurbo2LCgPPhHgeH8d9rR26Rg7G/feyWK7SEnTGL3g==}
     engines: {node: '>=16.20.0'}
     hasBin: true
 
@@ -7148,6 +7242,66 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
+  '@parcel/watcher-android-arm64@2.5.6':
+    optional: true
+
+  '@parcel/watcher-darwin-arm64@2.5.6':
+    optional: true
+
+  '@parcel/watcher-darwin-x64@2.5.6':
+    optional: true
+
+  '@parcel/watcher-freebsd-x64@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-arm-glibc@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-arm-musl@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-arm64-glibc@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-arm64-musl@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-x64-glibc@2.5.6':
+    optional: true
+
+  '@parcel/watcher-linux-x64-musl@2.5.6':
+    optional: true
+
+  '@parcel/watcher-win32-arm64@2.5.6':
+    optional: true
+
+  '@parcel/watcher-win32-ia32@2.5.6':
+    optional: true
+
+  '@parcel/watcher-win32-x64@2.5.6':
+    optional: true
+
+  '@parcel/watcher@2.5.6':
+    dependencies:
+      detect-libc: 2.1.2
+      is-glob: 4.0.3
+      node-addon-api: 7.1.1
+      picomatch: 4.0.4
+    optionalDependencies:
+      '@parcel/watcher-android-arm64': 2.5.6
+      '@parcel/watcher-darwin-arm64': 2.5.6
+      '@parcel/watcher-darwin-x64': 2.5.6
+      '@parcel/watcher-freebsd-x64': 2.5.6
+      '@parcel/watcher-linux-arm-glibc': 2.5.6
+      '@parcel/watcher-linux-arm-musl': 2.5.6
+      '@parcel/watcher-linux-arm64-glibc': 2.5.6
+      '@parcel/watcher-linux-arm64-musl': 2.5.6
+      '@parcel/watcher-linux-x64-glibc': 2.5.6
+      '@parcel/watcher-linux-x64-musl': 2.5.6
+      '@parcel/watcher-win32-arm64': 2.5.6
+      '@parcel/watcher-win32-ia32': 2.5.6
+      '@parcel/watcher-win32-x64': 2.5.6
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -7526,25 +7680,25 @@ snapshots:
       '@typescript-eslint/types': 8.36.0
       eslint-visitor-keys: 4.2.1
 
-  '@typescript/typescript-darwin-arm64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-darwin-arm64@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-darwin-x64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-darwin-x64@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-linux-arm64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-linux-arm64@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-linux-arm@7.1.0-dev.20261027.1':
+  '@typescript/typescript-linux-arm@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-linux-x64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-linux-x64@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-win32-arm64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-win32-arm64@7.1.0-dev.20261105.1':
     optional: true
 
-  '@typescript/typescript-win32-x64@7.1.0-dev.20261027.1':
+  '@typescript/typescript-win32-x64@7.1.0-dev.20261105.1':
     optional: true
 
   '@typescript/typescript6@6.0.2':
@@ -9591,6 +9745,8 @@ snapshots:
   node-addon-api@4.3.0:
     optional: true
 
+  node-addon-api@7.1.1: {}
+
   node-domexception@1.0.0: {}
 
   node-fetch@3.3.2:
@@ -10654,15 +10810,15 @@ snapshots:
 
   typescript@6.0.3: {}
 
-  typescript@7.1.0-dev.20261027.1:
+  typescript@7.1.0-dev.20261105.1:
     optionalDependencies:
-      '@typescript/typescript-darwin-arm64': 7.1.0-dev.20261027.1
-      '@typescript/typescript-darwin-x64': 7.1.0-dev.20261027.1
-      '@typescript/typescript-linux-arm': 7.1.0-dev.20261027.1
-      '@typescript/typescript-linux-arm64': 7.1.0-dev.20261027.1
-      '@typescript/typescript-linux-x64': 7.1.0-dev.20261027.1
-      '@typescript/typescript-win32-arm64': 7.1.0-dev.20261027.1
-      '@typescript/typescript-win32-x64': 7.1.0-dev.20261027.1
+      '@typescript/typescript-darwin-arm64': 7.1.0-dev.20261105.1
+      '@typescript/typescript-darwin-x64': 7.1.0-dev.20261105.1
+      '@typescript/typescript-linux-arm': 7.1.0-dev.20261105.1
+      '@typescript/typescript-linux-arm64': 7.1.0-dev.20261105.1
+      '@typescript/typescript-linux-x64': 7.1.0-dev.20261105.1
+      '@typescript/typescript-win32-arm64': 7.1.0-dev.20261105.1
+      '@typescript/typescript-win32-x64': 7.1.0-dev.20261105.1
 
   uc.micro@2.1.0: {}
 

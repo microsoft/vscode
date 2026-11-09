@@ -11,7 +11,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
-import { IChat, ISession } from './session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',

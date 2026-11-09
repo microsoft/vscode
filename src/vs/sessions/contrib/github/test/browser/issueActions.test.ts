@@ -19,10 +19,9 @@ import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import '../../browser/issueActions.js';
-import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithIssue(issueUri: URI, issues?: readonly { readonly owner: string; readonly repo: string; readonly number: number; readonly uri: URI }[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
@@ -100,7 +99,7 @@ suite('Issue Actions', () => {
 			}
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<ITestSessionWithChat>({ workspace: session.workspace }));
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -195,7 +194,7 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session as ITestSessionWithChat);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 

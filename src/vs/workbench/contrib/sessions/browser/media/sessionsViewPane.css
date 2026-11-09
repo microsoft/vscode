@@ -121,6 +121,10 @@
 		white-space: nowrap;
 	}
 
+	.agent-sessions-header-row.inbox-layout .agent-sessions-header-label {
+		font-size: var(--vscode-fontSize-heading3);
+	}
+
 	.agent-sessions-header-actions {
 		display: flex;
 		align-items: center;

@@ -23,7 +23,7 @@ import { ILanguageModelChatMetadata } from '../../../../chat/common/languageMode
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ChatModelSource, ISession } from '../../../common/session.js';
+import { ChatModelSource, ISession } from '../../../../../services/sessions/common/session.js';
 import { WorkspaceNotTrustedError } from '../../../common/sessionsManagement.js';
 import { IPreparedNewSession, ISessionsProviderCreateSessionOptions } from '../../../common/sessionsProvider.js';
 import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';

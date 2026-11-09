@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../../base/common/types.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -28,11 +28,11 @@ import { MockChatSessionsService } from '../../../../../chat/test/common/mockCha
 import { IChatModel, IChatRequestModel } from '../../../../../chat/common/model/chatModel.js';
 import { IAgentSource, PromptsStorage } from '../../../../../chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../chat/common/promptSyntax/promptTypes.js';
-import { IChat, ISession } from '../../../../common/session.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-import { sessionChatSourceOf } from '../../../../browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,9 +50,11 @@ suite('ScopedModePickerModelCache', () => {
 			enabled: true,
 		});
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: customAgent.id, kind: ChatMode.Agent.kind });
-		const session = upcastPartial<IActiveSession>({ resource, mode, providerId: 'default-copilot' });
-		const scope = observableValue<IActiveSession | undefined>('scope', session);
-		return { session, scope, mode, customAgent };
+		const session = upcastPartial<ITestSessionWithChat>({ resource, mode, providerId: 'default-copilot' });
+		const scope = observableValue<ITestSessionWithChat | undefined>('scope', session);
+		// The surface's chat carries the mode of the session it shows.
+		const source: ISessionChatSource = { session: scope, chat: derived(reader => { const shown = scope.read(reader); return shown && upcastPartial<IChat>({ mode: shown.mode }); }) };
+		return { session, scope, source, mode, customAgent };
 	}
 
 	function createInstantiationService(sessions: readonly ReturnType<typeof createSession>[], disposed: string[]) {
@@ -85,8 +87,8 @@ suite('ScopedModePickerModelCache', () => {
 		const disposed: string[] = [];
 		const instantiationService = createInstantiationService([first, second], disposed);
 		const cache = store.add(new ScopedModePickerModelCache(() => true));
-		const firstReference = store.add(cache.acquire(first.scope, instantiationService));
-		const secondReference = store.add(cache.acquire(second.scope, instantiationService));
+		const firstReference = store.add(cache.acquire(first.source, instantiationService));
+		const secondReference = store.add(cache.acquire(second.source, instantiationService));
 		const initial = [firstReference, secondReference].map(reference => ({
 			selected: reference.model.selectedMode.id,
 			available: reference.model.getAvailableModes().map(mode => mode.id),
@@ -119,9 +121,9 @@ suite('ScopedModePickerModelCache', () => {
 		const disposed: string[] = [];
 		const instantiationService = createInstantiationService([session], disposed);
 		const cache = store.add(new ScopedModePickerModelCache(() => true));
-		const first = store.add(cache.acquire(session.scope, instantiationService));
+		const first = store.add(cache.acquire(session.source, instantiationService));
 		first.dispose();
-		const replacement = store.add(cache.acquire(session.scope, instantiationService));
+		const replacement = store.add(cache.acquire(session.source, instantiationService));
 		await Promise.resolve();
 		const afterRebuild = { reused: first.model === replacement.model, disposed: [...disposed] };
 
@@ -135,20 +137,85 @@ suite('ScopedModePickerModelCache', () => {
 		});
 	});
 
+	test('discovers the agents of the chat each source shows: two sources of one session object, and a source switching between chats of the session', () => {
+		const sessionResource = URI.parse('copilotcli:/shared');
+		const agentOf = (name: string) => new CustomChatMode({
+			id: name,
+			uri: URI.file(`/workspace/${name}.agent.md`),
+			name,
+			agentInstructions: { content: '', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
+		});
+		// Discovery depends on the chat it runs for: chat A discovers agent a, chat B agent b.
+		const chats = ['a', 'b'].map(name => {
+			const agent = agentOf(name);
+			const chat = upcastPartial<IChat>({ resource: sessionResource.with({ fragment: name }), mode: constObservable({ id: agent.id, kind: ChatMode.Agent.kind }) });
+			return { chat, agent };
+		});
+		const [chatA, chatB] = chats.map(entry => entry.chat);
+		const requested: string[] = [];
+		const disposed: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatSessionsService, { getCustomAgentTargetForSessionType: () => Target.Undefined });
+		instantiationService.stub(IChatModeService, {
+			createModes: resource => {
+				const entry = chats.find(candidate => candidate.chat.resource.toString() === resource?.toString());
+				assert.ok(entry);
+				requested.push(resource.fragment);
+				const modes: IChatModes & IDisposable = {
+					onDidChange: Event.None,
+					builtin: [ChatMode.Agent],
+					custom: [entry.agent],
+					findModeById: id => id === entry.agent.id ? entry.agent : id === ChatMode.Agent.id ? ChatMode.Agent : undefined,
+					findModeByName: () => undefined,
+					waitForPendingUpdates: async () => { },
+					dispose: () => disposed.push(resource.fragment),
+				};
+				return modes;
+			},
+		});
+		const cache = store.add(new ScopedModePickerModelCache(() => true));
+		// Two surfaces of the same session object, such as a slot and a detached pane, each showing its own chat.
+		const session = constObservable(upcastPartial<ITestSessionWithChat>({ resource: sessionResource, providerId: 'default-copilot' }));
+		const firstChat = observableValue<IChat | undefined>('firstChat', chatA);
+		const first = store.add(cache.acquire({ session, chat: firstChat }, instantiationService));
+		const second = store.add(cache.acquire({ session, chat: constObservable(chatB) }, instantiationService));
+		const shown = () => [first, second].map(reference => ({
+			selected: reference.model.selectedMode.id,
+			available: reference.model.getAvailableModes().map(mode => mode.id),
+		}));
+		const initial = shown();
+
+		firstChat.set(chatB, undefined);
+		const afterSwitching = shown();
+		firstChat.set(chatA, undefined);
+
+		assert.deepStrictEqual({ initial, afterSwitching, afterSwitchingBack: shown(), requested, disposed }, {
+			initial: [{ selected: 'a', available: ['agent', 'a'] }, { selected: 'b', available: ['agent', 'b'] }],
+			afterSwitching: [{ selected: 'b', available: ['agent', 'b'] }, { selected: 'b', available: ['agent', 'b'] }],
+			afterSwitchingBack: [{ selected: 'a', available: ['agent', 'a'] }, { selected: 'b', available: ['agent', 'b'] }],
+			requested: ['a', 'b', 'b', 'a'],
+			disposed: ['a', 'b'],
+		});
+	});
+
 	test('follows scoped retargets and clears discovery for unsupported sessions', () => {
 		const first = createSession('first');
 		const second = createSession('second');
 		const disposed: string[] = [];
 		const instantiationService = createInstantiationService([first, second], disposed);
 		const cache = store.add(new ScopedModePickerModelCache(session => session.providerId === 'default-copilot'));
-		const reference = store.add(cache.acquire(first.scope, instantiationService));
+		const reference = store.add(cache.acquire(first.source, instantiationService));
 
 		first.scope.set(second.session, undefined);
 		const retargeted = {
 			selected: reference.model.selectedMode.id,
 			available: reference.model.getAvailableModes().map(mode => mode.id),
 		};
-		first.scope.set(upcastPartial<IActiveSession>({ providerId: 'another-provider', mode: second.mode }), undefined);
+		first.scope.set(upcastPartial<ITestSessionWithChat>({ providerId: 'another-provider', mode: second.mode }), undefined);
 
 		assert.deepStrictEqual({
 			retargeted,
@@ -194,7 +261,7 @@ suite('ModePicker', () => {
 			let keyboardActions = false;
 			const calls: string[] = [];
 			const picker = store.add(new ModePicker(
-				model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+				model, testChatSourceOf(observableValue<ITestSessionWithChat | undefined>('session', undefined)),
 				upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => calls.push('hide'),
@@ -255,7 +322,7 @@ suite('ModePicker', () => {
 		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
 		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
 		const picker = store.add(new ModePicker(
-			model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+			model, testChatSourceOf(observableValue<ITestSessionWithChat | undefined>('session', undefined)),
 			upcastPartial<IActionWidgetService>({
 				isVisible: false, hide: () => { },
 				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
@@ -335,7 +402,7 @@ suite('ModePicker', () => {
 			override readonly resource = chatResource;
 			override readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: ChatMode.Agent.id, kind: ChatMode.Agent.kind });
 		}();
-		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+		const scopedSession = observableValue<ITestSessionWithChat | undefined>('session', new class extends mock<ITestSessionWithChat>() {
 			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
 			override readonly sessionType = 'agent-host-claude';
 		}());
@@ -347,7 +414,7 @@ suite('ModePicker', () => {
 		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
-			sessionChatSourceOf(scopedSession),
+			testChatSourceOf(scopedSession),
 			new class extends mock<IActionWidgetService>() {
 				override readonly isVisible = false;
 				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {

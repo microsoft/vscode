@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } fr
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -210,6 +210,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	public setResourceOrder(order: ((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined): void {
 		this._resourceOrder.set(order, undefined);
 	}
+
+	/**
+	 * Whether the documents of the resources are resolving. Always false: the documents are published as soon as the
+	 * resources are known and resolve their contents on demand, so the view model never keeps outdated documents.
+	 */
+	public readonly isResolvingDocuments: IObservable<boolean> = constObservable(false);
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();

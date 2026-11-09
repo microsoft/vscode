@@ -15,7 +15,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, ResourceContextKey } from '../../../../workbench/common/contextkeys.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { CANVAS_INPUT_SCHEME, CanvasInput, getCanvasInstanceLabels, ICanvasContextService, ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CANVAS_INPUT_SCHEME, CanvasInput, getCanvasInstanceLabels, ICanvasContextService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -24,6 +24,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export const TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleCanvasPinnedToSidebar';
 export const ADD_CANVAS_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.addCanvasToSidebar';

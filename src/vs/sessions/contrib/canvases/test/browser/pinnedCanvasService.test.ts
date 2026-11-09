@@ -22,16 +22,17 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { getCanvasInputResource, ICanvas, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInputResource } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';
-import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ICanvas, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 const STORAGE_KEY = 'sessions.pinnedCanvases';
 
@@ -75,7 +76,7 @@ suite('PinnedCanvasService', () => {
 		return { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: canvas.resource };
 	}
 
-	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: IActiveSession; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void> }) {
+	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void> }) {
 		const disposables = store.add(new DisposableStore());
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = disposables.add(new Emitter<IChatDeletedEvent>());
@@ -452,7 +453,7 @@ suite('PinnedCanvasService', () => {
 		const canvas = createCanvas('plan');
 		const { chat } = createChat('chat:/a', [canvas]);
 		const session = createSession('session:/a', [chat]);
-		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(chat) });
+		const activeSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(chat) });
 		const harness = createHarness({ sessions: [session], activeSession });
 		const pinned = reference(session, chat, canvas);
 		harness.service.pin(pinned);

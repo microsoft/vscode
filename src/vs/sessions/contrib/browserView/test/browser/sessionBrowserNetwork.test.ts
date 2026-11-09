@@ -31,12 +31,12 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionBrowserNetworkContribution } from '../../browser/sessionBrowserNetwork.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionBrowserNetworkContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -94,7 +94,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		const local = session('local', 'local-agent-host', '/repo');
 		const draft = session('draft', 'agenthost-wsl', '/repo');
 		const workspaceless = session('quick', 'agenthost-ssh');
-		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		const newSession = observableValue<ISession | undefined>('draft', draft);
 		const chats = new Map<string, ISession>([['chat:/committed', committed], ['chat:/local', local], ['chat:/quick', workspaceless]]);
 
@@ -133,7 +133,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
 			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
-		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
 
 		const localNetwork = { network: undefined, storageAffinity: undefined };

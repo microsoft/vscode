@@ -7,8 +7,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionApplication, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
-import { getSessionApplication } from '../../common/sessionApplication.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionApplication, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { getSessionApplication } from '../../../../services/sessions/common/sessionApplication.js';
 
 /** A peer chat of a {@link ITestSessionSpec}. */
 export interface ITestChatSpec {

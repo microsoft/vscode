@@ -16,7 +16,7 @@ import { classifyRequiredPullRequestChecks, getRequiredPullRequestChecksStatus, 
 import { compareRequestPriority, RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { GitHubCIOverallStatus, IGitHubCICheck } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource, IPullRequestChecksSubscription } from '../fetchers/githubPRChecksSource.js';
 

@@ -16,7 +16,7 @@ breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
 `sessions.experimental.layoutScope` is an experimental window setting
-with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
+with modes `session-shared`, `chat-shared`, and `chat` (default). Both enabled modes
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
@@ -85,11 +85,13 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 
 ## Sessions Part
 
-Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
+The Sessions Part is a frame with exchangeable content. The frame (`vs/workbench/browser/parts/sessions/sessionsPart.ts`) owns the card, its sizing, the progress bar and part visibility. The window names the kind of content it shows; the frame creates that content from `SessionsPartContentRegistry`, renders and lays it out, and disposes it with itself. The frame depends on no session model or chat code. The Agents Window registers its session grid (`SessionsGridContent` in `vs/workbench/contrib/sessions`) from `vs/sessions/browser/parts/sessionsPartContent.registration.ts`; another window registers its own content kind from its own registration module. The content, not the frame, owns the nested grid and binds its leaves to the panes it shows.
+
+Each pane of the grid has one Sessions-owned view. The view presents the chat its pane shows of the pane's session, the provider's session object, and scopes commands, menus, and context keys to that session.
 
 New-session views may opt into `preserveOnSessionCleared` to retain their composer when a draft is cleared to the empty slot. The host preserves that view's input, picker state, and focus rather than constructing a replacement that could restore an automatic workspace; other views keep the default replacement lifecycle.
 
-A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
+A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement as a detached pane of the grid (`ISessionGridPane` of kind `Detached`), which shows that chat of the provider's session object, with unchanged session identity and provider ownership; the parent's slot excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
 
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 
@@ -104,7 +106,7 @@ In the side-by-side single-chat presentation, pinning a chat header keeps that c
 
 The Sessions Part renders that model. It does not create a second active-session store. Stable slot identities belong to the visible-session model; ordinary replacement transfers the slot to the new session. Retained sessions keep their views and live chat widgets across movement, reordering, and arrangement changes.
 
-Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
+Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part's session grid content owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
 
 The Sessions grid commits leaf container geometry before laying out their descendants through `ISessionGridView`. Explicit layout, structural changes, and presentation transitions finish both phases synchronously, before restoring focus. Allocations delivered directly by the shared grid during a sash gesture share one cancellable animation-frame flush owned by the Sessions grid; they use the latest dimensions and never wait for the gesture to end. Removed views cannot receive pending layout work.
 

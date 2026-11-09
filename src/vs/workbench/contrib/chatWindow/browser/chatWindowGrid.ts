@@ -56,6 +56,8 @@ export interface IChatWindowGridCells {
 	readonly terminals?: IObservable<IContentPart | undefined>;
 	/** Whether the chat shows only its input: it does not move then, so that the sash on its edge takes the pointer there. */
 	readonly chatInputOnly?: IObservable<boolean>;
+	/** Takes the terminal position the user arranged the terminals in, such as by dropping them below the main part. */
+	readonly setTerminalPosition?: (position: ChatWindowTerminalPosition) => void;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -458,6 +460,48 @@ export class ChatWindowGrid extends Disposable {
 			this._modeArrangement = this._grid.value?.describe();
 		}
 		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
+		this._adoptTerminalPosition();
+	}
+
+	/**
+	 * Takes the terminal position the grid shows the terminals in, as the user moved them, such as by dropping them below
+	 * the main part: the grid then shows exactly what the mode shows with them at that position, which the grid keeps as
+	 * the window's arrangement, without moving them again. Elsewhere, the position stays.
+	 */
+	private _adoptTerminalPosition(): void {
+		const grid = this._grid.value;
+		const setTerminalPosition = this._cells.setTerminalPosition;
+		const mode = this._arrangedMode;
+		if (!grid || !setTerminalPosition || mode === undefined || this._closing || !this._terminalsInGrid) {
+			return;
+		}
+		const shown = grid.describe();
+		const current = this._terminalPosition.get();
+		if (shown === this._describeArrangement(mode, current)) {
+			return;
+		}
+		const adopted = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor].find(position => shown === this._describeArrangement(mode, position));
+		if (adopted === undefined) {
+			return;
+		}
+		this._topologyKey = this._topology(mode, adopted).key;
+		this._sizesKey = getSizesKey(this._topologyKey, mode);
+		this._arranged = shown;
+		this._modeArrangement = shown;
+		setTerminalPosition(adopted);
+	}
+
+	/** What {@link PartGrid.describe} says for the arrangement of `mode` with the terminals at `position`, as {@link _arrange} builds it. */
+	private _describeArrangement(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): string {
+		const { topology } = this._topology(mode, position);
+		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
+		const serialize = (node: TopologyNode): ISerializedNode => isBranch(node) ? { type: 'branch', data: node.children.map(serialize), size: 0 } : { type: 'leaf', data: { id: node.cell }, size: 0 };
+		const root = serialize(topology);
+		const cells = this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, 0, 0);
+		const describe = (node: ISerializedNode, along: Orientation): string => node.type === 'leaf'
+			? (node.data as { id: string }).id
+			: `${along === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.data.map(child => describe(child, along === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL)).join(', ')})`;
+		return cells.length === 1 ? describe(cells[0], orientation) : describe({ type: 'branch', data: cells, size: 0 }, orientation);
 	}
 
 	private _update(): void {
@@ -571,10 +615,9 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
-	/** The arrangement of a layout mode, with the terminals where they show, and its key. */
-	private _topology(mode: ChatWindowLayoutMode) {
+	/** The arrangement of a layout mode, with the terminals where they show, or at `position`, and its key. */
+	private _topology(mode: ChatWindowLayoutMode, position = this._terminalPosition.get()) {
 		const terminals = this._cells.terminals?.get();
-		const position = this._terminalPosition.get();
 		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
 		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
 		return { terminals, position, chrome, topology, key: describeTopology(topology) };
@@ -640,6 +683,9 @@ export class ChatWindowGrid extends Disposable {
 		// A part dropped on the chat goes beside it: its editors would join the chat's group, whose title is the chat's own.
 		// So does a part dropped on the terminals, whose groups stay locked to terminals.
 		partGrid.setMergeAllowed((_id, targetId) => targetId !== ChatWindowGridCell.Chat && targetId !== ChatWindowGridCell.Terminals);
+		// The chat showing only its input holds a part beside it in its row to the height of its input: a part dropped at its
+		// left or right goes to that edge of the window
+		partGrid.setSplitAllowed((targetId, direction) => targetId !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get() || direction === Direction.Up || direction === Direction.Down);
 		// Terminals do not lay out while cards make way: their processes would resize, also for a drag that is cancelled
 		// The chat showing only its input does not move: its edge is the sash's, which shows its conversation
 		this._movableRegistration.value = partGrid.setMovable(id => id !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get());

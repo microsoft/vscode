@@ -20,11 +20,10 @@ import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
@@ -33,7 +32,7 @@ import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
-import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
@@ -259,7 +258,7 @@ suite('Pull Request Actions', () => {
 		const openerService = new TestOpenerService();
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<ITestSessionWithChat>({ workspace: session.workspace }));
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 

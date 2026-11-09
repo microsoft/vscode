@@ -387,6 +387,83 @@ suite('MultiDiffEditorInput', () => {
 		});
 	}
 
+	for (const outcome of ['resolve', 'fail'] as const) {
+		test(`shows resources set after its view model while their contents load (${outcome})`, async () => {
+			const services = new ServiceCollection();
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const resources = observableValue<readonly MultiDiffEditorItem[]>('resources', []);
+			const references = new DeferredPromise<void>();
+			const textModelService = new class extends mock<ITextModelService>() {
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					await references.p;
+					if (outcome === 'fail') {
+						throw new Error(`cannot resolve ${resource.path}`);
+					}
+					const model = disposables.add(instantiateTextModel(instantiationService, resource.path, undefined, undefined, resource));
+					return {
+						object: new class extends mock<IResolvedTextEditorModel>() {
+							override readonly textEditorModel = model;
+							override isReadonly() { return true; }
+						}(),
+						dispose: () => model.dispose(),
+					};
+				}
+			}();
+			const input = disposables.add(new MultiDiffEditorInput(
+				URI.parse('multi-diff-editor:test'),
+				'Test',
+				undefined,
+				false,
+				textModelService,
+				new class extends mock<ITextResourceConfigurationService>() {
+					override readonly onDidChangeConfiguration = Event.None;
+					override getValue<T>(): T { return {} as T; }
+				}(),
+				instantiationService,
+				new class extends mock<IMultiDiffSourceResolverService>() {
+					override resolve() {
+						return Promise.resolve({ resources: new ValueWithChangeEventFromObservable(resources) });
+					}
+				}(),
+				new class extends mock<ITextFileService>() {
+					override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+						override readonly onDidChangeDirty = Event.None;
+					}();
+				}(),
+			));
+			const errors: unknown[] = [];
+			const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				const viewModel = await input.getViewModel();
+				// Whether it shows no diffs while those of its resources still load.
+				const pending: boolean[] = [];
+				disposables.add(autorun(reader => {
+					const value = viewModel.items.read(reader).length === 0 && (input.isResolvingDocuments.read(reader) || viewModel.isLoading.read(reader));
+					if (pending.at(-1) !== value) {
+						pending.push(value);
+					}
+				}));
+				resources.set([new MultiDiffEditorItem(URI.parse('inmemory:/original/a.ts'), URI.parse('inmemory:/modified/a.ts'), undefined)], undefined);
+				const whileResolving = { resolving: input.isResolvingDocuments.get(), loading: viewModel.isLoading.get() };
+				await references.complete();
+				await waitForState(input.isResolvingDocuments, resolving => !resolving);
+				await waitForState(viewModel.isLoading, loading => !loading);
+
+				assert.deepStrictEqual({ whileResolving, pending, items: viewModel.items.get().length, errors: errors.length }, {
+					// The resources show right away while their contents load, also when loading them fails.
+					whileResolving: { resolving: false, loading: true },
+					pending: [false],
+					items: 1,
+					errors: outcome === 'resolve' ? 0 : 1,
+				});
+			} finally {
+				setUnexpectedErrorHandler(previousErrorHandler);
+			}
+		});
+	}
+
 	test('preserves explicit original line number setting values and updates', async () => {
 		const originalUri = URI.parse('file:///original.ts');
 		const modifiedUri = URI.parse('file:///modified.ts');
