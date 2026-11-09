@@ -376,7 +376,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _initialAuthenticationResource: string | undefined;
 	/**
 	 * An expired relay identity on a connection with relay windows. State-channel data is held, after the data the
-	 * discarded windows never sent, and resent in order once renewal restores the subscriptions.
+	 * host never received at expiry, and resent in order once renewal restores the subscriptions.
 	 */
 	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string; readonly held: { readonly message: ProtocolMessage; readonly bytes: number }[]; heldBytes: number } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
@@ -3250,7 +3250,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (msg.method === 'auth/required' && this._isWebPubSubRelay()
 					&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
 					&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
-					const held = this._discardStateWindows().map(message => ({ message, bytes: JSON.stringify(message).length * 2 }));
+					const held = this._discardStateWindows();
 					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource, held, heldBytes: held.reduce((bytes, entry) => bytes + entry.bytes, 0) };
 					this._markSubscriptionsAwaitingRestore([]);
 				}
@@ -3970,18 +3970,26 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/**
 	 * The host drops its windows when the relay identity expires; restored subscriptions start new ones.
-	 * Returns the data the windows had not completely sent, which the host never received.
+	 * Returns the data the host never received, oldest first: what the windows had not completely sent,
+	 * then what waited for a windowed subscribe, which is newer than its channel's window.
 	 */
-	private _discardStateWindows(): ProtocolMessage[] {
-		const unsent: ProtocolMessage[] = [];
+	private _discardStateWindows(): { readonly message: ProtocolMessage; readonly bytes: number }[] {
+		const unsent: { readonly message: ProtocolMessage; readonly bytes: number }[] = [];
 		for (const channel of [...this._windowedStateChannels.keys()]) {
 			const window = this._windowedChannels.get(channel);
 			if (window instanceof AgentHostChannelSubscription) {
 				// The client's own data notifications, which it queued through `_sendMessage`.
-				unsent.push(...window.unsent as readonly ProtocolMessage[]);
+				for (const message of window.unsent as readonly ProtocolMessage[]) {
+					unsent.push({ message, bytes: JSON.stringify(message).length * 2 });
+				}
 			}
 			this._windowedChannels.deleteAndDispose(channel);
 			this._windowedStateChannels.delete(channel);
+		}
+		for (const pending of this._pendingChannelSubscriptions.values()) {
+			unsent.push(...pending.messages);
+			pending.messages.length = 0;
+			pending.bufferedBytes = 0;
 		}
 		return unsent;
 	}

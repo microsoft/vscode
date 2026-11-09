@@ -5770,6 +5770,52 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('resends data that waited for a windowed subscribe at identity expiry before newer data', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl, { 'vscode.relayChannelWindows': true });
+			const resource = 'other-agent://tenant/conversations/pending-session';
+			const dispatches = [1, 2].map(clientSeq => ({
+				jsonrpc: '2.0' as const, method: 'dispatchAction',
+				params: { channel: resource, clientSeq, action: { type: ActionType.SessionTitleChanged, title: `Dispatch ${clientSeq}` } },
+			} as const));
+			const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			client.dispatch(resource, dispatches[0].params.action);
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			client.dispatch(resource, dispatches[1].params.action);
+			// The host rechecks the identity before answering the subscribe it received before the expiry.
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, error: { code: AhpErrorCodes.AuthRequired, message: 'Relay identity authentication is required' } });
+			await flushMicrotasks();
+			const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+			const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: restored.id, result: { flowControl: { clientReceive: agentHostStateReceiveLimits, hostReceive: agentHostStateReceiveLimits } } });
+			transport.fireWireMessage({
+				jsonrpc: '2.0', method: 'channel/snapshot', params: {
+					channel: resource, snapshot: {
+						resource, fromSeq: 2, state: createSessionState({
+							resource, provider: 'other-agent', title: 'After renewal', status: SessionStatus.Idle,
+							createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+						}),
+					},
+				},
+			});
+			await renewed;
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				title: subscription.object.verifiedValue?.title,
+				sent: transport.sentMessages.flatMap(message => hasKey(message, { method: true }) && (message.method === 'dispatchAction' || message.method === 'subscribe') ? [message.method === 'dispatchAction' ? message : message.method] : []),
+			}, {
+				title: 'After renewal',
+				sent: ['subscribe', 'subscribe', 'subscribe', 'subscribe', dispatches[0], dispatches[1]],
+			});
+		});
+
 		test('failed identity renewal and revocation do not announce recovery; a later successful renewal does', async () => {
 			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
 			let recovered = 0;
