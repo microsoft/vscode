@@ -193,7 +193,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			if (!parentTerminal) {
 				return undefined;
 			}
-			// Hidden children inherit the parent's cwd without splitting its group.
+			// TerminalService skips splitting hidden children, but still uses their parent to resolve cwd.
 			return hideFromUser || parentTerminal.target === TerminalLocation.Editor || this._terminalService.foregroundInstances.includes(parentTerminal) ? { parentTerminal } : TerminalLocation.Panel;
 		}
 		return location;

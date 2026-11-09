@@ -19,7 +19,7 @@ import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 import { TerminalEditorService } from '../../../contrib/terminal/browser/terminalEditorService.js';
 import { TerminalGroupService } from '../../../contrib/terminal/browser/terminalGroupService.js';
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
@@ -445,7 +445,7 @@ suite('MainThreadTerminalService', () => {
 					parent.capabilities.add(capabilities);
 					cwdDetection.updateCwd('/parent-current');
 					try {
-						const children = [];
+						const children: { cwd: ITerminalInstance['shellLaunchConfig']['cwd']; location: ITerminalInstance['target'] }[] = [];
 						for (const cwd of [undefined, '/child-explicit']) {
 							const childId = cwd ? 'explicit-child-terminal' : 'child-terminal';
 							await service.$createTerminal(childId, {
@@ -511,7 +511,7 @@ suite('MainThreadTerminalService', () => {
 				isExtensionCustomPtyTerminal: true,
 				location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
 			});
-			const child = store.add(terminals.foregroundInstances[1]);
+			const child = store.add(terminals.instances.find(instance => instance.shellLaunchConfig.extHostTerminalId === 'child-terminal')!);
 			try {
 				assert.deepStrictEqual(groups.groups.map(group => group.terminalInstances), [[parent, child]]);
 			} finally {
