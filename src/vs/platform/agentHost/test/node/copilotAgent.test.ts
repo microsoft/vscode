@@ -14772,6 +14772,7 @@ suite('CopilotAgent', () => {
 					return {
 						models: agent.models.get().map(model => `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}`),
 						tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
+						tierDescription: tier?.description,
 						autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
 					};
 				} finally {
@@ -14788,16 +14789,19 @@ suite('CopilotAgent', () => {
 				unavailableFusion: {
 					models: ['auto:Copilot Fusion:fusion', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					tierDescription: 'Biases which models Copilot Fusion routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
 				},
 				unavailableFusionWithoutModels: {
 					models: ['auto:Copilot Fusion:fusion'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					tierDescription: 'Biases which models Copilot Fusion routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
 				},
 				noFusionTier: {
 					models: ['auto:Auto', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for',
+					tierDescription: 'Biases which models Auto routes this session to.',
 					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true'],
 				},
 			});

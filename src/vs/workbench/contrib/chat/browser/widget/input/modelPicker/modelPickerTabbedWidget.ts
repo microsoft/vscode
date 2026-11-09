@@ -1117,7 +1117,8 @@ export class TabbedModelPicker extends Disposable {
 
 	/** The detail page content of an on-device family, with its direct model and the chat's configuration of it. */
 	private _getLocalModelDetails(familyId: string, context: ITabbedModelPickerContext): ILocalModelDetails | undefined {
-		const details = context.localModels?.getDetails(familyId);
+		const localDetails = context.localModels?.getDetails(familyId);
+		const details = localDetails && { ...localDetails, autoModelFusion: !!this._autoModel(context)?.metadata.autoModelFusion };
 		const model = details && this._getLocalDirectModel(familyId, context);
 		if (!details || !model) {
 			return details;

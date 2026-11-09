@@ -4483,7 +4483,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			properties: {
 				...model.configSchema.properties,
 				// Fusion's tiers read as an effort level, like other models' effort setting.
-				[AutoTierConfigKey]: { ...tier, title: localize('copilotAgent.fusionTier.title', "Effort Level") },
+				[AutoTierConfigKey]: {
+					...tier,
+					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
+					description: localize('copilotAgent.fusionTier.description', "Biases which models Copilot Fusion routes this session to."),
+				},
 			},
 		} : model.configSchema;
 		return {
