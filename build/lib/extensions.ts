@@ -17,7 +17,7 @@ import * as util2 from './util.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
-import { getProductionDependencies } from './dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
@@ -522,23 +522,24 @@ export function isPackagedTypeScriptFile(relativePath: string): boolean {
  * Returns the production dependencies of `extensions/package.json` (shared by the built-in
  * extensions) with their destination in the build: `extensions/node_modules/...`. They are a
  * member of the pnpm workspace, so a dependency can be hoisted to the root `node_modules`; such a
- * folder keeps its path relative to that `node_modules`.
+ * folder keeps its path relative to that `node_modules`. `folder` holds the files of the package
+ * (in pnpm's virtual store with the isolated linker).
  */
 function getSharedExtensionDependencyFolders(): { folder: string; destination: string }[] {
 	const extensionsNodeModules = path.join(root, 'extensions', 'node_modules');
 	const rootNodeModules = path.join(root, 'node_modules');
 	const result = new Map<string, string>();
-	for (const folder of getProductionDependencies('extensions/')) {
+	for (const { folder, source } of getProductionDependencies('extensions/')) {
 		const relative = folder.startsWith(extensionsNodeModules + path.sep) ? path.relative(extensionsNodeModules, folder) : path.relative(rootNodeModules, folder);
 		if (relative.startsWith('..')) {
 			throw new Error(`Unexpected location of a shared extension dependency: ${folder}`);
 		}
 		const destination = path.posix.join('extensions', 'node_modules', relative.split(path.sep).join('/'));
 		const existing = result.get(destination);
-		if (existing && existing !== folder) {
-			throw new Error(`Shared extension dependencies ${existing} and ${folder} would both be packaged at ${destination}`);
+		if (existing && existing !== source) {
+			throw new Error(`Shared extension dependencies ${existing} and ${source} would both be packaged at ${destination}`);
 		}
-		result.set(destination, folder);
+		result.set(destination, source);
 	}
 	return [...result].map(([destination, folder]) => ({ folder: path.relative(root, folder).split(path.sep).join('/'), destination }));
 }
@@ -560,11 +561,12 @@ export function packageCopilotExtensionStream(): Stream {
 	);
 
 	const productionDependencies = getProductionDependencies('extensions/copilot');
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	return es.merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
 	).pipe(util2.setExecutableBit(['**/*.sh']));
