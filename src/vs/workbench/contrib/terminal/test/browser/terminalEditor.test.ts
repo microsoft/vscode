@@ -4,115 +4,89 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Action, IAction } from '../../../../../base/common/actions.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-import { TerminalEditorDropdownWithPrimaryActionViewItem } from '../../browser/terminalEditor.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ITerminalConfigurationService, ITerminalEditorService, ITerminalService } from '../../browser/terminal.js';
+import { TerminalEditor, TerminalEditorDropdownWithPrimaryActionViewItem } from '../../browser/terminalEditor.js';
+import { ITerminalProfile, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../common/terminal.js';
 
-suite('TerminalEditorDropdownWithPrimaryActionViewItem', () => {
+suite('TerminalEditor - ActionViewItem regression', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createAction(id: string): IAction {
-		return store.add(new Action(id, id));
-	}
-
 	function createMenuItemAction(id: string): MenuItemAction {
-		return store.add(new class extends mock<MenuItemAction>() {
-			override id = id;
-			override label = id;
-			override enabled = true;
+		return new class extends mock<MenuItemAction>() {
+			override readonly id = id;
+			override readonly label = id;
+			override readonly enabled = true;
+			override readonly item = { id, title: id, icon: Codicon.plus };
 			override run() { return Promise.resolve(); }
-		}());
+		}();
 	}
 
-	test('should manage multiple instances independently without cross-disposing actions', () => {
-		const contextMenuProvider = new class extends mock<IContextMenuService>() { }();
-		const keybindingService = new class extends mock<IKeybindingService>() {
-			override lookupKeybinding() { return undefined; }
-		}();
-		const notificationService = new class extends mock<INotificationService>() { }();
-		const contextKeyService = new class extends mock<IContextKeyService>() { }();
-		const themeService = new class extends mock<IThemeService>() {
-			override getColorTheme() { return { getColor: () => undefined } as any; }
-		}();
-		const accessibilityService = new class extends mock<IAccessibilityService>() {
-			override isScreenReaderOptimized() { return false; }
-		}();
+	test('should support multiple action view items for create terminal dropdown without cross-disposing (#346848)', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
 
-		const activeSet = new Set<TerminalEditorDropdownWithPrimaryActionViewItem>();
+		const onDidChangeAvailableProfiles = store.add(new Emitter<ITerminalProfile[]>());
+		instantiationService.stub(ITerminalProfileService, upcastPartial<ITerminalProfileService>({
+			availableProfiles: [{ profileName: 'bash', path: '/bin/bash', isAutoDetected: false }],
+			contributedProfiles: [],
+			getDefaultProfileName: () => 'bash',
+			onDidChangeAvailableProfiles: onDidChangeAvailableProfiles.event,
+		}));
 
-		// Toolbar 1 item
-		const item1Disposables = new DisposableStore();
-		let item1ActionDisposed = false;
-		item1Disposables.add({ dispose: () => { item1ActionDisposed = true; } });
-		const primary1 = createMenuItemAction('primary1');
-		const dropdownAction1 = createAction('dropdownAction1');
+		instantiationService.stub(ITerminalProfileResolverService, upcastPartial<ITerminalProfileResolverService>({
+			defaultProfileName: 'bash'
+		}));
 
-		const item1 = store.add(new TerminalEditorDropdownWithPrimaryActionViewItem(
-			primary1,
-			dropdownAction1,
-			[],
-			'class1',
-			undefined,
-			contextMenuProvider,
-			keybindingService,
-			notificationService,
-			contextKeyService,
-			themeService,
-			accessibilityService
-		));
-		item1.actionDisposables.add(item1Disposables);
-		item1.setOnDidDispose(() => activeSet.delete(item1));
-		activeSet.add(item1);
+		instantiationService.stub(ITerminalService, upcastPartial<ITerminalService>({
+			createTerminal: () => Promise.resolve() as any,
+			createAndFocusTerminal: () => Promise.resolve() as any,
+		}));
 
-		// Toolbar 2 item (simulating pinned tabs row on a separate row)
-		const item2Disposables = new DisposableStore();
-		let item2ActionDisposed = false;
-		item2Disposables.add({ dispose: () => { item2ActionDisposed = true; } });
-		const primary2 = createMenuItemAction('primary2');
-		const dropdownAction2 = createAction('dropdownAction2');
+		instantiationService.stub(ITerminalEditorService, upcastPartial<ITerminalEditorService>({
+			setActiveInstance: () => { },
+			instances: [],
+		}));
 
-		const item2 = store.add(new TerminalEditorDropdownWithPrimaryActionViewItem(
-			primary2,
-			dropdownAction2,
-			[],
-			'class2',
-			undefined,
-			contextMenuProvider,
-			keybindingService,
-			notificationService,
-			contextKeyService,
-			themeService,
-			accessibilityService
-		));
-		item2.actionDisposables.add(item2Disposables);
-		item2.setOnDidDispose(() => activeSet.delete(item2));
-		activeSet.add(item2);
+		instantiationService.stub(ITerminalConfigurationService, upcastPartial<ITerminalConfigurationService>({
+			config: { rightClickBehavior: 'default' } as any
+		}));
 
-		// Both items are active in the set
-		assert.strictEqual(activeSet.size, 2);
-		assert.strictEqual(item1ActionDisposed, false);
-		assert.strictEqual(item2ActionDisposed, false);
+		const editor = store.add(instantiationService.createInstance(TerminalEditor, new TestEditorGroupView(0)));
 
-		// Disposing item1 removes only item1 from the active set and disposes its actionDisposables
+		const action1 = createMenuItemAction(TerminalCommandId.CreateTerminalEditorSameGroup);
+		const action2 = createMenuItemAction(TerminalCommandId.CreateTerminalEditorSameGroup);
+
+		// Toolbar 1 requests action view item
+		const item1 = editor.getActionViewItem(action1, {}) as TerminalEditorDropdownWithPrimaryActionViewItem;
+		assert.ok(item1);
+		assert.strictEqual(item1.actionDisposables.isDisposed, false);
+
+		// Toolbar 2 requests action view item (simulates pinned tabs row on separate row)
+		const item2 = editor.getActionViewItem(action2, {}) as TerminalEditorDropdownWithPrimaryActionViewItem;
+		assert.ok(item2);
+		assert.notStrictEqual(item1, item2);
+		assert.strictEqual(item2.actionDisposables.isDisposed, false);
+
+		// Regression verification: item1 must NOT have been disposed when item2 was requested
+		assert.strictEqual(item1.actionDisposables.isDisposed, false);
+
+		// Profile change should update both items without disposing them
+		onDidChangeAvailableProfiles.fire([{ profileName: 'zsh', path: '/bin/zsh', isAutoDetected: false }]);
+		assert.strictEqual(item1.actionDisposables.isDisposed, false);
+		assert.strictEqual(item2.actionDisposables.isDisposed, false);
+
+		// Disposing item1 cleans up only item1
 		item1.dispose();
-		assert.strictEqual(activeSet.size, 1);
-		assert.strictEqual(activeSet.has(item1), false);
-		assert.strictEqual(activeSet.has(item2), true);
-		assert.strictEqual(item1ActionDisposed, true);
-		assert.strictEqual(item2ActionDisposed, false);
+		assert.strictEqual(item1.actionDisposables.isDisposed, true);
+		assert.strictEqual(item2.actionDisposables.isDisposed, false);
 
-		// Disposing item2 removes item2 from the active set and disposes its actionDisposables
+		// Disposing item2 cleans up item2
 		item2.dispose();
-		assert.strictEqual(activeSet.size, 0);
-		assert.strictEqual(item2ActionDisposed, true);
+		assert.strictEqual(item2.actionDisposables.isDisposed, true);
 	});
 });
