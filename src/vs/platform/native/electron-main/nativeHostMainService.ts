@@ -438,6 +438,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // moveTop() would reveal the window
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();
 	}
