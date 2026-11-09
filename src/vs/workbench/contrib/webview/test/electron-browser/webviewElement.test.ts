@@ -7,10 +7,13 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { newWriteableBufferStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
@@ -19,18 +22,21 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { createFileSystemProviderError, FileOperation, FileSystemProviderErrorCode, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWebviewManagerService, WebviewResourceDownload } from '../../../../../platform/webview/common/webviewManagerService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { ElectronWebviewElement } from '../../electron-browser/webviewElement.js';
@@ -228,29 +234,65 @@ suite('ElectronWebviewElement', () => {
 		const bytes = VSBuffer.wrap(new Uint8Array([0, 1, 2, 255]));
 		const origin = 'vscode-webview://test-origin';
 
-		async function createDownloadWebview(source: URI) {
+		class DownloadFileSystemProvider extends InMemoryFileSystemProvider {
+			override get capabilities(): FileSystemProviderCapabilities {
+				return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
+			}
+
+			async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+				await super.rename(from, to, options);
+			}
+		}
+
+		class DownloadProgressService implements IProgressService {
+			declare readonly _serviceBrand: undefined;
+			readonly started = new DeferredPromise<void>();
+			options: IProgressOptions | undefined;
+			result: Promise<unknown> | undefined;
+			cancel: (() => void) | undefined;
+
+			withProgress<R>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
+				this.options = options;
+				this.cancel = onDidCancel;
+				const result = task(Progress.None);
+				this.result = result;
+				void this.started.complete();
+				return result;
+			}
+		}
+
+		async function createDownloadWebview(source: URI, options?: { provider?: InMemoryFileSystemProvider; remoteOS?: OperatingSystem }) {
 			const fileService = store.add(new FileService(store.add(new NullLogService())));
 			for (const scheme of new Set([Schemas.file, source.scheme])) {
-				store.add(fileService.registerProvider(scheme, store.add(new InMemoryFileSystemProvider())));
+				store.add(fileService.registerProvider(scheme, store.add(scheme === source.scheme && options?.provider ? options.provider : new DownloadFileSystemProvider())));
 			}
 			await fileService.createFolder(dirname(source));
 			await fileService.createFolder(directory);
 			await fileService.writeFile(source, bytes);
 
 			const complete = new DeferredPromise<void>();
-			store.add(fileService.onDidRunOperation(e => {
-				if (e.operation === FileOperation.WRITE) {
-					void complete.complete();
-				}
-			}));
 			const error = new DeferredPromise<NotificationMessage | NotificationMessage[]>();
+			const messages: (NotificationMessage | NotificationMessage[])[] = [];
 			const read = sinon.stub(fileService, 'readFileStream').callThrough();
 			const write = sinon.stub(fileService, 'writeFile').callThrough();
+			const move = sinon.spy(fileService, 'move');
 			const showSaveDialog = sinon.stub().resolves(target);
+			const progress = new DownloadProgressService();
+			const getEnvironment = sinon.stub().resolves(options?.remoteOS === undefined ? null : upcastPartial<IRemoteAgentEnvironment>({ os: options.remoteOS }));
 			const result = createWebview(instantiationService => {
 				instantiationService.stub(IFileService, fileService);
 				instantiationService.stub(IUriIdentityService, store.add(new UriIdentityService(fileService)));
 				instantiationService.stub(IFileDialogService, { defaultFilePath: async () => directory, showSaveDialog });
+				instantiationService.stub(IProgressService, progress);
+				instantiationService.stub(IRemoteAgentService, {
+					getConnection: () => options?.remoteOS === undefined ? null : upcastPartial<IRemoteAgentConnection>({ remoteAuthority: source.authority }),
+					getEnvironment,
+				});
+				sinon.stub(instantiationService.get(INotificationService), 'info').callsFake(message => {
+					messages.push(message);
+					void complete.complete();
+					return new NoOpNotification();
+				});
 				sinon.stub(instantiationService.get(INotificationService), 'error').callsFake(message => {
 					void error.complete(message);
 					return new NoOpNotification();
@@ -259,7 +301,7 @@ suite('ElectronWebviewElement', () => {
 			result.webview.localResourcesRoot = [dirname(source).with({ query: '', fragment: '' })];
 			result.webview.element!.src = `${origin}/index.html?id=${result.webview.frameName}`;
 			const download = (downloadOrigin = origin) => result.downloads.fire({ url: asWebviewUri(source).toString(), origin: downloadOrigin });
-			return { ...result, download, fileService, complete, error, read, write, showSaveDialog };
+			return { ...result, download, fileService, complete, error, read, write, move, showSaveDialog, messages, progress, getEnvironment };
 		}
 
 		for (const source of [
@@ -267,17 +309,21 @@ suite('ElectronWebviewElement', () => {
 			URI.from({ scheme: 'test-remote', authority: 'host+name:123', path: '/media/my # video%.mp4', query: 'revision=%2F&value=1' }),
 		]) {
 			test(`saves the original bytes of ${source.scheme} resources through the file service`, async () => {
-				const { download, complete, read, write, showSaveDialog, fileService } = await createDownloadWebview(source);
+				const { download, complete, read, write, move, showSaveDialog, fileService, messages, progress } = await createDownloadWebview(source);
 				download();
 				await complete.p;
 
 				assert.deepStrictEqual({
 					readsOriginalResource: isEqual(read.firstCall.args[0], source),
-					destination: write.firstCall.args[0],
+					staged: !isEqual(write.firstCall.args[0], target),
+					destination: move.firstCall.args[1],
 					saved: (await fileService.readFile(target)).value,
 					dialog: showSaveDialog.firstCall.args[0],
+					messages,
+					progress: progress.options,
 				}, {
 					readsOriginalResource: true,
+					staged: true,
 					destination: target,
 					saved: bytes,
 					dialog: {
@@ -286,6 +332,8 @@ suite('ElectronWebviewElement', () => {
 						saveLabel: 'Download',
 						title: 'Download',
 					},
+					messages: ['Downloaded \'saved.mp4\'.'],
+					progress: { location: ProgressLocation.Notification, title: `Downloading ${basename(source)}`, cancellable: true },
 				});
 			});
 		}
@@ -302,26 +350,27 @@ suite('ElectronWebviewElement', () => {
 
 		test('saving over the original file ignores the webview cache-busting query', async () => {
 			const source = URI.file('/media/video.mp4').with({ query: 'version=1' });
-			const { download, read, write, showSaveDialog, fileService } = await createDownloadWebview(source);
+			const { download, complete, read, write, showSaveDialog, fileService, messages } = await createDownloadWebview(source);
 			showSaveDialog.resolves(source.with({ query: '' }));
 			download();
-			await timeout(0);
+			await complete.p;
 
-			assert.deepStrictEqual({ reads: read.callCount, writes: write.callCount, content: (await fileService.readFile(source)).value }, {
+			assert.deepStrictEqual({ reads: read.callCount, writes: write.callCount, content: (await fileService.readFile(source)).value, messages }, {
 				reads: 0,
 				writes: 0,
 				content: bytes,
+				messages: ['The destination is the original file. Choose a different location to download a copy.'],
 			});
 		});
 
-		test('rejects resources outside the current local resource roots before prompting', async () => {
+		test('rejects resources outside the current local resource roots before reading or writing', async () => {
 			const source = URI.file('/media/video.mp4');
 			const { webview, download, error, read, write, showSaveDialog } = await createDownloadWebview(source);
 			webview.localResourcesRoot = [URI.file('/other')];
 			download();
 			await error.p;
 
-			assert.deepStrictEqual({ dialogs: showSaveDialog.callCount, reads: read.callCount, writes: write.callCount }, { dialogs: 0, reads: 0, writes: 0 });
+			assert.deepStrictEqual({ dialogs: showSaveDialog.callCount, reads: read.callCount, writes: write.callCount }, { dialogs: 1, reads: 0, writes: 0 });
 		});
 
 		test('rejects a different webview origin even when the requested resource is permitted', async () => {
@@ -358,30 +407,98 @@ suite('ElectronWebviewElement', () => {
 				result[operation].rejects(failure);
 				result.download();
 
-				assert.strictEqual(await result.error.p, failure);
+				const reported = await result.error.p;
+				assert.ok(reported instanceof Error);
+				assert.strictEqual(reported.message, operation === 'read' ? 'Unable to read \'video.mp4\' for download.' : failure.message);
 			});
 		}
 
-		for (const failingSource of [true, false]) {
-			test(`reports ${failingSource ? 'missing source' : 'inaccessible destination'} realpath failures before streaming`, async () => {
+		for (const outside of [false, true]) {
+			test(`${outside ? 'rejects' : 'downloads'} a symlink resolving ${outside ? 'outside' : 'inside'} the allowed root`, async () => {
+				const source = URI.file('/media/link/video.mp4');
+				const provider = new class extends DownloadFileSystemProvider {
+					override get capabilities(): FileSystemProviderCapabilities {
+						return super.capabilities | FileSystemProviderCapabilities.FileRealpath;
+					}
+
+					async realpath(resource: URI): Promise<string> {
+						await super.stat(resource);
+						return resource.path.replace('/media/link', outside ? '/outside' : '/media/real');
+					}
+				};
+				const result = await createDownloadWebview(source, { provider });
+				result.webview.localResourcesRoot = [URI.file('/media')];
+				result.download();
+				await (outside ? result.error.p : result.complete.p);
+
+				assert.deepStrictEqual({
+					reads: result.read.callCount,
+					moves: result.move.callCount,
+					saved: outside ? undefined : (await result.fileService.readFile(target)).value,
+				}, {
+					reads: outside ? 0 : 1,
+					moves: outside ? 0 : 1,
+					saved: outside ? undefined : bytes,
+				});
+			});
+		}
+
+		for (const remoteOS of [OperatingSystem.Linux, OperatingSystem.Windows]) {
+			test(`uses the remote OS and resource rewrite for vscode-remote downloads (OS: ${remoteOS})`, async () => {
+				const source = URI.from({
+					scheme: Schemas.vscodeRemote,
+					authority: 'ssh-remote+host',
+					path: remoteOS === OperatingSystem.Windows ? '/c:/media/my # video%.mp4' : '/media/my # video%.mp4',
+				});
+				const result = await createDownloadWebview(source, { remoteOS });
+				const rewritten = source.with({ path: '/vscode-resource', query: JSON.stringify({ requestResourcePath: source.path }) });
+				await result.fileService.writeFile(rewritten, bytes);
+				result.download();
+				await result.complete.p;
+
+				assert.deepStrictEqual({
+					environmentReads: result.getEnvironment.callCount,
+					readsRewrittenResource: isEqual(result.read.firstCall.args[0], rewritten),
+					saved: (await result.fileService.readFile(target)).value,
+				}, { environmentReads: 1, readsRewrittenResource: true, saved: bytes });
+			});
+		}
+
+		for (const dispose of [false, true]) {
+			test(`${dispose ? 'disposing the webview' : 'cancelling progress'} cancels the read and preserves the destination`, async () => {
 				const source = URI.file('/media/video.mp4');
 				const result = await createDownloadWebview(source);
-				const failure = createFileSystemProviderError('Cannot resolve real path', failingSource ? FileSystemProviderErrorCode.FileNotFound : FileSystemProviderErrorCode.NoPermissions);
-				sinon.stub(result.fileService, 'realpath').callsFake(async resource => {
-					if (isEqual(resource, failingSource ? source : target)) {
-						throw failure;
-					}
-					return resource;
+				const previous = VSBuffer.fromString('previous contents');
+				await result.fileService.writeFile(target, previous);
+				const content = await result.fileService.readFile(source);
+				const stream = newWriteableBufferStream();
+				store.add(toDisposable(() => stream.destroy()));
+				const readStarted = new DeferredPromise<CancellationToken>();
+				result.read.callsFake(async (_resource, _options, token) => {
+					assert.ok(token);
+					store.add(token.onCancellationRequested(() => {
+						stream.error(new CancellationError());
+						stream.end();
+					}));
+					void readStarted.complete(token);
+					return { ...content, value: stream };
 				});
 				result.download();
+				const token = await readStarted.p;
+				if (dispose) {
+					result.webview.dispose();
+				} else {
+					result.progress.cancel!();
+				}
+				await assert.rejects(result.progress.result!, CancellationError);
 
-				assert.deepStrictEqual({ error: await result.error.p, reads: result.read.callCount, writes: result.write.callCount }, {
-					error: failure,
-					reads: 0,
-					writes: 0,
-				});
+				assert.deepStrictEqual({
+					cancelled: token.isCancellationRequested,
+					saved: (await result.fileService.readFile(target)).value,
+					files: (await result.fileService.resolve(directory)).children?.map(child => child.name).sort(),
+					messages: result.messages,
+				}, { cancelled: true, saved: previous, files: ['saved.mp4'], messages: [] });
 			});
 		}
-
 	});
 });

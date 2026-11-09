@@ -3,49 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from '../../../../base/common/network.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
-/** Rechecks the source after resolving local aliases; an undefined source cancels the save. */
-export async function saveWebviewResource(getSource: () => URI | undefined, target: URI, fileService: IFileService, uriIdentityService: IUriIdentityService): Promise<void> {
-	const source = getSource();
-	if (!source) {
-		return;
-	}
+/** Streams into a temporary sibling before atomically replacing the destination. */
+export async function saveWebviewResource(read: (token: CancellationToken) => Promise<VSBufferReadableStream>, target: URI, fileService: IFileService, logService: ILogService, token: CancellationToken): Promise<void> {
+	const temporaryResource = joinPath(dirname(target), `.vscode-download-${generateUuid()}.tmp`);
+	const disposables = new DisposableStore();
+	const cts = disposables.add(new CancellationTokenSource(token));
+	let content: VSBufferReadableStream | undefined;
+	let streamDone = Promise.resolve();
+	let writeStarted = false;
+	try {
+		if (cts.token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
-	const sourceForComparison = source.scheme === Schemas.file ? source.with({ query: '' }) : source;
-	if (uriIdentityService.extUri.isEqual(sourceForComparison, target)) {
-		return;
-	}
+		const stream = content = await read(cts.token);
+		disposables.add(toDisposable(() => stream.destroy()));
+		const finished = promiseWithResolvers<void>();
+		streamDone = finished.promise;
+		stream.on('end', () => finished.resolve());
+		stream.on('error', () => finished.resolve());
+		if (cts.token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
-	if (source.scheme === Schemas.file) {
-		const sourceRealPath = await fileService.realpath(sourceForComparison);
-		if (sourceRealPath) {
-			let targetRealPath: URI | undefined;
+		writeStarted = true;
+		await fileService.writeFile(temporaryResource, content);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		await fileService.move(temporaryResource, target, true, { atomic: true });
+	} catch (error) {
+		if (writeStarted) {
 			try {
-				targetRealPath = await fileService.realpath(target);
-			} catch (error) {
-				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
-					throw error;
+				await fileService.del(temporaryResource);
+			} catch (cleanupError) {
+				if (!(cleanupError instanceof FileOperationError && cleanupError.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+					logService.error('Unable to remove temporary webview download', cleanupError);
 				}
 			}
-			if (targetRealPath && uriIdentityService.extUri.isEqual(sourceRealPath, targetRealPath)) {
-				return;
-			}
 		}
-	}
-
-	const currentSource = getSource();
-	if (!currentSource) {
-		return;
-	}
-
-	const content = await fileService.readFileStream(currentSource);
-	try {
-		await fileService.writeFile(target, content.value);
+		throw token.isCancellationRequested ? new CancellationError() : error;
 	} finally {
-		content.value.destroy();
+		cts.cancel();
+		try {
+			// Let terminal stream events release the file service's read resources before destroying the stream.
+			content?.resume();
+			await streamDone;
+		} finally {
+			disposables.dispose();
+		}
 	}
 }

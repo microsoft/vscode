@@ -6,9 +6,12 @@
 import { getWindow } from '../../../../base/browser/dom.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename, isEqual, isEqualAuthority, joinPath } from '../../../../base/common/resources.js';
+import { basename, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../nls.js';
@@ -22,6 +25,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -29,7 +33,7 @@ import { FindInFrameOptions, IWebviewManagerService, WebviewResourceDownload, We
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
-import { getResourceToLoad } from '../browser/resourceLoading.js';
+import { WebviewResourceResponse } from '../browser/resourceLoading.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
 import { saveWebviewResource } from '../common/resourceDownload.js';
@@ -59,17 +63,18 @@ export class ElectronWebviewElement extends WebviewElement {
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@INotificationService notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
@@ -80,7 +85,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
 		this._register(this._webviewMainService.onDynamicDidDownloadResource(this.id)(download => {
-			this.downloadResource(download).catch(error => notificationService.error(error));
+			this.downloadResource(download).catch(error => {
+				if (!isCancellationError(error)) {
+					notificationService.error(error);
+				}
+			});
 		}));
 
 		if (initInfo.options.enableFindWidget) {
@@ -117,18 +126,6 @@ export class ElectronWebviewElement extends WebviewElement {
 			path: uri.path,
 			query: uri.query,
 		});
-		const remoteOS = resource.scheme === Schemas.vscodeRemote && isEqualAuthority(this.remoteAgentService.getConnection()?.remoteAuthority, resource.authority)
-			? (await this.remoteAgentService.getEnvironment())?.os
-			: undefined;
-		const resolveResource = () => {
-			const resourceToLoad = getResourceToLoad(resource, this.localResourceRoots, this.uriIdentityService, remoteOS);
-			if (!resourceToLoad) {
-				throw new Error(localize('downloadResourceAccessDenied', "Unable to download a resource outside the webview's local resource roots."));
-			}
-			return resourceToLoad;
-		};
-		resolveResource();
-
 		const target = await this.fileDialogService.showSaveDialog({
 			defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), basename(resource)),
 			availableFileSystems: [Schemas.file],
@@ -139,7 +136,41 @@ export class ElectronWebviewElement extends WebviewElement {
 			return;
 		}
 
-		await saveWebviewResource(() => this._store.isDisposed ? undefined : resolveResource(), target, this.fileService, this.uriIdentityService);
+		const sourceForComparison = resource.scheme === Schemas.file ? resource.with({ query: '' }) : resource;
+		if (this.uriIdentityService.extUri.isEqual(sourceForComparison, target)) {
+			this.notificationService.info(localize('downloadResourceSameFile', "The destination is the original file. Choose a different location to download a copy."));
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		const cts = disposables.add(new CancellationTokenSource());
+		disposables.add(Event.once(this.onDidDispose)(() => cts.cancel()));
+		try {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('downloadResourceProgress', "Downloading {0}", basename(resource)),
+				cancellable: true,
+			}, () => saveWebviewResource(async token => {
+				const result = await this.loadLocalResource(resource, { ifNoneMatch: undefined }, token);
+				if (result.type !== WebviewResourceResponse.Type.Success) {
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					throw new Error(result.type === WebviewResourceResponse.Type.AccessDenied
+						? localize('downloadResourceAccessDenied', "Unable to download a resource outside the webview's local resource roots.")
+						: localize('downloadResourceReadFailed', "Unable to read '{0}' for download.", basename(resource)));
+				}
+
+				return result.stream;
+			}, target, this.fileService, this.logService, cts.token), () => cts.cancel());
+
+			if (!this._store.isDisposed) {
+				this.notificationService.info(localize('downloadResourceComplete', "Downloaded '{0}'.", basename(target)));
+			}
+		} finally {
+			cts.cancel();
+			disposables.dispose();
+		}
 	}
 
 	override dispose(): void {

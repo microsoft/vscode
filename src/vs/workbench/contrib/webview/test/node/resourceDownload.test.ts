@@ -7,23 +7,28 @@ import assert from 'assert';
 import { promises } from 'fs';
 import { tmpdir } from 'os';
 import sinon from 'sinon';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { newWriteableBufferStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { DiskFileSystemProvider } from '../../../../../platform/files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { saveWebviewResource } from '../../common/resourceDownload.js';
 
 suite('Webview Resource Downloads - Disk', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let testDirectory: URI;
 	let fileService: FileService;
-	let uriIdentityService: UriIdentityService;
+	let logService: NullLogService;
+	let onWrite: (() => void) | undefined;
 	let realFile: URI;
 	let linkedFile: URI;
 	let content: VSBuffer;
@@ -40,10 +45,20 @@ suite('Webview Resource Downloads - Disk', () => {
 		content.buffer.fill(0x5a);
 		await promises.writeFile(realFile.fsPath, content.buffer);
 
-		const logService = store.add(new NullLogService());
+		onWrite = undefined;
+		logService = store.add(new NullLogService());
 		fileService = store.add(new FileService(logService));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new DiskFileSystemProvider(logService))));
-		uriIdentityService = store.add(new UriIdentityService(fileService));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new class extends DiskFileSystemProvider {
+			override get capabilities(): FileSystemProviderCapabilities {
+				return super.capabilities & ~FileSystemProviderCapabilities.FileReadWrite;
+			}
+
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				const written = await super.write(fd, pos, data, offset, length);
+				onWrite?.();
+				return written;
+			}
+		}(logService))));
 	});
 
 	teardown(async () => {
@@ -51,31 +66,91 @@ suite('Webview Resource Downloads - Disk', () => {
 		await promises.rm(testDirectory.fsPath, { recursive: true, force: true });
 	});
 
+	async function save(source: URI, target: URI, token = CancellationToken.None): Promise<void> {
+		await saveWebviewResource(async readToken => (await fileService.readFileStream(source, undefined, readToken)).value, target, fileService, logService, token);
+	}
+
 	for (const symlinkSource of [true, false]) {
 		test(`preserves the original file when the ${symlinkSource ? 'source' : 'destination'} uses a directory symlink`, async () => {
 			const source = (symlinkSource ? linkedFile : realFile).with({ query: 'version=1' });
 			const target = symlinkSource ? realFile : linkedFile;
-			const read = sinon.spy(fileService, 'readFileStream');
-			const write = sinon.spy(fileService, 'writeFile');
-
-			await saveWebviewResource(() => source, target, fileService, uriIdentityService);
+			await save(source, target);
 
 			assert.deepStrictEqual({
-				reads: read.callCount,
-				writes: write.callCount,
 				bytesUnchanged: (await promises.readFile(realFile.fsPath)).equals(content.buffer),
-			}, { reads: 0, writes: 0, bytesUnchanged: true });
+				files: (await promises.readdir(testDirectory.fsPath)).sort(),
+			}, { bytesUnchanged: true, files: ['link', 'real'] });
 		});
 	}
 
 	test('saves to a nonexistent local destination', async () => {
 		const target = joinPath(testDirectory, 'saved.mp4');
 
-		await saveWebviewResource(() => linkedFile, target, fileService, uriIdentityService);
+		await save(linkedFile, target);
 
 		assert.deepStrictEqual({
 			sourceUnchanged: (await promises.readFile(realFile.fsPath)).equals(content.buffer),
 			downloadMatches: (await promises.readFile(target.fsPath)).equals(content.buffer),
 		}, { sourceUnchanged: true, downloadMatches: true });
+	});
+
+	for (const existing of [false, true]) {
+		test(`cleans up an interrupted stream without changing ${existing ? 'an existing' : 'a new'} destination`, async () => {
+			const target = joinPath(testDirectory, 'saved.mp4');
+			if (existing) {
+				await promises.writeFile(target.fsPath, 'previous contents');
+			}
+			const firstWrite = new DeferredPromise<void>();
+			onWrite = () => { void firstWrite.complete(); };
+			const stream = newWriteableBufferStream();
+			store.add(toDisposable(() => stream.destroy()));
+			const saving = saveWebviewResource(async () => stream, target, fileService, logService, CancellationToken.None);
+			const rejected = assert.rejects(saving, /read interrupted/);
+			for (let i = 0; i < 5; i++) {
+				stream.write(content.slice(i * 65536, (i + 1) * 65536));
+			}
+			await firstWrite.p;
+			stream.error(new Error('read interrupted'));
+			stream.end();
+			await rejected;
+
+			assert.deepStrictEqual({
+				files: (await promises.readdir(testDirectory.fsPath)).sort(),
+				destination: existing ? await promises.readFile(target.fsPath, 'utf8') : undefined,
+				sourceUnchanged: (await promises.readFile(realFile.fsPath)).equals(content.buffer),
+			}, {
+				files: existing ? ['link', 'real', 'saved.mp4'] : ['link', 'real'],
+				destination: existing ? 'previous contents' : undefined,
+				sourceUnchanged: true,
+			});
+		});
+	}
+
+	test('cancelling while streaming leaves the destination unchanged and removes the temporary file', async () => {
+		const target = joinPath(testDirectory, 'saved.mp4');
+		await promises.writeFile(target.fsPath, 'previous contents');
+		const cts = store.add(new CancellationTokenSource());
+		onWrite = () => cts.cancel();
+
+		await assert.rejects(save(realFile, target, cts.token), CancellationError);
+
+		assert.deepStrictEqual({
+			files: (await promises.readdir(testDirectory.fsPath)).sort(),
+			destination: await promises.readFile(target.fsPath, 'utf8'),
+			sourceUnchanged: (await promises.readFile(realFile.fsPath)).equals(content.buffer),
+		}, { files: ['link', 'real', 'saved.mp4'], destination: 'previous contents', sourceUnchanged: true });
+	});
+
+	test('a failed replacement preserves the previous destination and removes the temporary file', async () => {
+		const target = joinPath(testDirectory, 'saved.mp4');
+		await promises.writeFile(target.fsPath, 'previous contents');
+		sinon.stub(fileService, 'move').rejects(new Error('rename failed'));
+
+		await assert.rejects(save(realFile, target), /rename failed/);
+
+		assert.deepStrictEqual({
+			files: (await promises.readdir(testDirectory.fsPath)).sort(),
+			destination: await promises.readFile(target.fsPath, 'utf8'),
+		}, { files: ['link', 'real', 'saved.mp4'], destination: 'previous contents' });
 	});
 });
