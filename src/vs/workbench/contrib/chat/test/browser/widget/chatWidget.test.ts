@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../base/common/dataTransfer.js';
+import { HierarchicalKind } from '../../../../../../base/common/hierarchicalKind.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -18,6 +20,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CopyPasteController } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { IBulkEditService } from '../../../../../../editor/browser/services/bulkEditService.js';
+import { DocumentPasteEditProvider } from '../../../../../../editor/common/languages.js';
+import { withAsyncTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,7 +31,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -35,6 +41,8 @@ import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -2503,7 +2511,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		const policyRequiresAgentHost = observableValue('policyRequiresAgentHost', false);
 		const contextKeyService = store.add(new MockContextKeyService());
 		const pasteController = mockObject<CopyPasteController>()();
-		pasteController.finishedPaste.resolves();
+		pasteController.finishedPaste.resolves(true);
 		const editor = mockObject<ChatInputPart['inputEditor']>()();
 		editor.getContribution.returns(pasteController);
 		const input = mockObject<ChatInputPart>()({
@@ -2611,7 +2619,7 @@ suite('ChatWidget - acceptInput submission', () => {
 	for (const customHandler of [false, true]) {
 		test(`waits for pasted text and attachments before ${customHandler ? 'calling a custom submit handler' : 'sending the draft'}`, async () => {
 			const fixture = createSubmissionWidget(undefined, 'Explain ');
-			const paste = new DeferredPromise<void>();
+			const paste = new DeferredPromise<boolean>();
 			fixture.pasteController.finishedPaste.returns(paste.p);
 			const submissions: { text: string; attachments: readonly string[] }[] = [];
 			if (customHandler) {
@@ -2631,7 +2639,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			};
 			fixture.parsedInput.text = 'Explain pasted text';
 			fixture.attachments.add({ kind: 'file', id: 'pasted-file', name: 'file.ts', value: URI.file('/workspace/file.ts') });
-			await paste.complete();
+			await paste.complete(true);
 			await sending;
 			for (const call of fixture.chatService.sendRequest.getCalls()) {
 				const options: IChatSendRequestOptions = call.args[2];
@@ -2647,7 +2655,7 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	test('preserved-input submissions do not wait for a paste into the unrelated draft', async () => {
 		const fixture = createSubmissionWidget();
-		const paste = new DeferredPromise<void>();
+		const paste = new DeferredPromise<boolean>();
 		fixture.pasteController.finishedPaste.returns(paste.p);
 		try {
 			await fixture.widget.acceptInput('Background continuation', fixture.options);
@@ -2656,7 +2664,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				message: fixture.chatService.sendRequest.firstCall.args[1],
 			}, { waited: false, message: 'Background continuation' });
 		} finally {
-			await paste.complete();
+			await paste.complete(true);
 		}
 	});
 
@@ -2671,10 +2679,69 @@ suite('ChatWidget - acceptInput submission', () => {
 		}, { requests: 0, accepted: 0 });
 	});
 
+	for (const phase of ['provide', 'resolve'] as const) {
+		test(`does not send when editing the same composer cancels paste during ${phase}`, async () => {
+			const fixture = createSubmissionWidget();
+			await withAsyncTestCodeEditor('Explain ', {}, async (editor, _viewModel, instantiationService) => {
+				instantiationService.stub(createDecorator<{ add(): () => void }>('IEditorCancelService'), { add: () => () => { } });
+				instantiationService.stub(IActionWidgetService, {});
+				instantiationService.stub(IQuickInputService, {});
+				instantiationService.stub(IProgressService, {});
+				const bulkEditService = mockObject<IBulkEditService>()();
+				bulkEditService.apply.resolves({ isApplied: true, ariaSummary: '' });
+				instantiationService.stub(IBulkEditService, { apply: bulkEditService.apply });
+				const controller = store.add(editor.registerAndInstantiateContribution(CopyPasteController.ID, CopyPasteController));
+				Object.defineProperty(fixture.input, 'inputEditor', { value: editor });
+				fixture.input.getPromptText = () => editor.getValue();
+
+				const entered = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				const kind = new HierarchicalKind('chat.attach.image');
+				const provider: DocumentPasteEditProvider = {
+					copyMimeTypes: [],
+					pasteMimeTypes: ['image/png'],
+					providedPasteEditKinds: [kind],
+					async provideDocumentPasteEdits(_model, _ranges, _dataTransfer, _context, token) {
+						if (phase === 'provide') {
+							entered.complete();
+							await finish.p;
+						}
+						if (token.isCancellationRequested) {
+							return undefined;
+						}
+						return { edits: [{ title: 'Image', insertText: '', kind }], dispose: () => { } };
+					},
+					async resolveDocumentPasteEdit(edit) {
+						entered.complete();
+						await finish.p;
+						return edit;
+					},
+				};
+				const dataTransfer = new VSDataTransfer();
+				dataTransfer.append('image/png', createStringDataTransferItem('image'));
+				// The test editor has no clipboard view, so start the inline paste directly.
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+				controller['doPasteInline']([provider], editor.getSelections(), dataTransfer, undefined, undefined);
+				await entered.p;
+				const sending = assert.rejects(fixture.widget.acceptInput(), CancellationError);
+				editor.getModel().setValue('Changed draft');
+				await finish.complete();
+				await sending;
+
+				assert.deepStrictEqual({
+					draft: editor.getValue(),
+					requests: fixture.chatService.sendRequest.callCount,
+					accepted: fixture.input.acceptInput.callCount,
+					applied: bulkEditService.apply.callCount,
+				}, { draft: 'Changed draft', requests: 0, accepted: 0, applied: 0 });
+			});
+		});
+	}
+
 	for (const change of ['session', 'input', 'blocked', 'dispose'] as const) {
 		test(`does not submit after ${change} changes while waiting for paste`, async () => {
 			const fixture = createSubmissionWidget();
-			const paste = new DeferredPromise<void>();
+			const paste = new DeferredPromise<boolean>();
 			fixture.pasteController.finishedPaste.returns(paste.p);
 			const sending = fixture.widget.acceptInput();
 			const settled = change === 'blocked'
@@ -2694,7 +2761,7 @@ suite('ChatWidget - acceptInput submission', () => {
 					fixture.widgetStore.dispose();
 					break;
 			}
-			await paste.complete();
+			await paste.complete(true);
 			await settled;
 
 			assert.deepStrictEqual({
@@ -3115,7 +3182,7 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	test('waits for paste before routing an extension participant to a Local chat', async () => {
 		const fixture = createSubmissionWidget(undefined, 'Explain ');
-		const paste = new DeferredPromise<void>();
+		const paste = new DeferredPromise<boolean>();
 		fixture.pasteController.finishedPaste.returns(paste.p);
 		const local = createSession(LocalChatSessionUri.getNewSessionUri());
 		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
@@ -3130,7 +3197,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		};
 		fixture.parsedInput.text = '@participant Explain pasted text';
 		const participant = addParticipant(fixture);
-		await paste.complete();
+		await paste.complete(true);
 		await sending;
 
 		assert.deepStrictEqual({

@@ -3665,7 +3665,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!options?.preserveInput) {
 			const input = this.input;
 			const viewModel = this.viewModel;
-			await CopyPasteController.get(input.inputEditor)?.finishedPaste();
+			if (await CopyPasteController.get(input.inputEditor)?.finishedPaste() === false) {
+				throw new CancellationError();
+			}
 			if (this._store.isDisposed || this.input !== input || this.viewModel !== viewModel) {
 				throw new CancellationError();
 			}
