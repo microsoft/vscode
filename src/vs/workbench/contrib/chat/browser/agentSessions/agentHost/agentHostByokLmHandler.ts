@@ -13,6 +13,7 @@ import {
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmChatProgress,
 	IByokLmContentPart,
 	IByokLmInputItem,
 	IByokLmModelInfo,
@@ -76,7 +77,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		}));
 	}
 
-	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
+	async chat(request: IByokLmChatRequest, token: CancellationToken, onProgress?: (progress: IByokLmChatProgress) => void): Promise<IByokLmChatResult> {
 		if (!this._chatEntitlementService.clientByokEnabled) {
 			return { output: [], error: 'BYOK models are disabled by policy.' };
 		}
@@ -117,12 +118,20 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					for (const p of parts) {
 						if (p.type === 'text') {
 							this._appendTextOutput(output, p.value);
+							onProgress?.({ outputIndex: output.length - 1, item: { type: 'message', content: [{ type: 'text', text: p.value }] } });
 						} else if (p.type === 'thinking') {
 							if (p.metadata?.[VSCODE_REASONING_SUMMARY_PART_DONE] === true) {
 								completedReasoningSummaryParts.add(p.id);
 							} else {
 								const startsNewSummaryPart = p.value.length > 0 && completedReasoningSummaryParts.delete(p.id);
 								this._appendReasoningOutput(output, p, startsNewSummaryPart);
+								if (p.metadata?.vscode_reasoning_done !== true) {
+									onProgress?.({
+										outputIndex: output.length - 1,
+										item: { type: 'reasoning', id: p.id, summary: Array.isArray(p.value) ? p.value : [p.value] },
+										appendToLastSummary: !startsNewSummaryPart && !Array.isArray(p.value),
+									});
+								}
 							}
 						} else if (p.type === 'tool_use') {
 							if (customToolNames.has(p.name)) {
@@ -140,6 +149,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 									argumentsJson: JSON.stringify(p.parameters ?? {}),
 								});
 							}
+							onProgress?.({ outputIndex: output.length - 1, item: output[output.length - 1] });
 						} else if (p.type === 'data' && p.mimeType === STATEFUL_MARKER_MIME_TYPE) {
 							responseId = this._decodeStatefulMarker(p.data, request.modelId);
 						} else if (p.type === 'data' && p.mimeType === USAGE_MIME_TYPE) {

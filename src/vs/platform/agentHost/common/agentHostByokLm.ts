@@ -143,6 +143,14 @@ export interface IByokLmChatResult {
 	readonly error?: string;
 }
 
+/** Incremental output, indexed into the final result. Text and summaries contain deltas. */
+export interface IByokLmChatProgress {
+	readonly outputIndex: number;
+	readonly item: IByokLmOutputItem;
+	/** Append a reasoning delta to the last summary part rather than starting a new part. */
+	readonly appendToLastSummary?: boolean;
+}
+
 /**
  * Metadata for a renderer BYOK model, enumerated over the bridge so the node
  * agent host can advertise it to the SDK runtime without any host-side config.
@@ -238,7 +246,7 @@ export interface IAgentHostByokLmHandler {
 	 * matches `request.vendor` + `request.modelId`. Rejects (or resolves with
 	 * {@link IByokLmChatResult.error}) when no such model is available.
 	 */
-	chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult>;
+	chat(request: IByokLmChatRequest, token: CancellationToken, onProgress?: (progress: IByokLmChatProgress) => void): Promise<IByokLmChatResult>;
 
 	/**
 	 * Enumerate the renderer's BYOK models (vendor `isBYOK`, excluding
@@ -251,10 +259,10 @@ export interface IAgentHostByokLmHandler {
 /**
  * Node-side connection to a single renderer's {@link IAgentHostByokLmHandler}.
  * Mirrors `IRemoteFilesystemConnection` for the reverse FS bridge. The renderer
- * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip.
+ * pushes its models over {@link onDidChangeModels}; `chat` may also report live output.
  */
 export interface IByokLmBridgeConnection {
-	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
+	chat(request: IByokLmChatRequest, token?: CancellationToken, onProgress?: (progress: IByokLmChatProgress) => void): Promise<IByokLmChatResult>;
 	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
 	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
 }
