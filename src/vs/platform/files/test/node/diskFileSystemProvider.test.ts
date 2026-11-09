@@ -10,16 +10,18 @@ import { promises } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { stub } from 'sinon';
-import { FileAccess } from '../../../../base/common/network.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
+import { FileSystemProviderErrorCode, FileType, IFileWriteOptions, toFileSystemProviderErrorCode } from '../../common/files.js';
 import { Event } from '../../../../base/common/event.js';
 import { DefaultURITransformer, IURITransformer } from '../../../../base/common/uriIpc.js';
 import { DiskFileSystemProviderClient } from '../../common/diskFileSystemProviderClient.js';
+import { FileService } from '../../common/fileService.js';
 import { AbstractDiskFileSystemProviderChannel } from '../../node/diskFileSystemProviderServer.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -59,6 +61,58 @@ suite('DiskFileSystemProvider', function () {
 		await promises.writeFile(filePath, 'contents');
 
 		assert.strictEqual(Buffer.from(await provider.readFile(URI.file(filePath))).toString(), 'contents');
+	});
+
+	for (const mode of ['default', 'append', 'atomic']) {
+		test(`writeFile completes partial disk writes through the provider channel (${mode})`, async () => {
+			const partialWriteProvider = store.add(new class extends DiskFileSystemProvider {
+				override write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+					return super.write(fd, pos, data, offset, Math.min(2, length));
+				}
+			}(new NullLogService()));
+			const server = store.add(new TestDiskFileSystemProviderChannel(partialWriteProvider, new NullLogService()));
+			const client = store.add(new DiskFileSystemProviderClient({
+				call: (command, args) => server.call(undefined, command, args),
+				listen: () => Event.None,
+			}, {}));
+			const service = store.add(new FileService(new NullLogService()));
+			store.add(service.registerProvider(Schemas.file, client));
+
+			const filePath = join(testDir, 'file.txt');
+			await promises.writeFile(filePath, 'original');
+			const stat = await service.writeFile(URI.file(filePath), VSBuffer.fromString('contents'), {
+				append: mode === 'append',
+				atomic: mode === 'atomic' ? { postfix: '.tmp' } : false,
+			});
+
+			const expectedContent = mode === 'append' ? 'originalcontents' : 'contents';
+			assert.deepStrictEqual({
+				size: stat.size,
+				content: await promises.readFile(filePath, 'utf8'),
+			}, { size: expectedContent.length, content: expectedContent });
+		});
+	}
+
+	test('writeFile reports an error after a partial write and releases its lock', async () => {
+		let fail = true;
+		const partialWriteProvider = store.add(new class extends DiskFileSystemProvider {
+			override write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				if (fail && offset > 0) {
+					return Promise.reject(new Error('write failed'));
+				}
+
+				return super.write(fd, pos, data, offset, Math.min(2, length));
+			}
+		}(new NullLogService()));
+		const resource = URI.file(join(testDir, 'file.txt'));
+		const content = VSBuffer.fromString('contents').buffer;
+		const options: IFileWriteOptions = { create: true, overwrite: true, unlock: false, atomic: false };
+
+		await assert.rejects(partialWriteProvider.writeFile(resource, content, options), /write failed/);
+
+		fail = false;
+		await partialWriteProvider.writeFile(resource, content, options);
+		assert.strictEqual(await promises.readFile(resource.fsPath, 'utf8'), 'contents');
 	});
 
 	test('realpath reports missing paths as a filesystem error', async () => {
