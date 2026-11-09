@@ -42,6 +42,8 @@ export const COMMAND_CENTER_DEBUGGING_BACKGROUND = registerColor(
 
 export class StatusBarColorProvider implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.statusBarColorProvider';
+
 	private readonly disposables = new DisposableStore();
 	private disposable: IDisposable | undefined;
 

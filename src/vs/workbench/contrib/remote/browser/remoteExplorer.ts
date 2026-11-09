@@ -58,6 +58,9 @@ export function isCandidateRemappedTunnelLocalEndpoint(candidate: CandidatePort,
 }
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.forwardedPortsView';
+
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
@@ -189,6 +192,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 }
 
 export class PortRestore implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.portRestore';
+
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ILogService private readonly logService: ILogService
@@ -210,6 +216,9 @@ export class PortRestore implements IWorkbenchContribution {
 
 
 export class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.automaticPortForwarding';
+
 	private procForwarder: ProcAutomaticPortForwarding | undefined;
 	private outputForwarder: OutputAutomaticPortForwarding | undefined;
 	private portListener: IDisposable | undefined;

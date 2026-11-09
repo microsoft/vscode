@@ -47,6 +47,8 @@ const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
 
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.debugToolBar';
+
 	private $el: HTMLElement;
 	private dragArea: HTMLElement;
 	private actionBar: ActionBar;

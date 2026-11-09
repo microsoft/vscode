@@ -25,6 +25,8 @@ export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit
 
 export class WorkspaceTags implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.workspaceTags';
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,

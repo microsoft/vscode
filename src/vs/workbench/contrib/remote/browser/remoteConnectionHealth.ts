@@ -27,6 +27,8 @@ const BANNER_REMOTE_ARM32_DEPRECATION_DISMISSED_KEY = 'workbench.banner.remote.a
 
 export class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.initialRemoteConnectionHealth';
+
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,

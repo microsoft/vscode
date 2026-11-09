@@ -10,7 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchContributionsExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -38,6 +38,9 @@ import { localize } from '../../../../nls.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteAgentDiagnosticListener';
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService
@@ -73,6 +76,9 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 }
 
 class RemoteExtensionHostEnvironmentUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteExtensionHostEnvironmentUpdater';
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
@@ -193,9 +199,8 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(RemoteAgentDiagnosticListener.ID, RemoteAgentDiagnosticListener, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(RemoteExtensionHostEnvironmentUpdater.ID, RemoteExtensionHostEnvironmentUpdater, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchPhase.BlockRestore);
 if (isWindows) {

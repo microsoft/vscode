@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IQuickDiffService } from '../common/quickDiff.js';
 import { QuickDiffService } from '../common/quickDiffService.js';
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
@@ -27,8 +26,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
 	group: '9_quickDiffDecorations'
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(QuickDiffWorkbenchController, LifecyclePhase.Restored);
+registerWorkbenchContribution2(QuickDiffWorkbenchController.ID, QuickDiffWorkbenchController, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(QuickDiffEditorController.ID,
 	QuickDiffEditorController, EditorContributionInstantiation.AfterFirstRender);

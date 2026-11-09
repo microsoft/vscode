@@ -12,11 +12,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { COMMENTS_VIEW_ID } from './commentsTreeViewer.js';
 import { CommentThreadState } from '../../../../editor/common/languages.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from './commentsView.js';
 import { ViewAction } from '../../../browser/parts/views/viewPane.js';
@@ -164,6 +163,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
 
 export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.unresolvedCommentsBadge';
+
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 	private totalUnresolved = 0;
 
@@ -209,7 +211,7 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(UnresolvedCommentsBadge.ID, UnresolvedCommentsBadge, WorkbenchPhase.Eventually);
 
 AccessibleViewRegistry.register(new CommentsAccessibleView());
 AccessibleViewRegistry.register(new CommentThreadAccessibleView());

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IMarkerService, IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from '../../../services/decorations/common/decorations.js';
 import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
@@ -14,7 +14,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -54,6 +53,8 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 }
 
 class MarkersFileDecorations implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.markersFileDecorations';
 
 	private readonly _disposables: IDisposable[];
 	private _provider?: IDisposable;
@@ -119,5 +120,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 // register file decorations
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Restored);
+registerWorkbenchContribution2(MarkersFileDecorations.ID, MarkersFileDecorations, WorkbenchPhase.AfterRestored);

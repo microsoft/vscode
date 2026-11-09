@@ -7,13 +7,14 @@ import { isLinux } from '../../../../base/common/platform.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class EncryptionContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.encryption.libsecretMigration';
+
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -45,4 +46,4 @@ class EncryptionContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EncryptionContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(EncryptionContribution.ID, EncryptionContribution, WorkbenchPhase.Eventually);

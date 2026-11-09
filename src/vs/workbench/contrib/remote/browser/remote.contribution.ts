@@ -5,10 +5,8 @@
 
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ShowCandidateContribution } from './showCandidate.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { TunnelFactoryContribution } from './tunnelFactory.js';
 import { RemoteAgentConnectionStatusListener, RemoteMarkers } from './remote.js';
 import { RemoteStatusIndicator } from './remoteIndicator.js';
@@ -36,13 +34,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(ShowCandidateContribution.ID, ShowCandidateContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(TunnelFactoryContribution.ID, TunnelFactoryContribution, WorkbenchPhase.BlockRestore);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(RemoteAgentConnectionStatusListener.ID, RemoteAgentConnectionStatusListener, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(RemoteStatusIndicator.ID, RemoteStatusIndicator, WorkbenchPhase.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ForwardedPortsView.ID, ForwardedPortsView, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PortRestore.ID, PortRestore, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AutomaticPortForwarding.ID, AutomaticPortForwarding, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(RemoteMarkers.ID, RemoteMarkers, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(InitialRemoteConnectionHealthContribution.ID, InitialRemoteConnectionHealthContribution, WorkbenchPhase.AfterRestored);

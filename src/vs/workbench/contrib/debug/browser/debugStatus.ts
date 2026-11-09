@@ -12,6 +12,8 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 
 export class DebugStatusContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.debugStatus';
+
 	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
 	private toDispose: IDisposable[] = [];
 	private entryAccessor: IStatusbarEntryAccessor | undefined;

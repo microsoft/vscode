@@ -21,9 +21,7 @@ import { ServicesAccessor, createDecorator } from '../../../../platform/instanti
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -320,6 +318,8 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 
 class IssueTroubleshootUi extends Disposable {
 
+	static readonly ID = 'workbench.contrib.issueTroubleshootUi';
+
 	static ctxIsTroubleshootActive = new RawContextKey<boolean>('isIssueTroubleshootActive', false);
 
 	constructor(
@@ -343,7 +343,7 @@ class IssueTroubleshootUi extends Disposable {
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(IssueTroubleshootUi, LifecyclePhase.Restored);
+registerWorkbenchContribution2(IssueTroubleshootUi.ID, IssueTroubleshootUi, WorkbenchPhase.AfterRestored);
 
 registerAction2(class TroubleshootIssueAction extends Action2 {
 	constructor() {

@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -31,6 +29,8 @@ import { FolderLocationStatusBarContribution } from './folderLocationStatusBar.j
  * workspace folder and open a notification to suggest to open one of the workspaces.
  */
 export class WorkspacesFinderContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.workspacesFinder';
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -105,7 +105,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(WorkspacesFinderContribution.ID, WorkspacesFinderContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(FolderLocationStatusBarContribution.ID, FolderLocationStatusBarContribution, WorkbenchPhase.AfterRestored);
 
 // Render "Open Workspace" button in *.code-workspace files

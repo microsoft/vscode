@@ -19,6 +19,8 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 export const showStartEntryInWeb = new RawContextKey<boolean>('showRemoteStartEntryInWeb', false);
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.remoteStartEntry';
+
 	private static readonly REMOTE_WEB_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showWebStartEntryActions';
 
 	private readonly remoteExtensionId: string;
