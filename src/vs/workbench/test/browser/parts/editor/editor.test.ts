@@ -499,6 +499,26 @@ suite('Workbench editor utils', () => {
 		})));
 	});
 
+	test('vertical content insets reserve detail space without moving editor tabs or changing the right inset', async () => {
+		const part = await createEditorPart(instantiationService, disposables);
+		const group = part.activeGroup;
+		assert.ok(group instanceof EditorGroupView);
+		await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/vertical-insets.ts'), TEST_EDITOR_ID)), { pinned: true });
+		group.layout(600, 400, 0, 0);
+		group.setContentRightInset(100);
+		const titleHeight = group.titleHeight.total;
+		const editor = group.element.querySelector<HTMLElement>('.editor-container')!;
+		const values = [[60, 0, 400], [0, 90, 400], [60, 90, 500], [0, 2000, 400], [0, 0, 400]];
+		const results = values.map(([top, bottom, height]) => {
+			group.layout(600, height, 0, 0);
+			group.setContentVerticalInsets(top, bottom);
+			return { width: editor.style.width, height: editor.style.height, margin: editor.style.marginTop, titleHeight: group.titleHeight.total };
+		});
+		assert.deepStrictEqual(results, values.map(([top, bottom, height]) => ({
+			width: '500px', height: `${Math.max(0, height - titleHeight - top - bottom)}px`, margin: top ? `${top}px` : '', titleHeight,
+		})));
+	});
+
 	test('editor tab mode class follows configured and enforced part options', async () => {
 		const configuredInstantiationService = workbenchInstantiationService({
 			configurationService: () => {

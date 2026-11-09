@@ -9,9 +9,11 @@ import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { getActiveElement } from '../../base/browser/dom.js';
+import { DetailsPosition } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
-import { EDITOR_PART_MINIMUM_WIDTH } from '../../workbench/browser/parts/sessions/editorPartSizing.js';
+import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from '../../workbench/browser/parts/sessions/editorPartSizing.js';
 import { Workbench } from './workbench.js';
 import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
@@ -40,6 +42,7 @@ export class DesktopWorkbench extends Workbench {
 	private static readonly _EDITOR_CONTENT_VISIBLE_THRESHOLD = 4;
 
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
+	private _dockedAuxiliaryBarHeight = DockedAuxiliaryBarController.DEFAULT_HEIGHT;
 	private _syncingEditorVisibility = false;
 	private readonly _memento = new DockedEditorSizeMemento();
 
@@ -80,6 +83,13 @@ export class DesktopWorkbench extends Workbench {
 			return;
 		}
 		super.revealEditorOnOpen(e);
+		if (this.isAuxiliaryBarFloating() && !this._isEditorPartAutoVisibilitySuppressed) {
+			const part = this.editorGroupService.mainPart as DesktopMainEditorPart;
+			const activeElement = getActiveElement();
+			if (activeElement && part.groups.some(group => group.id === e.groupId) && part.auxiliaryBar.getContainer()?.contains(activeElement)) {
+				part.handleEditorOpeningFromDetails();
+			}
+		}
 	}
 
 	override getDockedAuxiliaryBarWidth(): number {
@@ -88,7 +98,7 @@ export class DesktopWorkbench extends Workbench {
 
 	override setDockedAuxiliaryBarWidth(width: number): void {
 		this._dockedAuxiliaryBarWidth = width;
-		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor) {
+		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor && this.getDetailsPosition() === 'right') {
 			this._runWithEditorVisibilitySyncSuspended(() => {
 				this.workbenchGrid.resizeView(this.editorPartView, {
 					width: this._dockedAuxiliaryBarWidth,
@@ -97,6 +107,19 @@ export class DesktopWorkbench extends Workbench {
 			});
 		}
 		this._layoutDockedAuxBar();
+	}
+
+	override getDockedAuxiliaryBarHeight(): number {
+		return this._dockedAuxiliaryBarHeight ?? DockedAuxiliaryBarController.DEFAULT_HEIGHT;
+	}
+
+	override setDockedAuxiliaryBarHeight(height: number): void {
+		this._dockedAuxiliaryBarHeight = Math.max(DockedAuxiliaryBarController.MIN_HEIGHT, height);
+		this._layoutDockedAuxBar();
+	}
+
+	private _reservedDetailWidth(): number {
+		return this.getDetailsPosition() === 'right' && !this.isAuxiliaryBarFloating() ? this._dockedAuxiliaryBarWidth : 0;
 	}
 
 	override getPreferredEditorPartWidth(): number | undefined {
@@ -110,7 +133,15 @@ export class DesktopWorkbench extends Workbench {
 		const sessionsWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width;
 		const editorNodeWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
 		const totalWidth = sessionsWidth + editorNodeWidth;
-		return Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
+		const detailWidth = this._reservedDetailWidth();
+		return Math.round(detailWidth + (totalWidth - detailWidth) / 2);
+	}
+
+	override setDetailsPosition(position: DetailsPosition): void {
+		if (position !== this.getDetailsPosition()) {
+			this._memento.dockedEditorSizeBeforeHide = undefined;
+		}
+		super.setDetailsPosition(position);
 	}
 
 	/** Re-layouts the docked auxiliary bar, which the editor part owns. */
@@ -123,25 +154,60 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _auxiliaryBarLayoutWidth(): number {
-		return this._dockedAuxiliaryBarWidth;
+		return this._reservedDetailWidth();
 	}
 
 	protected override _auxiliaryBarViewSize(): IViewSize {
-		return { width: this._dockedAuxiliaryBarWidth, height: this._editorPartContainer?.clientHeight ?? 0 };
+		const floating = this._getFloatingDetails();
+		if (floating) {
+			return floating.getSize();
+		}
+		return this.getDetailsPosition() === 'right'
+			? { width: this._dockedAuxiliaryBarWidth, height: this._editorPartContainer?.clientHeight ?? 0 }
+			: { width: this._editorPartContainer?.clientWidth ?? 0, height: this.getDockedAuxiliaryBarHeight() };
 	}
 
 	protected override _setAuxiliaryBarViewSize(size: IViewSize): void {
-		this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, size.width);
-		this._layoutDockedAuxBar();
+		const floating = this._getFloatingDetails();
+		if (floating) {
+			floating.setSize(size);
+			return;
+		}
+		if (this.getDetailsPosition() === 'right') {
+			this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, size.width);
+			this._layoutDockedAuxBar();
+		} else {
+			this.setDockedAuxiliaryBarHeight(size.height);
+		}
 	}
 
-	protected override _resizeAuxiliaryBarBy(deltaWidth: number, _deltaHeight: number): void {
-		this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, this._dockedAuxiliaryBarWidth + deltaWidth);
-		this._layoutDockedAuxBar();
+	protected override _resizeAuxiliaryBarBy(deltaWidth: number, deltaHeight: number): void {
+		const floating = this._getFloatingDetails();
+		if (floating) {
+			const size = floating.getSize();
+			floating.setSize({ width: size.width + deltaWidth, height: size.height + deltaHeight });
+			return;
+		}
+		if (this.getDetailsPosition() === 'right') {
+			this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, this._dockedAuxiliaryBarWidth + deltaWidth);
+			this._layoutDockedAuxBar();
+		} else {
+			this.setDockedAuxiliaryBarHeight(this.getDockedAuxiliaryBarHeight() + deltaHeight);
+		}
+	}
+
+	private _getFloatingDetails() {
+		return this.isAuxiliaryBarFloating() && this.partVisibility.editor && this.partVisibility.auxiliaryBar
+			? (this.editorGroupService.mainPart as DesktopMainEditorPart).floatingDetails
+			: undefined;
 	}
 
 	protected override _restoreAuxiliaryBarWidth(width: number): void {
 		this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, width);
+	}
+
+	protected override _restoreAuxiliaryBarHeight(height: number): void {
+		this._dockedAuxiliaryBarHeight = Math.max(DockedAuxiliaryBarController.MIN_HEIGHT, height);
 	}
 
 	protected override _persistedEditorWidth(editorGridWidth: number | undefined): number | undefined {
@@ -154,7 +220,7 @@ export class DesktopWorkbench extends Workbench {
 		// descriptor, which adds the detail width back only when the detail is
 		// visible. Subtracting it unconditionally would shrink an Editor-only
 		// session's side pane by the detail width on every reload (compounding).
-		const dockedDetailWidth = this.partVisibility.auxiliaryBar ? this._dockedAuxiliaryBarWidth : 0;
+		const dockedDetailWidth = this.partVisibility.auxiliaryBar ? this._reservedDetailWidth() : 0;
 		return Math.max(0, editorGridWidth - dockedDetailWidth);
 	}
 
@@ -175,9 +241,9 @@ export class DesktopWorkbench extends Workbench {
 		// The editor part spans the editor + auxiliary bar width (the aux bar is
 		// docked inside it, not a grid column) so the editor tab bar spans the full width.
 		if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar) {
-			return this._dockedAuxiliaryBarWidth;
+			return this.getDetailsPosition() === 'right' ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? EDITOR_PART_DEFAULT_WIDTH;
 		}
-		return effectiveEditorWidth + effectiveAuxBarWidth;
+		return effectiveEditorWidth + (this._reservedDetailWidth() > 0 ? effectiveAuxBarWidth : 0);
 	}
 
 	protected override _editorNodeVisible(editorVisible: boolean, auxBarVisible: boolean): boolean {
@@ -186,7 +252,7 @@ export class DesktopWorkbench extends Workbench {
 
 	protected override _minimumPartWidthForActivation(view: ISerializableView): number {
 		if (view === this.editorPartView && this.partVisibility.auxiliaryBar) {
-			return view.minimumWidth + this._dockedAuxiliaryBarWidth;
+			return view.minimumWidth + this._reservedDetailWidth();
 		}
 		return super._minimumPartWidthForActivation(view);
 	}
@@ -198,6 +264,20 @@ export class DesktopWorkbench extends Workbench {
 
 	protected override _layoutSidePane(): void {
 		this._layoutDockedAuxBar();
+	}
+
+	protected override _prepareAuxiliaryBarFocus(): void {
+		(this.editorGroupService.mainPart as DesktopMainEditorPart).revealFloatingDetails();
+	}
+
+	override hasFocus(part: Parts): boolean {
+		if (part === Parts.AUXILIARYBAR_PART) {
+			return super.hasFocus(part) || this._getFloatingDetails()?.hasFocus() === true;
+		}
+		if (part === Parts.EDITOR_PART && this.hasFocus(Parts.AUXILIARYBAR_PART)) {
+			return false;
+		}
+		return super.hasFocus(part);
 	}
 
 	protected override _layoutGrid(): void {
@@ -265,7 +345,7 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	private _syncEditorVisibility(nodeWidth: number): void {
-		if (this._syncingEditorVisibility) {
+		if (this._syncingEditorVisibility || this._reservedDetailWidth() === 0) {
 			return;
 		}
 		// A session-switch / reload layout restore holds `suppressEditorPartAutoVisibility`
@@ -312,6 +392,16 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
+		if (this.getDetailsPosition() !== 'right') {
+			if (hidden && this.partVisibility.auxiliaryBar) {
+				this._savedPartSizes.editor = this.workbenchGrid.getViewSize(this.editorPartView).width;
+			}
+			this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
+			this._layoutDockedAuxBar();
+			this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
+			this._notifyContainerDidLayout();
+			return;
+		}
 		// Part sizes are workbench-global, so hiding the side pane must not discard the
 		// user's chosen editor width. Capture the current editor content width before the
 		// grid collapses the node, so revealing later — e.g. switching back from a session
@@ -356,7 +446,7 @@ export class DesktopWorkbench extends Workbench {
 		} else if (shouldRestoreSavedWidth) {
 			this._memento.dockedEditorSizeBeforeHide = undefined;
 			const height = this.workbenchGrid.getViewSize(this.editorPartView).height;
-			const detailWidth = this.partVisibility.auxiliaryBar ? this._dockedAuxiliaryBarWidth : 0;
+			const detailWidth = this.partVisibility.auxiliaryBar ? this._reservedDetailWidth() : 0;
 			this.workbenchGrid.resizeView(this.editorPartView, { width: savedEditorWidth + detailWidth, height });
 		} else if (!hidden) {
 			this._memento.dockedEditorSizeBeforeHide = undefined;
@@ -406,7 +496,7 @@ export class DesktopWorkbench extends Workbench {
 				this.editorPartView,
 				this._editorNodeShouldBeVisible()
 			);
-			if (!hidden && !this.partVisibility.editor) {
+			if (!hidden && !this.partVisibility.editor && this.getDetailsPosition() === 'right') {
 				this._runWithEditorVisibilitySyncSuspended(() => {
 					this.workbenchGrid.resizeView(this.editorPartView, {
 						width: this._dockedAuxiliaryBarWidth,

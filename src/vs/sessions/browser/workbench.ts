@@ -86,7 +86,7 @@ import { ICustomViewService, ICustomViewDescriptor } from '../../workbench/contr
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/common/layoutConstants.js';
-import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { DetailsPosition, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
@@ -161,6 +161,7 @@ interface IPartSizesState {
 	auxiliaryBar?: number;
 	sessions?: number;
 	editor?: number;
+	auxiliaryBarHeight?: number;
 	panel?: number;
 }
 
@@ -184,6 +185,12 @@ type AgentPanelAlignment = 'center' | 'justify';
 //#endregion
 
 export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, IDockedEditorLayout {
+	getDetailsPosition(): DetailsPosition;
+	setDetailsPosition(position: DetailsPosition): void;
+	isAuxiliaryBarFloating(): boolean;
+	setAuxiliaryBarFloating(floating: boolean): void;
+	readonly onDidChangeAuxiliaryBarFloating: Event<boolean>;
+
 	isEditorMaximized(): boolean;
 	setEditorMaximized(maximized: boolean): void;
 	isEditorPaneVisible(): boolean;
@@ -279,6 +286,8 @@ export interface IDockedEditorLayout {
 	 */
 	getDockedAuxiliaryBarWidth(): number;
 	setDockedAuxiliaryBarWidth(width: number): void;
+	getDockedAuxiliaryBarHeight(): number;
+	setDockedAuxiliaryBarHeight(height: number): void;
 	/** Returns the preferred editor-part width for an outer sash reset. */
 	getPreferredEditorPartWidth(): number | undefined;
 }
@@ -346,6 +355,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+
+	private readonly _onDidChangeAuxiliaryBarFloating = this._register(new Emitter<boolean>());
+	readonly onDidChangeAuxiliaryBarFloating = this._onDidChangeAuxiliaryBarFloating.event;
 
 	private readonly _onDidChangeEditorMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeEditorMaximized = this._onDidChangeEditorMaximized.event;
@@ -483,6 +495,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private _editorMaximized = false;
 	private _panelAlignment: AgentPanelAlignment = 'justify';
+	private _detailsPosition: DetailsPosition = 'right';
+	private _auxiliaryBarFloating = false;
 	private _panelMaximizedEditorState: { width: number | undefined } | undefined;
 	private _maximumEditorDimensionsOverride: IDimension | undefined;
 	private _customViewVisibleKey!: IContextKey<boolean>;
@@ -958,6 +972,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			auxiliaryBar: this._persistedGridViewSize(this.auxiliaryBarPartView, 'width', this._effectiveVisible(Parts.AUXILIARYBAR_PART)),
 			sessions: this._persistedGridViewSize(this.sessionsPartView, 'width', this._effectiveVisible(Parts.SESSIONS_PART)),
 			editor: editorWidth,
+			auxiliaryBarHeight: this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop ? this.getDockedAuxiliaryBarHeight() : undefined,
 			panel: this._persistedGridViewSize(this.panelPartView, 'height', this._effectiveVisible(Parts.PANEL_PART)),
 		};
 
@@ -990,6 +1005,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._savedPartSizes = this._loadPartSizes(storageService);
 		if (this._savedPartSizes.auxiliaryBar !== undefined) {
 			this._restoreAuxiliaryBarWidth(this._savedPartSizes.auxiliaryBar);
+		}
+		if (this._savedPartSizes.auxiliaryBarHeight !== undefined) {
+			this._restoreAuxiliaryBarHeight(this._savedPartSizes.auxiliaryBarHeight);
 		}
 
 		// State specific classes
@@ -1504,6 +1522,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	protected _restoreAuxiliaryBarWidth(_width: number): void { }
+	protected _restoreAuxiliaryBarHeight(_height: number): void { }
 
 	/**
 	 * Reads a part's size from the workbench grid for persistence. For visible
@@ -1543,6 +1562,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	protected _attachSidePane(): void { }
 	/** Lay out any docked overlay. */
 	protected _layoutSidePane(): void { }
+	protected _prepareAuxiliaryBarFocus(): void { }
 	/** React to a whole-grid change (e.g. a sash drag) after the grid rebuilds. */
 	protected _onGridDidChange(): void { }
 	/** React to the editor grid node being resized to `nodeWidth`. */
@@ -2190,6 +2210,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	setDockedAuxiliaryBarWidth(_width: number): void { }
 
+	getDockedAuxiliaryBarHeight(): number {
+		return 0;
+	}
+
+	setDockedAuxiliaryBarHeight(_height: number): void { }
+
 	getPreferredEditorPartWidth(): number | undefined {
 		return undefined;
 	}
@@ -2338,6 +2364,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)?.focus();
 				break;
 			case Parts.AUXILIARYBAR_PART:
+				this._prepareAuxiliaryBarFocus();
 				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.focus();
 				break;
 			case Parts.SESSIONS_PART:
@@ -2981,6 +3008,37 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	getSideBarPosition(): Position {
 		return Position.LEFT; // Always left in this layout
+	}
+
+	getDetailsPosition(): DetailsPosition {
+		return this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
+	}
+
+	setDetailsPosition(position: DetailsPosition): void {
+		if (this.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop || position === this.getDetailsPosition()) {
+			return;
+		}
+		this._detailsPosition = position;
+		if (this.workbenchGrid) {
+			this._layoutSidePane();
+			this._notifyContainerDidLayout();
+		}
+	}
+
+	isAuxiliaryBarFloating(): boolean {
+		return this._auxiliaryBarFloating === true;
+	}
+
+	setAuxiliaryBarFloating(floating: boolean): void {
+		if (this.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop || floating === this.isAuxiliaryBarFloating()) {
+			return;
+		}
+		this._auxiliaryBarFloating = floating;
+		this._onDidChangeAuxiliaryBarFloating.fire(floating);
+		if (this.workbenchGrid) {
+			this._layoutSidePane();
+			this._notifyContainerDidLayout();
+		}
 	}
 
 	getPanelPosition(): Position {

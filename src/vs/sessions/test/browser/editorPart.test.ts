@@ -16,6 +16,7 @@ import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/style.css';
+import '../../browser/media/floatingAuxiliaryBar.css';
 import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
@@ -291,6 +292,48 @@ suite('Sessions - EditorPart', () => {
 			outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
 		}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
 	});
+
+	for (const position of ['top', 'bottom']) {
+		test(`keeps the connected outer frame above ${position} details without adding another stroke`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+			workbench.style.setProperty('--vscode-contrastBorder', '#abcdef');
+			workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
+			workbench.style.setProperty('--vscode-agentsPanel-border', '#abcdef');
+			const card = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
+			const content = appendElement(card, 'content');
+			const group = appendElement(content, 'editor-group-container');
+			const details = appendElement(card, `part auxiliarybar docked-auxiliarybar docked-auxiliarybar-${position}`);
+			try {
+				for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+					workbench.classList.add(theme);
+					const frame = mainWindow.getComputedStyle(group, '::after');
+					const dockedIsolation = mainWindow.getComputedStyle(content).isolation;
+					card.classList.add('floating-details-visible');
+					const floatingIsolation = mainWindow.getComputedStyle(content).isolation;
+					card.classList.remove('floating-details-visible');
+					assert.deepStrictEqual({
+						dockedIsolation, floatingIsolation,
+						restoredIsolation: mainWindow.getComputedStyle(content).isolation,
+						frameAboveDetails: Number(frame.zIndex) > Number(mainWindow.getComputedStyle(details).zIndex),
+						frameColor: frame.borderColor,
+						frameWidth: frame.borderWidth,
+						pointerEvents: frame.pointerEvents,
+						outerFrame: mainWindow.getComputedStyle(card, '::after').content,
+					}, {
+						dockedIsolation: 'auto', floatingIsolation: 'isolate', restoredIsolation: 'auto',
+						frameAboveDetails: true,
+						frameColor: theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(68, 85, 102)',
+						frameWidth: '1px', pointerEvents: 'none', outerFrame: 'none',
+					}, theme);
+					workbench.classList.remove(theme);
+				}
+			} finally {
+				workbench.remove();
+			}
+		});
+	}
 
 	test('constrains the Browser navbar to the editor header height', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench dock-detail-panel');

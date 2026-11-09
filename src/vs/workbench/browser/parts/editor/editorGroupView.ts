@@ -142,6 +142,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` (default) is a no-op for all other layouts.
 	 */
 	private _contentRightInset = 0;
+	private _contentTopInset = 0;
+	private _contentBottomInset = 0;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -2313,10 +2315,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// The editor pane is inset on the right by `_contentRightInset` so a docked
 		// panel can sit beside it under the full-width title (0 = fill the group).
-		const editorHeight = Math.max(0, height - titleControlSize.height);
+		const editorHeight = Math.max(0, height - titleControlSize.height - this._contentTopInset - this._contentBottomInset);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorContainer.style.marginTop = this._contentTopInset > 0 ? `${this._contentTopInset}px` : '';
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height + this._contentTopInset, left });
 	}
 
 	/**
@@ -2329,6 +2332,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 		this._contentRightInset = next;
+		this.relayout();
+	}
+
+	/** Reserves space above and below editor content without moving its tabs or header. */
+	setContentVerticalInsets(top: number, bottom: number): void {
+		const nextTop = Math.max(0, Math.round(top));
+		const nextBottom = Math.max(0, Math.round(bottom));
+		if (nextTop === this._contentTopInset && nextBottom === this._contentBottomInset) {
+			return;
+		}
+		this._contentTopInset = nextTop;
+		this._contentBottomInset = nextBottom;
 		this.relayout();
 	}
 
