@@ -50,8 +50,8 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 
 		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
 			this.getUserRemoteSources(octokit, query),
+			this.getQueryRemoteSources(octokit, query),
 		]);
 
 		const map = new Map<string, RemoteSource>();
