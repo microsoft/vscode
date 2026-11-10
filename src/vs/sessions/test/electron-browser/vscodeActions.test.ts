@@ -40,7 +40,7 @@ suite('VS Code Actions', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		labelService = disposables.add(instantiationService.createInstance(LabelService));
 		instantiationService.stub(ILabelService, labelService);
-		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
 		instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
@@ -124,19 +124,56 @@ suite('VS Code Actions', () => {
 		}]);
 	});
 
-	test('opens an empty editor window when the active chat has no workspace', async () => {
-		const calls: { empty: boolean }[] = [];
+	test('opens an empty local editor window without a remote session workspace', async () => {
+		const calls: (IOpenEmptyWindowOptions | IWindowOpenable[] | undefined)[] = [];
 		const nativeHostService = new class extends mock<INativeHostService>() {
 			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
-				calls.push({ empty: !Array.isArray(toOpen) });
+				calls.push(toOpen);
 			}
 		}();
 
 		instantiationService.stub(INativeHostService, nativeHostService);
+		await instantiationService.invokeFunction(openSessionInVSCode, undefined);
 		await instantiationService.invokeFunction(openSessionInVSCode, createSession('no-workspace', true));
+		await instantiationService.invokeFunction(openSessionInVSCode, createSession('empty-workspace', true, []));
 
-		assert.deepStrictEqual(calls, [{ empty: true }]);
+		assert.deepStrictEqual(calls, [undefined, undefined, undefined]);
 	});
+
+	for (const [connection, remoteAuthority] of [
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'test:host', hostName: 'host', sshConfigHost: 'my-ssh-host' }, 'ssh-remote+my-ssh-host'],
+		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'tunnel+host.region'],
+		[{ type: RemoteAgentHostEntryType.WSL, address: 'test:host', distro: 'Ubuntu' }, 'wsl+Ubuntu'],
+		[{ type: RemoteAgentHostEntryType.CloudSandbox, address: 'test:host', environmentId: 'environment' }, undefined],
+		[{ type: RemoteAgentHostEntryType.WebSocket, address: 'test:host' }, undefined],
+	] satisfies [IRemoteAgentHostEntry['connection'], string | undefined][]) {
+		test(`opens an empty ${remoteAuthority ? 'remote' : 'local'} editor for a folderless ${connection.type} chat`, async () => {
+			const calls: { toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]; options?: IOpenWindowOptions }[] = [];
+			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: 'test:host' });
+			instantiationService.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>() => provider as T });
+			instantiationService.stub(IRemoteAgentHostService, { getEntryByAddress: () => ({ name: 'Remote host', connection }) });
+			instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+					calls.push({ toOpen, options });
+				}
+			}());
+
+			await instantiationService.invokeFunction(openSessionInVSCode, createSession('no-workspace', true));
+			await instantiationService.invokeFunction(openSessionInVSCode, createSession('empty-workspace', true, []));
+			await instantiationService.invokeFunction(
+				openSessionInVSCode,
+				createSession('parent', true, [toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('test:host'))]),
+				createSession('nested', true).mainChat.get(),
+			);
+
+			const toOpen = remoteAuthority ? { remoteAuthority } : undefined;
+			assert.deepStrictEqual(calls, [
+				{ toOpen, options: undefined },
+				{ toOpen, options: undefined },
+				{ toOpen, options: undefined },
+			]);
+		});
+	}
 
 	test('opens the clicked nested chat and its workspace instead of the active chat', async () => {
 		const calls: { folders: string[]; chat: string | undefined }[] = [];

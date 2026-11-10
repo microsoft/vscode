@@ -696,6 +696,8 @@ export interface IChatAutoModeResolutionPart {
 	defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	kept?: boolean;
+	/** Auto is presented as Copilot Fusion, so the row names it that way. */
+	fusion?: boolean;
 }
 
 /**

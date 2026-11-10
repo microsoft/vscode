@@ -26,7 +26,6 @@ build/next/devTunnelsShims/process.js
 build/next/devTunnelsShims/utf8Validate.cjs
 build/next/devTunnelsShims/vscodeJsonrpc.cjs
 eslint.config.js
-extensions/.pnpmfile.mjs
 extensions/copilot/.mocha-multi-reporters.js
 extensions/copilot/.mocharc.js
 extensions/copilot/.vscode-test.mjs

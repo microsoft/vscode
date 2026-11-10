@@ -10,7 +10,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { type IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { getSidePaneBottomFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from '../../../workbench/browser/parts/sessions/editorPartSizing.js';
 import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 
@@ -44,8 +44,15 @@ export class MainEditorPart extends MainEditorPartBase {
 			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
 			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
-		const borderTotal = compact ? 0 : 2;
-		const bottomFrameInset = getSidePaneBottomFrameInset(this.layoutService.mainContainer);
+		const container = this.layoutService.mainContainer;
+		const spacing = this.layoutService.getPanelSpacing();
+		const connectedFrame = !isPhoneLayout(this.layoutService)
+			&& container.classList.contains('modern-ui-tabs')
+			&& container.classList.contains('modern-ui-connected-editor-tabs')
+			&& container.classList.contains('dock-detail-panel')
+			&& container.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
+		const borderTotal = compact ? 0 : connectedFrame ? getSidePaneFrameInset(container, spacing) * 2 : 2;
+		const bottomFrameInset = getSidePaneBottomFrameInset(container, spacing);
 		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - borderTotal;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - borderTotal - bottomFrameInset;
 

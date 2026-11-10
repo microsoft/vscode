@@ -127,7 +127,7 @@ export function isArtifactRun(value: unknown): value is ArtifactRun {
 	return ['optionId', 'occurrenceKey', 'retryOf', 'chat'].every(key => value[key] === undefined || typeof value[key] === 'string')
 		&& ['configurationRevision', 'generation'].every(key => value[key] === undefined || isCounter(value[key]))
 		&& (value.admission === undefined || value.admission === 'atomic' || value.admission === 'bestEffort')
-		&& (value.indeterminate === undefined || typeof value.indeterminate === 'boolean')
+		&& ['indeterminate', 'generalAction'].every(key => value[key] === undefined || typeof value[key] === 'boolean')
 		&& (value.requestedBy === undefined || isArtifactActor(value.requestedBy))
 		&& (value.input === undefined || isArtifactJsonValue(value.input)) && (value.result === undefined || isArtifactJsonValue(value.result))
 		&& (value.prompt === undefined || (isRecord(value.prompt) && typeof value.prompt.text === 'string'))

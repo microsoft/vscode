@@ -118,6 +118,10 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		this._slotsChanged.trigger(undefined);
 		contentArea.appendChild(this._gridWidget.element);
 
+		this._register(autorun(reader => {
+			this._gridWidget?.element.classList.toggle('single-chat', this.shownChatCount.read(reader) <= 1);
+		}));
+
 		// Propagate the grid's maximized-view state to each session view so the
 		// per-view toolbars can render the maximize action in its toggled state.
 		this._register(this._gridWidget.onDidChangeMaximized(() => this._updateMaximizedState()));

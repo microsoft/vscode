@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import type * as internalGitHub from '@vscode/internal-github';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, illegalArgument } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { GitHubErrorCodeDto, GitHubResultDto, IGitHubGistDto, MainThreadGitHubShape } from './extHost.protocol.js';
 
 export class GitHubError extends Error {
@@ -31,14 +31,14 @@ export class ExtHostGitHub {
 
 	constructor(private readonly _proxy: MainThreadGitHubShape) { }
 
-	async getClient(extension: IExtensionDescription, sessionId: string, token: vscode.CancellationToken | undefined): Promise<vscode.GitHubClient> {
+	async getClient(extension: IExtensionDescription, sessionId: string, token: vscode.CancellationToken | undefined): Promise<internalGitHub.GitHubClient> {
 		if (typeof sessionId !== 'string' || !sessionId) {
 			throw illegalArgument('sessionId');
 		}
 		const client = await this._acquire(token, (handle, token) => this._proxy.$getClient(handle, extension.identifier.value, sessionId, token));
-		const gists: vscode.GitHubGists = Object.freeze({
+		const gists: internalGitHub.GitHubGists = Object.freeze({
 			get: (gistId: string, token?: vscode.CancellationToken) => client.run(token, (handle, token) => this._proxy.$getGist(handle, gistId, token)).then(toGist),
-			create: (gist: vscode.GitHubGistCreateOptions, token?: vscode.CancellationToken) => client.run(token, (handle, token) => this._proxy.$createGist(handle, {
+			create: (gist: internalGitHub.GitHubGistCreateOptions, token?: vscode.CancellationToken) => client.run(token, (handle, token) => this._proxy.$createGist(handle, {
 				public: gist?.public,
 				files: gist?.files,
 			}, token)).then(toGist),
@@ -46,9 +46,9 @@ export class ExtHostGitHub {
 		return Object.freeze({ gists, dispose: () => client.dispose() });
 	}
 
-	async getAnonymousClient(extension: IExtensionDescription, token: vscode.CancellationToken | undefined): Promise<vscode.GitHubAnonymousClient> {
+	async getAnonymousClient(extension: IExtensionDescription, token: vscode.CancellationToken | undefined): Promise<internalGitHub.GitHubAnonymousClient> {
 		const client = await this._acquire(token, (handle, token) => this._proxy.$getAnonymousClient(handle, extension.identifier.value, token));
-		const gists: vscode.GitHubGistReader = Object.freeze({
+		const gists: internalGitHub.GitHubGistReader = Object.freeze({
 			get: (gistId: string, token?: vscode.CancellationToken) => client.run(token, (handle, token) => this._proxy.$getGist(handle, gistId, token)).then(toGist),
 		});
 		return Object.freeze({ gists, dispose: () => client.dispose() });
@@ -126,22 +126,59 @@ class ExtHostGitHubClient {
 }
 
 /**
- * Creates the `vscode.github` namespace for one extension; every entry point requires the `github` proposal.
+ * Built-in extensions that may import {@link internalGitHubModuleName}. Eligibility is an explicit
+ * allowlist of built-in extensions; the module name alone is not access control.
  */
-export function createGitHubApi(extension: IExtensionDescription, extHostGitHub: ExtHostGitHub): typeof vscode.github {
-	return {
-		getClient(sessionId: string, token?: vscode.CancellationToken) {
-			checkProposedApiEnabled(extension, 'github');
-			return extHostGitHub.getClient(extension, sessionId, token);
-		},
-		getAnonymousClient(token?: vscode.CancellationToken) {
-			checkProposedApiEnabled(extension, 'github');
-			return extHostGitHub.getAnonymousClient(extension, token);
-		},
-	};
+const internalGitHubConsumers: ReadonlySet<string> = new Set([
+	'vscode.configuration-editing',
+]);
+
+export const internalGitHubModuleName = '@vscode/internal-github';
+
+/**
+ * Creates the `@vscode/internal-github` module for one extension. The extension identity is bound
+ * here, so the importer cannot request a client on behalf of another extension.
+ */
+export function createInternalGitHubModule(extension: IExtensionDescription, extHostGitHub: ExtHostGitHub): typeof internalGitHub {
+	return Object.freeze({
+		getClient: (sessionId: string, token?: vscode.CancellationToken) => extHostGitHub.getClient(extension, sessionId, token),
+		getAnonymousClient: (token?: vscode.CancellationToken) => extHostGitHub.getAnonymousClient(extension, token),
+		GitHubError,
+	});
 }
 
-function toGist(dto: IGitHubGistDto): vscode.GitHubGist {
+/**
+ * Provides `@vscode/internal-github` to eligible built-in extensions through the extension host's
+ * `require` interception (CommonJS, in the node and web worker hosts). Native ESM importers are not
+ * supported and fail to resolve the module. An importer that cannot be identified, is not built in
+ * or is not on the allowlist is rejected; there is no fallback identity.
+ */
+export class InternalGitHubModuleFactory {
+
+	readonly nodeModuleName = internalGitHubModuleName;
+
+	private readonly _modules = new Map<string, typeof internalGitHub>();
+
+	constructor(
+		private readonly _extensionPaths: { findSubstr(uri: URI): IExtensionDescription | undefined },
+		private readonly _extHostGitHub: ExtHostGitHub,
+	) { }
+
+	load(_request: string, parent: URI): typeof internalGitHub {
+		const extension = this._extensionPaths.findSubstr(parent);
+		if (!extension || !extension.isBuiltin || !internalGitHubConsumers.has(extension.identifier.value)) {
+			throw new Error(`Cannot find module '${internalGitHubModuleName}'`);
+		}
+		let module = this._modules.get(extension.identifier.value);
+		if (!module) {
+			module = createInternalGitHubModule(extension, this._extHostGitHub);
+			this._modules.set(extension.identifier.value, module);
+		}
+		return module;
+	}
+}
+
+function toGist(dto: IGitHubGistDto): internalGitHub.GitHubGist {
 	return Object.freeze({
 		id: dto.id,
 		htmlUrl: URI.parse(dto.htmlUrl),

@@ -21,22 +21,28 @@
 	width: 100%;
 }
 
-/* Blend the editor into the input; the background layer must stay opaque, so paint it with the input color. */
-.chat-question-answer-editor .monaco-editor {
+/* Outrank session-surface editor colors while keeping Monaco's background layers opaque. */
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor {
 	background-color: transparent;
 }
 
-.chat-question-answer-editor .monaco-editor .monaco-editor-background {
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .margin,
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background);
 }
 
-/* Idle (unfocused and empty): same frame as any input; only the placeholder reads as an action. */
+/* Idle (unfocused and empty): a borderless row that shows the input frame on hover, focus, or once it has content. */
 .chat-question-answer-editor.ghost {
+	border-color: var(--vscode-contrastBorder, transparent);
 	cursor: text;
 }
 
+.chat-question-answer-editor.ghost:hover {
+	border-color: var(--vscode-input-border, var(--vscode-widget-border, transparent));
+}
+
 .chat-question-answer-editor.ghost .monaco-editor .editorPlaceholder {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench:not(.monaco-reduce-motion) .chat-question-answer-editor {
