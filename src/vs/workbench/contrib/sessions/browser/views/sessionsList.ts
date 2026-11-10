@@ -24,6 +24,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { hasKey, isDefined } from '../../../../../base/common/types.js';
@@ -68,6 +69,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -825,7 +827,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			// with no chat rows aggregate an approval from any of the session's chats.
 			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
 			if (approval) {
-				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
+				height += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
 			}
 		}
 		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
@@ -857,7 +859,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return height;
 		}
 		return height
-			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines)
 			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
@@ -1363,7 +1365,7 @@ interface IApprovalRowElements {
  * approval appears or clears).
  */
 function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLines: number): number {
-	return info ? SessionItemRenderer.getApprovalRowHeight(info.label, maxLines) : 0;
+	return info ? SessionItemRenderer.getApprovalRowHeight(info, maxLines) : 0;
 }
 
 interface ICompactInputNeededPresentationOptions {
@@ -1427,9 +1429,16 @@ function renderApprovalRowContent(
 
 	elements.label.textContent = '';
 	store.add(markdownRendererService.render(labelContent, {}, elements.label));
+	if (info.executionTarget?.workingDirectory) {
+		appendApprovalWorkingDirectory(elements.label, info.executionTarget.workingDirectory);
+	}
 
 	if (showHover) {
 		const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+		const executionTargetMessage = getTerminalExecutionTargetMessage(info);
+		if (executionTargetMessage) {
+			fullContent.appendMarkdown(`\n${executionTargetMessage.value}`);
+		}
 		store.add(hoverService.setupDelayedHover(elements.label, {
 			content: fullContent,
 			style: HoverStyle.Pointer,
@@ -1438,6 +1447,7 @@ function renderApprovalRowContent(
 	}
 
 	elements.buttonContainer.textContent = '';
+	const executionTargetDescription = getTerminalExecutionTargetDescription(info);
 	const button = store.add(new Button(elements.buttonContainer, {
 		title: localize('allowActionOnce', "Allow once"),
 		// All simultaneously visible "Allow" buttons share the same visible label
@@ -1445,7 +1455,9 @@ function renderApprovalRowContent(
 		// command/action it approves — otherwise screen-reader users can't tell
 		// which chat's action a button belongs to. Keep the "once" scope so the
 		// one-time nature of the permission is still conveyed.
-		ariaLabel: localize('allowActionAria', "Allow once: {0}", info.label),
+		ariaLabel: executionTargetDescription
+			? localize('allowActionAriaWithExecutionTarget', "Allow once: {0} ({1})", info.label, executionTargetDescription)
+			: localize('allowActionAria', "Allow once: {0}", info.label),
 		secondary: true,
 		...defaultButtonStyles
 	}));
@@ -1457,6 +1469,19 @@ function renderApprovalRowContent(
 		info.confirm();
 		onApprove(approvalId);
 	}));
+}
+
+/**
+ * Appends the line naming where a pending command runs. A long path is cut at
+ * its start, keeping the folders nearest the command, which tell same-named
+ * relative commands apart.
+ */
+function appendApprovalWorkingDirectory(container: HTMLElement, workingDirectory: string): void {
+	const line = DOM.append(container, $('.session-approval-working-directory'));
+	DOM.append(line, $(`span${ThemeIcon.asCSSSelector(Codicon.folderCompact)}`));
+	const path = DOM.append(line, $('span.session-approval-working-directory-path'));
+	// Isolated left-to-right so the right-to-left box that moves the ellipsis to the start cannot reorder the path.
+	DOM.append(path, $('span', { dir: 'ltr' }, escapeControlAndFormatCharacters(workingDirectory)));
 }
 
 //#endregion
@@ -1669,8 +1694,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	/** Height of the single-line "Fix CI" row (label + orange button), including its top margin. */
 	static readonly CI_ROW_HEIGHT = 32;
 
-	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
-		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
+	static getApprovalRowHeight(approval: IAgentSessionApprovalInfo, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
+		const lineCount = Math.min(approval.label.split(/\r?\n/).length, maxLines) + (approval.executionTarget?.workingDirectory ? 1 : 0);
 		return lineCount * SessionItemRenderer._APPROVAL_ROW_LINE_HEIGHT + SessionItemRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 

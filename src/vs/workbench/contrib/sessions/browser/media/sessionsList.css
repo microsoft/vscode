@@ -1031,6 +1031,28 @@
 			text-overflow: ellipsis;
 			font-size: var(--vscode-fontSize-label1, 12px);
 		}
+
+		.session-approval-working-directory {
+			display: flex;
+			align-items: center;
+			gap: var(--vscode-spacing-size40);
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-label1);
+
+			.codicon {
+				flex-shrink: 0;
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+		}
+
+		/* Right-to-left so a long path is cut at its start, keeping the folders nearest the command. */
+		.session-approval-working-directory-path {
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			direction: rtl;
+		}
 	}
 
 	.session-approval-button {

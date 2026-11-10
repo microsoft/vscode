@@ -14068,6 +14068,57 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('names the folder an approval\'s command runs in, so the same command in two folders looks different', () => {
+			const approvals = new Map<string, IAgentSessionApprovalInfo>();
+			const sessions = ([
+				['Test web', './test.sh', '/work/web'],
+				['Test api', './test.sh', '/work/api\u202e'],
+				['Push', 'git push origin main', undefined],
+			] as const).map(([title, label, workingDirectory], index) => {
+				const { session } = createTestSession(title, { workspaceLabel: 'vscode', status: SessionStatus.NeedsInput, createdAt: new Date(Date.now() - index * 1000) });
+				const resource = session.mainChat.get().resource.toString();
+				approvals.set(resource, {
+					approvalId: resource,
+					kind: AgentSessionApprovalKind.Terminal,
+					label,
+					languageId: 'shellscript',
+					executionTarget: workingDirectory ? { workingDirectory } : undefined,
+					since: new Date(),
+					confirm: () => { },
+				});
+				return session;
+			});
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(approvals.get(resource.toString()));
+				}
+			}();
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(500, 400);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const approvalRow = row.querySelector('.session-approval-row.visible:not(.session-input-needed-row)');
+				return approvalRow ? [{
+					command: approvalRow.querySelector('.session-approval-label > .code')?.textContent,
+					directory: approvalRow.querySelector('.session-approval-working-directory-path')?.textContent,
+					allowAriaLabel: approvalRow.querySelector('.session-approval-button .monaco-button')?.getAttribute('aria-label'),
+					height: row.style.height,
+				}] : [];
+			}), [
+				{ command: './test.sh', directory: '/work/web', allowAriaLabel: 'Allow once: ./test.sh (Working directory: /work/web)', height: '80px' },
+				{ command: './test.sh', directory: '/work/api\\u{202e}', allowAriaLabel: 'Allow once: ./test.sh (Working directory: /work/api\\u{202e})', height: '80px' },
+				{ command: 'git push origin main', directory: undefined, allowAriaLabel: 'Allow once: git push origin main', height: '62px' },
+			]);
+		});
+
 		test('refreshes compact presentation across phone layout transitions', () => {
 			const session = createTestSession('Responsive compact session', {
 				workspaceLabel: 'vscode',
