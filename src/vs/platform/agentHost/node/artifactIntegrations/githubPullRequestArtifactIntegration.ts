@@ -130,6 +130,15 @@ class GitHubPullRequestArtifactResource extends Disposable {
 				this.requestedAuthentication = false;
 			}
 		}));
+		this._register(this.client.credentials.onDidInvalidate(event => {
+			// A refusal an action received leaves the fragments healthy, so a same-token reauthorization produces no new
+			// observation; read the pull request again to revalidate access instead of replaying the action.
+			if (event.reason === 'reauthorization' && this.authenticationError.get()) {
+				void this.subscription.refresh(undefined, CancellationToken.None, { authoritative: true }).catch(() => {
+					// A renewed refusal reaches the snapshot and requires authentication again.
+				});
+			}
+		}));
 	}
 
 	readonly client: IGitHubClient;

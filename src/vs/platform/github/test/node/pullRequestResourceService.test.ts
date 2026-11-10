@@ -543,6 +543,43 @@ suite('PullRequestResourceService', () => {
 		subscription.dispose();
 	});
 
+	test('retries a credential refusal of a request sent before reauthorization without refreshing healthy fragments', async () => {
+		const { credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.calls.length = 0;
+		const started = new DeferredPromise<void>();
+		const refuse = new DeferredPromise<void>();
+		let attempts = 0;
+		queries.handlers.set('checks', async () => {
+			if (++attempts === 1) {
+				await started.complete();
+				await refuse.p;
+				throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403);
+			}
+			return checksResult('reauthorized');
+		});
+		const pending = subscription.refresh('checks');
+		await started.p;
+		credentials.reauthorize();
+		await refuse.complete();
+		await pending;
+
+		const checks = subscription.resource.snapshot.get().checks;
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			status: checks.status,
+			error: checks.error,
+			checkId: checks.value?.checks[0]?.id,
+		}, {
+			calls: ['checks', 'checks'],
+			status: 'ready',
+			error: undefined,
+			checkId: 'reauthorized',
+		});
+		subscription.dispose();
+	});
+
 	test('supersedes in-flight work when a subscriber expands the data shape', async () => {
 		const { queries, service } = setup();
 		const firstStarted = new DeferredPromise<void>();
