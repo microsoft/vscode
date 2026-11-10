@@ -16,7 +16,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { addDisposableListener, EventType, getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -41,6 +41,9 @@ import { logSettingExperimentTrigger } from '../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IScreenshotToolService } from '../../screenshotTool/browser/screenshotTool.js';
+
+/** How long a reporter window gets to take focus before a dialog about its report opens in whichever window has focus. */
+const REPORTER_FOCUS_TIMEOUT = 500;
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
@@ -391,10 +394,34 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 
 	private async doConfirmReporterWindow(window: ReporterWindow): Promise<boolean> {
 		await window.ready.p;
+		if (window.isDisposed || window.input.isDisposed() || !window.input.closeHandler.showConfirm()) {
+			return true;
+		}
+		// Dialogs open in the focused window, so the reporter window takes focus to ask about its report itself.
+		await this.focusReporterWindow(window);
 		if (window.isDisposed || window.input.isDisposed()) {
 			return true;
 		}
-		return !window.input.closeHandler.showConfirm() || await window.input.closeHandler.confirm([]) !== ConfirmResult.CANCEL;
+		return await window.input.closeHandler.confirm([]) !== ConfirmResult.CANCEL;
+	}
+
+	/** Brings a reporter window to the front, and waits until its document has focus, which decides where dialogs open. */
+	private async focusReporterWindow(window: ReporterWindow): Promise<void> {
+		const targetWindow = window.auxiliaryWindow.window;
+		if (targetWindow.document.hasFocus()) {
+			return;
+		}
+		const focused = new DeferredPromise<void>();
+		const listener = addDisposableListener(targetWindow, EventType.FOCUS, () => void focused.complete());
+		try {
+			await this.hostService.focus(targetWindow);
+			await raceTimeout(focused.p, REPORTER_FOCUS_TIMEOUT);
+		} catch (error) {
+			// The dialog still opens, in whichever window has focus.
+			this.logService.error('[IssueReporter] Focusing the reporter window failed:', error);
+		} finally {
+			listener.dispose();
+		}
 	}
 
 	/**

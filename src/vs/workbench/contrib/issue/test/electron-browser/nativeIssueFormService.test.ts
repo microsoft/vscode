@@ -238,6 +238,8 @@ suite('NativeIssueFormService reporter windows', () => {
 		const previews: string[] = [];
 		instantiation.stub(IOpenerService, { open: async resource => { previews.push(resource.toString()); return true; } });
 		const confirmations: string[] = [];
+		/** The window that took focus last when each question was asked, which is where it opens. */
+		const focusedOnConfirm: (Window | undefined)[] = [];
 		const confirmStarted = new DeferredPromise<void>();
 		const screenshotStarted = new DeferredPromise<void>();
 		const controls: {
@@ -253,6 +255,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		instantiation.stub(IDialogService, {
 			confirm: async confirmation => {
 				confirmations.push(confirmation.message);
+				focusedOnConfirm.push(focused.at(-1));
 				void confirmStarted.complete();
 				await controls.confirmGate?.p;
 				return { confirmed: controls.confirm };
@@ -269,7 +272,13 @@ suite('NativeIssueFormService reporter windows', () => {
 			},
 		});
 		const focused: Window[] = [];
-		instantiation.stub(IHostService, { focus: async window => { focused.push(window); } });
+		instantiation.stub(IHostService, {
+			focus: async window => {
+				focused.push(window);
+				// Like a native window, a reporter window that takes focus tells its document.
+				windows.find(candidate => candidate.window === window)?.window.dispatchEvent(new mainWindow.Event('focus'));
+			}
+		});
 		instantiation.stub(IRecordingService, { isSupported: false, onDidChangeState: Event.None, onDidFailRecording: Event.None });
 		instantiation.stub(IScreenshotService, {
 			captureScreenshot: async () => {
@@ -342,7 +351,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
 		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry, screenshotTool,
+			service, controls, configuration, confirmations, focusedOnConfirm, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry, screenshotTool,
 			shutdown: async (reason: ShutdownReason) => {
 				if (reason === ShutdownReason.QUIT) {
 					windows.forEach(window => window.blockNativeClose = true);
@@ -494,6 +503,19 @@ suite('NativeIssueFormService reporter windows', () => {
 		const closed = await windows[0].lastClose;
 		assert.deepStrictEqual({ pendingDecisions, cancelled, retained, closed, disposed: inputs()[0].isDisposed(), confirmations, registered: windows[0].hasVetoListener, opens: opens.length, editors: main.editors.length }, {
 			pendingDecisions: 1, cancelled: false, retained: true, closed: true, disposed: true, confirmations: ['Discard issue report?', 'Discard issue report?'], registered: false, opens: 0, editors: 0,
+		});
+	});
+
+	test('asks whether to discard a report in its own window, which takes focus first', async () => {
+		const { service, inputs, windows, confirmations, focusedOnConfirm } = createService();
+		await service.openReporter(data());
+		editDraft(inputs()[0]);
+		// Another window has focus, like when the reporter's close button is clicked while the main window is active.
+		windows[0].document.hasFocus = () => false;
+		windows[0].window.close();
+		await timeout(0);
+		assert.deepStrictEqual({ closed: await windows[0].lastClose, confirmations, inReporterWindow: focusedOnConfirm.map(window => window === windows[0].window), disposed: inputs()[0].isDisposed() }, {
+			closed: true, confirmations: ['Discard issue report?'], inReporterWindow: [true], disposed: true,
 		});
 	});
 
