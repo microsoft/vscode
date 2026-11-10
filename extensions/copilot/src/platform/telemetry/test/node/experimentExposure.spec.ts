@@ -99,9 +99,10 @@ describe('ExperimentExposureTracker', () => {
 });
 
 describe('exposureSurfaceForEditor', () => {
-	it('maps JetBrains editor names and ignores other hosts', () => {
+	it('maps JetBrains and Visual Studio editor names and ignores other hosts', () => {
 		expect(exposureSurfaceForEditor('JetBrains-IC')).toBe('jetbrains');
 		expect(exposureSurfaceForEditor('jetbrains-iu')).toBe('jetbrains');
+		expect(exposureSurfaceForEditor('VisualStudio')).toBe('visualstudio');
 		expect(exposureSurfaceForEditor('vscode')).toBeUndefined();
 		expect(exposureSurfaceForEditor('Xcode')).toBeUndefined();
 	});

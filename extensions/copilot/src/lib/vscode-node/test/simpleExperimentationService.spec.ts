@@ -268,6 +268,20 @@ describe('SimpleExperimentationService', () => {
 			service.dispose();
 		});
 
+		it('uses the Visual Studio gate and surface for a Visual Studio host', () => {
+			const { service, metadata } = createHostedService('VisualStudio');
+			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': 1 });
+
+			service.getTreatmentVariable('feature-a');
+			expect(metadata()).toHaveLength(0);
+
+			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.visualstudio]: true, 'feature-a': 1 });
+			service.getTreatmentVariable('feature-a');
+
+			expect(metadata().map(m => [m.surface, m.value, m.value_type])).toEqual([['visualstudio', '1', 'number']]);
+			service.dispose();
+		});
+
 		it('does not expose for hosts without an exposure surface', () => {
 			const { service, sent } = createHostedService('Xcode');
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': true });

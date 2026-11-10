@@ -15,7 +15,7 @@ export const EXP_EXPOSURE_EVENT = 'exp_exposure';
 export const EXPOSURE_SDK = 'copilot_chat_ts';
 export const EXPOSURE_SDK_VERSION = '1.0.0';
 
-export type ExposureSurface = 'vscode' | 'jetbrains';
+export type ExposureSurface = 'vscode' | 'jetbrains' | 'visualstudio';
 
 /**
  * Each surface has its own ExP gate, so exposure logging can be rolled out and turned off per
@@ -24,16 +24,20 @@ export type ExposureSurface = 'vscode' | 'jetbrains';
 export const EXPOSURE_GATE_TREATMENTS: Readonly<Record<ExposureSurface, string>> = {
 	vscode: 'copilotchat.expExposureEvents.vscode',
 	jetbrains: 'copilotchat.expExposureEvents.jetbrains',
+	visualstudio: 'copilotchat.expExposureEvents.visualstudio',
 };
 
 /**
- * The exposure surface of a chat-lib host, from its editor name (for example `JetBrains-IC`).
- * Hosts without a surface don't log exposures.
+ * The exposure surface of a chat-lib host, from its editor name (for example `JetBrains-IC` or
+ * `VisualStudio`). Hosts without a surface don't log exposures.
  */
 export function exposureSurfaceForEditor(editorName: string): ExposureSurface | undefined {
 	const name = editorName.toLowerCase();
 	if (name.includes('jetbrains')) {
 		return 'jetbrains';
+	}
+	if (name.includes('visualstudio')) {
+		return 'visualstudio';
 	}
 	return undefined;
 }
