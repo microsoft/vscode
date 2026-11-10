@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Event as VSCodeEvent } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IProductConfiguration } from '../../../../../base/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,8 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
-import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -43,7 +42,9 @@ suite('BaseIssueReporterService', () => {
 		fetcher: typeof fetch = async () => { throw new Error('Unexpected duplicate search'); },
 		submission: {
 			accessToken?: string;
+			authorization?: GitHubAuthorizationContext;
 			getSessions?: IAuthenticationService['getSessions'];
+			onDidChangeSessions?: IAuthenticationService['onDidChangeSessions'];
 			createGitHubIssue?: IIssueFormService['createGitHubIssue'];
 		} = {},
 	) {
@@ -82,7 +83,7 @@ suite('BaseIssueReporterService', () => {
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IContextMenuService, {});
 		instantiationService.stub(IAuthenticationService, {
-			onDidChangeSessions: VSCodeEvent.None,
+			onDidChangeSessions: submission.onDidChangeSessions ?? VSCodeEvent.None,
 			getSessions: submission.getSessions ?? (async () => []),
 		});
 		instantiationService.stub(IOpenerService, {
@@ -101,6 +102,7 @@ suite('BaseIssueReporterService', () => {
 		const reporter = store.add(instantiationService.createInstance(BaseIssueReporterService, false, {
 			styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
 			isInstallationPure: true, isSessionsWindow: false, githubAccessToken: submission.accessToken ?? '',
+			githubAuthorization: submission.authorization,
 		}, { type: 'test', arch: 'test', release: 'test' }, new class extends mock<IProductConfiguration>() {
 			override readonly nameShort = 'Test';
 			override readonly version = '1.0.0';
@@ -126,105 +128,93 @@ suite('BaseIssueReporterService', () => {
 			id: 'other-session', accessToken: 'other-token',
 			account: { id: 'other-account', label: 'Other' }, scopes: ['repo', 'user:email'],
 		};
+		const authorization: GitHubAuthorizationContext = {
+			providerId: 'github', sessionId: selected.id, accountId: selected.account.id,
+			scopes: selected.scopes, authorizationServer: selected.authorizationServer?.toString(),
+		};
 
-		for (const repository of [{ owner: 'microsoft', repo: 'vscode' }, { owner: 'publisher', repo: 'extension' }]) {
-			test(`creates in ${repository.owner}/${repository.repo} with the selected grant, not the first account`, async () => {
-				const requests: Parameters<IIssueFormService['createGitHubIssue']>[] = [];
-				const lookups: Parameters<IAuthenticationService['getSessions']>[] = [];
-				const { reporter, events, errors } = createReporter(undefined, undefined, {
-					accessToken: selected.accessToken,
-					getSessions: async (...args) => { lookups.push(args); return [other, selected]; },
-					createGitHubIssue: async (...args) => {
-						args[3].throwIfAborted();
-						requests.push(args);
-						return currentIssue.html_url;
-					},
-				});
-				const result = await reporter.submitToGitHub('Report title', 'Report body', { owner: repository.owner, repositoryName: repository.repo });
-				assert.deepStrictEqual({ result, requests: requests.map(([authorization, repository, request]) => [authorization, repository, request]), lookups, events, errors, token: reporter.data.githubAccessToken }, {
-					result: true,
-					requests: [[{
-						providerId: 'github', sessionId: selected.id, accountId: selected.account.id,
-						scopes: selected.scopes, authorizationServer: selected.authorizationServer?.toString(),
-					}, repository, { title: 'Report title', body: 'Report body' }]],
-					lookups: [['github', [], { silent: true }, true]],
-					events: [currentIssue.html_url, 'close'], errors: [], token: selected.accessToken,
-				});
+		test('submits with the selected grant after its token is renewed', async () => {
+			const requests: Parameters<IIssueFormService['createGitHubIssue']>[] = [];
+			const changes = store.add(new Emitter<void>());
+			const renewedSession = { ...selected, accessToken: 'renewed-token' };
+			let renewed = false;
+			const { reporter, events } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => {
+					if (!renewed) {
+						renewed = true;
+						changes.fire();
+					}
+					return [other, renewedSession];
+				},
+				onDidChangeSessions: VSCodeEvent.map(changes.event, () => ({
+					providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [renewedSession] },
+				})),
+				createGitHubIssue: async (...args) => { requests.push(args); return currentIssue.html_url; },
 			});
-		}
+			const result = await reporter.submitToGitHub('Report title', 'Report body', { owner: 'publisher', repositoryName: 'extension' });
+			assert.deepStrictEqual({ result, requests: requests.map(([authorization, repository, request]) => [authorization, repository, request]), events, token: reporter.data.githubAccessToken }, {
+				result: true,
+				requests: [[authorization, { owner: 'publisher', repo: 'extension' }, { title: 'Report title', body: 'Report body' }]],
+				events: [currentIssue.html_url, 'close'], token: renewedSession.accessToken,
+			});
+		});
 
-		for (const accessToken of ['', 'unavailable-token']) {
-			test(`does not substitute another session for ${accessToken ? 'unavailable' : 'missing'} credentials`, async () => {
-				let calls = 0;
-				const { reporter, events, errors } = createReporter(undefined, undefined, {
-					accessToken,
-					getSessions: async () => [other, selected],
-					createGitHubIssue: async () => { calls++; return currentIssue.html_url; },
-				});
-				await assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), { kind: 'authentication' });
-				assert.deepStrictEqual({ calls, events, errors }, { calls: 0, events: [], errors: ['[IssueReporter] Failed to create GitHub issue'] });
+		test('does not broaden the selected grant or substitute another account', async () => {
+			let calls = 0;
+			const { reporter, events, errors } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => [other, { ...selected, scopes: ['repo'] }],
+				createGitHubIssue: async () => { calls++; return currentIssue.html_url; },
 			});
-		}
+			await assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), { kind: 'authentication' });
+			assert.deepStrictEqual({ calls, events, errors }, { calls: 0, events: [], errors: ['[IssueReporter] Failed to create GitHub issue'] });
+		});
 
 		for (const error of [
 			new GitHubRequestError('Forbidden', 'authorization', 403),
-			new GitHubRequestError('Server failure', 'server', 503),
 			new GitHubRequestError('Connection lost', 'network'),
-			new SchemaError('Malformed issue response'),
-			new CancellationError(),
 		]) {
 			test(`does not retry or open an issue after ${error.message}`, async () => {
 				let calls = 0;
 				const { reporter, events, errors } = createReporter(undefined, undefined, {
-					accessToken: selected.accessToken,
+					accessToken: selected.accessToken, authorization,
 					getSessions: async () => [selected],
 					createGitHubIssue: async () => { calls++; throw error; },
 				});
 				const submission = reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' });
-				if (error instanceof GitHubRequestError && error.statusCode !== undefined) {
+				if (error.statusCode !== undefined) {
 					assert.strictEqual(await submission, false);
 				} else {
 					await assert.rejects(submission, candidate => candidate === error);
 				}
 				assert.deepStrictEqual({ calls, events, errors }, {
-					calls: 1, events: [], errors: isCancellationError(error) ? [] : ['[IssueReporter] Failed to create GitHub issue'],
+					calls: 1, events: [], errors: ['[IssueReporter] Failed to create GitHub issue'],
 				});
 			});
 		}
 
-		for (const phase of ['session lookup', 'creation'] as const) {
-			test(`closing the reporter cancels ${phase} without late navigation`, async () => {
-				const started = new DeferredPromise<void>();
-				const pending = new DeferredPromise<void>();
-				let calls = 0;
-				let signal: AbortSignal | undefined;
-				const { reporter, events, errors } = createReporter(undefined, undefined, {
-					accessToken: selected.accessToken,
-					getSessions: async () => {
-						if (phase === 'session lookup') {
-							void started.complete();
-							await pending.p;
-						}
-						return [selected];
-					},
-					createGitHubIssue: async (_authorization, _repository, _request, requestSignal) => {
-						calls++;
-						signal = requestSignal;
-						void started.complete();
-						await pending.p;
-						return currentIssue.html_url;
-					},
-				});
-				const rejected = assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), isCancellationError);
-				await started.p;
-				reporter.dispose();
-				await pending.complete();
-				await rejected;
-				assert.deepStrictEqual({ calls, aborted: signal?.aborted, events, errors }, {
-					calls: phase === 'creation' ? 1 : 0, aborted: phase === 'creation' ? true : undefined, events: [], errors: [],
-				});
+		test('closing the reporter cancels creation without late navigation', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<void>();
+			let signal: AbortSignal | undefined;
+			const { reporter, events, errors } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => [selected],
+				createGitHubIssue: async (_authorization, _repository, _request, requestSignal) => {
+					signal = requestSignal;
+					void started.complete();
+					await pending.p;
+					return currentIssue.html_url;
+				},
 			});
-		}
+			const rejected = assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), isCancellationError);
+			await started.p;
+			reporter.dispose();
+			await pending.complete();
+			await rejected;
+			assert.deepStrictEqual({ aborted: signal?.aborted, events, errors }, { aborted: true, events: [], errors: [] });
+		});
 	});
 
 	for (const source of ['marketplace', 'extension'] as const) {

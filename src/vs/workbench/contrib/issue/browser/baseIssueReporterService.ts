@@ -26,14 +26,14 @@ import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../platform/github/common/githubTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { getGitHubAuthorization, normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
@@ -112,13 +112,23 @@ export class BaseIssueReporterService extends Disposable {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async () => {
+			const authorization = this.data.githubAuthorization;
+			// A caller-supplied token without a known session must not switch to another account.
+			if (!authorization && this.data.githubAccessToken) {
+				return;
+			}
 			const previousAuthState = !!this.data.githubAccessToken;
 
 			let githubAccessToken = '';
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				githubAccessToken = potentialSessions[0]?.accessToken;
+				const session = githubSessions.find(session => authorization
+					? isEqualAuthorization(authorization, getGitHubAuthorization(session))
+					: session.scopes.includes('repo'));
+				githubAccessToken = session?.accessToken ?? '';
+				if (session) {
+					this.data.githubAuthorization ??= getGitHubAuthorization(session);
+				}
 			} catch (e) {
 				// Ignore
 			}
@@ -1274,21 +1284,14 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
-		const accessToken = this.data.githubAccessToken;
+		const authorization = this.data.githubAuthorization;
 		let issueUrl: string;
 		try {
 			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
-			const session = accessToken ? sessions.find(session => session.accessToken === accessToken) : undefined;
-			if (!session) {
+			if (!authorization || !sessions.some(session => isEqualAuthorization(authorization, getGitHubAuthorization(session)))) {
 				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
 			}
-			issueUrl = await this.issueFormService.createGitHubIssue({
-				providerId: 'github',
-				sessionId: session.id,
-				accountId: session.account.id,
-				scopes: [...session.scopes],
-				authorizationServer: session.authorizationServer?.toString(),
-			}, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
+			issueUrl = await this.issueFormService.createGitHubIssue(authorization, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
 			this.disposeSignal.throwIfAborted();
 		} catch (error) {
 			this.disposeSignal.throwIfAborted();

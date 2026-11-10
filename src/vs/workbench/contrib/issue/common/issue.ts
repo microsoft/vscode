@@ -93,6 +93,8 @@ export interface IssueReporterData extends WindowData {
 	isInstallationPure: boolean;
 	isSessionsWindow: boolean;
 	githubAccessToken: string;
+	/** The selected grant for classic issue creation, independent of token renewal. */
+	githubAuthorization?: GitHubAuthorizationContext;
 	/** Refreshes an automatically selected GitHub session before a new reporter preview. */
 	getGitHubAccessToken?: () => Promise<string>;
 	issueTitle?: string;

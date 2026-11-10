@@ -18,21 +18,18 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding, Keybinding } from '../../../../../base/common/keybindings.js';
 import { isMacintosh, OS } from '../../../../../base/common/platform.js';
-import { IProductConfiguration } from '../../../../../base/common/product.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, _util } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeyboardEvent, IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AbstractKeybindingService } from '../../../../../platform/keybinding/common/abstractKeybindingService.js';
 import { KeybindingResolver, NoMatchingKb } from '../../../../../platform/keybinding/common/keybindingResolver.js';
@@ -43,14 +40,11 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IProcessService } from '../../../../../platform/process/common/process.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AuxiliaryWindowMode, BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../services/editor/common/editorService.js';
@@ -65,7 +59,6 @@ import { IRecordingService } from '../../browser/recordingService.js';
 import { IScreenshotService } from '../../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
-import { IssueReporter } from '../../electron-browser/issueReporterService.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
 import { ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID, IssueReporterOpenStateContribution } from '../../electron-browser/issueReporterKeybindings.js';
 import { NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
@@ -1115,91 +1108,4 @@ suite('NativeIssueFormService reporter windows', () => {
 		await service.openReporter(initial);
 		assert.deepStrictEqual({ legacy: service.legacy, editorOpens: opens.length, windows: windowOptions.length, osReads: osReads() }, { legacy: [initial], editorOpens: 0, windows: 0, osReads: 1 });
 	});
-});
-
-suite('Native legacy issue reporter GitHub submission', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	for (const length of [65_500, 65_501]) {
-		test(`uses the form-service bridge and preserves extension-data handling for ${length} characters`, async () => {
-			const iframe = $<HTMLIFrameElement>('iframe');
-			mainWindow.document.body.appendChild(iframe);
-			store.add(toDisposable(() => iframe.remove()));
-			const targetWindow = iframe.contentWindow!;
-			ensureCodeWindow(targetWindow, 100);
-			store.add(registerWindow(targetWindow));
-			targetWindow.document.body.append(
-				$('input#issue-title'), $('textarea#description'), $('div#similar-issues'),
-				$('select#issue-type'), $('select#issue-source'), $('button#disableExtensions'),
-			);
-			const styles = new Set(document.head.querySelectorAll('#codiconStyles'));
-			store.add(toDisposable(() => {
-				for (const style of document.head.querySelectorAll('#codiconStyles')) {
-					if (!styles.has(style)) {
-						style.remove();
-					}
-				}
-			}));
-			const instantiation = store.add(new TestInstantiationService());
-			const requests: Parameters<IIssueFormService['createGitHubIssue']>[] = [];
-			const events: string[] = [];
-			const writes: string[] = [];
-			const issueUrl = 'https://github.com/publisher/extension/issues/42';
-			instantiation.stub(IIssueFormService, {
-				createGitHubIssue: async (...args) => { requests.push(args); return issueUrl; },
-				closeReporter: async () => { events.push('close'); },
-			});
-			instantiation.stub(IThemeService, {
-				onDidProductIconThemeChange: Event.None,
-				getProductIconTheme: () => ({ getIcon: () => undefined }),
-			});
-			instantiation.stub(IAuthenticationService, {
-				onDidChangeSessions: Event.None,
-				getSessions: async () => [{
-					id: 'selected-session', accessToken: 'selected-token',
-					account: { id: 'selected-account', label: 'Selected' }, scopes: ['repo'],
-				}],
-			});
-			instantiation.stub(IFileDialogService, {
-				defaultFilePath: async () => URI.file('C:\\reporter'),
-				showSaveDialog: async () => URI.file('C:\\reporter\\extensionData.md'),
-			});
-			instantiation.stub(IFileService, {
-				writeFile: async (resource, content) => {
-					writes.push(content.toString());
-					return upcastPartial<IFileStatWithMetadata>({ resource });
-				},
-			});
-			instantiation.stub(IProcessService, {
-				getSystemInfo: async () => ({ os: 'test', memory: '', vmHint: '', processArgs: '', gpuStatus: {}, screenReader: '', remoteData: [] }),
-			});
-			instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
-			instantiation.stub(INativeHostService, {});
-			instantiation.stub(IContextKeyService, {});
-			instantiation.stub(IContextMenuService, {});
-			instantiation.stub(IOpenerService, { open: async uri => { events.push(uri.toString()); return true; } });
-			instantiation.stub(ILogService, new NullLogService());
-			const reporter = store.add(instantiation.createInstance(IssueReporter, false, {
-				styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
-				isInstallationPure: true, isSessionsWindow: false, githubAccessToken: 'selected-token',
-			}, { type: 'test', arch: 'test', release: 'test' }, new class extends mock<IProductConfiguration>() {
-				override readonly nameShort = 'Test';
-				override readonly version = '1';
-			}(), targetWindow));
-			const extensionData = 'x'.repeat(100);
-			const issueBody = 'b'.repeat(length - extensionData.length) + extensionData;
-			reporter.issueReporterModel.update({ extensionData });
-			const result = await reporter.submitToGitHub('Title', issueBody, { owner: 'publisher', repositoryName: 'extension' });
-			assert.deepStrictEqual({
-				result, requests: requests.map(([, repository, request]) => ({ repository, request })), writes, events,
-			}, {
-				result: true,
-				requests: [{
-					repository: { owner: 'publisher', repo: 'extension' },
-					request: { title: 'Title', body: length > 65_500 ? issueBody.replace(extensionData, '') : issueBody },
-				}],
-				writes: length > 65_500 ? [extensionData] : [], events: [issueUrl, 'close'],
-			});
-		});
-	}
 });

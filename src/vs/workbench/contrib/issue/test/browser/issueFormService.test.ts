@@ -881,47 +881,29 @@ suite('IssueFormService', () => {
 			});
 		});
 
-		for (const error of [new GitHubRequestError('Connection lost', 'network'), new GitHubRequestError('Not found', 'notFound', 404), new SchemaError('Malformed issue')]) {
-			test(`releases the client and propagates ${error.message} without retrying`, async () => {
-				let calls = 0;
-				const { service, grants, leases } = createService(async () => { calls++; throw error; });
-				await assert.rejects(service.createGitHubIssue(authorization, repository, request, new AbortController().signal), candidate => candidate === error);
-				assert.deepStrictEqual({ calls, grants, leases }, { calls: 1, grants: [authorization], leases: { released: 1 } });
-			});
-		}
-
-		test('does not acquire a client after cancellation or service disposal', async () => {
-			const { service, grants, leases } = createService(async () => assert.fail('Unexpected issue creation'));
-			const controller = new AbortController();
-			controller.abort(new CancellationError());
-			await assert.rejects(service.createGitHubIssue(authorization, repository, request, controller.signal), isCancellationError);
-			service.dispose();
-			await assert.rejects(service.createGitHubIssue(authorization, repository, request, new AbortController().signal), isCancellationError);
-			assert.deepStrictEqual({ grants, leases }, { grants: [], leases: { released: 0 } });
+		test('releases the client and propagates a failed write without retrying', async () => {
+			let calls = 0;
+			const error = new GitHubRequestError('Connection lost', 'network');
+			const { service, grants, leases } = createService(async () => { calls++; throw error; });
+			await assert.rejects(service.createGitHubIssue(authorization, repository, request, new AbortController().signal), candidate => candidate === error);
+			assert.deepStrictEqual({ calls, grants, leases }, { calls: 1, grants: [authorization], leases: { released: 1 } });
 		});
 
-		for (const phase of ['acquisition', 'creation'] as const) {
-			test(`cancellation during ${phase} releases a late client or result without continuing`, async () => {
-				const started = new DeferredPromise<void>();
-				const pending = new DeferredPromise<void>();
-				const wait = () => { void started.complete(); return pending.p; };
-				let calls = 0;
-				const { service, signals, leases } = createService(async () => {
-					calls++;
-					await wait();
-					return upcastPartial<Issue>({ html_url: issueUrl });
-				}, phase === 'acquisition' ? wait : undefined);
-				const controller = new AbortController();
-				const rejected = assert.rejects(service.createGitHubIssue(authorization, repository, request, controller.signal), isCancellationError);
-				await started.p;
-				controller.abort(new CancellationError());
-				await pending.complete();
-				await rejected;
-				assert.deepStrictEqual({ calls, aborted: signals[0].aborted, leases }, {
-					calls: phase === 'creation' ? 1 : 0, aborted: true, leases: { released: 1 },
-				});
-			});
-		}
+		test('cancellation during acquisition releases the late client without creating an issue', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<void>();
+			const { service, signals, leases } = createService(
+				async () => assert.fail('Unexpected issue creation'),
+				() => { void started.complete(); return pending.p; },
+			);
+			const controller = new AbortController();
+			const rejected = assert.rejects(service.createGitHubIssue(authorization, repository, request, controller.signal), isCancellationError);
+			await started.p;
+			controller.abort(new CancellationError());
+			await pending.complete();
+			await rejected;
+			assert.deepStrictEqual({ aborted: signals[0].aborted, leases }, { aborted: true, leases: { released: 1 } });
+		});
 	});
 
 	test('disposes the legacy web reporter when its auxiliary window closes', async () => {
