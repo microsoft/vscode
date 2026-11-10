@@ -534,6 +534,57 @@ suite('Map', () => {
 		assert.deepStrictEqual(Array.from(map), [[fileAUpper, 1]]);
 	});
 
+	test('ResourceMap - clone preserves custom toKey', function () {
+		const original = new ResourceMap<number>(uri => extUriIgnorePathCase.getComparisonKey(uri));
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		original.set(fileA, 1);
+
+		const copy = new ResourceMap(original);
+		assert.strictEqual(copy.size, 1);
+		assert.strictEqual(copy.has(fileA), true);
+		assert.strictEqual(copy.has(fileAUpper), true);
+		assert.strictEqual(copy.get(fileA), 1);
+		assert.strictEqual(copy.get(fileAUpper), 1);
+
+		// Updating the copy under a case-variant URI should update the same entry, not create a duplicate
+		copy.set(fileAUpper, 2);
+		assert.strictEqual(copy.size, 1);
+		assert.strictEqual(copy.get(fileA), 2);
+		assert.strictEqual(copy.get(fileAUpper), 2);
+		assert.strictEqual(original.get(fileA), 1);
+
+		// Deleting from copy should respect custom toKey and isolate original
+		assert.strictEqual(copy.delete(fileA), true);
+		assert.strictEqual(copy.size, 0);
+		assert.strictEqual(copy.has(fileAUpper), false);
+		assert.strictEqual(original.size, 1);
+	});
+
+	test('ResourceMap - clone with new toKey re-keys entries', function () {
+		const original = new ResourceMap<number>();
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		original.set(fileA, 1);
+		original.set(fileAUpper, 2);
+		assert.strictEqual(original.size, 2);
+
+		// Re-key with case-insensitive comparator
+		const copy = new ResourceMap(original, uri => extUriIgnorePathCase.getComparisonKey(uri));
+		assert.strictEqual(copy.size, 1);
+		assert.strictEqual(copy.has(fileA), true);
+		assert.strictEqual(copy.has(fileAUpper), true);
+		assert.strictEqual(copy.get(fileA), 2);
+		assert.strictEqual(copy.get(fileAUpper), 2);
+
+		// Original should remain unchanged with 2 distinct entries
+		assert.strictEqual(original.size, 2);
+		assert.strictEqual(original.get(fileA), 1);
+		assert.strictEqual(original.get(fileAUpper), 2);
+	});
+
 	test('mapsStrictEqualIgnoreOrder', () => {
 		const map1 = new Map();
 		const map2 = new Map();
