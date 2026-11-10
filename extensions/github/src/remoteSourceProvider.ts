@@ -75,7 +75,11 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 		if (!query) {
 			const repositories = await client.repositories.listForAuthenticatedUser({ sort: 'updated', per_page: 100 });
-			this.userReposCache = repositories.map(asRemoteSource);
+			const remoteSources = repositories.map(asRemoteSource);
+			if (this.userReposClient === client) {
+				this.userReposCache = remoteSources;
+			}
+			return remoteSources;
 		}
 
 		return this.userReposCache;
