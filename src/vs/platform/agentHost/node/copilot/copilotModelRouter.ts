@@ -203,7 +203,7 @@ export class CopilotModelRouter {
 		const context: IRouteContext = {
 			request, router, routes,
 			candidates: routes.map(route => ({ id: route.model.id, name: route.model.name, when: route.route.when, examples: route.route.examples })),
-			keepLongContext: last?.router === router.name && last.contextSize === 'long',
+			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
 		const current = last?.router === router.name ? routes.find(route => route.model.id === last.model) : undefined;
@@ -359,13 +359,13 @@ function finalResponseText(turn: Turn): string {
  * that router's only while no other selection came after it: a later turn that selected another
  * router but couldn't route (one with errors, say) means the next router to run routes afresh.
  */
-function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly contextSize?: IModelRoutedInfo['contextSize'] } | undefined {
+function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string } | undefined {
 	const unroutedRouters = new Set<string>();
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
 			const ownPick = [...unroutedRouters].every(name => name === routed.router);
-			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.contextSize ? { contextSize: routed.contextSize } : {}) };
+			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}) };
 		}
 		const requested = turns[i].message.model;
 		const requestedRouter = modelRouterNameFromModelId(requested?.id);
@@ -378,6 +378,25 @@ function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; read
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Whether a router has put the chat on a long context window. It is read from the latest routed
+ * turn that set a context size, whichever router made that pick, looking past turns on a model
+ * with only one size. A model the user picked by hand ends the search: its window is their choice.
+ */
+function isOnLongContext(turns: readonly Turn[]): boolean {
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed?.contextSize) {
+			return routed.contextSize === 'long';
+		}
+		const requested = turns[i].message.model;
+		if (!routed && requested && !modelRouterNameFromModelId(requested.id)) {
+			return false;
+		}
+	}
+	return false;
 }
 
 function switchHistory(turns: readonly Turn[]): { readonly turnsSinceSwitch: number | undefined; readonly switches: number } {

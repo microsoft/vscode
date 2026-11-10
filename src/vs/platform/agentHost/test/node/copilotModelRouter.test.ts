@@ -148,6 +148,18 @@ suite('CopilotModelRouter', () => {
 		const picked = await route([], new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } }));
 		const unavailable = await route([]);
 		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long' })]);
+		// The long window is the chat's, so it holds across another router's pick, a turn on a model with one size, and until the user picks a model by hand.
+		const handPicked = { ...routedTurn({ router: 'x', chosenModel: 'x' }), usage: { inputTokens: 10, outputTokens: 1 }, message: { text: 'earlier', origin: { kind: MessageKind.User }, model: { id: 'haiku' } } } as Turn;
+		const stickyLong = await Promise.all([
+			route([routedTurn({ router: 'other', chosenModel: 'haiku', contextSize: 'long' })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'opus', contextSize: 'long' }), routedTurn({ router: 'daily', chosenModel: 'haiku' })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long' }), handPicked]),
+		]);
+		assert.deepStrictEqual(stickyLong.map(result => result.selection), [
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } },
+		]);
 		assert.deepStrictEqual({ picked, unavailable: { selection: unavailable.selection, notices: unavailable.notices }, kept: { selection: kept.selection, contextSize: kept.routed?.contextSize, contextTokens: kept.routed?.contextTokens } }, {
 			picked: {
 				selection: { id: 'opus', config: { [ContextSizeConfigKey]: 1_000_000 } },

@@ -9903,6 +9903,32 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('a model router row that is picking a model settles when its router keeps the chat\'s pick', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:model-router:daily', upcastPartial<ILanguageModelChatMetadata>({ name: 'Daily Driver' })],
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: 'agent-host-copilot:model-router:daily',
+			});
+
+			// No earlier turn says this router picks once per chat, so the row is already showing when the kept pick arrives.
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true, firstTurnOnly: true } } },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().flatMap(part => part.kind === 'autoModeResolution' ? [[part.router, part.resolved?.name, part.kept]] : []), [
+				['Daily Driver', undefined, undefined],
+				['daily', 'GPT-5.4 mini', true],
+			]);
+		}));
+
 		test('Copilot Fusion routing shows only the resolved part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion', autoModelFusion: true })],

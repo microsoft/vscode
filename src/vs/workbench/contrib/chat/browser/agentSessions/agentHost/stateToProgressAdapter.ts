@@ -838,8 +838,11 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Whether a raw AHP model id names this provider's fusion routing model. */
 	isFusionModel?(rawModelId: string | undefined): boolean;
-	/** Returns the Auto model routing part carried by this usage report, if any. */
-	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
+	/**
+	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
+	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 */
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
