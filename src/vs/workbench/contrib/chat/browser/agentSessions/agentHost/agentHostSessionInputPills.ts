@@ -1014,7 +1014,20 @@ export class AgentHostSessionInputPills extends Disposable {
 				}),
 			})).filter(section => section.entries.length > 0);
 		};
-		const artifactSections = derived(this, reader => withPinActions(allArtifactSections.read(reader), reader));
+		const artifactSections = derived(this, reader => {
+			const sections = withPinActions(allArtifactSections.read(reader), reader);
+			const chatResources = chatResourcesControl.read(reader);
+			const listedContributions = !chatResources ? [] : chatResources.listedContributions.read(reader).map(resource => ({
+				id: resource.id,
+				label: resource.label,
+				icon: resource.icon,
+				toolbarActions: [chatResources.getPinAction(resource)],
+				open: () => this._openResource(resource.resource),
+			}));
+			return listedContributions.length
+				? [...sections, { title: localize('agentHostSessionPills.contributedResources', "Extensions"), entries: listedContributions }]
+				: sections;
+		});
 		const referenceSections = derived(this, reader => withPinActions(allReferenceSections.read(reader), reader));
 		const isNotChatResource = (entry: IChatPillEntry) => !chatResourcesControl.get() || !recordedResources.get().some(resource => resource.id === entry.id);
 		const browserSections = derived(this, reader => {
