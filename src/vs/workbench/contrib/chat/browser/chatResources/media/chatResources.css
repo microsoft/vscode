@@ -27,14 +27,6 @@
 	background: var(--vscode-chat-list-background, var(--vscode-sideBar-background));
 }
 
-/* Resources at the top of the chat sit on top of it, edge to edge, rather than inside it like resources above the input. */
-.chat-embedded-resource.at-top {
-	border: none;
-	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
-	border-radius: 0;
-	box-shadow: 0 2px 4px -2px var(--vscode-widget-shadow, transparent);
-}
-
 .chat-embedded-resource-header {
 	display: flex;
 	align-items: center;
@@ -47,7 +39,7 @@
 	font-size: 11px;
 }
 
-/* The resize edge is the edge that moves: the top one above the chat input, the bottom one at the top of the chat. */
+/* The resize edge is the edge that moves: the top one. */
 .chat-embedded-resource-sash {
 	height: 4px;
 	cursor: ns-resize;

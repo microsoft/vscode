@@ -393,7 +393,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			focusInput: () => { inputFocused = true; },
 			registerBackgroundActivityPillSections: sections => {
@@ -1583,7 +1582,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -2087,7 +2085,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -2424,7 +2421,6 @@ suite('AgentHostSessionInputPills', () => {
 				}),
 				onDidChangeViewModel: Event.None,
 				viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-				setTopContentHeight: () => { },
 				setPersistentContentHeight: () => { },
 				registerBackgroundActivityPillSections: () => Disposable.None,
 			});
@@ -3462,7 +3458,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: height => persistentContentHeight = height,
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -3548,7 +3543,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: height => persistentContentHeight = height,
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -3714,7 +3708,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -3867,7 +3860,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -4026,7 +4018,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: height => persistentContentHeight = height,
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
@@ -4100,7 +4091,6 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-			setTopContentHeight: () => { },
 			setPersistentContentHeight: () => { },
 			registerBackgroundActivityPillSections: sections => {
 				backgroundActivityPillSections = sections;
