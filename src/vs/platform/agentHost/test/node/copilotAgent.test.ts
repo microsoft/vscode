@@ -5862,7 +5862,7 @@ suite('CopilotAgent', () => {
 
 	for (const kind of ['response.success', 'response.error']) {
 		for (const initiatorType of ['user', 'agent']) {
-			test(`restricted ${kind} does not consume ${initiatorType} turn correlation before its standard copy`, async () => {
+			test(`drops restricted ${kind} before generic forwarding so ${initiatorType} turn correlation survives`, async () => {
 				const events: ITelemetryData[] = [];
 				const received = new DeferredPromise<void>();
 				const telemetryService = new class extends RecordingTelemetryService {
@@ -5894,12 +5894,13 @@ suite('CopilotAgent', () => {
 				await received.p;
 
 				assert.deepStrictEqual(events.map(event => ({
+					restricted: event.restricted,
 					turnId: event.turnId,
 					outcome: event.ahCorrelationOutcome,
 					copilotSku: event.copilotSku,
 					trackingId: event['common.copilotTrackingId'],
 				})), [{
-					turnId: 'owning-turn', outcome: 'mappingAvailable', copilotSku: 'sku-a', trackingId: 'analytics-a',
+					restricted: false, turnId: 'owning-turn', outcome: 'mappingAvailable', copilotSku: 'sku-a', trackingId: 'analytics-a',
 				}]);
 			});
 		}
@@ -6052,7 +6053,7 @@ suite('CopilotAgent', () => {
 		]);
 	});
 
-	test('routes exact restricted targets and only forwards standard fallback events', async () => {
+	test('keeps restricted SDK events out of the generic forwarder even when restricted telemetry is enabled', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.restrictedTelemetryContexts.set('restricted-token', {
@@ -6067,11 +6068,16 @@ suite('CopilotAgent', () => {
 			readonly genericEvents: string[] = [];
 			readonly enhancedEvents: string[] = [];
 			readonly internalEvents: string[] = [];
+			readonly dedicatedEventReceived = new DeferredPromise<void>();
+			readonly fallbackEventsReceived = new DeferredPromise<void>();
 			/** Completed once restricted telemetry is enabled. */
 			readonly restrictedEnabled = new DeferredPromise<void>();
 
 			override publicLog(eventName: string): void {
 				this.genericEvents.push(eventName);
+				if (eventName === 'copilotSdk/session_compaction_complete') {
+					this.fallbackEventsReceived.complete();
+				}
 			}
 			override sendEnhancedGHTelemetryEvent(eventName: string): void {
 				this.enhancedEvents.push(eventName);
@@ -6084,6 +6090,7 @@ suite('CopilotAgent', () => {
 			}
 			override sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string): void {
 				this.internalEvents.push(eventName);
+				this.dedicatedEventReceived.complete();
 			}
 			override setRestrictedTelemetryEnabled(enabled: boolean): void {
 				super.setRestrictedTelemetryEnabled(enabled);
@@ -6094,6 +6101,10 @@ suite('CopilotAgent', () => {
 		}(NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService }) as TestableCopilotAgent;
 		afterTest(() => disposeAgent(agent));
+		const genericForward = spy(agent['_gitHubTelemetryForwarder'], 'forward');
+		disposables.add(toDisposable(() => genericForward.restore()));
+		const compactionForward = spy(agent['_gitHubTelemetryForwarder'], 'forwardCompaction');
+		disposables.add(toDisposable(() => compactionForward.restore()));
 		await agent.authenticate('https://api.github.com', 'restricted-token');
 		await telemetryService.restrictedEnabled.p;
 		await agent.listChatsToMigrate();
@@ -6106,17 +6117,26 @@ suite('CopilotAgent', () => {
 			event: { kind, properties: {}, metrics: {} },
 		});
 		await forward(notification('engine.messages.length', true));
+		await telemetryService.dedicatedEventReceived.p;
 		await forward(notification('engine.messages', false));
-		await forward(notification('unknown_restricted', true));
-		await forward(notification('tool_call_executed', true));
-		await forward(notification('tool_call_executed', false));
+		const genericKinds = ['unknown_event', 'assistant_usage', 'response.success', 'response.error', 'tool_call_executed', 'skill_invoked'];
+		const compactionKinds = ['session_compaction_start', 'session_compaction_complete'];
+		for (const kind of [...genericKinds, ...compactionKinds]) {
+			await forward(notification(kind, true));
+			await forward(notification(kind, false));
+		}
+		await telemetryService.fallbackEventsReceived.p;
 
 		assert.deepStrictEqual({
+			genericCalls: genericForward.getCalls().map(({ args: [event] }) => ({ kind: event.event.kind, restricted: event.restricted })),
+			compactionCalls: compactionForward.getCalls().map(({ args: [event] }) => ({ kind: event.event.kind, restricted: event.restricted })),
 			generic: telemetryService.genericEvents,
 			enhanced: telemetryService.enhancedEvents,
 			internal: telemetryService.internalEvents,
 		}, {
-			generic: ['copilotSdk/tool_call_executed'],
+			genericCalls: genericKinds.map(kind => ({ kind, restricted: false })),
+			compactionCalls: compactionKinds.map(kind => ({ kind, restricted: false })),
+			generic: [...genericKinds, ...compactionKinds].map(kind => `copilotSdk/${kind}`),
 			enhanced: ['engine.messages.length'],
 			internal: ['engine.messages.length'],
 		});
