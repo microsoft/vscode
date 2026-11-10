@@ -100,17 +100,6 @@ stages:
         jobs:
           - template: product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           displayName: Windows X64

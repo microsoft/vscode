@@ -422,8 +422,9 @@ jobs:
           displayName: Compile & Hygiene
 
       # Copilot has its own TypeScript projects and ESLint configuration, which the steps above don't check (see
-      # build/filters.ts). Like the Copilot stage's build, the checks run after Copilot's vscode-capi mixin, so that
-      # they cover the code that ships. microsoft/vscode-capi is a separate repository that installs with npm.
+      # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after
+      # Copilot's vscode-capi mixin, so that they cover the code that ships. microsoft/vscode-capi is a separate
+      # repository that installs with npm.
       - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
         workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
         displayName: Mixin vscode-capi (Copilot)
