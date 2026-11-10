@@ -1140,6 +1140,7 @@
 		"--modern-ui-connected-pane-bottom-left-radius",
 		"--modern-ui-connected-pane-bottom-right-radius",
 		"--modern-ui-connected-pane-frame-radius",
+		"--modern-ui-connected-pane-radius",
 		"--modern-ui-connected-pane-right-radius",
 		"--modern-ui-connected-tab-action-background",
 		"--modern-ui-connected-tab-action-inset",
