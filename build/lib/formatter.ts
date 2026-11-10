@@ -217,13 +217,17 @@ export class Formatter {
 
 	async dispose(): Promise<void> {
 		this.disposing = true;
-		if (!this.exitError) {
-			await this.request('shutdown').catch(() => undefined);
-			this.notify('exit');
+		// Stops a server that doesn't respond. When it exits, its pending requests, including shutdown, fail.
+		const timeout = setTimeout(() => this.child.kill('SIGKILL'), 5_000);
+		try {
+			if (!this.exitError) {
+				await this.request('shutdown').catch(() => undefined);
+				this.notify('exit');
+			}
+			await this.exited;
+		} finally {
+			clearTimeout(timeout);
 		}
-		const timeout = setTimeout(() => this.child.kill(), 5_000);
-		await this.exited;
-		clearTimeout(timeout);
 	}
 
 	private async withRequestSlot<T>(fn: () => Promise<T>): Promise<T> {
