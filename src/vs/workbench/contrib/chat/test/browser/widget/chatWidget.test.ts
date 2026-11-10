@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -176,11 +176,11 @@ suite('ChatWidget', () => {
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
 	});
 
-	function createRespondentWidget(lockedAgent: boolean) {
-		const resource = URI.parse('agent-host-copilotcli:/session#peer');
+	function createRespondentWidget(lockedAgent: boolean, selectedChat = constObservable(URI.parse('agent-host-copilotcli:/session#peer')), sandboxedChat?: URI) {
+		const resource = selectedChat.get();
 		let placeholder: string | undefined;
 		const viewModel = upcastPartial<ChatViewModel>({
-			sessionResource: resource,
+			get sessionResource() { return selectedChat.get(); },
 			get inputPlaceholder() { return placeholder; },
 			setInputPlaceholder: (text: string) => { placeholder = text; },
 			resetInputPlaceholder: () => { placeholder = undefined; },
@@ -195,6 +195,7 @@ suite('ChatWidget', () => {
 		hasActiveRequest.set(true);
 		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
+			sandboxToggleChecked: derived(reader => selectedChat.read(reader) === sandboxedChat),
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
 			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
 				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
@@ -227,6 +228,18 @@ suite('ChatWidget', () => {
 		});
 		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
 	}
+
+	test('restores the sandbox label when switching between chats with the same placeholder', () => {
+		const plain = URI.parse('agent-host-copilotcli:/plain');
+		const sandboxed = URI.parse('agent-host-copilotcli:/sandboxed');
+		const selected = observableValue('selectedChat', plain);
+		const { widget, editorPlaceholders } = createRespondentWidget(true, selected, sandboxed);
+		for (const resource of [plain, sandboxed, plain, sandboxed]) {
+			selected.set(resource, undefined);
+			widget.setRespondent({ label: 'Copilot', icon: Codicon.copilot, modelSessionType: undefined });
+		}
+		assert.deepStrictEqual(editorPlaceholders, ['Chat with Copilot', 'Chat with Copilot (sandbox enabled)', 'Chat with Copilot', 'Chat with Copilot (sandbox enabled)']);
+	});
 
 	test('unbinding clears running-request controls before refreshing the toolbars', () => {
 		const harness = createRespondentWidget(true);
