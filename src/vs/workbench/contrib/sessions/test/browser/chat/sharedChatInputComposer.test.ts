@@ -35,6 +35,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
+import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
@@ -234,6 +235,73 @@ suite('SharedChatInputComposer', () => {
 
 			assert.deepStrictEqual({ sent, input: state().input.text, focused: dom.getWindow(root).document.activeElement === (moveFocus ? otherControl : editor) }, {
 				sent: false, input: 'Build it', focused: true,
+			});
+		});
+	}
+
+	for (const moveFocus of ['none', 'confirmation', 'send']) {
+		test(`restores foreground editor focus after confirmation and rejection unless focus moved during ${moveFocus}`, async () => {
+			const root = dom.append(dom.getActiveWindow().document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editorHost = dom.append(root, dom.$('div'));
+			const editor = dom.append(editorHost, dom.$<HTMLTextAreaElement>('textarea'));
+			const inputActions = dom.append(root, dom.$('div'));
+			const sendControl = dom.append(root, dom.$('button'));
+			const otherControl = dom.append(root, dom.$('button'));
+			const confirmation = new DeferredPromise<boolean>();
+			const { composer, widget, state } = createComposer({
+				sendResult: false,
+				confirmSend: confirmation,
+				onSend: () => {
+					if (moveFocus === 'send') {
+						otherControl.focus();
+					}
+				},
+			});
+			const input: ChatInputPart = Object.assign(Object.create(widget.input!), {
+				inputEnabled: true,
+				_inputEditor: {
+					hasWidgetFocus: () => dom.getWindow(editor).document.activeElement === editor,
+					updateOptions: ({ readOnly }: { readOnly: boolean }) => { editor.readOnly = readOnly; },
+					focus: () => editor.focus(),
+				},
+				_inputEditorElement: editorHost,
+				attachmentsContainer: dom.append(root, dom.$('div')),
+				inputActionsToolbar: { getElement: () => inputActions },
+				secondaryToolbarContainer: dom.append(root, dom.$('div')),
+				dnd: { setDisabledOverlay: () => { } },
+				executeToolbar: { focus: () => sendControl.focus() },
+				setInputEnabled: ChatInputPart.prototype.setInputEnabled,
+				hasFocus: ChatInputPart.prototype.hasFocus,
+				focus: ChatInputPart.prototype.focus,
+			});
+			widget.domNode = root;
+			widget.input = input;
+			editor.focus();
+
+			const sending = composer.submit(false);
+			await timeout(0);
+			const toolbarFocusedDuringConfirmation = dom.getWindow(root).document.activeElement === sendControl;
+			if (moveFocus === 'confirmation') {
+				otherControl.focus();
+			}
+			confirmation.complete(true);
+			const sent = await sending;
+
+			assert.deepStrictEqual({
+				sent,
+				toolbarFocusedDuringConfirmation,
+				input: state().input.text,
+				attachments: state().input.attachments,
+				readOnly: editor.readOnly,
+				focused: dom.getWindow(root).document.activeElement === (moveFocus === 'none' ? editor : otherControl),
+			}, {
+				sent: false,
+				toolbarFocusedDuringConfirmation: true,
+				input: 'Build it',
+				attachments: ['context'],
+				readOnly: false,
+				focused: true,
 			});
 		});
 	}
