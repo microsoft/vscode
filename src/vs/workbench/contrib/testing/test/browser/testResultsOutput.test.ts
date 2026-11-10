@@ -13,6 +13,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
@@ -40,6 +41,8 @@ suite('Testing output terminal', () => {
 	let xterm: IDetachedXtermTerminal;
 	let raw: Terminal;
 	let integration: ShellIntegrationAddon;
+	let logService: NullLogService;
+	let telemetryService: ITelemetryService;
 	let selected: sinon.SinonSpy;
 	let terminal: IDetachedTerminalInstance;
 	let terminalCreation: DeferredPromise<IDetachedTerminalInstance> | undefined;
@@ -47,8 +50,8 @@ suite('Testing output terminal', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		raw = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 10, logger: TestXtermLogger }));
-		integration = store.add(new ShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
-		raw.loadAddon(integration);
+		logService = store.add(new NullLogService());
+		telemetryService = new class extends mock<ITelemetryService>() { override publicLog2 = () => { }; };
 		selected = sinon.spy((start: string, end: string) => {
 			const marks = integration.capabilities.get(TerminalCapability.BufferMarkDetection);
 			assert.ok(marks?.getMark(start));
@@ -72,6 +75,8 @@ suite('Testing output terminal', () => {
 			new class extends mock<ITerminalService>() {
 				override async createDetachedTerminal(options: IDetachedXTermOptions) {
 					store.add(options.capabilities!);
+					integration = store.add(new ShellIntegrationAddon('', options.disableShellIntegrationReporting, undefined, telemetryService, logService));
+					raw.loadAddon(integration);
 					return terminalCreation ? terminalCreation.p : terminal;
 				}
 			},
@@ -83,6 +88,31 @@ suite('Testing output terminal', () => {
 		result.addTestChainToRun('ctrl', [{ extId: 'ctrl', label: 'test', tags: [], busy: false, uri: undefined, range: null, description: null, error: null, sortText: null }]);
 		result.appendOutput(VSBuffer.fromString('hello \u2713\r\n'), 'task', undefined, 'ctrl');
 	});
+
+	for (const scope of ['task', 'test'] as const) {
+		test(`does not report a shell integration timeout for ${scope} output with filtered markers`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			try {
+				const warn = sinon.spy(logService, 'warn');
+				const telemetry = sinon.spy(telemetryService, 'publicLog2');
+				const subject = scope === 'task'
+					? new TaskSubject(result, 0)
+					: new TestOutputSubject(result, 0, result.getStateById('ctrl')!);
+				const update = peek.update(subject);
+				await clock.tickAsync(0);
+				await update;
+				await clock.tickAsync(10001);
+				assert.deepStrictEqual({
+					warnings: warn.args,
+					timeouts: telemetry.args.filter(args => args[0] === 'terminal/shellIntegrationActivationTimeout'),
+					text: raw.buffer.active.getLine(0)?.translateToString(true),
+					markers: raw.markers.length,
+				}, { warnings: [], timeouts: [], text: 'hello \u2713', markers: 0 });
+			} finally {
+				clock.restore();
+			}
+		});
+	}
 
 	test('whole-run output does not create hidden per-message markers', async () => {
 		await peek.update(new TaskSubject(result, 0));

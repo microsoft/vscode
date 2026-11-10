@@ -436,6 +436,8 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	/** Whether to disable shell integration activation timeout reporting. */
+	disableShellIntegrationReporting?: boolean;
 	disableOverviewRuler?: boolean;
 	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
 	scrollback?: number;

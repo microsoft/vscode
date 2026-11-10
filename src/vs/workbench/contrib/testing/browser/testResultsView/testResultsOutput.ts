@@ -466,6 +466,7 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 			rows: 10,
 			cols: 80,
 			readonly: true,
+			disableShellIntegrationReporting: true,
 			capabilities,
 			processInfo,
 			colorProvider: {
