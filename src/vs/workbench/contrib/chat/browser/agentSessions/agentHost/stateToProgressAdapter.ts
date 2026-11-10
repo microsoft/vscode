@@ -27,6 +27,7 @@ import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -838,8 +839,11 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Whether a raw AHP model id names this provider's fusion routing model. */
 	isFusionModel?(rawModelId: string | undefined): boolean;
-	/** Returns the Auto model routing part carried by this usage report, if any. */
-	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
+	/**
+	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
+	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 */
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
@@ -913,6 +917,32 @@ export function formatTurnResponseDetails(
 		return [displayName, formatCopilotCreditsLabel(credits)].join(' • ');
 	}
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/**
+ * Whether a model router that picks once per chat has already picked for this chat. A later turn
+ * that selects it keeps that pick without being routed, so there is no routing to report. As on
+ * the host, a model picked by hand or another router selected since then means it routes afresh.
+ */
+export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
+	if (!routerName) {
+		return false;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (turns[i].id === turnId) {
+			continue;
+		}
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed.router === routerName && routed.firstTurnOnly === true;
+		}
+		// A turn since that pick that selected a model by hand, or another router.
+		const requested = turns[i].message.model?.id;
+		if (requested && modelRouterNameFromModelId(requested) !== routerName) {
+			return false;
+		}
+	}
+	return false;
 }
 
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
