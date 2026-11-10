@@ -15,6 +15,7 @@ import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
@@ -263,6 +264,16 @@ function parseUri(value: string | undefined): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * The file of a `resource` artifact that names one with a file URI, on the agent host's file system like the files of
+ * `file` artifacts. Other resources, such as settings, are no files.
+ */
+function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
+	const uri = artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
+	return uri && uri.scheme === Schemas.file ? toAgentHostUri(uri, getAgentHostResourceAuthority(resolution)) : undefined;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -969,13 +980,15 @@ export class AgentHostSessionInputPills extends Disposable {
 				: [];
 		});
 		// Artifacts and references with a resource are chat resources, whether the agent host or a chat
-		// tool recorded them: the user can give them a pill of their own or show them in the chat.
+		// tool recorded them: the user can give them a pill of their own or show them in the chat. Agents also record files
+		// with the `resource` type, which the lists show as links; their file URI counts too.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
+			const currentResolution = resolution.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
 			return [...allArtifactSections.read(reader), ...allReferenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
-				const resource = entry.resource;
+				const resource = entry.resource ?? (artifact && currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined);
 				if (!resource) {
 					return [];
 				}

@@ -37,6 +37,7 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatResourcesEnabledSettingId } from '../../../browser/chatResources/chatResources.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -643,6 +644,27 @@ suite('AgentHostSessionInputPills', () => {
 			});
 		});
 	}
+
+	test('chat resources include files recorded as resources, but not resources that are no files', async () => {
+		const configurationService = new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true });
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'file', label: 'Plan', uri: 'file:///repo/plan.md', type: SessionArtifactType.File, isArtifact: true },
+				{ id: 'file-resource', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true },
+				{ id: 'settings', label: 'Chat settings', uri: 'vscode://settings/chat', type: SessionArtifactType.Resource, isArtifact: true },
+			]),
+		}), undefined, undefined, 'local', undefined, undefined, { configurationService });
+
+		const pinActions = harness.dropdown('3 Artifacts').filter(item => item.toolbarActions?.length).map(item => `${item.label}: ${item.toolbarActions.filter(action => action.label.startsWith('Pin ')).map(action => action.id).join(', ')}`);
+
+		// The chat's own pin, which offers to show the file in the chat, replaces the generic pin of the Artifacts list.
+		assert.deepStrictEqual(pinActions, [
+			'plan.md: chatResources.pin',
+			'Chat settings: chatInputPills.artifacts.pin.settings',
+			'Status: chatResources.pin',
+		]);
+	});
 
 	test('legacy artifact rules join the editor pill only when their setting is enabled', async () => {
 		const service = upcastPartial<IChatArtifactsService>({
