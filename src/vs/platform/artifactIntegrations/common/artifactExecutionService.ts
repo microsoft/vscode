@@ -137,6 +137,7 @@ export class ArtifactExecutionService extends Disposable {
 			const action = this.requireAction(binding, actionId, true, chat);
 			const run: ArtifactRun = {
 				...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor,
+				...binding.presentation.get().generalActions.some(action => action.id === actionId) ? { generalAction: true } : {},
 				...input === undefined ? {} : { input: deepClone(input) },
 			};
 			state.runs.push(run);
