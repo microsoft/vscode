@@ -937,6 +937,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
+				// The extension-host Copilot CLI provider is being retired; run as after its removal.
+				'github.copilot.chat.cli.legacyProvider.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.

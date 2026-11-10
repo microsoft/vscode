@@ -696,11 +696,6 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 
-// Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
-// setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
-// sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
-export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
-
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
@@ -1101,12 +1096,6 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
-		default: false,
-	}),
-	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
-		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({

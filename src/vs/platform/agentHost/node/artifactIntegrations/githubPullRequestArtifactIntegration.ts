@@ -27,7 +27,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -767,8 +767,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (snapshot.core.value?.state !== 'open') {
 			return localize('prArtifact.terminal', "This pull request is closed or merged.");
 		}
-		return actionId === 'merge' ? localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.")
-			: undefined;
+		if (actionId !== 'merge') {
+			return undefined;
+		}
+		const missing = snapshot.checks.value?.headSha === snapshot.core.value?.headSha ? getPullRequestArtifactMissingRequiredChecks(snapshot) : [];
+		return missing.length
+			? localize('prArtifact.requiredChecksMissing', "GitHub blocks merging until these required checks report on the current revision: {0}. If their workflow has finished, rerun it.", missing.join(', '))
+			: localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.");
 	}
 
 	/**
