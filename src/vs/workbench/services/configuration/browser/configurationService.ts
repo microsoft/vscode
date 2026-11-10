@@ -460,26 +460,30 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (this.isWorkspaceTrusted !== trusted) {
 			this.isWorkspaceTrusted = trusted;
 			const data = this._configuration.toData();
+			const keys: string[] = [];
 			const folderConfigurationModels: (ConfigurationModel | undefined)[] = [];
 			for (const folder of this.workspace.folders) {
 				const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 				let configurationModel: ConfigurationModel | undefined;
 				if (folderConfiguration) {
 					configurationModel = folderConfiguration.updateWorkspaceTrust(this.isWorkspaceTrusted);
+					keys.push(...this.getChangedKeys(this._configuration.folderConfigurations.get(folder.uri), configurationModel));
 					this._configuration.updateFolderConfiguration(folder.uri, configurationModel);
 				}
 				folderConfigurationModels.push(configurationModel);
 			}
 			if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
 				if (folderConfigurationModels[0]) {
+					keys.push(...this.getChangedKeys(this._configuration.workspaceConfiguration, folderConfigurationModels[0]));
 					this._configuration.updateWorkspaceConfiguration(folderConfigurationModels[0]);
 				}
 			} else {
-				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.updateWorkspaceTrust(this.isWorkspaceTrusted));
+				const workspaceConfigurationModel = this.workspaceConfiguration.updateWorkspaceTrust(this.isWorkspaceTrusted);
+				keys.push(...this.getChangedKeys(this._configuration.workspaceConfiguration, workspaceConfigurationModel));
+				this._configuration.updateWorkspaceConfiguration(workspaceConfigurationModel);
 			}
 			this.updateRestrictedSettings();
 
-			let keys: string[] = [];
 			if (this.restrictedSettings.userLocal) {
 				keys.push(...this.restrictedSettings.userLocal);
 			}
@@ -490,11 +494,18 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				keys.push(...this.restrictedSettings.workspace);
 			}
 			this.restrictedSettings.workspaceFolder?.forEach((value) => keys.push(...value));
-			keys = distinct(keys);
-			if (keys.length) {
-				this.triggerConfigurationChange({ keys, overrides: [] }, { data, workspace: this.workspace }, ConfigurationTarget.WORKSPACE);
+			const changedKeys = distinct(keys);
+			if (changedKeys.length) {
+				this.triggerConfigurationChange({ keys: changedKeys, overrides: [] }, { data, workspace: this.workspace }, ConfigurationTarget.WORKSPACE);
 			}
 		}
+	}
+
+	private getChangedKeys(from: ConfigurationModel | undefined, to: ConfigurationModel): string[] {
+		const fromKeys = from?.keys ?? [];
+		const fromKeySet = new Set(fromKeys);
+		const toKeySet = new Set(to.keys);
+		return [...to.keys.filter(key => !fromKeySet.has(key)), ...fromKeys.filter(key => !toKeySet.has(key))];
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
