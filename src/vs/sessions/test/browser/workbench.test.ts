@@ -1193,6 +1193,55 @@ suite('Sessions - Workbench', () => {
 		]);
 	});
 
+	test('lays out the activity bar with equal gaps beside inset frames and the window edge without moving it when details close', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel'));
+		root.style.cssText = 'position: relative; width: 800px; height: 200px; --vscode-strokeThickness: 1px;';
+		store.add(toDisposable(() => root.remove()));
+		const frame = append(root, $('div'));
+		frame.style.cssText = 'position: absolute; top: 0; height: 200px;';
+		const column = store.add(new SessionActivityBarColumn(constObservable(true)));
+		append(root, column.element);
+		const strip = append(column.element, $('.session-activity-bar.docked'));
+		strip.style.width = '30px';
+		const host = {
+			mainContainer: root,
+			sessionActivityBarColumn: column,
+			layoutDensity: ModernUIDensity.Default,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			_mainContainerDimension: { width: 800, height: 200 },
+			isEditorPaneVisible: () => !root.classList.contains('noeditorpane'),
+			workbenchGrid: {
+				layout: (width: number, height: number) => {
+					const inset = root.classList.contains('modern-ui-compact') ? 0 : 1;
+					column.element.style.cssText = `position: absolute; left: ${width - column.minimumWidth}px; width: ${column.minimumWidth}px; height: ${height}px;`;
+					frame.style.width = `${width - column.minimumWidth - inset}px`;
+				},
+			},
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+		const layout = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: typeof host) => void;
+		const gaps = (classes: string, compact = false) => {
+			root.classList.remove('noeditorpane', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, 'modern-ui-compact');
+			root.classList.add(...classes.split(' '));
+			host.layoutDensity = compact ? ModernUIDensity.Compact : ModernUIDensity.Default;
+			layout.call(host);
+			const bounds = strip.getBoundingClientRect();
+			return { gaps: [bounds.left - frame.getBoundingClientRect().right, root.getBoundingClientRect().right - bounds.right], right: bounds.right };
+		};
+
+		assert.deepStrictEqual({
+			open: gaps(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+			closed: gaps('noeditorpane'),
+			reopened: gaps(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+			compact: gaps('modern-ui-compact', true),
+		}, {
+			open: { gaps: [4, 4], right: root.getBoundingClientRect().right - 4 },
+			closed: { gaps: [4, 4], right: root.getBoundingClientRect().right - 4 },
+			reopened: { gaps: [4, 4], right: root.getBoundingClientRect().right - 4 },
+			compact: { gaps: [0, 0], right: root.getBoundingClientRect().right },
+		});
+	});
+
 	test('applies layout density at startup and relayouts changes without changing phone gutters', async () => {
 		const configuration = new TestConfigurationService({
 			[LayoutSettings.MODERN_UI]: false,

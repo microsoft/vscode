@@ -207,14 +207,64 @@ suite('Sessions - Titlebar Part', () => {
 
 		const lastIs = (name: string, inset: number) => ({ last: [name], insets: name === 'layout' ? { session: '0px', layout: `${inset}px` } : { session: `${inset}px` }, edge: inset });
 		assert.deepStrictEqual({ inTitleBar, inStrip, backInTitleBar, mainMarked: mainPart.element.querySelectorAll('.titlebar-last-actions').length }, {
-			inTitleBar: { default: lastIs('layout', 12), customWindowControls: lastIs('layout', 8), customWindowControlsFullscreen: lastIs('layout', 12) },
-			inStrip: { default: lastIs('session', 12), customWindowControls: lastIs('session', 8), customWindowControlsFullscreen: lastIs('session', 12) },
-			backInTitleBar: lastIs('layout', 12),
+			inTitleBar: { default: lastIs('layout', 8), customWindowControls: lastIs('layout', 8), customWindowControlsFullscreen: lastIs('layout', 8) },
+			inStrip: { default: lastIs('session', 8), customWindowControls: lastIs('session', 8), customWindowControlsFullscreen: lastIs('session', 8) },
+			backInTitleBar: lastIs('layout', 8),
 			mainMarked: 0,
 		});
 	});
 
 	for (const platform of ['mac', 'windows', 'linux', 'web']) {
+		test(`uses the tighter ${platform} title-bar inset whenever right-side window controls take no space`, () => {
+			const { part } = createTitlebar();
+			const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
+			store.add(toDisposable(() => root.remove()));
+			root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px;';
+			const content = append(append(root, $('.part.titlebar')), $('.titlebar-container.sessions-titlebar-container.has-center'));
+			const left = append(content, $('.titlebar-left'));
+			append(content, $('.titlebar-center'));
+			const right = append(content, $('.titlebar-right'));
+			const toolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
+			const controls = append(right, $('.window-controls-container'));
+			controls.style.width = '138px';
+			Reflect.set(part, 'rootContainer', content);
+			Reflect.set(part, 'rightContent', right);
+			const read = () => {
+				updateTitleBarToolBarOverflow.call(part);
+				return {
+					hasControls: right.classList.contains('has-window-controls'),
+					inset: mainWindow.getComputedStyle(toolbar).paddingRight,
+				};
+			};
+			const shown = read();
+			controls.style.display = 'none';
+			const hidden = read();
+			controls.style.display = '';
+			controls.style.width = '0px';
+			const emptyOverlay = read();
+			controls.style.width = '138px';
+			const restored = read();
+			root.classList.add('fullscreen');
+			const fullscreen = read();
+			root.classList.remove('fullscreen');
+			const exitedFullscreen = read();
+			left.appendChild(controls);
+			const controlsOnLeft = read();
+			right.appendChild(controls);
+			const controlsOnRight = read();
+
+			assert.deepStrictEqual({ shown, hidden, emptyOverlay, restored, fullscreen, exitedFullscreen, controlsOnLeft, controlsOnRight }, {
+				shown: { hasControls: true, inset: '8px' },
+				hidden: { hasControls: false, inset: '4px' },
+				emptyOverlay: { hasControls: false, inset: '4px' },
+				restored: { hasControls: true, inset: '8px' },
+				fullscreen: { hasControls: false, inset: '4px' },
+				exitedFullscreen: { hasControls: true, inset: '8px' },
+				controlsOnLeft: { hasControls: false, inset: '4px' },
+				controlsOnRight: { hasControls: true, inset: '8px' },
+			});
+		});
+
 		for (const auxiliary of [false, true]) {
 			test(`optically centers ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar contents in default density`, () => {
 				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
@@ -274,7 +324,7 @@ suite('Sessions - Titlebar Part', () => {
 			test(`keeps ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar outer spacing unchanged across densities`, () => {
 				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
 				store.add(toDisposable(() => root.remove()));
-				root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size80: 8px;';
+				root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size40: 4px;';
 				const grid = auxiliary ? root : append(root, $('.monaco-grid-view'));
 				const titlebar = append(grid, $('.part.titlebar'));
 				titlebar.style.height = '35px';
@@ -289,6 +339,7 @@ suite('Sessions - Titlebar Part', () => {
 				const rightAction = append(rightToolbar, $('.action-label'));
 				rightAction.style.cssText = 'width: 40px; height: 22px; flex-shrink: 0;';
 				const windowControls = platform === 'windows' ? append(right, $('.window-controls-container')) : undefined;
+				right.classList.toggle('has-window-controls', !!windowControls);
 
 				const states = [false, true, false].map(compact => {
 					root.classList.toggle('modern-ui-compact', compact);
@@ -316,7 +367,7 @@ suite('Sessions - Titlebar Part', () => {
 					right: outerInset,
 					center: auxiliary ? 400 : 398,
 					leftAction: 0,
-					rightAction: outerInset + 8 + (windowControls ? 138 : 0),
+					rightAction: outerInset + (windowControls ? 8 + 138 : 4),
 					rightActionWidth: 40,
 					rightActionHeight: 22,
 					windowControlsRight: windowControls ? outerInset : undefined,

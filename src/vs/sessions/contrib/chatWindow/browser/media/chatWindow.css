@@ -58,7 +58,7 @@
 	--part-grid-card-radius: 0;
 }
 
-/* The strip's column shows the window behind the strip, as the main window's column does: only the strip is framed. */
+/* The strip's column shows the window behind the strip, as the main window's column does. */
 .monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="strip"] > .part-grid-card {
 	--part-grid-card-background: transparent;
 }
@@ -90,7 +90,7 @@
 }
 
 /*
- * The strip fills its column from top to bottom, as the main window's does (`sessionActivityBar.css`), to the right of
+ * The strip follows the card frames, as the main window's does (`sessionActivityBar.css`), to the right of
  * the gap the column keeps to the cards (`getChatWindowStripWidth`). By rules of its own: those of the main window's
  * column follow the state of the main window, whose classes the workbench element of a chat window mirrors.
  */
@@ -105,8 +105,8 @@
 	right: 0;
 }
 
-/* The cards beside it show their frames inset within them by the stroke, as the main window's chat does: moved toward
- * them by as much, as beside that chat, so that the gap between them shows as wide as the gap between cards. */
-.monaco-workbench:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
-	right: var(--vscode-strokeThickness);
+/* Follow the inset card frames independently of the main window's visibility state. */
+.monaco-workbench.modern-ui-tabs:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	top: var(--vscode-strokeThickness);
+	bottom: var(--vscode-strokeThickness);
 }

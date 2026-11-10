@@ -119,16 +119,20 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-right-layout-container:not(.titlebar-last-actions) {
 	padding-right: var(--vscode-spacing-size80);
 }
 
 /* The last shown actions of a window with layout actions, such as a chat window, keep the inset of the main window's last
  * actions to the window's edge: its layout actions, or the actions before them while those show in its Session Activity Bar. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
-	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-agents-layout-floatingPanelGap));
 }
 
-.monaco-workbench:not(.fullscreen) .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-actions-container.titlebar-last-actions {
 	padding-right: var(--vscode-spacing-size80);
 }
 

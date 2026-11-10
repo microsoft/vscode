@@ -31,6 +31,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { AgentsPartCard } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
@@ -70,7 +71,7 @@ const RESTORE_SESSION_TIMEOUT = 30_000;
  * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
  */
 export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize): number {
-	return (compact ? 0 : AGENTS_FLOATING_PANEL_GAP) + MenuActivityBar.getWidth(compact, size);
+	return (compact ? 0 : AGENTS_FLOATING_PANEL_GAP - AgentsPartCard.BORDER_WIDTH) + MenuActivityBar.getWidth(compact, size);
 }
 
 /**

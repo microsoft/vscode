@@ -235,6 +235,9 @@ suite('Sessions - Layout Actions', () => {
 		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
 			layoutActions: base,
 			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			docked: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedActivityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedEditorMaximized: { ...base, editorMaximized: true, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
 			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
 			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
 			editorMaximized: { ...base, editorMaximized: true },
@@ -251,6 +254,9 @@ suite('Sessions - Layout Actions', () => {
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
+				docked: [],
+				dockedActivityBarOff: ['titleBar'],
+				dockedEditorMaximized: ['titleBar'],
 				activityBarOff: ['titleBar'],
 				editorMaximized: ['titleBar'],
 				// The phone layout has its own panel controls.
@@ -294,7 +300,6 @@ suite('Sessions - Layout Actions', () => {
 				order: item.order,
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasToggledState: Boolean(item.command.toggled),
-				when: item.when?.serialize(),
 			}))
 			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
 
@@ -310,15 +315,12 @@ suite('Sessions - Layout Actions', () => {
 					order: 10,
 					icon: Codicon.layoutPanel.id,
 					hasToggledState: false,
-					// Hidden while the Session Activity Bar shows its layout actions.
-					when: 'editorMaximized && panelVisible && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 				{
 					group: 'navigation',
 					order: 10,
 					icon: Codicon.layoutPanelOff.id,
 					hasToggledState: false,
-					when: 'editorMaximized && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 			],
 			terminalActionPresent: false,
