@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getRevealScrollTop, getRowsOutlinePath, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +130,18 @@ suite('Comment thread floating widget', () => {
 			}), { top: 568, left: 592, centered: false });
 		});
 
+		test('places a new comment right after the end of the code when there is room', () => {
+			assert.deepStrictEqual({
+				room: computeFloatingWidgetPlacement({ ...request, besideCode: true }),
+				noRoom: computeFloatingWidgetPlacement({ ...request, besideCode: true, code: { top: 500, left: 60, width: 560, height: 40 } }),
+				besideOtherWidget: computeFloatingWidgetPlacement({ ...request, besideCode: true, obstacles: [{ top: 480, left: 400, width: 300, height: 100 }] }),
+			}, {
+				room: { top: 500, left: 384, centered: false },
+				noRoom: { top: 548, left: 60, centered: false },
+				besideOtherWidget: { top: 588, left: 384, centered: false },
+			});
+		});
+
 		test('moves the widget to the closest free position above or below the widgets it would cover', () => {
 			assert.deepStrictEqual({
 				closerAbove: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 380, left: 600, width: 300, height: 300 }] }),
@@ -146,6 +158,40 @@ suite('Comment thread floating widget', () => {
 				closerAbove: { top: 172, left: 592, centered: false },
 				belowOutOfReach: { top: 264, left: 592, centered: false },
 				noFreePosition: { top: 192, left: 592, centered: false },
+			});
+		});
+	});
+
+	suite('getWidthBesideCode', () => {
+		test('is as wide as preferred, or as wide as there is room for after the end of the code', () => {
+			const code = { top: 500, left: 60, width: 300, height: 20 };
+			assert.deepStrictEqual({
+				room: getWidthBesideCode(code, 200, 400, 240, 1000, []),
+				lessRoom: getWidthBesideCode({ ...code, width: 500 }, 200, 560, 240, 1000, []),
+				narrowEditor: getWidthBesideCode({ ...code, width: 100 }, 200, 280, 240, 500, []),
+				tooLittleRoom: getWidthBesideCode({ ...code, width: 700 }, 200, 400, 240, 1000, []),
+				narrowerThanContent: getWidthBesideCode({ ...code, width: 500 }, 200, 560, 450, 1000, []),
+			}, {
+				room: 400,
+				lessRoom: 408,
+				narrowEditor: 280,
+				tooLittleRoom: undefined,
+				narrowerThanContent: undefined,
+			});
+		});
+
+		test('leaves room for the widgets beside the code', () => {
+			const code = { top: 500, left: 60, width: 300, height: 20 };
+			assert.deepStrictEqual({
+				besideWidget: getWidthBesideCode(code, 200, 400, 240, 1000, [{ top: 400, left: 750, width: 240, height: 150 }]),
+				tooCloseToWidget: getWidthBesideCode(code, 200, 400, 240, 1000, [{ top: 650, left: 650, width: 340, height: 100 }]),
+				aboveAndBelowWidgets: getWidthBesideCode(code, 200, 400, 240, 1000, [{ top: 300, left: 400, width: 300, height: 200 }, { top: 700, left: 400, width: 300, height: 100 }]),
+				widgetOverCode: getWidthBesideCode(code, 200, 400, 240, 1000, [{ top: 500, left: 300, width: 200, height: 100 }]),
+			}, {
+				besideWidget: 358,
+				tooCloseToWidget: undefined,
+				aboveAndBelowWidgets: 400,
+				widgetOverCode: undefined,
 			});
 		});
 	});

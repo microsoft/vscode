@@ -33,7 +33,7 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getDefaultFloatingWidgetWidth, getRevealScrollTop, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getDefaultFloatingWidgetWidth, getRevealScrollTop, getWidthBesideCode, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -505,19 +505,29 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		const bounds = this._getHorizontalBounds();
 		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths(), this._commentThreadWidget.isEditing);
-		const width = this._setWidth(getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN), widthRange);
-		const height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
+		let width = this._setWidth(getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN), widthRange);
+		let height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
 
 		const scrollTop = this.editor.getScrollTop();
-		const code = this._codeGeometry.getBoundingRect();
+		const editorCode = this._codeGeometry.getBoundingRect();
+		const code = editorCode && { ...editorCode, top: editorCode.top + scrollTop };
+		const obstacles = this._host.getOccupiedRects(this);
+		// A new comment goes right after the end of its code when there is room, so that it's close to where it's written.
+		const widthBesideCode = code && !this._commentThread.comments?.length ? getWidthBesideCode(code, height, width, widthRange.min, bounds.right, obstacles) : undefined;
+		if (widthBesideCode !== undefined && widthBesideCode !== width) {
+			width = this._setWidth(widthBesideCode, widthRange);
+			height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
+		}
+
 		const { top, left, centered } = computeFloatingWidgetPlacement({
 			minLeft: bounds.left + EDGE_MARGIN,
 			maxRight: bounds.right,
 			width,
 			height,
-			code: code && { ...code, top: code.top + scrollTop },
-			obstacles: this._host.getOccupiedRects(this),
-			scrollableHeight: this._getScrollableHeight()
+			code,
+			obstacles,
+			scrollableHeight: this._getScrollableHeight(),
+			besideCode: widthBesideCode !== undefined
 		});
 		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined };
 	}
