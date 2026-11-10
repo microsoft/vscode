@@ -1305,13 +1305,16 @@ suite('Sessions - Floating Details', () => {
 
 	for (const glass of [false, true]) {
 		test(`keeps editor scrollbars behind the ${glass ? 'frosted' : 'solid'} floating panel without blocking either scrollbar`, () => {
-			const { editor, part, controller } = createHost();
+			const { editor, part, controller, resize } = createHost();
+			const width = Math.min(800, mainWindow.document.documentElement.clientWidth);
+			const height = Math.min(600, mainWindow.document.documentElement.clientHeight);
+			resize(width, height);
 			const root = editor.closest<HTMLElement>('.monaco-workbench')!;
 			root.classList.toggle('modern-ui-frosted-glass', glass);
 			root.style.setProperty('--vscode-spacing-size80', '8px');
 			root.style.setProperty('--vscode-strokeThickness', '1px');
-			Object.assign(root.style, { position: 'fixed', top: '0', left: '0', width: '800px', height: '600px' });
-			Object.assign(editor.style, { position: 'relative', width: '800px', height: '600px', overflow: 'hidden' });
+			Object.assign(root.style, { position: 'fixed', top: '0', left: '0', width: `${width}px`, height: `${height}px` });
+			Object.assign(editor.style, { position: 'relative', overflow: 'hidden' });
 			const content = append(editor, $('.content'));
 			Object.assign(content.style, { position: 'absolute', inset: '0' });
 			const group = append(content, $('.editor-group-container'));
@@ -1337,7 +1340,8 @@ suite('Sessions - Floating Details', () => {
 			const x = (left + right) / 2;
 			const y = panelBounds.top + 60;
 			const panelOnTop = panelScrollbar.contains(mainWindow.document.elementFromPoint(x, y));
-			const editorOutsidePanel = editorScrollbar.contains(mainWindow.document.elementFromPoint(x, overlay.getBoundingClientRect().bottom + 12));
+			const outsideY = (overlay.getBoundingClientRect().bottom + scrollbarBounds.bottom) / 2;
+			const editorOutsidePanel = editorScrollbar.contains(mainWindow.document.elementFromPoint(x, outsideY));
 			controller.hide();
 			part.style.display = 'none';
 			const editorAfterCollapse = editorScrollbar.contains(mainWindow.document.elementFromPoint(x, y));

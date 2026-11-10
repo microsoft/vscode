@@ -226,7 +226,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 			}
 		}));
 		this._register(focus.onDidBlur(() => {
-			if (!this.pointerInside && !this.resizing && !this.dragMonitor.isMonitoring()) {
+			if (!this.pointerInside && !this.resizing && !this.dragMonitor.isMonitoring() && !this.hoverExit.isScheduled()) {
 				this.collapsePreview();
 			}
 		}));
