@@ -2789,6 +2789,14 @@ export class CopilotAgentSession extends Disposable {
 		this._hasSentTurn = true;
 
 		const turnId = generateUuid();
+		this.resetTurnState(turnId, undefined, AgentHostClientType.Unknown, undefined, true);
+		const turn = this._currentTurn.value;
+		if (turn) {
+			turn.messageCharLen = event.data.content.length;
+			turn.sdkSendInvoked = true;
+			turn.markRunning();
+			this._markPermissionPromptsReady(turn);
+		}
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -2798,13 +2806,6 @@ export class CopilotAgentSession extends Disposable {
 				origin: { kind: MessageKind.User },
 			},
 		});
-		this.resetTurnState(turnId, undefined, AgentHostClientType.Unknown, undefined, true);
-		const turn = this._currentTurn.value;
-		if (turn) {
-			turn.messageCharLen = event.data.content.length;
-			turn.markRunning();
-			this._markPermissionPromptsReady(turn);
-		}
 	}
 
 	/** Clears unpromoted steering, including messages still preparing, on abort or disposal. */
@@ -10051,6 +10052,11 @@ export class CopilotAgentSession extends Disposable {
 			this._failedExecutionIdlePending = false;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
+			const turn = this._currentTurn.value;
+			if (turn) {
+				turn.sdkSendInvoked = true;
+				turn.markRunning();
+			}
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -10060,6 +10066,7 @@ export class CopilotAgentSession extends Disposable {
 					origin: { kind: MessageKind.SystemNotification },
 				},
 			});
+			this._onSteeringReady?.(this);
 		}));
 
 		// Route child messages before matching root steering or recording its SDK history boundary.

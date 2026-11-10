@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
 import { renderSessionsEmptyState } from '../../../workbench/browser/parts/sessions/sessionsEmptyState.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/style.css';
@@ -30,6 +31,25 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 
 suite('Sessions - EditorPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('native canvas clipping follows the component editor radius inside the connected frame', () => {
+		const root = appendElement(mainWindow.document.body, `monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel ${AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS}`);
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px;';
+		const editor = appendElement(appendElement(root, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container');
+		const canvas = appendElement(appendElement(appendElement(group, 'session-canvas-editor'), 'browser-container-wrapper'), 'browser-container');
+		const results = [0, 1, 4, 8].map(radius => {
+			root.style.setProperty('--vscode-agentsWindow-editorArea-cornerRadius', `${radius}px`);
+			return {
+				frame: mainWindow.getComputedStyle(group, '::after').borderTopLeftRadius,
+				canvas: mainWindow.getComputedStyle(canvas).borderTopLeftRadius,
+			};
+		});
+		assert.deepStrictEqual(results, [0, 1, 4, 8].map(radius => ({
+			frame: `${Math.max(0, radius - 1)}px`, canvas: `${Math.max(0, radius - 2)}px`,
+		})));
+	});
 
 	test('only modern editor tabs change scrollbar placement and painted thickness', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
@@ -149,7 +169,9 @@ suite('Sessions - EditorPart', () => {
 
 	test('connected detail tabs keep rounded corners while sharing the single card frame', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
+		workbench.classList.add(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		for (const [name, value] of Object.entries({
+			'--vscode-agents-layout-floatingPanelGap': '4px',
 			'--vscode-spacing-size20': '2px',
 			'--vscode-spacing-size40': '4px',
 			'--vscode-spacing-size60': '6px',

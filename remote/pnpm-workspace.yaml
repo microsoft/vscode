@@ -1,7 +1,7 @@
 packages:
   - web
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false

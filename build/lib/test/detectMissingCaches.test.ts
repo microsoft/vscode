@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { FAILSAFE_SCHEMA, load } from 'js-yaml';
@@ -128,9 +128,9 @@ suite('Detect missing caches', () => {
 			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
 			pnpmStore: [
-				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
-				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
-				{ key: '${{ env.PNPM_STORE_CACHE_KEY }}', path: '../.pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ env.PNPM_STORE_CACHE_KEY }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
 				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
 				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
 			],
@@ -157,6 +157,24 @@ suite('Detect missing caches', () => {
 				'const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, \'-\').replace(/^-|-$/g, \'\');',
 			],
 		});
+	});
+
+	test('the cache paths have no `..` segments', () => {
+		// actions/cache/save only warns about such a path and saves nothing, so its cache stays missing.
+		const files = [
+			...readdirSync(path.join(repositoryRoot, '.github/workflows')).filter(name => name.endsWith('.yml')).map(name => `.github/workflows/${name}`),
+			...readdirSync(path.join(repositoryRoot, '.github/actions')).map(name => `.github/actions/${name}/action.yml`),
+		];
+		const cachePaths = files.flatMap(file => {
+			const { jobs, runs } = loadYaml<{ jobs?: Record<string, { steps?: IStep[] }>; runs?: { steps?: IStep[] } }>(file);
+			return [...Object.values(jobs ?? {}).flatMap(job => job.steps ?? []), ...runs?.steps ?? []]
+				.filter(step => step.uses?.startsWith('actions/cache'))
+				.flatMap(step => step.with?.path?.split('\n').map(line => line.trim()).filter(line => line) ?? []);
+		});
+		assert.deepStrictEqual({
+			pnpmStore: cachePaths.includes('.build/pnpm-store'),
+			withParentSegments: cachePaths.filter(cachePath => cachePath.split(/[\\/]/).includes('..')),
+		}, { pnpmStore: true, withParentSegments: [] });
 	});
 
 	test('the Electron cache versions match the cache paths on the runners of the jobs', () => {
