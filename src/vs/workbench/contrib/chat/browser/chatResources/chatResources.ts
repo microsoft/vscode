@@ -10,7 +10,8 @@ import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentHostChatResourcesConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
@@ -106,6 +107,15 @@ const chatResourcesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IR
 	},
 });
 
+function isRawChatResourceContribution(value: unknown): value is IRawChatResourceContribution {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const raw = value as { readonly id?: unknown; readonly label?: unknown; readonly resource?: unknown; readonly icon?: unknown };
+	return typeof raw.id === 'string' && typeof raw.label === 'string' && typeof raw.resource === 'string'
+		&& (raw.icon === undefined || typeof raw.icon === 'string');
+}
+
 const contributions = observableValue<readonly IChatResourceContribution[]>('chatResources', []);
 
 chatResourcesExtensionPoint.setHandler(extensions => {
@@ -115,16 +125,20 @@ chatResourcesExtensionPoint.setHandler(extensions => {
 			extension.collector.error(`The 'chatResources' contribution point requires the 'contribChatResources' API proposal.`);
 			continue;
 		}
-		for (const raw of extension.value) {
-			if (typeof raw.id !== 'string' || typeof raw.label !== 'string' || typeof raw.resource !== 'string') {
-				extension.collector.error(`A chat resource needs an 'id', a 'label', and a 'resource'.`);
+		if (!Array.isArray(extension.value)) {
+			extension.collector.error(`The 'chatResources' contribution must be an array.`);
+			continue;
+		}
+		for (const raw of extension.value as unknown[]) {
+			if (!isRawChatResourceContribution(raw)) {
+				extension.collector.error(`A chat resource needs an 'id', a 'label', and a 'resource', and its 'icon' must be a string.`);
 				continue;
 			}
 			result.push({
 				extensionId: extension.description.identifier,
 				id: raw.id,
 				label: raw.label,
-				icon: raw.icon ? ThemeIcon.fromString(raw.icon) : undefined,
+				icon: raw.icon !== undefined ? ThemeIcon.fromString(raw.icon) : undefined,
 				resource: raw.resource,
 				mode: raw.mode === 'embedded' ? 'embedded' : 'pinned',
 			});
@@ -158,6 +172,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[ChatResourcesEnabledSettingId]: {
 			type: 'boolean',
 			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			// Agents learn that they can choose how the chat shows what they record.
+			agentHost: { key: AgentHostChatResourcesConfigKey },
 			markdownDescription: nls.localize('chatResources.enabled', "Whether a chat can show its resources, such as files its agent recorded or resources extensions contribute, with pills of their own, above the chat input, or at the top of the chat."),
 			tags: ['experimental'],
 		},

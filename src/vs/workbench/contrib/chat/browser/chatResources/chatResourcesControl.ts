@@ -132,7 +132,7 @@ export class ChatResourcesControl extends Disposable {
 			const existence = new Map(recordedExistence.read(reader));
 			return recorded.read(reader).filter(resource => existence.get(resource.resource.toString())?.read(reader) ?? false);
 		});
-		this.resources = derived(this, reader => [...contributed.read(reader), ...existingRecorded.read(reader)]);
+		this.resources = derived(this, reader => this._chatKey.read(reader) === undefined ? [] : [...contributed.read(reader), ...existingRecorded.read(reader)]);
 		this.listedContributions = derived(this, reader => contributed.read(reader).filter(resource => this.getMode(resource, reader) === 'none'));
 		const shownIn = (area: ChatResourceArea) => derived(this, reader => {
 			const chat = this._chatKey.read(reader);
@@ -391,6 +391,7 @@ export class ChatResourcesControl extends Disposable {
 		return {
 			hasData: constObservable(true),
 			pills: constObservable([pill]),
+			offersPillContextMenu: true,
 			getContextMenuPrimaryActions: () => this._getPillContextMenuActions(resource),
 		};
 	}

@@ -988,8 +988,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			}));
 		});
 		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
+		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
+		const chatResourcesSession = derived(this, reader => subagentChat.read(reader) ? undefined : sessionResource.read(reader));
 		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
-			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.topContentContainerElement, this._widget.domNode, sessionResource, recordedResources)
+			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.topContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources)
 			: undefined);
 		// Resources with a pill of their own are not listed again; the others offer to pin them.
 		const withPinActions = (sections: readonly IChatPillSection[], reader: IReader): readonly IChatPillSection[] => {

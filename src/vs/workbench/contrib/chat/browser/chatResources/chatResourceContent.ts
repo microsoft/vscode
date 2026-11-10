@@ -24,6 +24,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { MenuPreventer } from '../../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../../codeEditor/browser/selectionClipboard.js';
 import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
+import { ICustomEditorService } from '../../../customEditor/common/customEditor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
@@ -90,11 +91,14 @@ export async function createChatResourceContent(
 			return provider.create(target, body, getClippingContainer, instantiationService);
 		}
 		const defaultEditor = accessor.get(IEditorResolverService).getEditorMatches(target.resource).defaultRule.editor.id;
-		const viewType = defaultEditor === DEFAULT_EDITOR_ASSOCIATION.id ? undefined : defaultEditor;
-		if (viewType) {
-			// A custom editor shows the resource as it is; only text editors show changes, as a diff.
-			await accessor.get(IExtensionService).activateByEvent(`onCustomEditor:${viewType}`);
-			return instantiationService.createInstance(ChatResourceWebviewContent, target, viewType, body, getClippingContainer).ready();
+		if (defaultEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
+			const customEditorService = accessor.get(ICustomEditorService);
+			await accessor.get(IExtensionService).activateByEvent(`onCustomEditor:${defaultEditor}`);
+			// Only custom editors that an extension provides render in a webview here; other editors, such as notebooks, show
+			// the resource as text. A custom editor shows the resource as it is; only text editors show changes, as a diff.
+			if (customEditorService.getCustomEditorCapabilities(defaultEditor)) {
+				return instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, body, getClippingContainer).ready();
+			}
 		}
 		if (target.originalResource) {
 			return instantiationService.createInstance(ChatResourceDiffContent, target.originalResource, target.resource, body).ready();

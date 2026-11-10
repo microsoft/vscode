@@ -34,10 +34,13 @@ export function getChatEmbeddedResourceAutomaticHeight(size: IChatEmbeddedResour
 	return Math.min(contentHeight ?? DEFAULT_CONTENT_HEIGHT, size.maxAutomaticHeight);
 }
 
-/** The height a view is shown at. The space the chat has limits how much of the view shows, but does not change its size. */
+/**
+ * The height a view is shown at: at least the minimum height, but never more than the space the chat has, so that the
+ * transcript keeps its room. The space limits how much of the view shows, but does not change the size the user chose.
+ */
 export function getChatEmbeddedResourceHeight(size: IChatEmbeddedResourceSize, contentHeight: number | undefined, availableHeight: number): number {
 	const height = size.fixedHeight ?? getChatEmbeddedResourceAutomaticHeight(size, contentHeight);
-	return Math.max(CHAT_EMBEDDED_RESOURCE_MIN_HEIGHT, Math.min(height, availableHeight));
+	return Math.max(0, Math.min(Math.max(CHAT_EMBEDDED_RESOURCE_MIN_HEIGHT, height), availableHeight));
 }
 
 /**

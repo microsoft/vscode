@@ -30,6 +30,8 @@ import { markOnboardingTarget } from '../../onboarding/browser/spotlight/onboard
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
+	/** Whether a context menu on one of this source's pills offers its {@link getContextMenuPrimaryActions}, although it has no kind. */
+	readonly offersPillContextMenu?: boolean;
 	readonly hasData: IObservable<boolean>;
 	/** Whether any entries remain after the pill's own filtering. */
 	readonly isVisible?: IObservable<boolean>;
@@ -474,7 +476,7 @@ export class ChatInputPills extends Disposable {
 		});
 		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: { readonly source: IChatInputPillSource; readonly pill: IChatPill }) => {
 			const kinds = kindsWithData.get();
-			if (kinds.size === 0 && !target) {
+			if (kinds.size === 0 && !target?.source.offersPillContextMenu) {
 				return;
 			}
 			this._contextMenuService.showContextMenu({
@@ -582,8 +584,8 @@ export class ChatInputPills extends Disposable {
 		});
 		const targetActions: IAction[] = [];
 		const optionsActions: IAction[] = [];
-		// Sources without a kind, such as chat resources, still offer actions on their own pills.
-		if (target && !target.source.kind) {
+		// Sources without a kind, such as chat resources, can still offer actions on their own pills.
+		if (target && !target.source.kind && target.source.offersPillContextMenu) {
 			targetActions.push(...(target.source.getContextMenuPrimaryActions?.(target.pill) ?? []).map(withFocusRestoration));
 		}
 		for (const source of this._options.sources.get()) {

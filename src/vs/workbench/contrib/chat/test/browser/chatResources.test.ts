@@ -58,6 +58,13 @@ suite('ChatResources', () => {
 			], [200, 320, 250, 40, 500]);
 		});
 
+		test('leaves the transcript its room even below the minimum height', () => {
+			assert.deepStrictEqual([
+				getChatEmbeddedResourceHeight(defaultChatEmbeddedResourceSize, 10, 24),
+				getChatEmbeddedResourceHeight(defaultChatEmbeddedResourceSize, 200, -5),
+			], [24, 0]);
+		});
+
 		test('dragging to another height fixes it', () => {
 			assert.deepStrictEqual(resizeChatEmbeddedResource(defaultChatEmbeddedResourceSize, 200, 260, 200), { fixedHeight: 260, maxAutomaticHeight: 320 });
 		});

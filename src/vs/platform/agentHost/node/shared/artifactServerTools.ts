@@ -35,13 +35,20 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
 		commitHash: { type: 'string', description: 'The commit hash. Required for the `commit` kind.' },
-		mode: {
-			type: 'string',
-			enum: ['pinned', 'embedded', 'top'],
-			description: 'Optional. How the chat shows the entry; omit it to list the entry with the others. `pinned` gives it a pill of its own. `embedded` shows it above the chat input, and `top` at the top of the chat, both rendered read-only, for example a Markdown preview, a diff, or a website. Use `top` only when the user asked to keep something in view while chatting, such as a live preview of a page under development. Recording an existing entry again with a mode changes how it is shown.',
-		},
 	},
 	required: ['type', 'label', 'isArtifact'],
+};
+
+/** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file or website. */
+const artifactModeProperty = {
+	type: 'string',
+	enum: ['pinned', 'embedded', 'top'],
+	description: 'Optional. How the chat shows the entry; omit it to list the entry with the others. `pinned` gives it a pill of its own. `embedded` shows it above the chat input, and `top` at the top of the chat, for example a Markdown file, a diff, or a website. Use `top` only when the user asked to keep something in view while chatting, such as a live preview of a page under development. Recording an existing entry again with a mode changes how it is shown.',
+};
+
+const artifactInputSchemaWithMode: NonNullable<ToolDefinition['inputSchema']> = {
+	...artifactInputSchema,
+	properties: { ...artifactInputSchema.properties, mode: artifactModeProperty },
 };
 
 function createAddArtifactInputSchema(inputSchema: NonNullable<ToolDefinition['inputSchema']>): NonNullable<ToolDefinition['inputSchema']> {
@@ -103,6 +110,8 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
+	/** Whether agents can choose how the chat shows what they record (`mode`). */
+	readonly isChatResourcesEnabled?: () => boolean;
 	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Labels of the automation that integrations run for a recorded artifact, which removal pauses. */
@@ -149,8 +158,12 @@ function describeArtifact(artifact: ISessionArtifact): string {
 
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	const isEnabled = () => accessor?.isEnabled() === true;
+	const isChatResourcesEnabled = () => accessor?.isChatResourcesEnabled?.() === true;
 	return {
 		definitions: artifactServerToolDefinitions,
+		getDefinitions: () => isChatResourcesEnabled()
+			? artifactServerToolDefinitions.map(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference ? { ...definition, inputSchema: createAddArtifactInputSchema(artifactInputSchemaWithMode) } : definition)
+			: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled,
 		isEnabledForSession: isEnabled,
@@ -202,7 +215,9 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			const artifacts = new SessionArtifacts(stateManager, context.sessionUri, context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					// Without chat resources the parameter is not offered, and a mode an agent sends anyway changes nothing.
+					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference)
+						.map(input => isChatResourcesEnabled() || input.mode === undefined ? input : { ...input, mode: undefined });
 					for (const input of inputs) {
 						if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);

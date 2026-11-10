@@ -666,6 +666,7 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
 export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
 export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
@@ -1048,6 +1049,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
+		default: false,
+	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files and websites they record, such as above the chat input."),
 		default: false,
 	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
