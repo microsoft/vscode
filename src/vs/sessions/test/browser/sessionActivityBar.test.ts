@@ -683,6 +683,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const { createDocked, root } = createActivityBar(store, [changes, browser]);
 		root.classList.add('agent-sessions-workbench', 'modern-ui-tabs');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-agentsWindow-panels-spacing', '4px');
 		root.style.setProperty('--vscode-modernActivityBar-border', 'red');
 		root.style.setProperty('--vscode-modernActivityBar-background', 'red');
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));

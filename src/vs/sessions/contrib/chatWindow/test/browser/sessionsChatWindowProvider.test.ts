@@ -7,6 +7,7 @@ import assert from 'assert';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { $, append } from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,7 +15,7 @@ import { constObservable, derived, IObservable, ISettableObservable, observableV
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -39,8 +40,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionActivityBar.css';
 import '../../../../../workbench/browser/parts/activitybar/media/menuActivityBar.css';
 import '../../../../browser/media/workbench.css';
+import '../../../../browser/parts/media/editorPart.css';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -77,6 +79,11 @@ import { ISessionChatViewHost } from '../../../chatEditor/browser/chatEditor.js'
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
+import { ISizeService, SIZE_CUSTOMIZATIONS_SETTING } from '../../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { WorkbenchSizeService } from '../../../../../workbench/services/themes/browser/workbenchSizeService.js';
+import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -118,17 +125,23 @@ suite('Sessions chat window provider', () => {
 
 	/** `beforeProvider` sets up what the provider starts with, such as what it stored as the window last closed. */
 	/** With `realChatWindowService`, the chat window service is the actual one, without windows until a test adds them. */
-	function createProvider(store: DisposableStore, sessions: ISession[], beforeProvider?: (storage: TestStorageService) => void, options?: { readonly realChatWindowService?: boolean }) {
+	function createProvider(store: DisposableStore, sessions: ISession[], beforeProvider?: (storage: TestStorageService) => void, options?: { readonly realChatWindowService?: boolean; readonly sizes?: Record<string, number> }) {
 		const events: string[] = [];
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
 		const mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
-		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
+		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true, [SIZE_CUSTOMIZATIONS_SETTING]: options?.sizes ?? {} });
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
 		stubSessionHosts(instantiationService, store);
 		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISizeService, store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService()))));
+		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() {
+			override readonly onDidColorThemeChange = Event.None;
+			override getColorTheme() { return new TestColorTheme(); }
+		}());
 		const storage = store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storage);
 		const editorGroups: IEditorGroup[] = [];
@@ -694,6 +707,161 @@ suite('Sessions chat window provider', () => {
 		]);
 	});
 
+	for (const connected of [false, true]) {
+		test(`chat windows lay out initial and live semantic gaps without changing their exterior gutters with connected tabs ${connected}`, async () => {
+			const store = disposables.add(new DisposableStore());
+			const { provider, configuration, windowInstantiationService, storage } = createProvider(store, [], undefined, { sizes: { 'agentsWindow.panels.spacing': 16 } });
+			await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, connected ? ModernUIEditorTabStyle.Connected : ModernUIEditorTabStyle.Pill);
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.chat-gap-test'));
+			store.add(toDisposable(() => workbench.remove()));
+			if (connected) {
+				workbench.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel', 'agents-side-pane-multiple-tabs');
+			}
+			const sizes = store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService())));
+			const sheet = createStyleSheet(undefined, undefined, store);
+			const updateStyles = () => sheet.textContent = generateColorThemeCSS(new TestColorTheme(), '.chat-gap-test', undefined, undefined, sizes).code;
+			updateStyles();
+			store.add(sizes.onDidChangeSizes(updateStyles));
+			workbench.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
+			const host = append(workbench, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+			host.style.cssText = 'position: fixed; top: 0; left: 0; width: 1000px; height: 600px;';
+			const part = () => new class extends mock<IContentPart>() {
+				override readonly element = $(`.part.editor${connected ? '.editor-tabs-multiple' : ''}`);
+				readonly content = append(this.element, $('.content'));
+				readonly group = append(this.content, $('.editor-group-container'));
+				override readonly minimumWidth = 100;
+				override readonly maximumWidth = Number.POSITIVE_INFINITY;
+				override readonly minimumHeight = 50;
+				override readonly maximumHeight = Number.POSITIVE_INFINITY;
+				override readonly onDidChange = Event.None;
+				override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+				override getGroups() { return this.groups; }
+				override findGroup() { return undefined; }
+				override readonly onDidAddGroup = Event.None;
+				override readonly onDidRemoveGroup = Event.None;
+				override readonly onDidMoveGroup = Event.None;
+				override readonly onWillClose = Event.None;
+				override layout(width: number, height: number) {
+					this.element.style.width = `${width}px`;
+					this.element.style.height = `${height}px`;
+					this.content.style.cssText = 'position: relative; width: 100%; height: 100%;';
+					this.group.style.cssText = 'position: relative; width: 100%; height: 100%;';
+				}
+				override setVisible() { }
+			}();
+			const groups = new class extends mock<IEditorGroupsService>() {
+				override getScopedInstantiationService() { return windowInstantiationService; }
+			}();
+			const stripElement = append(host, $('.chat-window-strip'));
+			const strip = store.add(provider.chrome.createStrip!(window, stripElement, windowInstantiationService)!);
+			const activityBar = append(stripElement, $('.menu-activity-bar.session-activity-bar.docked'));
+			activityBar.classList.toggle('size-compact', getSessionActivityBarSize(storage) === MenuActivityBarSize.Compact);
+			const grid = store.add(new ChatWindowGrid(host, {
+				main: part(), chat: part(),
+				strip: { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
+			}, constObservable(ChatWindowLayoutMode.SideBySide), provider.look.gap, undefined, undefined, undefined, groups));
+			const read = () => {
+				grid.setOuterInsets(provider.look.outerInsets!.get());
+				grid.layout(1000, 600);
+				const surface = connected ? '.editor-group-container' : '.part-grid-card';
+				const chat = host.querySelector<HTMLElement>(`[data-part-grid-cell="chat"] ${surface}`)!.getBoundingClientRect();
+				const main = host.querySelector<HTMLElement>(`[data-part-grid-cell="main"] ${surface}`)!.getBoundingClientRect();
+				const bar = activityBar.getBoundingClientRect();
+				const stripCard = stripElement.closest('.part-grid-card')!.getBoundingClientRect();
+				return {
+					gap: main.left - chat.right, insets: provider.look.outerInsets!.get(), strip: strip.size.get(),
+					activityBar: { width: bar.width, insideCard: bar.left >= stripCard.left && bar.right <= stripCard.right, gap: bar.left - main.right },
+				};
+			};
+			const snapshots = [read()];
+			const update = async (key: string, value: unknown) => {
+				await configuration.setUserConfiguration(key, value);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: candidate => candidate === key, source: ConfigurationTarget.USER,
+					affectedKeys: new Set([key]), change: { keys: [key], overrides: [] },
+				});
+			};
+			for (const sizes of [{ 'agentsWindow.panels.spacing': 0 }, { 'agentsWindow.panels.spacing': 1 }, { 'panels.spacing': 7 }, {}]) {
+				await update(SIZE_CUSTOMIZATIONS_SETTING, sizes);
+				snapshots.push(read());
+			}
+			await update('window.density.layout', 'compact');
+			workbench.classList.add('modern-ui-compact');
+			snapshots.push(read());
+			const stripWidth = MenuActivityBar.getWidth(false, getSessionActivityBarSize(storage));
+			const compactStripWidth = MenuActivityBar.getWidth(true, getSessionActivityBarSize(storage));
+			assert.deepStrictEqual(snapshots, [
+				...[16, 0, 1, 7, 4].map(gap => ({
+					gap, insets: { top: 0, right: 4, bottom: 4, left: 4 }, strip: stripWidth + gap - (connected ? Math.min(1, Math.floor(gap / 2)) : 0),
+					activityBar: { width: stripWidth, insideCard: true, gap },
+				})),
+				{
+					gap: 0, insets: { top: 0, right: 0, bottom: 0, left: 0 }, strip: compactStripWidth,
+					activityBar: { width: compactStripWidth, insideCard: true, gap: 0 },
+				},
+			]);
+		});
+	}
+
+	test('chat-window cards and their content use chat, editor and terminal corners independently', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { configuration } = createProvider(store, []);
+		const sizes = store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService())));
+		const sheet = createStyleSheet(undefined, undefined, store);
+		const updateStyles = () => sheet.textContent = generateColorThemeCSS(new TestColorTheme(), '.chat-radius-test', undefined, undefined, sizes).code;
+		updateStyles();
+		store.add(sizes.onDidChangeSizes(updateStyles));
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.chat-radius-test.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel.agents-side-pane-multiple-tabs'));
+		store.add(toDisposable(() => root.remove()));
+		const host = append(root, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+		const grid = append(host, $('.monaco-grid-view'));
+		const parts = ['chat', 'main', 'terminals', 'created', 'titleRow', 'strip'].map(id => {
+			const cell = append(grid, $('.part-grid-cell'));
+			cell.dataset.partGridCell = id;
+			if (id === 'created') {
+				cell.dataset.partGridCreated = '';
+			}
+			const card = append(cell, $('.part-grid-card'));
+			const part = id === 'titleRow' || id === 'strip' ? undefined : append(card, $('.part.editor.editor-tabs-multiple'));
+			const group = part && append(append(part, $('.content')), $('.editor-group-container'));
+			return { card, part, group };
+		});
+		const read = () => parts.map(({ card, part, group }) => ({
+			radius: mainWindow.getComputedStyle(card).borderRadius,
+			contentRadius: part ? mainWindow.getComputedStyle(part).borderTopLeftRadius : undefined,
+			frameRadius: group ? mainWindow.getComputedStyle(group, '::after').borderTopLeftRadius : undefined,
+		}));
+		const baseline = read();
+		const snapshots = [];
+		for (const value of [
+			{ 'agentsWindow.panels.cornerRadius': 0 },
+			{ 'agentsWindow.chatPanels.cornerRadius': 2, 'agentsWindow.editorArea.cornerRadius': 6, 'agentsWindow.toolsPanel.cornerRadius': 4 },
+			{},
+		]) {
+			await configuration.setUserConfiguration(SIZE_CUSTOMIZATIONS_SETTING, value);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SIZE_CUSTOMIZATIONS_SETTING, source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SIZE_CUSTOMIZATIONS_SETTING]), change: { keys: [SIZE_CUSTOMIZATIONS_SETTING], overrides: [] },
+			});
+			snapshots.push(read());
+		}
+		root.classList.add('modern-ui-compact');
+		assert.deepStrictEqual({ snapshots, compact: read() }, {
+			snapshots: [
+				[0, 0, 0, 0, 0, 0].map((radius, index) => ({
+					radius: `${radius}px`, contentRadius: index < 4 ? `${radius}px` : undefined,
+					frameRadius: index < 4 ? `${Math.max(0, radius - 1)}px` : undefined,
+				})),
+				[2, 6, 4, 6, 0, 0].map((radius, index) => ({
+					radius: `${radius}px`, contentRadius: index < 4 ? `${radius}px` : undefined,
+					frameRadius: index < 4 ? `${Math.max(0, radius - 1)}px` : undefined,
+				})),
+				baseline,
+			],
+			compact: parts.map(({ part }) => ({ radius: '0px', contentRadius: part ? '0px' : undefined, frameRadius: part ? '0px' : undefined })),
+		});
+	});
+
 	test('the Session Activity Bar of a chat window shows in a column of its own at the right of the window, at the size chosen for it and as wide as the main window\'s, whatever the layout mode, never inside the chat', () => {
 		const store = disposables.add(new DisposableStore());
 		const { provider, storage, windowInstantiationService } = createProvider(store, []);
@@ -807,7 +975,9 @@ suite('Sessions chat window provider', () => {
 			chatCard.style.cssText = `position: fixed; top: 0; left: 0; width: ${columnLeft}px; height: ${windowHeight}px;`;
 			append(main, mainColumn.element).style.cssText = `position: fixed; top: 0; left: ${columnLeft}px; width: ${mainColumn.minimumWidth}px; height: ${windowHeight}px;`;
 			// Its chat shows its frame inset within its card (`--agents-session-frame-inset`)
-			const sessionFrameInset = parseFloat(mainWindow.getComputedStyle(main).getPropertyValue('--agents-session-frame-inset')) || 0;
+			const frame = append(chatCard, $('div'));
+			frame.style.borderRight = 'var(--agents-session-frame-inset) solid transparent';
+			const sessionFrameInset = parseFloat(mainWindow.getComputedStyle(frame).borderRightWidth);
 			const mainDistances = distances(dock(mainColumn.element, size), mainColumn.element, chatCard, sessionFrameInset);
 			expected[density] = mainDistances;
 			assert.strictEqual(mainDistances.visibleToCard, mainDistances.toEdge);

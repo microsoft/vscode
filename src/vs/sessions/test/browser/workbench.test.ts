@@ -29,7 +29,7 @@ import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/brows
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { SessionActivityBarColumn } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
-import { MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -1210,6 +1210,7 @@ suite('Sessions - Workbench', () => {
 			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
 			_mainContainerDimension: { width: 800, height: 200 },
 			isEditorPaneVisible: () => !root.classList.contains('noeditorpane'),
+			getPanelSpacing: () => host.layoutDensity === ModernUIDensity.Compact ? 0 : 4,
 			workbenchGrid: {
 				layout: (width: number, height: number) => {
 					const inset = root.classList.contains('modern-ui-compact') ? 0 : 1;
@@ -1473,6 +1474,39 @@ suite('Sessions - Workbench', () => {
 			whileMaximized: [true],
 			restored: [true, false],
 		});
+	});
+
+	test('main grid uses semantic spacing beside the Activity Bar column while preserving exterior gutters', () => {
+		const column = store.add(new SessionActivityBarColumn(constObservable(true)));
+		const layouts: { width: number; height: number; column: number }[] = [];
+		let spacing = 0;
+		let compact = false;
+		const chosenSize = observableValue('activityBarSize', MenuActivityBarSize.Compact);
+		const host = {
+			mainContainer: $('.monaco-workbench.modern-ui-tabs.noeditorpane'),
+			_mainContainerDimension: { width: 1000, height: 600 },
+			sessionActivityBarColumn: column,
+			sessionActivityBarSize: chosenSize,
+			_gridGutter: () => compact ? 0 : 4,
+			getPanelSpacing: () => compact ? 0 : spacing,
+			isModernUICompact: () => compact,
+			isEditorPaneVisible: () => false,
+			workbenchGrid: { layout: (width: number, height: number) => layouts.push({ width, height, column: column.minimumWidth }) },
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+		const layout = () => (Reflect.get(Workbench.prototype, '_layoutGrid') as (this: typeof host) => void).call(host);
+		for (spacing of [0, 1, 16]) {
+			layout();
+		}
+		chosenSize.set(MenuActivityBarSize.Normal, undefined);
+		layout();
+		compact = true;
+		layout();
+		assert.deepStrictEqual(layouts, [
+			...[0, 1, 16].map(gap => ({ width: 996, height: 596, column: MenuActivityBar.getWidth(false, MenuActivityBarSize.Compact) + Math.max(0, gap - 1) })),
+			{ width: 996, height: 596, column: MenuActivityBar.getWidth(false, MenuActivityBarSize.Normal) + 15 },
+			{ width: 1000, height: 600, column: MenuActivityBar.getWidth(true, MenuActivityBarSize.Normal) },
+		]);
 	});
 
 	test('desktop container resize preserves the sessions/editor ratio', () => {
