@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { agentSessionNeedsInputForeground } from '../../../common/agentsColors.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
@@ -658,7 +659,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
-				return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
+				return { ...Codicon.reportQuestion, color: themeColorFromId(agentSessionNeedsInputForeground) };
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:

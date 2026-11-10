@@ -673,7 +673,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
 		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
-			errors: [[error]], checked: [true, false, false],
+			errors: [['Failed to enable GitHub environment sharing: Unable to enable sharing']], checked: [true, false, false],
 			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
 		});
 	});
@@ -1096,7 +1096,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				const remoteTunnel = store.add(new TestRemoteTunnelService());
 				const commands = new TestCommandService();
 				const sharing = new TestMissionControlSharingService();
-				const error = operation === 'cancel sign-in' ? new CancellationError() : new Error('Sharing failed');
+				const error = operation === 'cancel sign-in' ? new CancellationError() : new TypeError('fetch failed');
 				if (operation === 'disable') {
 					sharing.state.set('enabled', undefined);
 				}
@@ -1115,7 +1115,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 					logs: log.args,
 					commands: commands.commands,
 				}, {
-					notifications: operation === 'cancel sign-in' ? [] : [[error]],
+					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
+						? 'Failed to disable GitHub environment sharing: fetch failed'
+						: 'Failed to enable GitHub environment sharing: fetch failed']],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});

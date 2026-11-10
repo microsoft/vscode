@@ -3,6 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { computeNodeModulesCacheKey } from './cacheKeys.ts';
-
-process.stdout.write(computeNodeModulesCacheKey(process.argv.slice(2)));
+/** Name of the SDK-bundled Browser Use plugin and its MCP server. */
+export const BROWSER_USE_PLUGIN_NAME = 'browser-use';
