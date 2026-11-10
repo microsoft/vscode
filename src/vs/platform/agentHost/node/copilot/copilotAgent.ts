@@ -3387,7 +3387,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!installed.marketplace) {
 					throw new Error(localize('copilot.pluginEnablementMarketplaceRequired', "Repository enablement is not available for directly installed plugins."));
 				}
-				const repository = await this._gitService.getRepositoryRoot(workingDirectory);
+				const repository = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 				if (!repository) {
 					throw new Error(localize('copilot.pluginEnablementRepositoryRequired', "The working directory is not in a Git repository."));
 				}

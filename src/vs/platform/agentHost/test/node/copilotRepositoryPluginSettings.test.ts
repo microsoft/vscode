@@ -97,6 +97,32 @@ suite('CopilotRepositoryPluginSettings', () => {
 		assert.deepStrictEqual(parse((await fileService.readFile(settings)).value.toString()), { enabledPlugins: { 'plugin@marketplace': true } });
 	});
 
+	test('rejects same-size concurrent edits without overwriting unrelated settings and allows retry', async () => {
+		const original = '{"model":"alpha","enabledPlugins":{"plugin@marketplace":false}}';
+		const concurrent = original.replace('alpha', 'bravo');
+		await fileService.writeFile(settings, VSBuffer.fromString(original));
+		const snapshot = await fileService.readFile(settings);
+		const reads = sinon.stub(fileService, 'readFile').callThrough();
+		reads.onFirstCall().callsFake(async () => {
+			await fileService.writeFile(settings, VSBuffer.fromString(concurrent));
+			return snapshot;
+		});
+
+		await assert.rejects(setCopilotRepositoryPluginEnabled(fileService, repository, 'plugin@marketplace', true), {
+			fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE,
+		});
+		const afterConflict = (await fileService.readFile(settings)).value.toString();
+		await setCopilotRepositoryPluginEnabled(fileService, repository, 'plugin@marketplace', true);
+
+		assert.deepStrictEqual({
+			afterConflict,
+			afterRetry: parse((await fileService.readFile(settings)).value.toString()),
+		}, {
+			afterConflict: concurrent,
+			afterRetry: { model: 'bravo', enabledPlugins: { 'plugin@marketplace': true } },
+		});
+	});
+
 	test('does not overwrite a file created after the missing-file read', async () => {
 		const creates = sinon.stub(fileService, 'createFile').callsFake(async (resource, content, options) => {
 			await fileService.writeFile(resource, VSBuffer.fromString('{"model":"concurrent"}'));

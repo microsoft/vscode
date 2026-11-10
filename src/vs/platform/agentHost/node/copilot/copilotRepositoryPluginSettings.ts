@@ -10,7 +10,7 @@ import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 
 const writes = new SequencerByKey<string>();
 
@@ -48,6 +48,11 @@ export function setCopilotRepositoryPluginEnabled(fileService: IFileService, rep
 		}));
 		const buffer = VSBuffer.fromString(updated);
 		if (file) {
+			// Metadata conflict checks can miss same-size edits; compare content within our write queue.
+			const current = await fileService.readFile(resource);
+			if (!current.value.equals(file.value)) {
+				throw new FileOperationError(localize('copilot.repositoryPluginSettings.modified', "Cannot change plugin enablement because '{0}' has changed. Please retry.", resource.fsPath), FileOperationResult.FILE_MODIFIED_SINCE);
+			}
 			await fileService.writeFile(resource, buffer, { mtime: file.mtime, etag: file.etag });
 		} else {
 			await fileService.createFile(resource, buffer, { overwrite: false });

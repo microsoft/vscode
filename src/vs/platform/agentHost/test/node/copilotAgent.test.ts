@@ -2278,6 +2278,7 @@ suite('CopilotAgent', () => {
 			globalWrites: [enable.callCount, disable.callCount],
 			reloads,
 			directories: resolveRepository.args.map(args => args[0]),
+			options: resolveRepository.args.map(args => args[1]),
 		}, {
 			enabled: { enabledPlugins: { 'spark@copilot-plugins': true } },
 			disabled: { enabledPlugins: { 'spark@copilot-plugins': false } },
@@ -2285,6 +2286,7 @@ suite('CopilotAgent', () => {
 			globalWrites: [0, 0],
 			reloads: ['enablement', 'enablement', 'enablement'],
 			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository')],
+			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
 		});
 	});
 
