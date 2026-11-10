@@ -168,6 +168,16 @@ export function getAuxiliaryWindowRestoreMode(mode: WindowMode | undefined): Win
 	return mode === WindowMode.Maximized || mode === WindowMode.Fullscreen ? WindowMode.Maximized : WindowMode.Normal;
 }
 
+/**
+ * The mode an auxiliary window is restored into when it is claimed. Prefer the
+ * mode requested at creation: `options.show` is also false for windows that are
+ * hidden with `--hidden-window`. Otherwise probe `options.show`, because
+ * maximized windows are never shown initially to reduce flicker.
+ */
+export function getClaimedAuxiliaryWindowMode(requestedMode: WindowMode | undefined, options: electron.BrowserWindowConstructorOptions): WindowMode {
+	return requestedMode ?? (options.show === false ? WindowMode.Maximized : WindowMode.Normal);
+}
+
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);

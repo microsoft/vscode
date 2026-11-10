@@ -20,7 +20,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { FocusMode } from '../../../native/common/native.js';
 import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
-import { getAuxiliaryWindowRestoreMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
+import { getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
@@ -257,6 +257,15 @@ suite('BaseWindow - hidden window mode', () => {
 			[undefined, WindowMode.Normal, WindowMode.Maximized, WindowMode.Fullscreen].map(getAuxiliaryWindowRestoreMode),
 			[WindowMode.Normal, WindowMode.Normal, WindowMode.Maximized, WindowMode.Maximized]
 		);
+	});
+
+	test('a claimed auxiliary window uses the requested mode, not the visibility', () => {
+		assert.deepStrictEqual([
+			getClaimedAuxiliaryWindowMode(WindowMode.Normal, { show: false }),
+			getClaimedAuxiliaryWindowMode(WindowMode.Maximized, { show: false }),
+			getClaimedAuxiliaryWindowMode(undefined, { show: false }),
+			getClaimedAuxiliaryWindowMode(undefined, {}),
+		], [WindowMode.Normal, WindowMode.Maximized, WindowMode.Maximized, WindowMode.Normal]);
 	});
 
 	test('a normal hidden auxiliary window keeps its bounds and is neither maximized nor shown', () => {

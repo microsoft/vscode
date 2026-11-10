@@ -14,7 +14,7 @@ import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
 import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
-import { isHiddenWindowMode } from '../../windows/electron-main/windows.js';
+import { getClaimedAuxiliaryWindowMode, isHiddenWindowMode } from '../../windows/electron-main/windows.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;
@@ -71,11 +71,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: effectiveOptions.y,
 				width: effectiveOptions.width,
 				height: effectiveOptions.height,
-				// Prefer the mode requested at creation: `options.show` is also false
-				// for windows that are hidden with `--hidden-window`. Otherwise probe
-				// `options.show`, because maximized windows are never shown initially
-				// to reduce flicker.
-				mode: this.windowMode ?? (effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal)
+				mode: getClaimedAuxiliaryWindowMode(this.windowMode, effectiveOptions)
 			});
 		}
 	}
