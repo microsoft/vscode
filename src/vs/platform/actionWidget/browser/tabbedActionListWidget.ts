@@ -565,7 +565,7 @@ export class TabbedActionListWidget extends Disposable {
 					}, dom.getWindow(tabBar)));
 					renderDisposables.add(tabBarObserver.observe(tabBar));
 				}
-				let tabBarActionToFocus: HTMLButtonElement | undefined;
+				let tabBarActionToFocus: HTMLElement | undefined;
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
