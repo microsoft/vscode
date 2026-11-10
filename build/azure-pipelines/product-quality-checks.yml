@@ -434,7 +434,7 @@ jobs:
 
       # In CI, .esbuild.mts stamps the release version into package.json, which the type check reads. The compile
       # only checks that Copilot builds, so it skips the stamp: the type check can't read a partly written file.
-      - script: BUILD_SOURCEVERSION= pnpm exec npm-run-all -lp compile typecheck
+      - script: BUILD_SOURCEVERSION= pnpm run compile && pnpm run typecheck
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Compile (Copilot)
 
