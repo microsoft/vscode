@@ -566,7 +566,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}));
 		this.stepDisposables.add(addDisposableListener(microsoftBtn, EventType.CLICK, () => {
 			this._logAction('signIn', undefined, 'microsoft');
-			this._handleSignIn(defaultChat.provider.microsoft.id);
+			this._handleSignIn('microsoft');
 		}));
 		this.microsoftSignInProbeService.notifySignInShown();
 		this.stepDisposables.add(autorun(reader => {
