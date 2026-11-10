@@ -12058,15 +12058,15 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(resp.result, {});
 	});
 
-	test('authenticate scopes account hints to the client, resource, and canonical target', async () => {
+	test('authenticate passes the connection identity separately from unverified account hints', async () => {
 		const first = connectClient('first-client');
 		const second = connectClient('second-client');
 		const resource = 'https://other-host.example/protected-resource';
 		const accountId = 'opaque-selection';
 		const _meta = { 'vscode.authentication.account': { providerId: 'provider', accountId: 'legacy-selection' }, 'example.other': true };
-		const forwarded: { accountId: string | undefined; _meta: Record<string, unknown> | undefined }[] = [];
-		agentService.authenticate = async params => {
-			forwarded.push({ accountId: params.accountId, _meta: params._meta });
+		const forwarded: { clientId: string | undefined; resource: string; accountId: string | undefined; target: AuthenticateParams['target']; _meta: Record<string, unknown> | undefined }[] = [];
+		agentService.authenticate = async (params, _scope?: IAgentHostAuthenticationScope, clientId?: string) => {
+			forwarded.push({ clientId, resource: params.resource, accountId: params.accountId, target: params.target, _meta: params._meta });
 			return { authenticated: true };
 		};
 		const target = { kind: 'mcpServer', session: 'other-session:/opaque', customizationId: 'mcp-1' };
@@ -12080,17 +12080,17 @@ suite('ProtocolServerHandler', () => {
 			[first, { resource, accountId, target: { ...target, customizationId: 'mcp-2' } }],
 		] as const) {
 			const response = waitForResponse(transport, 2);
-			transport.simulateMessage(request(2, 'authenticate', { ...params, token: 'test-token' }));
+			transport.simulateMessage(request(2, 'authenticate', { ...params, token: 'test-token', clientId: 'untrusted-wire-client' }));
 			await response;
 		}
 		assert.deepStrictEqual(forwarded, [
-			{ accountId: undefined, _meta },
-			{ accountId: JSON.stringify(['first-client', resource, null, accountId]), _meta },
-			{ accountId: JSON.stringify(['second-client', resource, null, accountId]), _meta: undefined },
-			{ accountId: JSON.stringify(['first-client', `${resource}/other`, null, accountId]), _meta: undefined },
-			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-1'], accountId]), _meta: undefined },
-			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-1'], accountId]), _meta: undefined },
-			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-2'], accountId]), _meta: undefined },
+			{ clientId: 'first-client', resource, accountId: undefined, target: undefined, _meta },
+			{ clientId: 'first-client', resource, accountId, target: undefined, _meta },
+			{ clientId: 'second-client', resource, accountId, target: undefined, _meta: undefined },
+			{ clientId: 'first-client', resource: `${resource}/other`, accountId, target: undefined, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target: { ...target, customizationId: 'mcp-2' }, _meta: undefined },
 		]);
 	});
 
