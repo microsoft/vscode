@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { FAILSAFE_SCHEMA, load } from 'js-yaml';
@@ -84,5 +86,49 @@ suite('workspace images', () => {
 			files: [...NATIVE_BUILD_INPUTS.files].sort(),
 			packageJsonFields: Object.fromEntries(Object.entries(NATIVE_BUILD_INPUTS.packageJsonFields).map(([file, fields]) => [file, [...fields].sort()])),
 		});
+	});
+
+	// The cache task saves its folder at the end of every job that didn't restore its key exactly, and
+	// only the Workspace Image job of Azure Pipelines may save images. So a test job changes the key
+	// files that the cache task hashes to a key that no image has, and empties the folder it saves.
+	test('Azure Pipelines test jobs save no image under the key of one', () => {
+		const { steps } = load(readRepositoryFile('build/azure-pipelines/common/workspace-image.yml').toString(), { schema: FAILSAFE_SCHEMA }) as { steps: { task?: string; inputs?: Record<string, unknown> }[] };
+		const inputs = steps.find(step => step.task === 'Cache@2')!.inputs!;
+		const segments = (input: string) => input.split('|').map(segment => segment.trim());
+		const key = segments(inputs.key as string);
+		const restoreKeys = segments((inputs['${{ if eq(parameters.mode, \'use\') }}'] as { restoreKeys: string }).restoreKeys);
+		const temp = mkdtempSync(path.join(tmpdir(), 'workspace-image-'));
+		const agentPath = (input: string) => path.join(temp, input.replace('$(Agent.TempDirectory)/', ''));
+		const keyFiles = key.filter(segment => segment.startsWith('$(Agent.TempDirectory)/')).map(agentPath);
+		const cacheFolder = agentPath(inputs.path as string);
+		try {
+			const results = ['true', 'inexact', 'false', ''].map(restored => {
+				rmSync(temp, { recursive: true, force: true });
+				mkdirSync(path.join(temp, 's'), { recursive: true });
+				mkdirSync(cacheFolder, { recursive: true });
+				keyFiles.forEach((file, i) => {
+					mkdirSync(path.dirname(file), { recursive: true });
+					writeFileSync(file, ['base', 'image'][i]);
+				});
+				writeFileSync(path.join(cacheFolder, 'restored'), '');
+				const { stdout } = spawnSync(process.execPath, [path.join(repositoryRoot, 'build/azure-pipelines/common/workspaceImage.ts'), 'restore'], {
+					encoding: 'utf8',
+					env: { ...process.env, AGENT_TEMPDIRECTORY: temp, BUILD_SOURCESDIRECTORY: path.join(temp, 's'), WORKSPACE_IMAGE_RESTORED: restored },
+				});
+				return { restored, keys: keyFiles.map(file => readFileSync(file, 'utf8')), folder: readdirSync(cacheFolder), used: /variable=WORKSPACE_IMAGE_USED\](\w+)/.exec(stdout)?.[1] };
+			});
+			assert.deepEqual({ restoreKeys, results }, {
+				// The test jobs restore the newest image of their native build inputs
+				restoreKeys: key.slice(0, -1),
+				results: [
+					{ restored: 'true', keys: ['base', 'image'], folder: [], used: 'false' },
+					{ restored: 'inexact', keys: ['discarded', 'discarded'], folder: [], used: 'false' },
+					{ restored: 'false', keys: ['discarded', 'discarded'], folder: [], used: 'false' },
+					{ restored: '', keys: ['discarded', 'discarded'], folder: [], used: 'false' },
+				],
+			});
+		} finally {
+			rmSync(temp, { recursive: true, force: true });
+		}
 	});
 });
