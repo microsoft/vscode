@@ -444,6 +444,14 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: before, persisted: [before] });
 	});
 
+	test('rejects a file URI whose drive letter is in the host name, naming the corrected URI', async () => {
+		const { execute, artifacts } = createHarness();
+		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'file', label: 'Report', isArtifact: true, uri: 'file://D:/repo/report.md' }],
+		}), /use three slashes: 'file:\/\/\/D:\/repo\/report\.md'/);
+		assert.deepStrictEqual(artifacts(), []);
+	});
+
 	test('reports persistence errors without publishing a promotion', async () => {
 		const error = new Error('Disk full');
 		const { execute, stateManager, sessionUri, artifacts } = createHarness({ persist: async () => { throw error; } });
