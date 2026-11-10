@@ -46,8 +46,28 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
+import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('defers to webview Find help while the Find input is focused', () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const context = store.add(new ContextKeyService(configuration));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		const findFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(context);
+		const implementations = [new SessionsChatAccessibilityHelp(), new WebviewFindAccessibilityHelp()];
+		assert.deepStrictEqual([false, true].map(focused => {
+			findFocused.set(focused);
+			return implementations
+				.filter(implementation => context.contextMatchesRules(implementation.when))
+				.sort((a, b) => b.priority - a.priority)
+				.map(implementation => implementation.name);
+		}), [['sessionsChat'], ['webview-find']]);
+	});
 
 	test('documents comment card previews, secondary actions and review states', () => {
 		const instantiation = store.add(new TestInstantiationService());
@@ -71,10 +91,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
 	});
 
-	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
-		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+	for (const { aiDisabled, hidden, htmlEnabled } of [
+		{ aiDisabled: false, hidden: false, htmlEnabled: true },
+		{ aiDisabled: true, hidden: false, htmlEnabled: true },
+		{ aiDisabled: false, hidden: true, htmlEnabled: true },
+		{ aiDisabled: false, hidden: false, htmlEnabled: false },
+	]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden}, HTML: ${htmlEnabled})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.HtmlPreviewEnabled]: htmlEnabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiation.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiation, configuration);
@@ -85,13 +110,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			instantiation.stub(ISessionsHostLayoutService, {});
 			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			const visible = !aiDisabled && !hidden;
+			const rendersHtml = visible && htmlEnabled;
 			assert.deepStrictEqual({
 				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
 				checked: help.includes('The active mode is checked'),
 				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
 				thinking: help.includes('only when a live section finishes with its header in view'),
 				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
-			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+				htmlPreview: help.includes('html-preview code fence'),
+				htmlSourceToggle: help.includes('Tab to reach Show Source and press Enter or Space'),
+				htmlAccessibleSource: help.includes('original source is also available in the chat Accessible View'),
+				htmlExport: help.includes('Save HTML asks where to save a sanitized, self-contained HTML file'),
+				htmlExpansion: help.includes('Open Preview opens a larger editor'),
+				htmlScrolling: help.includes('Move the pointer outside the preview to scroll chat.'),
+				htmlSetting: help.includes(ChatConfiguration.HtmlPreviewEnabled),
+				htmlDisabled: help.includes('Inline HTML previews are disabled'),
+				repoSkillAdvertised: help.includes('/html-preview'),
+			}, {
+				modes: visible, checked: visible, setting: visible, thinking: visible, noBackfill: visible,
+				htmlPreview: visible, htmlSourceToggle: rendersHtml, htmlAccessibleSource: rendersHtml, htmlExport: rendersHtml,
+				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
+				repoSkillAdvertised: false,
+			});
 		});
 	}
 

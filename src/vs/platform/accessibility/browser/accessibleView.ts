@@ -21,6 +21,7 @@ export const enum AccessibleViewProviderId {
 	MultiDiffEditorFileList = 'multiDiffEditorFileList',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
+	ChatHtmlPreview = 'chatHtmlPreview',
 	CustomizationMigrations = 'customizationMigrations',
 	CustomizationDiscovery = 'customizationDiscovery',
 	Remotes = 'remotes',

@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-29YeDbmHnhN2BgMJKVq7vDCMiuya6rpEctI6SkJFfJc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-Oh0nDBvzgv4TrFUNTPIK1MxTWPYpwHCivC5hR9GGQlQ=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -779,25 +779,81 @@
 		})();
 		// #endregion Mouse activity forwarding
 
+		// #region Wheel forwarding
 		let isHandlingScroll = false;
+		const isMacintosh = navigator.platform.includes('Mac');
 
 		/**
 		 * @param {WheelEvent} event
+		 * @param {number} deltaX
+		 * @param {number} deltaY
 		 */
-		const handleWheel = (event) => {
+		const shouldForwardWheel = (event, deltaX, deltaY) => {
+			if (event.defaultPrevented) {
+				return false;
+			}
+			for (const target of event.composedPath()) {
+				const element = /** @type {Element} */ (target);
+				if (element.nodeType !== 1) {
+					continue;
+				}
+				const overflowsX = deltaX !== 0 && element.scrollWidth > element.clientWidth;
+				const overflowsY = deltaY !== 0 && element.scrollHeight > element.clientHeight;
+				const view = element.ownerDocument.defaultView;
+				if ((!overflowsX && !overflowsY) || !view) {
+					continue;
+				}
+				const style = view.getComputedStyle(element);
+				const isRoot = element === element.ownerDocument.scrollingElement;
+				const body = element.ownerDocument.body;
+				const bodyStyle = isRoot && body ? view.getComputedStyle(body) : undefined;
+				const overflowX = isRoot && style.overflowX === 'visible' ? bodyStyle?.overflowX ?? style.overflowX : style.overflowX;
+				const overflowY = isRoot && style.overflowY === 'visible' ? bodyStyle?.overflowY ?? style.overflowY : style.overflowY;
+				const scrollableX = isRoot ? overflowX !== 'hidden' && overflowX !== 'clip' : /^(auto|scroll|overlay)$/.test(overflowX);
+				const scrollableY = isRoot ? overflowY !== 'hidden' && overflowY !== 'clip' : /^(auto|scroll|overlay)$/.test(overflowY);
+				if ((overflowsX && scrollableX) || (overflowsY && scrollableY)) {
+					return false;
+				}
+			}
+			return true;
+		};
+
+		/**
+		 * @param {WheelEvent} event
+		 * @param {boolean} [disableScrollChaining]
+		 */
+		const handleWheel = (event, disableScrollChaining = false) => {
 			if (isHandlingScroll) {
 				return;
 			}
 
+			let { deltaX, deltaY } = event;
+			if (disableScrollChaining) {
+				// Chromium maps Shift+wheel to horizontal scrolling outside macOS after dispatching the DOM event.
+				if (!isMacintosh && event.shiftKey && deltaX === 0) {
+					[deltaX, deltaY] = [deltaY, 0];
+				}
+				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+					deltaX = 0;
+				} else {
+					deltaY = 0;
+				}
+				if (!shouldForwardWheel(event, deltaX, deltaY)) {
+					return;
+				}
+				// Do not let minor-axis drift scroll content while the host handles the gesture.
+				event.preventDefault();
+			}
 			hostMessaging.postMessage('did-scroll-wheel', {
 				deltaMode: event.deltaMode,
-				deltaX: event.deltaX,
-				deltaY: event.deltaY,
+				deltaX,
+				deltaY,
 				deltaZ: event.deltaZ,
 				detail: event.detail,
 				type: event.type
 			});
 		};
+		// #endregion Wheel forwarding
 
 		/**
 		 * @param {Event} event
@@ -898,6 +954,9 @@
 			const options = data.options;
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
+			if (options.disableScrollChaining) {
+				newDocument.documentElement.style.overscrollBehavior = 'contain';
+			}
 
 			newDocument.querySelectorAll('a').forEach(a => {
 				if (!a.title) {
@@ -1173,7 +1232,7 @@
 						newFrame.style.visibility = 'visible';
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
-						contentWindow.addEventListener('wheel', handleWheel);
+						contentWindow.addEventListener('wheel', event => handleWheel(event, options.disableScrollChaining), options.disableScrollChaining ? { passive: false } : undefined);
 						contentWindow.addEventListener('focusin', () => {
 							const focused = /** @type {HTMLElement | null} */ (contentDocument.activeElement);
 							if (focused && focused !== contentDocument.body && focused !== contentDocument.documentElement) {
@@ -1191,7 +1250,8 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight
+									height: docEl.offsetHeight,
+									horizontalScrollbarHeight: Math.max(0, contentWindow.innerHeight - docEl.clientHeight),
 								});
 							};
 

@@ -160,7 +160,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
 	public readonly checkImeCompletionState = true;
 
-	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
+	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number; readonly horizontalScrollbarHeight?: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	private _disposed = false;
 
@@ -342,7 +342,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('updated-intrinsic-content-size', (event) => {
-			this.intrinsicContentSize.set({ width: event.width, height: event.height }, undefined, undefined);
+			this.intrinsicContentSize.set({ width: event.width, height: event.height, horizontalScrollbarHeight: event.horizontalScrollbarHeight }, undefined, undefined);
 		}));
 
 		if (initInfo.options.enableFindWidget) {
@@ -717,6 +717,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+				disableScrollChaining: this._options.disableScrollChaining,
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

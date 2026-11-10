@@ -157,6 +157,12 @@ suite('WebviewElement', () => {
 		await sendWebviewMessage(webview, port, 'did-mouse-move', event);
 	}
 
+	test('preserves intrinsic dimensions while reporting the horizontal scrollbar separately', async () => {
+		const { webview, port } = await createWebview();
+		await sendWebviewMessage(webview, port, 'updated-intrinsic-content-size', { width: 440, height: 140, horizontalScrollbarHeight: 16 });
+		assert.deepStrictEqual(webview.intrinsicContentSize.get(), { width: 440, height: 140, horizontalScrollbarHeight: 16 });
+	});
+
 	test('reports webview activity without synthesizing mouse input', async () => {
 		const { webview, port } = await createWebview();
 		const activities: WebviewMouseActivity[] = [];

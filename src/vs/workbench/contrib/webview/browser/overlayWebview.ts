@@ -384,7 +384,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public onFatalError = this._onFatalError.event;
 
-	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
+	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number; readonly horizontalScrollbarHeight?: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	public async postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {

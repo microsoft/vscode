@@ -54,6 +54,8 @@ import { ChatViewFactory } from '../../../../workbench/contrib/sessions/browser/
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { ChatHtmlPreviewAccessibleView } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatHtmlPreviewEditorInput.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanners/browser/sessionWorktreeCleanupAccessibilityHelp.js';
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from '../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
@@ -726,6 +728,8 @@ registerSessionArchiveTourDescriptor();
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new ChatHtmlPreviewAccessibleView(AccessibleViewType.Help));
+AccessibleViewRegistry.register(new ChatHtmlPreviewAccessibleView(AccessibleViewType.View));
 AccessibleViewRegistry.register(new ArtifactDetailsAccessibilityHelp());
 AccessibleViewRegistry.register(new ArtifactDetailsAccessibleView());
 AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());

@@ -45,7 +45,7 @@ export type FromWebviewMessage = {
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
 	'drag': WebViewDragEvent;
-	'updated-intrinsic-content-size': { width: number; height: number };
+	'updated-intrinsic-content-size': { width: number; height: number; horizontalScrollbarHeight?: number };
 };
 
 interface UpdateContentEvent {
@@ -55,6 +55,7 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		disableScrollChaining?: boolean;
 	};
 	state: any;
 	cspSource: string;

@@ -48,13 +48,14 @@ import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId }
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { areDevContainerSamplesEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../workbench/contrib/webview/browser/webview.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
-	// A custom view replaces the chat surface this help describes, and the storage cleanup editor
-	// provides its own help, so this window-wide help does not apply in either case.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
+	// Leave surfaces with their own help to their providers instead of this window-wide fallback.
+	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate(), KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.toNegated());
 
 	constructor(private readonly _responseSelectionSupported = isResponseSelectionSupported()) { }
 
@@ -67,6 +68,11 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 		if (!accessor.get(IChatEntitlementService).sentiment.hidden && configurationService.getValue<boolean>('chat.disableAIFeatures') !== true) {
+			if (configurationService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled)) {
+				content.push(localize('sessionsChat.htmlPreview', "The {1} setting enables HTML previews in responses marked with an html-preview code fence. Previews display HTML and CSS without scripts, forms, external links, or external resources. Links to sections within the preview are supported. Scrolling in an overflowing preview stays inside the preview, including at the edges. Move the pointer outside the preview to scroll chat. Use Tab to reach Show Source and press Enter or Space to toggle the original HTML source; press it again to return to the preview. The button announces whether source is shown. Use Left and Right Arrow in the preview toolbar to reach Open Preview and Save HTML. Open Preview opens a larger editor with Find, Accessibility Help, and an Accessible View of the document text. Save HTML asks where to save a sanitized, self-contained HTML file and opens it using the existing file preview behavior. The saved file excludes scripts and unsupported controls; Show Source retains the original HTML. The original source is also available in the chat Accessible View{0}.", '<keybinding:editor.action.accessibleView>', ChatConfiguration.HtmlPreviewEnabled));
+			} else {
+				content.push(localize('sessionsChat.htmlPreviewDisabled', "Inline HTML previews are disabled by {0}. Responses marked with an html-preview code fence are shown as source code. Enable this setting to render previews.", ChatConfiguration.HtmlPreviewEnabled));
+			}
 			content.push(localize('sessionsChat.remoteConnections.renameHelp', "In the Remote Connections menu, press Tab to reach the name link in the footer, then Enter or Space to rename the shared environment. The input starts with the current name. Enter saves the name shown on other clients, and Escape cancels. Shift+Tab returns to the connection options. Renaming while Off does not enable sharing."));
 			content.push(localize('sessionsChat.remoteConnections.policyHelp', "If GitHub Environments is disabled by your organization, the footer explains the restriction. Press Tab to reach View Setting and Enter to open the managed setting. Shift+Tab returns to the connection options."));
 			content.push(localize('sessionsChat.remoteConnections', "On desktop, the title bar offers Remote Connections. The preview setting chat.agentHost.remoteConnections selects the connection method. The Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available. Use Tab to reach the title bar, arrow keys to reach the button, Enter or Space to open it, Up and Down Arrow to choose an option, Enter to select, and Escape to close and return focus to the button. Selecting a method updates the setting and enables sharing. Selecting Off disables sharing without changing the preferred method. The footer shows the name used to identify this machine on other clients and whether it is shared or connecting. Changing the setting directly turns sharing off. The setting chat.agentHost.githubEnvironments.enabled controls GitHub Environments availability. If your organization disables it, the menu explains that you must contact your administrator. With GitHub environment selected, enabling sharing registers your local environment for remote owner access and allows clients authenticated as your GitHub account to read and modify files across this machine's accessible file systems, including sensitive files. Remote work uses the host's OAuth token by default, controlled by chat.agentHost.experimentalMissionControl.useLocalCredentials. Operating system permissions still apply. Local sessions continue using local IPC."));
