@@ -40,10 +40,28 @@ import { localize } from '../../../../nls.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 import { IScreenshotToolService } from '../../screenshotTool/browser/screenshotTool.js';
 
 /** How long a reporter window gets to take focus before a dialog about its report opens in whichever window has focus. */
 const REPORTER_FOCUS_TIMEOUT = 500;
+
+const REPORTER_WINDOW_WIDTH = 800;
+const REPORTER_WINDOW_HEIGHT = 900;
+
+/**
+ * Places a reporter window at the top right of the window it reports on, which keeps that window's center visible.
+ * The main process moves a window that would leave its display.
+ */
+function getReporterWindowBounds(sourceWindow: CodeWindow): IRectangle {
+	return {
+		x: sourceWindow.screenX + sourceWindow.outerWidth - REPORTER_WINDOW_WIDTH,
+		y: sourceWindow.screenY,
+		width: REPORTER_WINDOW_WIDTH,
+		height: REPORTER_WINDOW_HEIGHT,
+	};
+}
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
@@ -186,8 +204,9 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		}
 
 		const layout = this.getReporterLayout();
+		const sourceWindow = getActiveWindow();
 		// The quick layout attaches what the user was looking at, so it is captured before the reporter covers it.
-		const screenshot = layout === 'quick' ? await this.screenshotToolService.captureWindow(getActiveWindow(), { afterRepaint: true }) : undefined;
+		const screenshot = layout === 'quick' ? await this.screenshotToolService.captureWindow(sourceWindow, { afterRepaint: true }) : undefined;
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -208,7 +227,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			auxiliaryWindow = await this.auxiliaryWindowService.open({
 				mode: AuxiliaryWindowMode.Normal,
 				nativeTitlebar: true,
-				bounds: { width: 800, height: 900 },
+				bounds: getReporterWindowBounds(sourceWindow),
 			});
 			if (this._store.isDisposed) {
 				return;

@@ -415,13 +415,18 @@ suite('NativeIssueFormService reporter windows', () => {
 			await service.openReporter(data({ isSessionsWindow }));
 			assert.deepStrictEqual({
 				editorParts: editorParts(), opens: opens.length, editors: main.editors.length, osReads: osReads(),
-				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar,
+				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar, bounds: windowOptions[0]?.bounds,
 				form: windows[0].container.querySelectorAll('.issue-reporter-wizard').length,
 				textarea: windows[0].container.querySelectorAll('textarea.wizard-description-input').length,
 				chrome: windows[0].container.querySelectorAll('.editor-group-container, .tabs-container, .command-center, .statusbar, .monaco-editor').length,
 				sourceCaptureBar: source.querySelectorAll('.issue-reporter-floating-bar').length,
 				reporterCaptureBar: windows[0].container.querySelectorAll('.issue-reporter-floating-bar').length,
-			}, { editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true, form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0 });
+			}, {
+				editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true,
+				// The reporter opens at the top right of the window it reports on.
+				bounds: { x: mainWindow.screenX + mainWindow.outerWidth - 800, y: mainWindow.screenY, width: 800, height: 900 },
+				form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0,
+			});
 		});
 
 		test(`preserves editor routing for ${isSessionsWindow ? 'Agents' : 'Editor'} with the editor preference`, async () => {
