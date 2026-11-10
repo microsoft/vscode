@@ -274,6 +274,8 @@ interface IFixtureAgentHostPlugin {
 	readonly name: string;
 	readonly description: string;
 	readonly scope: AICustomizationScope;
+	readonly status?: ICustomizationItem['status'];
+	readonly statusMessage?: string;
 	/** Organization that requires the plugin. */
 	readonly organization?: string;
 }
@@ -291,6 +293,8 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				groupKey: 'remote-host',
 				scope: plugin.scope,
 				origin: plugin.organization ? { kind: 'account', label: plugin.organization } : undefined,
+				status: plugin.status,
+				statusMessage: plugin.statusMessage,
 				extensionId: undefined,
 				pluginUri: undefined,
 			}));
@@ -4466,15 +4470,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	AgentHostPluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in flat scope groups ordered Workspace, User, then Built-in. Organization-contributed plugins show "Organization: name" as their secondary text, and the Built-in plugin has no Copilot tag. Browse replaces the Available group.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in flat scope groups ordered Workspace, User, then Built-in. Successfully loaded plugins have no status indicator. Loading, warning, and error states use compact icons rather than pills. Organization-contributed plugins show "Organization: name" as their secondary text, and the Built-in plugin has no Copilot tag. Browse replaces the Available group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			marketplaceVisibilityEnabled: true,
 			agentHostPlugins: [
-				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user' },
-				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'user', organization: 'contoso' },
-				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application' },
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
+				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'user', organization: 'contoso', status: 'loading' },
+				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application', status: 'degraded', statusMessage: 'Some contributions could not be loaded' },
+				{ name: 'invalid-plugin', description: 'Plugin with an invalid manifest', scope: 'application', status: 'error', statusMessage: 'Error parsing plugin' },
 			],
 			height: 1180,
 		}),

@@ -78,7 +78,6 @@ suite('changedFiles', () => {
 				modified('package.json'),
 				deleted('pnpm-lock.yaml'),
 				modified('extensions/copilot/package.json'),
-				modified('extensions/copilot/pnpm-lock.yaml'),
 				modified('build/lib/i18n.resources.json'),
 				modified('src/vs/base/common/arrays.ts', 'build/filters.ts'),
 			].map(changes => getEslintScope(changes, noFiles)), [
@@ -91,7 +90,6 @@ suite('changedFiles', () => {
 				{ kind: 'full', reason: 'package.json changed' },
 				{ kind: 'full', reason: 'pnpm-lock.yaml changed' },
 				{ kind: 'full', reason: 'extensions/copilot/package.json changed' },
-				{ kind: 'full', reason: 'extensions/copilot/pnpm-lock.yaml changed' },
 				{ kind: 'full', reason: 'build/lib/i18n.resources.json changed' },
 				{ kind: 'full', reason: 'build/filters.ts changed' },
 			]);
@@ -107,7 +105,7 @@ suite('changedFiles', () => {
 				scopes: [
 					getEslintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
 					getEslintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
-					getEslintScope(modified('extensions/pnpm-lock.yaml'), listFiles),
+					getEslintScope(modified('extensions/package.json'), listFiles),
 				],
 				listed,
 			}, {
@@ -122,7 +120,7 @@ suite('changedFiles', () => {
 				}, {
 					kind: 'files',
 					files: ['extensions/simple-browser/src/extension.ts', 'extensions/typescript-language-features/src/api.ts'],
-					reason: 'changed files, plus the extensions linted with type information because extensions/pnpm-lock.yaml changed',
+					reason: 'changed files, plus the extensions linted with type information because extensions/package.json changed',
 				}],
 				listed: [typeAwareLintFolders, typeAwareLintFolders, typeAwareLintFolders],
 			});

@@ -84,7 +84,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { hasOnboardingTargetSelection, onDidSelectOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -3526,6 +3526,28 @@ suite('WorkspacePicker - Connection Status', () => {
 			selected: folder.toString(),
 			stored: undefined,
 		});
+	});
+
+	test('reloading a checked Cloud workspace retains Cloud when This Computer also resolves the folder', () => {
+		const folder = URI.file('/local/project');
+		const local = createMockProvider('local-1');
+		const cloud = createMockProvider('cloud');
+		const storage = disposables.add(new TestStorageService());
+		providersService.setProviders([cloud, local]);
+		const picker = createTestPicker(disposables, providersService, storage);
+		picker.setSelectedWorkspace(folder, { providerId: cloud.id, fireEvent: false });
+
+		const reloaded = createTestPicker(disposables, providersService, storage);
+		const environment = getDefaultSessionCreationEnvironment([
+			{ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [local.id] },
+			{ id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [cloud.id] },
+		], reloaded.selectedFolderUri, reloaded.selectedResolved?.providerId, false, undefined,
+			reloaded.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
+		assert.deepStrictEqual({
+			folder: reloaded.selectedFolderUri?.toString(),
+			provider: reloaded.selectedResolved?.providerId,
+			environment: environment?.id,
+		}, { folder: folder.toString(), provider: cloud.id, environment: 'cloud' });
 	});
 
 	test('local provider is never treated as unavailable', () => {

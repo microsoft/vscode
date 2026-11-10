@@ -1655,7 +1655,7 @@ export class PartGrid extends Disposable {
 			changed = cell.setLook(insets, frames[index]) || changed;
 		});
 
-		updateGridGapSashes(grid, true);
+		updateGridGapSashes(grid, true, this.gap);
 
 		// Insets change the size constraints of the cells
 		if (changed && relayout) {

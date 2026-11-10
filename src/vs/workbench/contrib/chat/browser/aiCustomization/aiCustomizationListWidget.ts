@@ -7,6 +7,7 @@ import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -90,6 +91,7 @@ type CustomizationEditorSearchClassification = {
 const ITEM_HEIGHT = 44;
 const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
+const MORE_ACTION_ID = 'aiCustomization.moreActions';
 
 /**
  * Represents a collapsible group header in the list.
@@ -162,6 +164,12 @@ interface IAICustomizationItemTemplateData {
 	readonly elementDisposables: DisposableStore;
 	readonly iconDisposables: DisposableStore;
 	currentItemId: string | undefined;
+	menuActionViewItem: AICustomizationMenuActionViewItem | undefined;
+}
+
+interface IItemContextMenuLifecycle {
+	readonly onShow: () => void;
+	readonly onHide: () => void;
 }
 
 interface IContributionSourcePresentation {
@@ -181,6 +189,18 @@ interface IGroupHeaderTemplateData {
 	readonly actions: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+}
+
+class AICustomizationMenuActionViewItem extends ActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.label?.setAttribute('aria-haspopup', 'menu');
+		this.setExpanded(false);
+	}
+
+	setExpanded(expanded: boolean): void {
+		this.label?.setAttribute('aria-expanded', String(expanded));
+	}
 }
 
 /**
@@ -286,9 +306,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	 */
 	private readonly templates = new Set<IAICustomizationItemTemplateData>();
 	private focusedItemId: string | undefined;
+	private menuOpenItemId: string | undefined;
 
 	constructor(
-		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
+		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement, lifecycle: IItemContextMenuLifecycle) => void,
 		private readonly presentation: IAICustomizationItemPresentation,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -335,7 +356,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+			actionViewItemProvider: (action, options) => action.id === MORE_ACTION_ID
+				? new AICustomizationMenuActionViewItem(undefined, action, options)
+				: createActionViewItem(this.instantiationService, action, options),
 		}));
 		// Keep the inline actions out of the document tab order by default. Only the
 		// focused row's action bar is made tab-focusable (see `setFocusedItemId`),
@@ -360,6 +383,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			elementDisposables,
 			iconDisposables,
 			currentItemId: undefined,
+			menuActionViewItem: undefined,
 		};
 		this.templates.add(template);
 		return template;
@@ -524,6 +548,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		if (entry.type === 'skill-bundle') {
 			templateData.actionBar.clear();
+			templateData.menuActionViewItem = undefined;
+			this.updateMenuOpenState(templateData);
 			return;
 		}
 
@@ -558,20 +584,31 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		const updateActions = () => {
 			templateData.actionBar.clear();
+			templateData.menuActionViewItem = undefined;
 			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook) {
 				const moreAction = templateData.elementDisposables.add(new Action(
-					'aiCustomization.moreActions',
+					MORE_ACTION_ID,
 					localize('customizationMoreActionsAria', "More actions for {0}", displayName),
 					ThemeIcon.asClassName(Codicon.ellipsis),
 					true,
-					() => this.showItemActions(element, templateData.actionsContainer),
+					() => this.showItemActions(element, templateData.actionsContainer, {
+						onShow: () => this.setMenuOpenItemId(element.id),
+						onHide: () => {
+							if (this.menuOpenItemId === element.id) {
+								this.setMenuOpenItemId(undefined);
+							}
+						},
+					}),
 				));
 				templateData.actionBar.push(moreAction, { icon: true, label: false });
+				const menuActionViewItem = templateData.actionBar.viewItems.find(item => item.action.id === MORE_ACTION_ID);
+				templateData.menuActionViewItem = menuActionViewItem instanceof AICustomizationMenuActionViewItem ? menuActionViewItem : undefined;
 			} else {
 				const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
 				const { primary } = getContextMenuActions(actions, 'inline');
 				templateData.actionBar.push(primary, { icon: true, label: false });
 			}
+			this.updateMenuOpenState(templateData);
 		};
 		updateActions();
 		templateData.elementDisposables.add(menu.onDidChange(updateActions));
@@ -581,12 +618,26 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.currentItemId = undefined;
+		this.updateMenuOpenState(templateData);
 	}
 
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
 		this.templates.delete(templateData);
 		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
+	}
+
+	private setMenuOpenItemId(itemId: string | undefined): void {
+		this.menuOpenItemId = itemId;
+		for (const template of this.templates) {
+			this.updateMenuOpenState(template);
+		}
+	}
+
+	private updateMenuOpenState(templateData: IAICustomizationItemTemplateData): void {
+		const menuOpen = templateData.currentItemId !== undefined && templateData.currentItemId === this.menuOpenItemId;
+		templateData.container.classList.toggle('menu-open', menuOpen);
+		templateData.menuActionViewItem?.setExpanded(menuOpen);
 	}
 }
 
@@ -1000,7 +1051,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Create list
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
-			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
+			(item: IAICustomizationListItem, anchor: HTMLElement, lifecycle: IItemContextMenuLifecycle) => this.showItemContextMenu(item, anchor, lifecycle),
 			{
 				getOriginLabel: origin => this.getOriginLabel(origin),
 				getContributionSource: item => this.getContributionSource(item),
@@ -1105,7 +1156,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.showItemContextMenu(e.element.item, e.anchor);
 	}
 
-	private showItemContextMenu(item: IAICustomizationListItem, anchor: IListContextMenuEvent<IListEntry>['anchor']): void {
+	private showItemContextMenu(item: IAICustomizationListItem, anchor: IListContextMenuEvent<IListEntry>['anchor'], lifecycle?: IItemContextMenuLifecycle): void {
 		// Create context for the menu actions
 		const context: Record<string, unknown> = {
 			uri: item.uri.toString(),
@@ -1129,6 +1180,7 @@ export class AICustomizationListWidget extends Disposable {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, isPluginUriRequiredByPolicy(this.agentPluginService, item.pluginUri)]);
 		}
+		const menuDisposables = new DisposableStore();
 		const overlay = this.contextKeyService.createOverlay(overlayPairs);
 
 		// Get menu actions, excluding inline actions to avoid duplicates
@@ -1142,11 +1194,11 @@ export class AICustomizationListWidget extends Disposable {
 		// Add copy path actions (not shown for built-in items where the path is an implementation detail)
 		const copyActions = item.isBuiltin || !hasReadableCustomizationContent(item.uri) ? [] : [
 			new Separator(),
-			new Action('copyFullPath', localize('copyFullPath', "Copy Full Path"), undefined, true, async () => {
+			menuDisposables.add(new Action('copyFullPath', localize('copyFullPath', "Copy Full Path"), undefined, true, async () => {
 				const path = item.uri.scheme === Schemas.file ? item.uri.fsPath : item.uri.toString(true);
 				await this.clipboardService.writeText(path);
-			}),
-			new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
+			})),
+			menuDisposables.add(new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
 				const basePath = this.workspaceService.getActiveProjectRoot();
 				if (basePath && item.uri.fsPath.startsWith(basePath.fsPath)) {
 					const relative = item.uri.fsPath.substring(basePath.fsPath.length + 1);
@@ -1156,12 +1208,24 @@ export class AICustomizationListWidget extends Disposable {
 					const relativePath = this.labelService.getUriLabel(item.uri, { relative: true });
 					await this.clipboardService.writeText(relativePath);
 				}
-			}),
+			})),
 		];
 
+		const menuActions = [...secondary, ...copyActions];
+		if (menuActions.length === 0) {
+			menuDisposables.dispose();
+			return;
+		}
+
+		lifecycle?.onShow();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...secondary, ...copyActions],
+			getActions: () => menuActions,
+			autoSelectItem: lifecycle ? true : undefined,
+			onHide: () => {
+				menuDisposables.dispose();
+				lifecycle?.onHide();
+			},
 		});
 	}
 

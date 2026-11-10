@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { ModelRouterDiagnosticSeverity, parseModelRouter } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { MessageKind, TurnState, type IModelRoutedInfo, type Turn } from '../../common/state/sessionState.js';
@@ -68,7 +69,7 @@ suite('CopilotModelRouter', () => {
 		const result = await resolve({ file: routerFile() });
 		assert.deepStrictEqual(result, {
 			selection: { id: 'haiku' },
-			routed: { router: 'daily', chosenModel: 'haiku', defaulted: true },
+			routed: { router: 'daily', chosenModel: 'haiku', defaulted: true, firstTurnOnly: true },
 			notices: ['The model router daily used HAIKU, its first model, because routing was unavailable.'],
 		});
 	});
@@ -77,7 +78,7 @@ suite('CopilotModelRouter', () => {
 		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 }, effortScore: 2 });
 		const result = await resolve({ file: routerFile(), picker });
 		assert.deepStrictEqual({ result, askEffort: picker.requests[0].askEffort, candidates: picker.requests[0].candidates.map(c => c.when) }, {
-			result: { selection: { id: 'opus', config: { [ReasoningEffortConfigKey]: 'high' } }, routed: { router: 'daily', chosenModel: 'opus', preference: 'Planning.', effort: 'high' }, notices: [] },
+			result: { selection: { id: 'opus', config: { [ReasoningEffortConfigKey]: 'high' } }, routed: { router: 'daily', chosenModel: 'opus', preference: 'Planning.', effort: 'high', firstTurnOnly: true }, notices: [] },
 			askEffort: true,
 			candidates: ['Small edits.', 'Planning.'],
 		});
@@ -90,7 +91,8 @@ suite('CopilotModelRouter', () => {
 			await resolve({ file: routerFile('switching: auto\n'), previousTurns }),
 			await resolve({ file: routerFile(), previousTurns, picker }),
 		];
-		assert.deepStrictEqual(results.map(r => [r.selection?.id, r.routed?.kept]), [['opus', true], ['opus', true]]);
+		// Only a router that routes the first turn alone marks its picks, so the chat shows no routing line for the turns after it.
+		assert.deepStrictEqual(results.map(r => [r.selection?.id, r.routed?.kept, r.routed?.firstTurnOnly]), [['opus', true, undefined], ['opus', true, true]]);
 		assert.strictEqual(picker.requests.length, 0);
 	});
 
@@ -135,5 +137,48 @@ suite('CopilotModelRouter', () => {
 			selections: [afterOtherFailed.selection?.id, repairedAfterOtherPicked.selection?.id, afterOwnFailed.selection?.id],
 			picks: picker.requests.length,
 		}, { selections: ['opus', 'opus', 'haiku'], picks: 2 });
+	});
+
+	test('applies a route\'s context size, keeps a long window once the chat has one, and names the router by its display name', async () => {
+		const contextSize = createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000)!;
+		const withWindows = models.map((candidate): IAgentModelInfo => ({ ...candidate, configSchema: { type: 'object', properties: { ...candidate.configSchema?.properties, [ContextSizeConfigKey]: contextSize } } }));
+		const content = 'version: 1\ndisplay-name: Daily Driver\ndescription: Test.\neffort: off\nroutes:\n  - model: haiku\n    when: Small edits.\n    context-size: default\n  - model: opus\n    when: Planning.\n    context-size: long\n';
+		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+		const route = (previousTurns: Turn[], picker?: IModelRouterPicker) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'plan the migration', models: withWindows, previousTurns, picker });
+		const picked = await route([], new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } }));
+		const unavailable = await route([]);
+		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long', longContext: true })]);
+		// The long window is the chat's, so it holds across another router's pick, a turn on a model with one size, and until the user picks a model by hand.
+		// It also holds when no route asked for it and the earlier model ran on its larger window by default.
+		const handPicked = { ...routedTurn({ router: 'x', chosenModel: 'x' }), usage: { inputTokens: 10, outputTokens: 1 }, message: { text: 'earlier', origin: { kind: MessageKind.User }, model: { id: 'haiku' } } } as Turn;
+		const stickyLong = await Promise.all([
+			route([routedTurn({ router: 'other', chosenModel: 'haiku', contextSize: 'long', longContext: true })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'opus', contextSize: 'long', longContext: true }), routedTurn({ router: 'daily', chosenModel: 'haiku' })]),
+			route([routedTurn({ router: 'other', chosenModel: 'opus', longContext: true })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long', longContext: true }), handPicked]),
+		]);
+		assert.deepStrictEqual(stickyLong.map(result => result.selection), [
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } },
+		]);
+		// A model that defaults to its larger window is on a long window without the router sending a size.
+		const longByDefault = withWindows.map((candidate): IAgentModelInfo => ({ ...candidate, configSchema: { type: 'object', properties: { ...candidate.configSchema?.properties, [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000, 1_000_000)! } } }));
+		const implicit = (previousTurns: Turn[]) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('effort: off\n'), text: 'plan the migration', models: longByDefault, previousTurns, picker: undefined });
+		const implicitLong = [await implicit([]), await implicit([routedTurn({ router: 'daily', chosenModel: 'haiku', longContext: true })])];
+		assert.deepStrictEqual(implicitLong.map(result => [result.selection, result.routed?.longContext, result.routed?.contextSize]), [
+			[{ id: 'haiku' }, true, undefined],
+			[{ id: 'haiku' }, true, undefined],
+		]);
+		assert.deepStrictEqual({ picked, unavailable: { selection: unavailable.selection, notices: unavailable.notices }, kept: { selection: kept.selection, contextSize: kept.routed?.contextSize, contextTokens: kept.routed?.contextTokens } }, {
+			picked: {
+				selection: { id: 'opus', config: { [ContextSizeConfigKey]: 1_000_000 } },
+				routed: { router: 'daily', routerLabel: 'Daily Driver', chosenModel: 'opus', preference: 'Planning.', contextSize: 'long', contextTokens: 1_000_000, longContext: true, firstTurnOnly: true },
+				notices: [],
+			},
+			unavailable: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } }, notices: ['The model router Daily Driver used HAIKU, its first model, because routing was unavailable.'] },
+			kept: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } }, contextSize: 'long', contextTokens: 1_000_000 },
+		});
 	});
 });
