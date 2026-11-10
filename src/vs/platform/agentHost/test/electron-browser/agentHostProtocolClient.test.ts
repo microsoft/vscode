@@ -1960,6 +1960,24 @@ suite('AgentHostProtocolClient', () => {
 				return { client, transport };
 			}
 
+			test(`branch source completions preserve metadata and map the directory exactly once (${kind.name})`, async () => {
+				const { client, transport } = createMappedClient();
+				await connectClient(client, transport);
+				const directory = URI.file('/workspace');
+				const _meta = { 'vscode.branchCreationSources': true };
+				const pending = client.sessionConfigCompletions({
+					provider: 'other-agent', workingDirectory: kind.toClient(directory), property: 'branch', _meta,
+				});
+				const sent = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'sessionConfigCompletions');
+				assert.ok(sent);
+				const result = { items: [{ value: 'HEAD', label: 'HEAD (main, abc1234)', description: 'Author, commit subject' }] };
+				transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result });
+				assert.deepStrictEqual({ params: sent.params, result: await pending }, {
+					params: { channel: ROOT_STATE_URI, provider: 'other-agent', workingDirectory: directory.toString(), config: undefined, property: 'branch', query: undefined, _meta },
+					result,
+				});
+			});
+
 			test(`createSession maps working directories but retains client customization URIs and implicit grants (${kind.name})`, async () => {
 				const granted = new Set<string>();
 				const reads: string[] = [];

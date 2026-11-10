@@ -1387,6 +1387,37 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	(hasGit ? test : test.skip)('branch creation sources include commit details for HEAD, branches, remotes and tags', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const commit = run('rev-parse', 'HEAD');
+		const timestamp = Number(run('log', '-1', '--format=%ct')) * 1000;
+		run('branch', 'dev');
+		run('update-ref', 'refs/remotes/origin/main', commit);
+		run('tag', 'lightweight');
+		run('tag', '-a', 'annotated', '-m', 'tag message, not commit subject');
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		const details = { commit, author: 't', subject: 'initial', timestamp };
+		assert.deepStrictEqual(sources, [
+			{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/dev', name: 'dev', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/remotes/origin/main', name: 'origin/main', kind: GitRefType.RemoteHead, ...details },
+			{ ref: 'refs/tags/lightweight', name: 'lightweight', kind: GitRefType.Tag, ...details },
+			{ ref: 'refs/tags/annotated', name: 'annotated', kind: GitRefType.Tag, ...details },
+		]);
+	});
+
+	(hasGit ? test : test.skip)('branch creation sources identify detached HEAD and surface query failures', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['checkout', '-q', '--detach'], { cwd: dir, env, stdio: 'pipe' });
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		assert.deepStrictEqual({ ref: sources[0].ref, name: sources[0].name, kind: sources[0].kind }, {
+			ref: 'HEAD', name: 'HEAD', kind: GitRefType.DetachedHead,
+		});
+		await assert.rejects(svc!.getBranchCreationSources(URI.file(join(dir, 'missing'))));
+	});
+
 	(hasGit ? test : test.skip)('inventories unusual worktree paths without bypassing registered dirty-worktree protection', async () => {
 		const dir = initRepo();
 		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');

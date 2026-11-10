@@ -43,7 +43,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -101,6 +101,7 @@ const PICKER_OPEN_ATTRIBUTE = 'data-picker-open';
 const MOBILE_BRANCH_PICKER_RESULT_LIMIT = 25;
 const repositoryConfigSequencer = new SequencerByKey<string>();
 const CREATE_BRANCH_LABEL = localize('agentHostSessionConfig.createBranch', "Create New Branch...");
+const CREATE_BRANCH_FROM_LABEL = localize('agentHostSessionConfig.createBranchFrom', "Create New Branch From...");
 
 function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 	const activeElement = dom.getActiveElement();
@@ -115,7 +116,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 }
 
 export interface IConfigPickerItem {
-	readonly createBranch?: boolean;
+	readonly createBranch?: 'current' | 'from';
 	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
@@ -1066,7 +1067,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			: undefined;
 	}
 
-	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, trigger: HTMLElement): Promise<void> {
+	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from = false): Promise<void> {
 		const config = this._getSessionConfig(provider, sessionId);
 		const schema = config?.schema.properties[property];
 		if (!config || !schema || !isSessionConfigWritable(schema, true) || !this._getCreateBranchChangeset(provider, sessionId)) {
@@ -1076,19 +1077,55 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const workspace = this._session.get()?.workspace.get()?.uri;
 		const isolationKey = getSessionWorkspaceProperties(config.schema).isolationKey;
 		const isolation = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
-		const startPoint = config.values[property] ?? schema.default;
 		try {
-			if (typeof startPoint !== 'string' || !startPoint) {
-				throw new Error(localize('agentHostSessionConfig.createBranch.startPointRequired', "Select a starting branch before creating a new branch."));
-			}
-			const branches = await this._getItems(provider, sessionId, property, schema);
+			const [branches, sourceDetails] = await Promise.all([
+				provider.getSessionConfigCompletions(sessionId, property),
+				provider.getBranchCreationSources?.(sessionId),
+			]);
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return;
 			}
+			const head = sourceDetails?.find(source => source.value === 'HEAD') ?? {
+				value: 'HEAD',
+				label: localize('agentHostSessionConfig.createBranch.unknownHead', "HEAD (Commit Details Unavailable)"),
+			};
+			const toSourceItem = (source: SessionConfigValueItem) => ({
+				value: source.value,
+				label: source.label,
+				detail: source.description,
+				iconClass: ThemeIcon.asClassName(source.value.startsWith('refs/remotes/') ? Codicon.cloud : source.value.startsWith('refs/tags/') ? Codicon.tag : Codicon.gitBranch),
+			});
+			let startPoint = 'HEAD';
+			let sourceLabel = head.label;
+			if (from) {
+				const items: QuickPickInput<IQuickPickItem & { value: string }>[] = [toSourceItem(head)];
+				const sources = (sourceDetails?.length ? sourceDetails : branches).filter(source => source.value !== 'HEAD');
+				for (const [label, group] of [
+					[localize('agentHostSessionConfig.createBranch.localBranches', "Branches"), sources.filter(source => !source.value.startsWith('refs/remotes/') && !source.value.startsWith('refs/tags/'))],
+					[localize('agentHostSessionConfig.createBranch.remoteBranches', "Remote Branches"), sources.filter(source => source.value.startsWith('refs/remotes/'))],
+					[localize('agentHostSessionConfig.createBranch.tags', "Tags"), sources.filter(source => source.value.startsWith('refs/tags/'))],
+				] as const) {
+					if (group.length) {
+						items.push({ type: 'separator', label }, ...group.map(toSourceItem));
+					}
+				}
+				const source = await this._quickInputService.pick(items, {
+					placeHolder: localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from"),
+					matchOnDetail: true,
+					sortByLabel: false,
+				});
+				if (!source || !this._isCurrentSession(provider, sessionId)) {
+					return;
+				}
+				startPoint = source.value;
+				sourceLabel = source.detail
+					? localize('agentHostSessionConfig.createBranch.sourceDetails', "{0} ({1})", source.label, source.detail)
+					: source.label;
+			}
 			const branchName = await this._quickInputService.input({
-				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", startPoint),
+				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", sourceLabel),
 				placeHolder: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name"),
-				anchor: trigger,
+				ignoreFocusLost: true,
 				validateInput: async name => {
 					if (!name || name === 'HEAD' || name === '@' || name.startsWith('-') || name.endsWith('.')
 						|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\]\\]/.test(name)
@@ -1150,7 +1187,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
-				item: { value: '', label: CREATE_BRANCH_LABEL, createBranch: true },
+				item: { value: '', label: CREATE_BRANCH_LABEL, createBranch: 'current' },
+			}, {
+				kind: ActionListItemKind.Action,
+				label: CREATE_BRANCH_FROM_LABEL,
+				group: { title: '', icon: Codicon.gitBranchCreate },
+				item: { value: '', label: CREATE_BRANCH_FROM_LABEL, createBranch: 'from' },
 			}]
 			: items;
 	}
@@ -1483,7 +1525,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					return;
 				}
 				if (item.createBranch) {
-					await this._createBranch(provider, sessionId, property, trigger);
+					await this._createBranch(provider, sessionId, property, item.createBranch === 'from');
 					return;
 				}
 				if (presentation === SessionConfigKey.Isolation && item.value === 'worktree'
@@ -1886,9 +1928,10 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const repositoryState = this._getRepositoryBranchState(sessionId);
 		const sheetItems: IMobilePickerSheetItem[] = [];
 		const canCreateBranch = canSelectBranch && !!this._getCreateBranchChangeset(provider, sessionId);
-		let createBranchSelected = false;
+		let createBranchSelected: 'current' | 'from' | undefined;
 		if (canCreateBranch) {
 			sheetItems.push({ id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, label: CREATE_BRANCH_LABEL, icon: Codicon.gitBranchCreate });
+			sheetItems.push({ id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`, label: CREATE_BRANCH_FROM_LABEL, icon: Codicon.gitBranchCreate });
 		}
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
@@ -1979,7 +2022,11 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					if (canCreateBranch && id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID) {
-						createBranchSelected = true;
+						createBranchSelected = 'current';
+						return MOBILE_PICKER_SHEET_CONFIRM;
+					}
+					if (canCreateBranch && id === `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`) {
+						createBranchSelected = 'from';
 						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					const selection = idToConfig.get(id);
@@ -2005,7 +2052,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		);
 		trigger.setAttribute('aria-expanded', 'false');
 		if (createBranchSelected) {
-			await this._createBranch(provider, sessionId, branchProperty, trigger);
+			await this._createBranch(provider, sessionId, branchProperty, createBranchSelected === 'from');
 		} else if (this._isCurrentSession(provider, sessionId)) {
 			trigger.focus();
 		}

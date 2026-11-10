@@ -38,7 +38,7 @@ import { IKeybindingService } from '../../../../../../../platform/keybinding/com
 import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -68,6 +68,7 @@ import { IWorktreeSuggestionService } from '../../../../../worktreeSuggestion/br
 import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '../../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import { WorktreeSuggestionVariant } from '../../../../../worktreeSuggestion/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { workbenchInstantiationService } from '../../../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -175,6 +176,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	devContainerEnabled = false;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
+	branchCreationSources: readonly SessionConfigValueItem[] = [];
 	readonly completionQueries: (string | undefined)[] = [];
 	completionBarrier: DeferredPromise<void> | undefined;
 
@@ -207,6 +209,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 			: this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase()));
 	}
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
+	async getBranchCreationSources(): Promise<readonly SessionConfigValueItem[]> { return this.branchCreationSources; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -446,7 +449,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('places branch creation after a separator below available and filtered branches', async () => {
+	test('places both branch creation commands after a separator below available and filtered branches', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
 		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
@@ -454,14 +457,14 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
 		const rows = (items: readonly IActionListItem<IConfigPickerItem>[]) => items.map(item =>
-			item.kind === ActionListItemKind.Separator ? 'separator' : item.item?.createBranch ? 'create' : item.item?.value);
+			item.kind === ActionListItemKind.Separator ? 'separator' : item.item?.createBranch ?? item.item?.value);
 		const initial = rows(services.actionWidget.items);
 		const filtered = rows(await services.actionWidget.delegate!.onFilter!('feature', CancellationToken.None));
 		const empty = rows(await services.actionWidget.delegate!.onFilter!('no-matching-branch', CancellationToken.None));
 		assert.deepStrictEqual({ initial, filtered, empty }, {
-			initial: ['main', 'separator', 'feature/existing', 'separator', 'create'],
-			filtered: ['feature/existing', 'separator', 'create'],
-			empty: ['create'],
+			initial: ['main', 'separator', 'feature/existing', 'separator', 'current', 'from'],
+			filtered: ['feature/existing', 'separator', 'current', 'from'],
+			empty: ['current', 'from'],
 		});
 	});
 
@@ -495,10 +498,167 @@ suite('Agent Host Session Config Picker', () => {
 				callsBeforeCreation: 0,
 				invocations: [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'main', checkout: true } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'HEAD', checkout: true } },
 				}],
 				selection: 'feature/new',
 				label: 'feature/new',
+			});
+		});
+	}
+
+	for (const headLabel of ['HEAD (main, abc1234)', 'HEAD (Detached at abc1234)']) {
+		test(`identifies the current commit in the branch naming prompt: ${headLabel}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.branchCreationSources = [{ value: 'HEAD', label: headLabel, description: 'Author, abc1234, commit subject' }];
+			let prompt: string | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input(options?: IInputOptions) { prompt = options?.prompt; return undefined; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+			assert.strictEqual(prompt, `Enter a name for the new branch, starting from '${headLabel}'.`);
+		});
+	}
+
+	for (const selectedRef of ['refs/remotes/origin/main', 'refs/tags/v1']) {
+		test(`groups rich branch sources and creates from the exact selected ref: ${selectedRef}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			const description = 'Author, abc1234, commit subject';
+			services.provider.branchCreationSources = [
+				{ value: 'HEAD', label: 'HEAD (main, abc1234)', description },
+				{ value: 'refs/heads/main', label: 'main', description },
+				{ value: 'refs/remotes/origin/main', label: 'origin/main', description },
+				{ value: 'refs/tags/v1', label: 'v1', description },
+			];
+			let rows: { label: string | undefined; detail?: string; iconClass?: string }[] = [];
+			let matchOnDetail: boolean | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+					const items = await picks;
+					rows = items.map(item => item.type === 'separator' ? { label: item.label } : { label: item.label, detail: item.detail, iconClass: item.iconClass });
+					matchOnDetail = options?.matchOnDetail;
+					const source = items.find((item): item is T => item.type !== 'separator' && item.label === (selectedRef.startsWith('refs/tags/') ? 'v1' : 'origin/main'));
+					return source && options?.canPickMany ? [source] : source;
+				}
+				override async input() { return 'feature/new'; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			assert.deepStrictEqual({ rows, matchOnDetail, invocations: services.checkoutInvocations }, {
+				rows: [
+					{ label: 'HEAD (main, abc1234)', detail: description, iconClass: 'codicon codicon-git-branch' },
+					{ label: 'Branches' },
+					{ label: 'main', detail: description, iconClass: 'codicon codicon-git-branch' },
+					{ label: 'Remote Branches' },
+					{ label: 'origin/main', detail: description, iconClass: 'codicon codicon-cloud' },
+					{ label: 'Tags' },
+					{ label: 'v1', detail: description, iconClass: 'codicon codicon-tag' },
+				],
+				matchOnDetail: true,
+				invocations: [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: selectedRef, checkout: true } },
+				}],
+			});
+		});
+	}
+
+	test('renders branch source names and commit details separately from their icons in Quick Pick', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const detail = 'Author, abc1234, commit subject';
+		services.provider.branchCreationSources = [
+			{ value: 'HEAD', label: 'HEAD (main, abc1234)', description: detail },
+			{ value: 'refs/heads/main', label: 'main', description: detail },
+			{ value: 'refs/remotes/origin/main', label: 'origin/main', description: detail },
+			{ value: 'refs/tags/v1', label: 'v1', description: detail },
+		];
+		const quickInputServices = workbenchInstantiationService(undefined, store);
+		const quickInput = quickInputServices.get(IQuickInputService);
+		services.instantiationService.stub(IQuickInputService, quickInput);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+		try {
+			await timeout(0);
+			const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row[data-index]'));
+			assert.deepStrictEqual(rows.filter(row => row.querySelector('.label-name')).map(row => {
+				const name = row.querySelector<HTMLElement>('.label-name')!;
+				return {
+					name: name.textContent,
+					detail: row.querySelector('.quick-input-list-label-meta .label-name')?.textContent,
+					icon: row.querySelector('.quick-input-list-icon')?.className,
+					labelIsIcon: name.closest('.monaco-icon-label')?.classList.contains('codicon'),
+					nameHasWidth: name.getBoundingClientRect().width > 0,
+				};
+			}), [
+				{ name: 'HEAD (main, abc1234)', detail, icon: 'quick-input-list-icon codicon codicon-git-branch', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'main', detail, icon: 'quick-input-list-icon codicon codicon-git-branch', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'origin/main', detail, icon: 'quick-input-list-icon codicon codicon-cloud', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'v1', detail, icon: 'quick-input-list-icon codicon codicon-tag', labelIsIcon: false, nameHasWidth: true },
+			]);
+		} finally {
+			await quickInput.cancel();
+			await creation;
+		}
+	});
+
+	for (const outcome of ['created', 'sourceCancel', 'nameCancel', 'sessionChanged'] as const) {
+		test(`creating a branch from another branch handles ${outcome}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.completions = ['main', 'dev'].map(value => ({ value, label: value }));
+			const steps: string[] = [];
+			let sourceLabels: (string | undefined)[] = [];
+			let prompt: string | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+					steps.push('source');
+					const items = await picks;
+					sourceLabels = items.map(item => item.label);
+					if (outcome === 'sessionChanged') {
+						services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+					}
+					const source = items.find((item): item is T => item.type !== 'separator' && item.label === 'dev');
+					return outcome === 'sourceCancel' || !source ? undefined : options?.canPickMany ? [source] : source;
+				}
+				override async input(options?: IInputOptions) {
+					steps.push('name');
+					prompt = options?.prompt;
+					return outcome === 'nameCancel' ? undefined : 'feature/new';
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			const nameShown = outcome === 'created' || outcome === 'nameCancel';
+			assert.deepStrictEqual({
+				steps,
+				sourceLabels,
+				prompt,
+				invocations: services.checkoutInvocations,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				steps: nameShown ? ['source', 'name'] : ['source'],
+				sourceLabels: ['HEAD (Commit Details Unavailable)', 'Branches', 'main', 'dev'],
+				prompt: nameShown ? 'Enter a name for the new branch, starting from \'dev\'.' : undefined,
+				invocations: outcome === 'created' ? [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'dev', checkout: true } },
+				}] : [],
+				writes: outcome === 'created' ? [{ sessionId: SESSION_ID, property: 'branch', value: 'feature/new' }] : [],
 			});
 		});
 	}
@@ -538,7 +698,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ inputShown, invocations: services.checkoutInvocations }, { inputShown: false, invocations: [] });
 	});
 
-	test('validates new branch names and ref conflicts in the anchored input', async () => {
+	test('validates new branch names and ref conflicts in the standard quick input', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
 		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
@@ -553,12 +713,12 @@ suite('Agent Host Session Config Picker', () => {
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
 		const invalidNames = ['', 'HEAD', '-option', 'a b', 'a..b', 'a@{b', '.hidden', 'a/.hidden', 'a.lock', 'a//b', 'a/', 'a.', 'a\\b', 'a?b', 'a[b', 'main', 'feature', 'feature/existing/child'];
 		assert.deepStrictEqual({
-			anchored: inputOptions?.anchor === trigger,
+			anchor: inputOptions?.anchor,
 			invalid: await Promise.all(invalidNames.map(async name => !!await inputOptions?.validateInput?.(name))),
 			valid: await inputOptions?.validateInput?.('feature/new'),
 			invocations: services.checkoutInvocations,
 		}, {
-			anchored: true,
+			anchor: undefined,
 			invalid: invalidNames.map(() => true),
 			valid: undefined,
 			invocations: [],
@@ -598,7 +758,7 @@ suite('Agent Host Session Config Picker', () => {
 			distinct: undefined,
 			invocations: [{
 				operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'main', checkout: true } },
+				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'HEAD', checkout: true } },
 			}],
 			selection: 'feature/existing',
 		});

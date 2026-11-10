@@ -4307,8 +4307,19 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectory,
 			property: SessionConfigKey.Branch,
 		});
+		let sourceRequests = 0;
+		gitService.getBranchCreationSources = async () => { sourceRequests++; return []; };
+		const sourceResults = [];
+		for (const metadata of [undefined, { 'vscode.branchCreationSources': 'true' }, { 'unknown.branchCreationSources': true }, { 'vscode.branchCreationSources': true }]) {
+			const result = await localService.sessionConfigCompletions({
+				provider: 'codex', workingDirectory, property: SessionConfigKey.Branch, _meta: metadata,
+			});
+			sourceResults.push(result.items.map(item => item.value));
+		}
 
 		assert.deepStrictEqual({
+			sourceRequests,
+			sourceResults,
 			providerResolveConfigs,
 			providerCompletionConfigs,
 			branchesWithQuery: branchesWithQuery.items,
@@ -4336,6 +4347,8 @@ suite('AgentService (node dispatcher)', () => {
 				providerSetting: folder.values.providerSetting,
 			},
 		}, {
+			sourceRequests: 1,
+			sourceResults: [['feature', 'main'], ['feature', 'main'], ['feature', 'main'], []],
 			providerResolveConfigs: [
 				{ providerSetting: 'initial' },
 				{ providerSetting: 'selected' },
@@ -23309,6 +23322,7 @@ suite('AgentService (node dispatcher)', () => {
 				getBranch: async () => undefined,
 				getRefs: async () => [],
 				getBranches: async () => [],
+				getBranchCreationSources: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],
@@ -23428,6 +23442,7 @@ suite('AgentService (node dispatcher)', () => {
 				getBranch: async () => undefined,
 				getRefs: async () => [],
 				getBranches: async () => [],
+				getBranchCreationSources: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],

@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, IGitRefDetails } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -167,6 +167,51 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]> {
 		const refs = await this.getRefs(workingDirectory, query);
 		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
+	}
+
+	async getBranchCreationSources(workingDirectory: URI): Promise<readonly IGitRefDetails[]> {
+		const [refs, head, branch] = await Promise.all([
+			this._runGit(workingDirectory, [
+				'for-each-ref', '--sort=-committerdate',
+				'--format=%(refname)%00%(objecttype)%00%(objectname)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(*objecttype)%00%(*objectname)%00%(*authorname)%00%(*subject)%00%(*committerdate:unix)',
+				'refs/heads', 'refs/remotes', 'refs/tags',
+			], { timeout: GET_REFS_TIMEOUT_MS, throwOnError: true }),
+			this._runGit(workingDirectory, ['log', '-1', '--format=%H%x00%an%x00%s%x00%ct', 'HEAD', '--'], { throwOnError: true }),
+			this.getCurrentBranchName(workingDirectory, { throwOnError: true }),
+		]);
+		if (!head) {
+			throw new Error('Unable to read the current Git commit.');
+		}
+		const parseCommit = (fields: string[]) => {
+			const [commit, author, subject, seconds] = fields;
+			const timestamp = Number(seconds) * 1000;
+			if (fields.length !== 4 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit) || !seconds || !Number.isFinite(timestamp)) {
+				throw new Error('Invalid Git reference details.');
+			}
+			return { commit, author, subject, timestamp };
+		};
+		const sources: IGitRefDetails[] = [{
+			ref: 'HEAD', name: branch ?? 'HEAD', kind: branch ? GitRefType.Head : GitRefType.DetachedHead,
+			...parseCommit(head.trimEnd().split('\0')),
+		}];
+		for (const line of refs?.split('\n') ?? []) {
+			if (!line) {
+				continue;
+			}
+			const fields = line.split('\0');
+			const [ref, objectType] = fields;
+			const offset = objectType === 'tag' ? 7 : 2;
+			if ((objectType === 'tag' ? fields[6] : objectType) !== 'commit') {
+				continue;
+			}
+			sources.push({
+				ref,
+				name: ref.replace(/^refs\/(?:heads|remotes|tags)\//, ''),
+				kind: ref.startsWith('refs/heads/') ? GitRefType.Head : ref.startsWith('refs/remotes/') ? GitRefType.RemoteHead : GitRefType.Tag,
+				...parseCommit(fields.slice(offset, offset + 4)),
+			});
+		}
+		return sources;
 	}
 
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {

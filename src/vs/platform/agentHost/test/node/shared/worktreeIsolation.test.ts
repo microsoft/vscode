@@ -761,6 +761,23 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	for (const detached of [false, true]) {
+		test(`branch creation completions describe ${detached ? 'detached' : 'attached'} HEAD and preserve full refs`, async () => {
+			const gitService = createGitService();
+			gitService.getBranchCreationSources = async () => [
+				{ ref: 'HEAD', name: 'feature', kind: detached ? GitRefType.DetachedHead : GitRefType.Head, commit: 'a'.repeat(40), author: 'Author', subject: 'Commit subject', timestamp: Date.now() },
+				{ ref: 'refs/tags/v1', name: 'v1', kind: GitRefType.Tag, commit: 'b'.repeat(40), author: 'Author', subject: 'Earlier commit', timestamp: Date.now() },
+			];
+			const isolation = createIsolation(disposables, { gitService });
+			assert.deepStrictEqual(await isolation.branchCompletions(repoRoot, true), {
+				items: [
+					{ value: 'HEAD', label: detached ? 'HEAD (Detached at aaaaaaa)' : 'HEAD (feature, aaaaaaa)', description: 'Author \u2022 aaaaaaa \u2022 now \u2022 Commit subject' },
+					{ value: 'refs/tags/v1', label: 'v1', description: 'Author \u2022 bbbbbbb \u2022 now \u2022 Earlier commit' },
+				],
+			});
+		});
+	}
+
 	test('defaults worktree isolation to the default branch start point', async () => {
 		const gitService = createGitService();
 		let defaultBranch = localBranch('main', 'origin/main');

@@ -7621,6 +7621,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('requests branch creation details using optional metadata without losing completion descriptions', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const workspace = URI.file('/project');
+		const session = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		agentHost.branchCompletionRequests.length = 0;
+		agentHost.branchCompletionItems = [{ value: 'HEAD', label: 'HEAD (main, abc1234)', description: 'Author, abc1234, commit subject' }];
+		const sources = await provider.getBranchCreationSources(session.sessionId);
+		assert.deepStrictEqual({
+			sources,
+			requests: agentHost.branchCompletionRequests.map(request => ({
+				provider: request.provider, directory: request.workingDirectory?.toString(), property: request.property, _meta: request._meta,
+			})),
+		}, {
+			sources: agentHost.branchCompletionItems,
+			requests: [{
+				provider: session.sessionType, directory: workspace.toString(), property: SessionConfigKey.Branch, _meta: { 'vscode.branchCreationSources': true },
+			}],
+		});
+	});
+
 	test('branch additions and deletions are reflected on subsequent picker opens', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }, { value: 'old', label: 'old' }];

@@ -2520,6 +2520,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			config: params.config,
 			property: params.property,
 			query: params.query,
+			...(params._meta ? { _meta: params._meta } : {}),
 		});
 	}
 

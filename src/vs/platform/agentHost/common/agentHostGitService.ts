@@ -171,6 +171,17 @@ export interface IRefQuery {
 	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
+/** Commit identity and presentation details for a branch-creation source. */
+export interface IGitRefDetails {
+	readonly ref: string;
+	readonly name: string;
+	readonly kind: GitRefType;
+	readonly commit: string;
+	readonly author: string;
+	readonly subject: string;
+	readonly timestamp: number;
+}
+
 export type Branch = IBranch | IRemoteBranch;
 export type GitRef = IBranch | IRemoteBranch | ITag;
 
@@ -251,6 +262,7 @@ export interface IAgentHostGitService {
 	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
+	getBranchCreationSources(workingDirectory: URI): Promise<readonly IGitRefDetails[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
 	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;

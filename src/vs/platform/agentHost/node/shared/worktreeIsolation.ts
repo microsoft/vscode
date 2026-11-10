@@ -5,6 +5,7 @@
 
 import * as fs from 'fs/promises';
 import { DeferredPromise, RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -81,7 +82,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	/** Startup reconciliation of detached worktrees that were never claimed; see {@link reconcileDetachedWorktrees}. */
 	cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
-	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
+	branchCompletions(workingDirectory: URI | undefined, includeCreationSources?: boolean): Promise<{ items: { value: string; label: string; description?: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
 	persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void>;
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
@@ -1112,9 +1113,26 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * All local branch names for the branch picker, ordered with the current and
 	 * default branches first. Pickers filter the returned list and cap how many rows they show.
 	 */
-	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
+	async branchCompletions(workingDirectory: URI | undefined, includeCreationSources = false): Promise<{ items: { value: string; label: string; description?: string }[] }> {
 		if (!workingDirectory) {
 			return { items: [] };
+		}
+		if (includeCreationSources) {
+			const sources = await this._gitService.getBranchCreationSources(workingDirectory);
+			return {
+				items: sources.map(source => {
+					const commit = source.commit.substring(0, 7);
+					return {
+						value: source.ref,
+						label: source.ref === 'HEAD'
+							? source.kind === GitRefType.DetachedHead
+								? localize('agentHost.branchSource.detached', "HEAD (Detached at {0})", commit)
+								: localize('agentHost.branchSource.head', "HEAD ({0}, {1})", source.name, commit)
+							: source.name,
+						description: [source.author, commit, fromNow(source.timestamp, true, true), source.subject].join(' \u2022 '),
+					};
+				}),
+			};
 		}
 		const [branches, currentBranch, defaultBranch] = await Promise.all([
 			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),

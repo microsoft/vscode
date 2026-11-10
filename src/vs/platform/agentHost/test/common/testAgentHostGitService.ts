@@ -18,6 +18,7 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	getBranch(...args: Parameters<IAgentHostGitService['getBranch']>) { return defaultGitService.getBranch(...args); }
 	getRefs(...args: Parameters<IAgentHostGitService['getRefs']>) { return defaultGitService.getRefs(...args); }
 	getBranches(...args: Parameters<IAgentHostGitService['getBranches']>) { return defaultGitService.getBranches(...args); }
+	getBranchCreationSources(...args: Parameters<IAgentHostGitService['getBranchCreationSources']>) { return defaultGitService.getBranchCreationSources(...args); }
 	hasGitRoot(...args: Parameters<IAgentHostGitService['hasGitRoot']>) { return defaultGitService.hasGitRoot(...args); }
 	getRepositoryRoot(...args: Parameters<IAgentHostGitService['getRepositoryRoot']>) { return defaultGitService.getRepositoryRoot(...args); }
 	getWorktreeRoots(...args: Parameters<IAgentHostGitService['getWorktreeRoots']>) { return defaultGitService.getWorktreeRoots(...args); }
@@ -70,6 +71,7 @@ export function createNoopGitService(): IAgentHostGitService {
 		getBranch: async () => undefined,
 		getRefs: async () => [],
 		getBranches: async () => [],
+		getBranchCreationSources: async () => [],
 		hasGitRoot: () => constObservable(undefined),
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
