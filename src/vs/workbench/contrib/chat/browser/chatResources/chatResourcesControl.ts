@@ -110,13 +110,22 @@ export class ChatResourcesControl extends Disposable {
 		const getBoundary = () => findClippingAncestor(chatElement);
 		const availableSpace = observableValue(this, Number.POSITIVE_INFINITY);
 		const height = observableValue(this, 0);
-		const layoutObserver = new (dom.getWindow(container).ResizeObserver)(() => {
+		const measure = () => {
 			height.set(element.offsetHeight, undefined);
 			// While nothing is shown, the element is not laid out; it is measured once it shows a resource.
 			if (element.offsetHeight > 0) {
 				// The bottom edge stays put when the resource resizes, and moves with the chat input, which resizes then.
 				availableSpace.set(Math.max(0, element.getBoundingClientRect().bottom - getBoundary().getBoundingClientRect().top - MIN_TRANSCRIPT_HEIGHT), undefined);
 			}
+		};
+		// The measured height resizes the chat, which resizes the observed elements: measuring in the next frame keeps
+		// that from looping within one frame.
+		const scheduledMeasure = this._register(new MutableDisposable());
+		const layoutObserver = new (dom.getWindow(container).ResizeObserver)(() => {
+			scheduledMeasure.value ??= dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => {
+				scheduledMeasure.clear();
+				measure();
+			});
 		});
 		for (const observed of [element, chatElement, container.parentElement]) {
 			if (observed) {
