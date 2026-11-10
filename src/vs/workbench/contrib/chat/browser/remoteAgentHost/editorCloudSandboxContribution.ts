@@ -114,7 +114,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	protected override get discoveryEnabled(): boolean { return this._discoveryRequested; }
 
 	protected override get discoveryActive(): boolean {
-		return this._editorHostService.hasFocus && this._viewsService.isViewVisible(ChatViewId);
+		return super.discoveryActive && this._viewsService.isViewVisible(ChatViewId);
 	}
 
 	constructor(
@@ -130,7 +130,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
-		@IHostService private readonly _editorHostService: IHostService,
+		@IHostService hostService: IHostService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IGitService private readonly _gitService: IGitService,
@@ -141,7 +141,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
 	) {
-		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, _editorHostService, storageService, workspaceTrustManagementService);
+		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
 		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
 		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
@@ -259,10 +259,14 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 		}));
 		this._discoveryRequested = this._viewsService.isViewVisible(ChatViewId);
+		this._updateDiscoveryActivity();
 		this._register(this._viewsService.onDidChangeViewVisibility(event => {
-			if (event.id === ChatViewId && event.visible) {
-				this._requestDiscovery();
-				void this._refreshIfStale('automatic');
+			if (event.id === ChatViewId) {
+				this._updateDiscoveryActivity();
+				if (event.visible) {
+					this._requestDiscovery();
+					void this._refreshIfStale('automatic');
+				}
 			}
 		}));
 		this._updateRegistration();
