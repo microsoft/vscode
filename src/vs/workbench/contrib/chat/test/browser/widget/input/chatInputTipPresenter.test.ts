@@ -9,12 +9,21 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
+import { TIP_CATALOG } from '../../../../browser/chatTipCatalog.js';
 import { IChatTip, IChatTipService } from '../../../../browser/chatTipService.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputTipPresenter } from '../../../../browser/widget/input/chatInputTipPresenter.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 
 suite('ChatInputTipPresenter', () => {
 
@@ -22,14 +31,17 @@ suite('ChatInputTipPresenter', () => {
 
 	const TIP: IChatTip = { id: 'tip.test', content: { value: 'A tip' } } as IChatTip;
 
-	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean; tip?: IChatTip }) {
+	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean; tip?: IChatTip; contextKeyService?: IContextKeyService; getTip?: () => IChatTip | undefined }) {
 		let welcomeTipCalls = 0;
 		let focusInputCalls = 0;
 		let tip = options?.tip ?? TIP;
 		const onDidChangeTip = store.add(new Emitter<void>());
 		const instantiationService = workbenchInstantiationService(undefined, store) as TestInstantiationService;
+		if (options?.contextKeyService) {
+			instantiationService.stub(IContextKeyService, options.contextKeyService);
+		}
 		instantiationService.stub(IChatTipService, {
-			getWelcomeTip: () => { welcomeTipCalls++; return tip; },
+			getWelcomeTip: () => { welcomeTipCalls++; return options?.getTip ? options.getTip() : tip; },
 			onDidChangeTip: onDidChangeTip.event,
 			onDidDismissTip: () => toDisposable(() => { }),
 			onDidNavigateTip: () => toDisposable(() => { }),
@@ -94,6 +106,60 @@ suite('ChatInputTipPresenter', () => {
 		store.add(presenter);
 
 		assert.strictEqual(welcomeTipCalls(), 1);
+	});
+
+	test('refreshes the background send tip when its setting changes without moving focus for unrelated changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const key = ChatConfiguration.SendInBackgroundTipEnabled;
+		const configuration = new TestConfigurationService({ [key]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const contextKeyService = store.add(new ContextKeyService(configuration));
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey('sessionIsCreated', false);
+		const definition = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(definition?.when);
+		const when = definition.when;
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost, {
+			contextKeyService,
+			getTip: () => contextKeyService.contextMatchesRules(when)
+				? { id: definition.id, content: new MarkdownString('[Customize the shortcut](https://example.com)') }
+				: undefined,
+		});
+		store.add(fixture.presenter);
+
+		async function updateConfiguration(setting: string, value: boolean): Promise<void> {
+			await configuration.setUserConfiguration(setting, value);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([setting]),
+			}));
+		}
+
+		const showing = [fixture.showing()];
+		fixture.container.querySelector('a')?.focus();
+		await updateConfiguration('editor.wordWrap', true);
+		const callsAfterUnrelatedChange = fixture.welcomeTipCalls();
+		const focusedAfterUnrelatedChange = fixture.presenter.current?.hasFocus();
+		await updateConfiguration(key, false);
+		showing.push(fixture.showing());
+		await updateConfiguration(key, true);
+		showing.push(fixture.showing());
+		await updateConfiguration(key, false);
+		showing.push(fixture.showing());
+
+		assert.deepStrictEqual({
+			showing,
+			callsAfterUnrelatedChange,
+			focusedAfterUnrelatedChange,
+			focusInputCalls: fixture.focusInputCalls(),
+		}, {
+			showing: [true, false, true, false],
+			callsAfterUnrelatedChange: 1,
+			focusedAfterUnrelatedChange: true,
+			focusInputCalls: 1,
+		});
 	});
 
 	test('replaces the rendered tip when a contextual provider changes', () => {
