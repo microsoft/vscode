@@ -95,7 +95,8 @@ suite('Comment thread floating widget', () => {
 			width: 400,
 			height: 200,
 			code: { top: 500, left: 60, width: 300, height: 40 },
-			obstacles: []
+			obstacles: [],
+			scrollableHeight: 5000
 		};
 
 		test('centers the widget vertically on the code at the right edge of the editor', () => {
@@ -127,6 +128,25 @@ suite('Comment thread floating widget', () => {
 					{ top: 0, left: 600, width: 300, height: 100 },
 				]
 			}), { top: 568, left: 592, centered: false });
+		});
+
+		test('moves the widget to the closest free position above or below the widgets it would cover', () => {
+			assert.deepStrictEqual({
+				closerAbove: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 380, left: 600, width: 300, height: 300 }] }),
+				// The document ends at 1000 and can't be scrolled further, so there is no room below the other widget.
+				belowOutOfReach: computeFloatingWidgetPlacement({
+					...request,
+					height: 360,
+					code: { top: 940, left: 60, width: 300, height: 20 },
+					obstacles: [{ top: 632, left: 592, width: 400, height: 360 }],
+					scrollableHeight: 1000
+				}),
+				noFreePosition: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 0, left: 600, width: 300, height: 400 }], scrollableHeight: 400 }),
+			}, {
+				closerAbove: { top: 172, left: 592, centered: false },
+				belowOutOfReach: { top: 264, left: 592, centered: false },
+				noFreePosition: { top: 192, left: 592, centered: false },
+			});
 		});
 	});
 
@@ -216,6 +236,19 @@ suite('Comment thread floating widget', () => {
 				autoFewComments: 200,
 				chosen: 500,
 				chosenTallerThanEditor: 584,
+			});
+		});
+
+		test('keeps some of the comments when the widget is too short for the rest of its content', () => {
+			const model = createModel();
+			assert.deepStrictEqual({
+				fits: model.getCommentsHeight(collapsedReply, 360),
+				tooShortForReply: model.getCommentsHeight({ fixed: 180, comments: 2000 }, 134),
+				tooShortWithFewComments: model.getCommentsHeight({ fixed: 180, comments: 20 }, 134),
+			}, {
+				fits: 260,
+				tooShortForReply: 40,
+				tooShortWithFewComments: 20,
 			});
 		});
 

@@ -5,8 +5,10 @@
 
 import './media/review.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
 import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
@@ -43,7 +45,8 @@ export interface ICommentThreadWidgetOptions {
 	readonly collapseAction?: ICommentThreadCollapseActionPresentation;
 	/**
 	 * Lets only the comments scroll, within the height set by {@link CommentThreadWidget.layoutCommentsHeight}, so that
-	 * the reply and the additional actions below them stay in view.
+	 * the reply and the additional actions below them stay in view. When the thread is too short even for those, such
+	 * as in a short editor, the whole body scrolls.
 	 */
 	readonly scrollableComments?: boolean;
 }
@@ -64,6 +67,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	/** Fires when the size that the thread's content needs changes. Only fires when the comments are scrollable. */
 	readonly onDidChangeContentSize = this._onDidChangeContentSize.event;
 	private _contentResizeObserver: dom.DisposableResizeObserver | undefined;
+	/** Scrolls the whole body when the comments are scrollable. */
+	private _bodyScrollable: DomScrollableElement | undefined;
 
 	private _commentThreadState: languages.CommentThreadState | undefined;
 
@@ -101,7 +106,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	 */
 	measureHeights(): { fixed: number; comments: number } {
 		const body = this._body.measureHeights();
-		return { fixed: this._header.domNode.offsetHeight + body.besideComments, comments: body.comments };
+		const bodyScrollableNode = this._bodyScrollable?.getDomNode();
+		const bodyScrollableFrame = bodyScrollableNode ? bodyScrollableNode.offsetHeight - bodyScrollableNode.clientHeight : 0;
+		return { fixed: this._header.domNode.offsetHeight + bodyScrollableFrame + body.besideComments, comments: body.comments };
 	}
 
 	/**
@@ -161,8 +168,19 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._header.updateCommentThread(this._commentThread);
 
 		const bodyElement = dom.$('.body');
-		container.appendChild(bodyElement);
-		this._register(toDisposable(() => bodyElement.remove()));
+		let bodyDomNode = bodyElement;
+		if (this._options?.scrollableComments) {
+			const bodyScrollable = this._bodyScrollable = this._register(new DomScrollableElement(bodyElement, {
+				className: 'comment-thread-body-scrollable',
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden
+			}));
+			bodyDomNode = bodyScrollable.getDomNode();
+			// Focusing an element that is scrolled out of view scrolls the body natively.
+			this._register(dom.addDisposableListener(bodyElement, dom.EventType.SCROLL, () => bodyScrollable.scanDomNode()));
+		}
+		container.appendChild(bodyDomNode);
+		this._register(toDisposable(() => bodyDomNode.remove()));
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
@@ -298,10 +316,23 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		await this._body.display();
 
-		if (this._options?.scrollableComments) {
-			this._register(this._body.onDidChangeCommentsSize(() => this._onDidChangeContentSize.fire()));
+		const bodyScrollable = this._bodyScrollable;
+		if (bodyScrollable) {
+			const onDidChangeContentSize = () => {
+				this._onDidChangeContentSize.fire();
+				// The body scrolls when the space it gets is too short for its content.
+				bodyScrollable.scanDomNode();
+			};
+			this._register(this._body.onDidChangeCommentsSize(onDidChangeContentSize));
 			// The reply and the additional actions take up the space below the comments.
-			this._contentResizeObserver = this._register(new dom.DisposableResizeObserver('commentThreadWidget', () => this._onDidChangeContentSize.fire(), dom.getWindow(this.container)));
+			this._contentResizeObserver = this._register(new dom.DisposableResizeObserver('commentThreadWidget', entries => {
+				if (entries.some(entry => entry.target !== bodyScrollable.getDomNode())) {
+					onDidChangeContentSize();
+				} else {
+					bodyScrollable.scanDomNode();
+				}
+			}, dom.getWindow(this.container)));
+			this._register(this._contentResizeObserver.observe(bodyScrollable.getDomNode()));
 		}
 
 		// create comment thread only when it supports reply

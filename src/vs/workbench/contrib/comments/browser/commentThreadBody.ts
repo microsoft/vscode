@@ -74,13 +74,14 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	/**
 	 * Measures the height of the comments, and the height of the rest of the body, which holds the reply and the
-	 * thread's additional actions.
+	 * thread's additional actions. Both are the heights the content needs, even when the body is too short to show it.
 	 */
 	measureHeights(): { comments: number; besideComments: number } {
 		const commentsViewport = this._commentsScrollable?.getDomNode() ?? this._commentsElement;
+		const frame = this.container.offsetHeight - this.container.clientHeight;
 		return {
 			comments: this._commentsElement.offsetHeight,
-			besideComments: this.container.offsetHeight - commentsViewport.offsetHeight
+			besideComments: this.container.scrollHeight + frame - commentsViewport.offsetHeight
 		};
 	}
 

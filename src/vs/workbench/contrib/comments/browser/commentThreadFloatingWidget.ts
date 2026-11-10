@@ -516,7 +516,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			width,
 			height,
 			code: code && { ...code, top: code.top + scrollTop },
-			obstacles: this._host.getOccupiedRects(this)
+			obstacles: this._host.getOccupiedRects(this),
+			scrollableHeight: this._getScrollableHeight()
 		});
 		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined };
 	}
@@ -574,7 +575,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			this._resizable.maxSize = new dom.Dimension(this._resizable.maxSize.width, range.max);
 		}
 		this._resizable.layout(newHeight, this._resizable.size.width);
-		this._commentThreadWidget.layoutCommentsHeight(Math.max(0, newHeight - content.fixed));
+		this._commentThreadWidget.layoutCommentsHeight(this._sizeModel.getCommentsHeight(content, newHeight));
 		return newHeight;
 	}
 

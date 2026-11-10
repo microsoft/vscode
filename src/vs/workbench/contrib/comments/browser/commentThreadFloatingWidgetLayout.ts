@@ -201,6 +201,8 @@ export interface IFloatingWidgetPlacementRequest {
 	readonly code: IRect | undefined;
 	/** The areas, in document coordinates, that the widget should not cover. */
 	readonly obstacles: readonly IRect[];
+	/** The height of the area that the editor can scroll through, which the widget is kept within. */
+	readonly scrollableHeight: number;
 }
 
 export interface IFloatingWidgetPlacement {
@@ -213,30 +215,41 @@ export interface IFloatingWidgetPlacement {
 /**
  * Places a widget at the right edge of the editor, vertically centered on the commented code. When the code
  * leaves no room for the widget there, the widget goes below the code instead, so that it doesn't cover it.
- * The widget is then moved down until it doesn't cover any of the obstacles.
+ * When the widget would cover the code or one of the obstacles there, it moves to the closest position above or
+ * below them that is free, within the area that the editor can scroll through.
  */
 export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacementRequest): IFloatingWidgetPlacement {
 	const { minLeft, width, height, code } = request;
 	const maxLeft = Math.max(minLeft, request.maxRight - EDGE_MARGIN - width);
 	let left = maxLeft;
-	let top = code ? getCenteredTop(code.top, code.top + code.height, height) : 0;
+	let preferredTop = code ? getCenteredTop(code.top, code.top + code.height, height) : 0;
 	let centered = true;
 	if (code && code.left + code.width + CODE_GAP > left) {
 		left = clamp(code.left, minLeft, maxLeft);
-		top = code.top + code.height + EDGE_MARGIN;
+		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
 	}
 
-	for (let i = 0; i < request.obstacles.length; i++) {
-		const candidate: IRect = { top, left, width, height };
-		const obstacle = request.obstacles.find(obstacle => rectsIntersect(candidate, obstacle));
-		if (!obstacle) {
-			break;
-		}
-		top = obstacle.top + obstacle.height + EDGE_MARGIN;
-		centered = false;
+	// The free position closest to the preferred one is the preferred position, an edge of the scrollable area, or
+	// just next to one of the areas to keep clear of.
+	const maxTop = Math.max(0, request.scrollableHeight - EDGE_MARGIN - height);
+	const areas = code ? [...request.obstacles, code] : request.obstacles;
+	const candidates = [preferredTop, 0, maxTop];
+	for (const area of areas) {
+		candidates.push(area.top + area.height + EDGE_MARGIN, area.top - EDGE_MARGIN - height);
 	}
-	return { top, left, centered };
+	// When no position is free, the widget stays as close to the preferred position as it can.
+	let top = clamp(preferredTop, 0, maxTop);
+	let topDistance = Number.POSITIVE_INFINITY;
+	for (const candidate of candidates) {
+		const candidateTop = clamp(candidate, 0, maxTop);
+		const distance = Math.abs(candidateTop - preferredTop);
+		if (distance < topDistance && !areas.some(area => rectsIntersect({ top: candidateTop, left, width, height }, area))) {
+			top = candidateTop;
+			topDistance = distance;
+		}
+	}
+	return { top, left, centered: centered && top === preferredTop };
 }
 
 /**
@@ -359,6 +372,15 @@ export class FloatingWidgetSizeModel {
 		const autoHeight = Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
 		const height = chosenHeight !== undefined ? chosenHeight + this._growth : Math.min(range.max, autoHeight + this._growth);
 		return clamp(height, range.min, range.max);
+	}
+
+	/**
+	 * The height that the comments get in a widget of the given height: the space that the rest of the content leaves.
+	 * A widget that is too short for the rest of its content, such as in a short editor, scrolls as a whole, and still
+	 * shows some of the comments.
+	 */
+	getCommentsHeight(content: IFloatingWidgetContentHeights, height: number): number {
+		return Math.max(Math.min(content.comments, MIN_COMMENTS_HEIGHT), height - content.fixed);
 	}
 
 	/**

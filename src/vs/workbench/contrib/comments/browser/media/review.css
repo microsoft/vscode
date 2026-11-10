@@ -645,12 +645,15 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .comment-thread-floating-widget > .review-widget {
 	position: relative;
+	display: flex;
+	flex-direction: column;
 	height: 100%;
 	overflow: hidden;
 	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
 }
 
 .monaco-editor .comment-thread-floating-widget > .review-widget > .head {
+	flex-shrink: 0;
 	cursor: grab;
 }
 
@@ -665,6 +668,18 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 /* Scrollable comments (`ICommentThreadWidgetOptions.scrollableComments`) fill the height they are given. */
 .review-widget .body .comments-scroll-viewport {
+	height: 100%;
+}
+
+/* The body shrinks and scrolls when the widget is too short for the reply and additional actions, such as in a short editor. */
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+	border-top: 1px solid var(--comment-thread-state-color);
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable > .body {
+	position: relative;
 	height: 100%;
 }
 
