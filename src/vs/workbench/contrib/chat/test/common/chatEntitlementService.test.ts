@@ -9,11 +9,14 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyValue, IContextKey, IContextKeyChangeEvent } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, getQuotaUsage, parseBillableOwner, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -593,10 +596,16 @@ suite('getQuotaReset', () => {
 suite('ChatEntitlementService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(contextKeyService = store.add(new MockContextKeyService())): ChatEntitlementService {
+	function createService(contextKeyService = store.add(new MockContextKeyService()), productService: IProductService = new class extends mock<IProductService>() { }): ChatEntitlementService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		return store.add(new ChatEntitlementService(
-			store.add(new TestInstantiationService()),
-			new class extends mock<IProductService>() { },
+			instantiationService,
+			productService,
 			new class extends mock<IWorkbenchEnvironmentService>() { },
 			contextKeyService,
 			new TestConfigurationService(),
@@ -633,8 +642,11 @@ suite('ChatEntitlementService', () => {
 
 	test('signals an entitlement change when only the billable owner changes', async () => {
 		const contextKeyService = store.add(new EventedContextKeyService());
-		const service = createService(contextKeyService);
-		const context = store.add(new ChatEntitlementContext(contextKeyService, store.add(new TestStorageService()), new NullLogService(), new TestConfigurationService(), NullTelemetryService));
+		const service = createService(contextKeyService, new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() { }();
+		});
+		const context = service.context?.value;
+		assert.ok(context);
 		const entitlement = { entitlement: ChatEntitlement.Enterprise, organisations: undefined, isStaff: false, sku: 'copilot_enterprise_seat', copilotTrackingId: 'tid' };
 		await context.update({ ...entitlement, billableOwnerKey: 'ea:dotcom:42' });
 		let changes = 0;
@@ -646,7 +658,11 @@ suite('ChatEntitlementService', () => {
 			seen.push([service.billableOwnerKey, changes]);
 		}
 
-		assert.deepStrictEqual(seen, [['user:dotcom:7', 1], ['user:dotcom:7', 1], [undefined, 2]]);
+		// The context key only signals changes; the entitlement state stays authoritative.
+		ChatEntitlementContextKeys.Entitlement.billableOwnerKey.bindTo(contextKeyService).set('ea:dotcom:99');
+		seen.push([service.billableOwnerKey, changes]);
+
+		assert.deepStrictEqual(seen, [['user:dotcom:7', 1], ['user:dotcom:7', 1], [undefined, 2], [undefined, 3]]);
 	});
 
 	test('signals changed usage when only consumed credits move on an unlimited plan', () => {

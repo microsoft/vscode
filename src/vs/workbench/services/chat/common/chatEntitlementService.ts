@@ -519,7 +519,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	get billableOwnerKey(): string | undefined {
-		return this.contextKeyService.getContextKeyValue<string>(ChatEntitlementContextKeys.Entitlement.billableOwnerKey.key);
+		return this.context?.value.state.billableOwnerKey;
 	}
 
 	get clientByokEnabled(): boolean {
