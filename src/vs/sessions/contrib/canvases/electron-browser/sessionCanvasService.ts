@@ -9,7 +9,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, o
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, getNewCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -20,7 +20,7 @@ import { ICustomViewService } from '../../../../workbench/contrib/sessions/brows
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
@@ -294,13 +294,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		if (!chat) {
 			return;
 		}
-		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
-		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
-		if (existing?.source) {
-			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
-			return;
-		}
-		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
+		await this.sessionsManagementService.openCanvas(session, chat, canvas, getNewCanvasDefinitionInstanceId(canvas, chat.canvases?.get() ?? []));
 	}
 }
 

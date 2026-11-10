@@ -44,5 +44,6 @@ export interface ISessionCanvasRegistryService {
 	/** Whether canvases are enabled and the active chat supports them, even when no canvas type is registered. */
 	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
+	/** Opens a new canvas of `canvas`'s type in the focused chat, beside any canvases of that type it already has. */
 	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
 }

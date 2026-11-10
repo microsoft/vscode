@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Verbosity } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService } from '../../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, getCanvasDefinitionInstanceId, getCanvasInstanceLabels, getNewCanvasDefinitionInstanceId, ICanvasContextService, ICanvasDefinition } from '../../common/canvas.js';
 import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('CanvasInput', () => {
@@ -118,5 +118,46 @@ suite('CanvasInput', () => {
 				longTitle: 'Canvas - Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.',
 			},
 		]);
+	});
+});
+
+suite('Canvas instance identifiers', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('numbers new instances of a registered canvas type and labels them by their numbers', () => {
+		const definition = (extensionId: string): ICanvasDefinition => ({
+			canvasId: 'main', extensionId, extensionSource: 'project', displayName: 'Counter', description: 'A counter.', requiresInput: false,
+		});
+		const counter = definition('project:counter');
+		const long = definition(`project:${'a'.repeat(140)}`);
+		const instance = (type: ICanvasDefinition, instanceId: string, title = 'Counter'): ICanvas => ({
+			resource: URI.parse(`canvas:/${instanceId}`), instanceId, title, source: undefined, extensionId: type.extensionId, canvasId: type.canvasId,
+		});
+		const first = getNewCanvasDefinitionInstanceId(counter, []);
+		const second = getNewCanvasDefinitionInstanceId(counter, [instance(counter, first), instance(counter, 'sidebar')]);
+		const gap = getNewCanvasDefinitionInstanceId(counter, [instance(counter, first), instance(counter, `${first}-3`)]);
+		const longFirst = getNewCanvasDefinitionInstanceId(long, []);
+		const longSecond = getNewCanvasDefinitionInstanceId(long, [instance(long, longFirst)]);
+
+		const base = getCanvasDefinitionInstanceId(counter);
+		assert.deepStrictEqual({
+			first,
+			second,
+			gap,
+			longSecond: { length: longSecond.length, suffix: longSecond.slice(-2), sharesPrefix: longFirst.startsWith(longSecond.slice(0, -2)) },
+			labels: getCanvasInstanceLabels([
+				instance(counter, second),
+				instance(counter, 'sidebar'),
+				instance(counter, first),
+				instance(long, longSecond, 'Long'),
+				instance(long, longFirst, 'Long'),
+			]),
+		}, {
+			first: base,
+			second: `${base}-2`,
+			gap: `${base}-2`,
+			longSecond: { length: 128, suffix: '-2', sharesPrefix: true },
+			labels: ['Counter (2)', 'Counter (sidebar)', 'Counter (1)', 'Long (2)', 'Long (1)'],
+		});
 	});
 });

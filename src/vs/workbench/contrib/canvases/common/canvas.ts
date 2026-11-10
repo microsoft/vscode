@@ -230,9 +230,13 @@ export function getCanvasInstanceLabels(canvases: readonly ICanvas[]): readonly 
 
 		const titleIndex = (titleIndexes.get(canvas.title) ?? 0) + 1;
 		titleIndexes.set(canvas.title, titleIndex);
-		const instanceLabel = canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
-			? canvas.instanceId
-			: String(titleIndex);
+		// Identifiers generated for a registered canvas type do not tell its instances apart for users; their numbers do.
+		const definitionIndex = getCanvasDefinitionInstanceIndex(canvas);
+		const instanceLabel = definitionIndex !== undefined
+			? String(definitionIndex)
+			: canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
+				? canvas.instanceId
+				: String(titleIndex);
 		let label = localize('canvas.instanceTitle', "{0} ({1})", canvas.title, instanceLabel);
 		let collisionIndex = 2;
 		while (usedLabels.has(label)) {
@@ -275,8 +279,8 @@ export function getCanvasDefinitionLabels(canvases: readonly ICanvasDefinition[]
 
 const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
-/** Produces the stable instance identifier used when directly opening a registered canvas type. */
-export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string {
+/** Produces the stable instance identifier of the first canvas opened directly from a registered canvas type. */
+export function getCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>): string {
 	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
 	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
@@ -292,6 +296,47 @@ export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string
 		.replace(/[._-]+$/, '')
 		|| 'canvas';
 	return `${base}${hashSuffix}`;
+}
+
+/** The instance identifier of the `index`th canvas opened from a registered canvas type, counting from 1. */
+function getIndexedCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>, index: number): string {
+	const instanceId = getCanvasDefinitionInstanceId(canvas);
+	if (index <= 1) {
+		return instanceId;
+	}
+	const suffix = `-${index}`;
+	return `${instanceId.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH - suffix.length)}${suffix}`;
+}
+
+/**
+ * Produces the instance identifier that opens another canvas of a registered canvas type beside the chat's `canvases`:
+ * the type's stable instance identifier while no canvas uses it, else the first free numbered one.
+ */
+export function getNewCanvasDefinitionInstanceId(canvas: ICanvasDefinition, canvases: readonly ICanvas[]): string {
+	const used = new Set(canvases.map(candidate => candidate.instanceId));
+	for (let index = 1; ; index++) {
+		const instanceId = getIndexedCanvasDefinitionInstanceId(canvas, index);
+		if (!used.has(instanceId)) {
+			return instanceId;
+		}
+	}
+}
+
+/**
+ * The number of `canvas` among the canvases of its registered canvas type, counting from 1, when its instance identifier
+ * is one {@link getNewCanvasDefinitionInstanceId} produces.
+ */
+function getCanvasDefinitionInstanceIndex(canvas: ICanvas): number | undefined {
+	if (!canvas.instanceId || !canvas.extensionId || !canvas.canvasId) {
+		return undefined;
+	}
+	const type = { extensionId: canvas.extensionId, canvasId: canvas.canvasId };
+	if (canvas.instanceId === getCanvasDefinitionInstanceId(type)) {
+		return 1;
+	}
+	const suffix = /-(?<index>\d+)$/.exec(canvas.instanceId)?.groups?.index;
+	const index = suffix !== undefined ? Number(suffix) : undefined;
+	return index !== undefined && canvas.instanceId === getIndexedCanvasDefinitionInstanceId(type, index) ? index : undefined;
 }
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
