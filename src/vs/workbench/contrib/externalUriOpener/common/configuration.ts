@@ -68,7 +68,7 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 
 interface IBuiltInOpener {
 	readonly description: string;
-	readonly hiddenIds: readonly string[];
+	readonly alternateIds: readonly string[];
 }
 
 const builtInOpeners = new Map<string, IBuiltInOpener>();
@@ -76,8 +76,8 @@ let contributedOpenerIds: string[] = [];
 let contributedOpenerDescriptions: string[] = [];
 
 function refreshOpenerSchema(): void {
-	const hiddenIds = new Set([...builtInOpeners.values()].flatMap(opener => opener.hiddenIds));
-	const contributed = contributedOpenerIds.map((id, i) => ({ id, description: contributedOpenerDescriptions[i] })).filter(opener => !hiddenIds.has(opener.id));
+	const alternateIds = new Set([...builtInOpeners.values()].flatMap(opener => opener.alternateIds));
+	const contributed = contributedOpenerIds.map((id, i) => ({ id, description: contributedOpenerDescriptions[i] })).filter(opener => !alternateIds.has(opener.id));
 	externalUriOpenerIdSchemaAddition.enum = [...builtInOpeners.keys(), ...contributed.map(opener => opener.id)];
 	externalUriOpenerIdSchemaAddition.enumDescriptions = [...[...builtInOpeners.values()].map(opener => opener.description), ...contributed.map(opener => opener.description)];
 
@@ -93,10 +93,10 @@ export function updateContributedOpeners(enumValues: string[], enumDescriptions:
 
 /**
  * Lists a workbench opener, which is not contributed by an extension, as a value of the opener setting.
- * Contributed openers in `hiddenIds` stay usable in settings but are no longer offered, because this opener replaces them.
+ * Contributed openers in `alternateIds` stay usable in settings but are no longer offered, because this opener replaces them.
  */
-export function registerBuiltInExternalUriOpener(id: string, description: string, hiddenIds: readonly string[] = []): IDisposable {
-	builtInOpeners.set(id, { description, hiddenIds });
+export function registerBuiltInExternalUriOpener(id: string, description: string, alternateIds: readonly string[] = []): IDisposable {
+	builtInOpeners.set(id, { description, alternateIds });
 	refreshOpenerSchema();
 	return toDisposable(() => {
 		builtInOpeners.delete(id);
