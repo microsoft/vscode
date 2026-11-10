@@ -802,6 +802,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
 	}
 
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
 	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
 		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
 	}

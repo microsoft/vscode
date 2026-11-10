@@ -1526,6 +1526,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return provider?.supportsForceWorktreeCleanup === true;
 	}
 
+	async prepareSessionWorktreeCleanup(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.prepareSessionWorktreeCleanup) {
+			throw new Error(localize('worktreeCleanupPreparationUnavailable', "This session provider does not support preparing worktree cleanup."));
+		}
+		await provider.prepareSessionWorktreeCleanup(session.sessionId);
+	}
+
 	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {

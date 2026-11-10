@@ -249,6 +249,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
+	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];
 	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
 	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
@@ -2768,6 +2769,22 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
 			const result = await response;
 			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
+		test('routes preparation separately from cleanup and rejects malformed preparation', async () => {
+			const calls: string[] = [];
+			agentService.prepareSessionWorktreeCleanup = async session => { calls.push(session.toString()); };
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not schedule removal'); };
+			const transport = connectClient('worktree-preparation');
+			const valid = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/prepareSessionWorktreeCleanup', { session: 'opaque-session://host/session' }));
+			await valid;
+			const invalid = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/prepareSessionWorktreeCleanup', { session: false }));
+			const response = await invalid;
+			assert.deepStrictEqual({ calls, invalid: hasKey(response, { error: true }) && response.error?.code }, {
+				calls: ['opaque-session://host/session'], invalid: JsonRpcErrorCodes.InvalidParams,
+			});
 		});
 
 		test('routes confirmed force cleanup and rejects malformed force flags', async () => {
