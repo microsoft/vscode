@@ -10,9 +10,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISystemWideKeybindingCandidate, selectSystemWideKeybindings } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindings.js';
 import { SystemWideKeybindingsSynchronizer } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindingsSynchronizer.js';
+
+function isOwnedCommand(commandId: string): boolean {
+	return commandId === OPEN_AGENTS_WINDOW_COMMAND_ID || commandId === AGENTS_LAUNCHER_COMMAND_ID;
+}
 
 export class OpenAgentsWindowSystemWideKeybindingContribution extends Disposable implements IWorkbenchContribution {
 
@@ -37,16 +41,16 @@ export class OpenAgentsWindowSystemWideKeybindingContribution extends Disposable
 	private collectCandidates(): ISystemWideKeybindingCandidate[] {
 		const { candidates, unsupported, duplicates } = selectSystemWideKeybindings(this.keybindingService.getKeybindings());
 		for (const rejection of unsupported) {
-			if (rejection.commandId === OPEN_AGENTS_WINDOW_COMMAND_ID) {
+			if (isOwnedCommand(rejection.commandId)) {
 				this.logService.warn(`[OpenAgentsWindowSystemWideKeybinding] '${rejection.userSettingsLabel}' cannot be registered as a system-wide shortcut (only single key combinations are supported).`);
 			}
 		}
 		for (const rejection of duplicates) {
-			if (rejection.commandId === OPEN_AGENTS_WINDOW_COMMAND_ID) {
+			if (isOwnedCommand(rejection.commandId)) {
 				this.logService.warn(`[OpenAgentsWindowSystemWideKeybinding] duplicate system-wide accelerator for '${rejection.userSettingsLabel}', keeping the first binding.`);
 			}
 		}
-		return candidates.filter(candidate => candidate.commandId === OPEN_AGENTS_WINDOW_COMMAND_ID);
+		return candidates.filter(candidate => isOwnedCommand(candidate.commandId));
 	}
 
 	private reportFailures(failed: readonly string[]): void {
