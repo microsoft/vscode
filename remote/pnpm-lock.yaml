@@ -40,6 +40,9 @@ importers:
       '@vscode/deviceid':
         specifier: ^0.1.1
         version: 0.1.5
+      '@vscode/diff':
+        specifier: 0.0.2-128
+        version: 0.0.2-128
       '@vscode/fs-copyfile':
         specifier: 2.0.0
         version: 2.0.0
@@ -181,6 +184,9 @@ importers:
       '@vscode/codicons':
         specifier: ^0.0.46-49
         version: 0.0.46-49
+      '@vscode/diff':
+        specifier: 0.0.2-128
+        version: 0.0.2-128
       '@vscode/iconv-lite-umd':
         specifier: 0.7.1
         version: 0.7.1
@@ -426,6 +432,9 @@ packages:
 
   '@vscode/deviceid@0.1.5':
     resolution: {integrity: sha512-D0be67wWo7WyyBqHnRkL2bK7lp7CDH/EMN4kMV6INoKc7kxRL3nsTtngt9JZrOcZdnW59gquGRk+6KFIDyD3QA==}
+
+  '@vscode/diff@0.0.2-128':
+    resolution: {integrity: sha512-8Dk0Co0mU6gph7ZgthkeDCbHFuWLvMsS8RItCGL13hAGNVnd01KMCBVAYQDLhxFUh/VJ+as5arOMwtqL8YvKGA==}
 
   '@vscode/fs-copyfile@2.0.0':
     resolution: {integrity: sha512-ARb4+9rN905WjJtQ2mSBG/q4pjJkSRun/MkfCeRkk7h/5J8w4vd18NCePFJ/ZucIwXx/7mr9T6nz9Vtt1tk7hg==}
@@ -1043,6 +1052,8 @@ snapshots:
     dependencies:
       fs-extra: 11.2.0
       uuid: 14.0.0
+
+  '@vscode/diff@0.0.2-128': {}
 
   '@vscode/fs-copyfile@2.0.0':
     dependencies:
