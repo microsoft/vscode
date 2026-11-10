@@ -40,7 +40,7 @@ suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const folder = URI.file('/project');
 	const workspace = upcastPartial<ISessionWorkspace>({ uri: folder });
-	const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+	const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
 	const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
 
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
@@ -129,7 +129,7 @@ suite('SessionEnvironmentPicker', () => {
 			provider('cloud', 'cloud'),
 		];
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(({ id, label, providerIds }) => ({ id, label, providerIds })), [
-			{ id: 'local', label: 'This Computer', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
+			{ id: 'local', label: 'This computer', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
 			{ id: 'cloud', label: 'Cloud', providerIds: ['cloud'] },
 		]);
 	});
@@ -239,12 +239,12 @@ suite('SessionEnvironmentPicker', () => {
 			toolbar: !!trigger.closest('.monaco-toolbar'),
 			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			order: 'CloudRepository', labels: ['This computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
 			help: [
-				{ hover: 'Run this session directly on this computer', aria: 'This Computer. Run this session directly on this computer' },
+				{ hover: 'Run this session directly on this computer', aria: 'This computer. Run this session directly on this computer' },
 				{ hover: 'Run this session in a cloud environment, not on this computer', aria: 'Cloud. Run this session in a cloud environment, not on this computer' },
 			],
-			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
+			tooltipLabels: ['Environment where the agent runs: This computer', 'Environment where the agent runs: Cloud'],
 		});
 	});
 
@@ -360,7 +360,7 @@ suite('SessionEnvironmentPicker', () => {
 					menu, hideDefaultKeybindingTooltip, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
-						{ label: 'This Computer', separator: false },
+						{ label: 'This computer', separator: false },
 						...providers.map(provider => ({ label: provider.label, separator: false })),
 						{ label: '', separator: true },
 						{ label: 'Connect via SSH...', separator: false },

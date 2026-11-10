@@ -32,6 +32,9 @@
 .remotes-editor-this-computer.showing-sharing {
 	flex: 1;
 	min-height: 0;
+	margin-bottom: 0;
+	padding-bottom: 0;
+	border-bottom: none;
 }
 
 .remotes-editor-table {
@@ -92,27 +95,13 @@
 	overflow-wrap: anywhere;
 }
 
-.remotes-task-heading .remotes-details-owner {
-	margin: var(--vscode-spacing-size80) 0 0;
+.remotes-sharing-question,
+.remotes-recovery-heading,
+.remotes-task-identity-detail dt {
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	line-height: 1.5;
-	overflow-wrap: anywhere;
-}
-
-.remotes-task-heading .remotes-task-identity-detail {
-	margin: var(--vscode-spacing-size60) 0 0;
-	font-size: var(--vscode-fontSize-label1);
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
-	overflow-wrap: anywhere;
-}
-
-.remotes-task-heading dl.remotes-task-identity-detail {
-	display: grid;
-	grid-template-columns: max-content minmax(0, 1fr);
-	gap: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 }
 
 .remotes-task-identity-detail dd {
@@ -131,23 +120,25 @@
 
 .remotes-widget .remotes-search-controls {
 	display: flex;
-	flex: 1;
+	flex: 1 1 240px;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	min-width: 0;
+	min-width: min(100%, 220px);
 }
 
 .remotes-widget .remotes-search-container {
 	flex: 1;
-	min-width: 180px;
+	min-width: 0;
 	max-width: 300px;
 }
 
 .remotes-widget .remotes-type-filter {
-	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .remotes-widget .remotes-type-filter .actions-container {
+	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size60);
 }
 
@@ -225,25 +216,70 @@
 }
 
 .remotes-widget .remotes-message {
-	flex-shrink: 0;
-	white-space: pre-wrap;
+	min-height: 0;
+	overflow-y: auto;
 	color: var(--vscode-foreground);
 }
 
 .remotes-widget .remotes-message:not([hidden]) {
 	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size120);
-	padding-bottom: var(--vscode-spacing-size120);
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size160);
 }
 
-.remotes-widget .remotes-message > .monaco-button {
+.remotes-widget .remotes-message > [role="status"],
+.remotes-widget .remotes-empty-state-kind h3 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.remotes-widget .remotes-empty-state-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size240);
+}
+
+.remotes-widget .remotes-empty-state-kind,
+.remotes-widget .remotes-empty-state-search {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-empty-state-kind p,
+.remotes-widget .remotes-empty-state-search p {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.remotes-widget .remotes-empty-state-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-empty-state-actions > .monaco-button {
 	width: auto;
+	max-width: 100%;
+}
+
+.remotes-widget .remotes-empty-state-documentation {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 100%;
+}
+
+.remotes-widget .remotes-empty-state-documentation .codicon {
 	flex-shrink: 0;
 }
 
 .remotes-widget .remotes-message[hidden],
-.remotes-widget .remotes-message > .monaco-button[hidden] {
+.remotes-widget .remotes-table-container[hidden] {
 	display: none;
 }
 
@@ -390,16 +426,16 @@
 	gap: var(--vscode-spacing-size40);
 }
 
-.remotes-widget .remotes-connection-indicator {
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator {
 	display: flex;
 	flex-shrink: 0;
 }
 
-.remotes-widget .remotes-connection-indicator > .codicon {
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.remotes-widget .remotes-connection-indicator.connected {
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.connected {
 	color: var(--vscode-charts-green);
 }
 
@@ -415,7 +451,7 @@
 }
 
 .remotes-widget .remotes-empty-description {
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
 .remotes-widget .remotes-group-count {
@@ -487,7 +523,7 @@
 }
 
 .remotes-environment-details .remotes-task-description {
-	margin: 0 0 var(--vscode-spacing-size200);
+	margin: var(--vscode-spacing-size200) 0;
 }
 
 .remotes-details-actions > .monaco-button {
@@ -500,6 +536,8 @@
 	gap: var(--vscode-spacing-size120);
 	align-items: stretch;
 	margin-block: var(--vscode-spacing-size120);
+	/* Reserve space for the shared button's outer focus outline. */
+	padding: var(--vscode-spacing-size40);
 }
 
 .remotes-method-choices.monaco-custom-radio > .monaco-button {
@@ -515,6 +553,7 @@
 	padding-inline-start: var(--vscode-spacing-size360);
 	flex-wrap: wrap;
 	white-space: normal;
+	overflow-wrap: anywhere;
 	text-align: start;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
@@ -535,7 +574,16 @@
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border));
 }
 
-.remotes-method-choices.monaco-custom-radio > .monaco-button::before {
+.remotes-method-choices.monaco-custom-radio > .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.remotes-method-choices.monaco-custom-radio > .monaco-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.remotes-method-choices.monaco-custom-radio > .monaco-button::before,
+.remotes-method-choices.monaco-custom-radio > .monaco-button::after {
 	content: '';
 	position: absolute;
 	inset-inline-start: var(--vscode-spacing-size120);
@@ -543,13 +591,23 @@
 	width: var(--vscode-spacing-size120);
 	height: var(--vscode-spacing-size120);
 	box-sizing: border-box;
-	border: var(--vscode-strokeThickness) solid currentColor;
 	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
 }
 
-.remotes-method-choices.monaco-custom-radio > .monaco-button.active::before {
+.remotes-method-choices.monaco-custom-radio > .monaco-button::before {
+	border: var(--vscode-strokeThickness) solid currentColor;
+}
+
+/* A separate opaque dot preserves contrast even with a translucent selected background. */
+.remotes-method-choices.monaco-custom-radio > .monaco-button::after {
 	background: currentColor;
-	box-shadow: inset 0 0 0 3px var(--vscode-radio-activeBackground);
+	transform: scale(0.5);
+	visibility: hidden;
+}
+
+.remotes-method-choices.monaco-custom-radio > .monaco-button.active::after {
+	visibility: visible;
 }
 
 .remotes-choice-current {
@@ -578,12 +636,26 @@
 
 .remotes-recovery-heading {
 	margin: 0 0 var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.remotes-recovery-next,
-.remotes-recovery-report {
+.remotes-recovery-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.remotes-task-identity-detail {
+	display: grid;
+	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.remotes-recovery-next {
 	margin-top: var(--vscode-spacing-size240);
 }
 
@@ -597,13 +669,9 @@
 }
 
 .remotes-recovery-support {
-	margin-top: var(--vscode-spacing-size320);
-}
-
-.remotes-recovery-links {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size200);
+	margin-top: var(--vscode-spacing-size240);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
 .remotes-widget .remotes-group-progress {

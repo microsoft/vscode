@@ -75,16 +75,16 @@ type RemoteConnectionsSelectMethodClassification = {
 };
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Don't allow connections from other devices through this app.");
+	return localize('remoteConnections.off.detail', "Don't let other devices connect to agents on this computer.");
 }
 
 export function getDevTunnelsDetail(): string {
-	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.");
+	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full editor access, use Remote Tunnels.");
 }
 
 export function getGitHubEnvironmentsDetail(availability: GitHubEnvironmentsAvailability): string {
 	return availability === 'policyDisabled'
-		? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
+		? localize('remoteConnections.githubEnvironment.policyDisabled', "Sharing through GitHub Environments is disabled by your organization. Contact your administrator to enable it.")
 		: localize('remoteConnections.githubEnvironment.detail', "Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.");
 }
 
@@ -282,7 +282,7 @@ export class RemoteConnectionsSharing extends Disposable {
 			return 'unavailable';
 		}
 		if (method === 'githubEnvironment' && this._configurationService.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) !== true) {
-			this._notificationService.error(new Error(localize('remoteConnections.githubEnvironment.disabled', "GitHub Environments are disabled by your settings or your organization.")));
+			this._notificationService.error(new Error(localize('remoteConnections.githubEnvironment.disabled', "Sharing through GitHub Environments is disabled by your settings or your organization.")));
 			return 'disabled';
 		}
 		const state = this.getState();
@@ -322,8 +322,8 @@ export class RemoteConnectionsSharing extends Disposable {
 		try {
 			if (this.usesGitHubEnvironment) {
 				const name = await this._quickInputService.input({
-					title: localize('remoteConnections.rename', "Rename Remote Environment"),
-					prompt: localize('remoteConnections.renamePrompt', "Enter the name shown for this environment on other clients."),
+					title: localize('remoteConnections.rename', "Rename remote environment"),
+					prompt: localize('remoteConnections.renamePrompt', "Enter the name other devices will see for this environment."),
 					value: currentName,
 					validateInput: async value => validateSharingName('githubEnvironment', value),
 				});

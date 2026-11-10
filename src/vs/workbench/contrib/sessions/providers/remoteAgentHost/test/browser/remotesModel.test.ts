@@ -393,7 +393,7 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('last activity records successful observed connections, not discovery or session updates', async () => {
+	test('last connection records successful observed connections, not discovery or session updates', async () => {
 		const { model, providers, storage } = setup();
 		await model.refresh(CancellationToken.None);
 		const provider = providers.get('ssh:build')!;
@@ -1204,7 +1204,7 @@ suite('RemotesModel', () => {
 		environmentHosts.set([host], undefined);
 		model.setHidden(id, false);
 		assert.deepStrictEqual({ hidden, otherAccount, restored, reason, environmentConnections }, {
-			hidden: true, otherAccount: false, restored: true, reason: 'Available in the picker when this computer is online.', environmentConnections: [],
+			hidden: true, otherAccount: false, restored: true, reason: 'Available in the environment picker when this computer is online.', environmentConnections: [],
 		});
 		environmentHosts.set([], undefined);
 		assert.throws(() => model.setHidden(id, true), /no longer available/);
@@ -1253,7 +1253,7 @@ suite('RemotesModel', () => {
 			const hidden = snapshot();
 			provider.isAvailableInEnvironmentPicker.set(false, undefined);
 			const unavailable = snapshot();
-			assert.throws(() => model.setHidden(id, false), /currently unavailable/);
+			assert.throws(() => model.setHidden(id, false), /isn't currently available/);
 			provider.isAvailableInEnvironmentPicker.set(true, undefined);
 			const availableAgain = snapshot();
 			model.setHidden(id, false);
@@ -1263,13 +1263,13 @@ suite('RemotesModel', () => {
 			assert.deepStrictEqual({
 				discovered, registered, hidden, unavailable, availableAgain, shown, withdrawn: snapshot(), connectionChanges, reconnects, removals,
 			}, {
-				discovered: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				discovered: { hidden: false, reason: 'Connect once to add this remote to the environment picker.', inPicker: false },
 				registered: { hidden: false, reason: undefined, inPicker: true },
 				hidden: { hidden: true, reason: undefined, inPicker: false },
-				unavailable: { hidden: true, reason: 'This remote is currently unavailable in the picker.', inPicker: false },
+				unavailable: { hidden: true, reason: 'This remote isn\'t currently available in the environment picker.', inPicker: false },
 				availableAgain: { hidden: true, reason: undefined, inPicker: false },
 				shown: { hidden: false, reason: undefined, inPicker: true },
-				withdrawn: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				withdrawn: { hidden: false, reason: 'Connect once to add this remote to the environment picker.', inPicker: false },
 				connectionChanges: [], reconnects: [], removals: [],
 			});
 		});
@@ -1282,7 +1282,7 @@ suite('RemotesModel', () => {
 		provider.supportsWorkspaceSelection = false;
 		providersChanged.fire({ added: [], removed: [] });
 		const unsupported = model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason;
-		assert.throws(() => model.setHidden('ssh:build', false), /does not support/);
+		assert.throws(() => model.setHidden('ssh:build', false), /can't appear as a separate entry/);
 		provider.supportsWorkspaceSelection = true;
 		provider.hostGroup = { id: 'group', label: 'Group' };
 		providersChanged.fire({ added: [], removed: [] });
@@ -1290,8 +1290,8 @@ suite('RemotesModel', () => {
 			unsupported, grouped: model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason,
 			inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
 		}, {
-			unsupported: 'This remote does not support a separate entry in the Environment picker.',
-			grouped: 'This remote does not support a separate entry in the Environment picker.', inPicker: false,
+			unsupported: 'This remote can\'t appear as a separate entry in the environment picker.',
+			grouped: 'This remote can\'t appear as a separate entry in the environment picker.', inPicker: false,
 		});
 	});
 
@@ -1375,9 +1375,9 @@ suite('RemotesModel', () => {
 				before: {
 					confirmations: [{
 						type: 'warning',
-						message: 'Forget dev tunnel \'My test tunnel\'?',
+						message: 'Delete dev tunnel \'My test tunnel\'?',
 						detail: 'This removes the tunnel registration and disconnects all its clients, not just this device. The remote computer and its files are kept. The tunnel may reappear if the computer starts sharing again.',
-						primaryButton: '&&Forget',
+						primaryButton: '&&Delete',
 					}],
 					deletedTunnels: [],
 				},
@@ -1414,7 +1414,7 @@ suite('RemotesModel', () => {
 		tunnelState.canDelete = true;
 		setTunnelStatus({ type: 'connected', info: { tunnelId: 'laptop', tunnelName: 'Different display name', isAttached: false }, serviceInstallFailed: false });
 		const hosted = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
-		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /currently hosting/);
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /sharing this dev tunnel/);
 		setTunnelStatus({ type: 'disconnected' });
 		assert.deepStrictEqual({ unsupported, hosted, stopped: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete, deletedTunnels, confirmations }, {
 			unsupported: false, hosted: false, stopped: true, deletedTunnels: [], confirmations: [],
@@ -1440,7 +1440,7 @@ suite('RemotesModel', () => {
 			await model.refresh(CancellationToken.None);
 			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
 			const deletion = model.deleteTunnel('tunnel:laptop');
-			const rejected = assert.rejects(deletion, change === 'hosting' ? /currently hosting/ : change === 'capability' ? /not supported/ : isCancellationError);
+			const rejected = assert.rejects(deletion, change === 'hosting' ? /sharing this dev tunnel/ : change === 'capability' ? /not supported/ : isCancellationError);
 			switch (change) {
 				case 'inventory':
 					setTunnelDiscovery(async () => []);
@@ -1510,9 +1510,9 @@ suite('RemotesModel', () => {
 			}, {
 				confirmations: [{
 					type: 'warning',
-					message: 'Forget environment \'Office desktop\'?',
+					message: 'Remove environment \'Office desktop\'?',
 					detail: 'This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again.',
-					primaryButton: '&&Forget',
+					primaryButton: '&&Remove',
 				}],
 				deletions: [], hosts: [host, retained],
 			});

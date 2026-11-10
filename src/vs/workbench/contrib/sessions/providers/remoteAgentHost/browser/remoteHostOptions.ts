@@ -70,9 +70,9 @@ export async function disconnectSSHEntry(
 export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
 	const { confirmed } = await dialogService.confirm({
 		type: 'warning',
-		message: localize('tunnelForgetConfirmation', "Forget dev tunnel '{0}'?", name),
+		message: localize('tunnelDeleteConfirmation', "Delete dev tunnel '{0}'?", name),
 		detail: localize('tunnelForgetDetail', "This removes the tunnel registration and disconnects all its clients, not just this device. The remote computer and its files are kept. The tunnel may reappear if the computer starts sharing again."),
-		primaryButton: localize('tunnelForgetButton', "&&Forget"),
+		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
 	});
 	return confirmed;
 }
@@ -87,8 +87,8 @@ export async function renameRemoteHost(
 		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
 	}
 	const name = await quickInputService.input({
-		title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
-		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
+		title: localize('workspacePicker.renameRemoteTitle', "Rename remote agent host"),
+		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a name for this remote host in this profile. Leave it empty to use the default name."),
 		value: provider.label,
 		valueSelection: [0, provider.label.length],
 		ignoreFocusLost: true,

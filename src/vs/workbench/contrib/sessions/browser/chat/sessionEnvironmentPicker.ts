@@ -60,7 +60,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
 		environments.push({
-			id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id),
+			id: 'local', kind: 'local', label: localize('environmentPicker.local', "This computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id),
 			hover: localize('environmentPicker.localHover', "Run this session directly on this computer"),
 		});
 	}
@@ -170,7 +170,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		container.prepend(slot);
 		const { trigger, action } = createSessionPickerToolbar(store, slot, this.instantiationService,
-			options?.focusCommand?.id ?? 'sessions.environmentPicker', localize('environmentPicker.chooseEnvironment', "Choose Environment"),
+			options?.focusCommand?.id ?? 'sessions.environmentPicker', localize('environmentPicker.chooseEnvironment', "Choose environment"),
 			() => this.showPicker(), options?.hoverDelegate);
 		this._trigger = trigger;
 		trigger.role = 'button';

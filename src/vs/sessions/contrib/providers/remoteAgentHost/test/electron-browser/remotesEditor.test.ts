@@ -186,10 +186,11 @@ suite('RemotesEditor', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
 		const content = store.add(help.getProvider(instantiation)!).provideContent();
 		assert.deepStrictEqual({
-			runBehavior: content.includes('Agent Run Behavior'),
-			diagnostics: content.includes('Open Diagnostic Report'),
+			runBehavior: content.includes('Configure Agent Run Behavior'),
+			removalActions: ['Remove Environment', 'Forget SSH Connection', 'Delete Dev Tunnel'].every(label => content.includes(label)),
+			diagnostics: content.includes('Open diagnostic report'),
 			oldGroupSettings: content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'),
-		}, { runBehavior: true, diagnostics: true, oldGroupSettings: false });
+		}, { runBehavior: true, removalActions: true, diagnostics: true, oldGroupSettings: false });
 	});
 
 	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {
@@ -329,7 +330,7 @@ suite('RemotesEditor', () => {
 			start.click();
 			await timeout(0);
 			assert.deepStrictEqual({ hiddenBeforeSelection, invalid, valid: !name.hasAttribute('aria-invalid'), beforeStart, registrations }, {
-				hiddenBeforeSelection: true, invalid: { disabled: 'true', invalid: 'true', validation: true }, valid: true, beforeStart: { registrations: 0, stored: undefined },
+				hiddenBeforeSelection: false, invalid: { disabled: 'true', invalid: 'true', validation: true }, valid: true, beforeStart: { registrations: 0, stored: undefined },
 				registrations: ['my-dev-machine'],
 			});
 		});
@@ -398,8 +399,8 @@ suite('RemotesEditor', () => {
 		assert.deepStrictEqual({ commands, states, restored: !share.hidden && dom.getActiveElement() === share }, {
 			commands: [],
 			states: [
-				{ selected: 0, enabled: 'true', label: 'Start Sharing', shareHidden: true, off: false, bullets: 3 },
-				{ selected: 0, enabled: 'true', label: 'Start Sharing', shareHidden: true, off: false, bullets: 3 },
+				{ selected: 0, enabled: 'true', label: 'Start sharing', shareHidden: true, off: false, bullets: 3 },
+				{ selected: 0, enabled: 'true', label: 'Start sharing', shareHidden: true, off: false, bullets: 3 },
 			],
 			restored: true,
 		});
@@ -454,7 +455,7 @@ suite('RemotesEditor', () => {
 			hiddenBeforeSharing: true, offeredWhileSharing: true,
 			prompt: [{ title: 'Rename Tunnel', value: 'my-workstation' }],
 			configuredName: 'renamed-computer',
-			introduction: 'Let your other devices use agents and folders on this computer. Choose how they connect. Keep this computer awake and online with either method.',
+			introduction: 'Use agents on this computer from your other devices.',
 			renameHints: 0,
 			standardToolbar: true,
 		});
@@ -517,7 +518,7 @@ suite('RemotesEditor', () => {
 		stop.click();
 		await timeout(0);
 		assert.deepStrictEqual({ before, commands, closed: page.hidden }, {
-			before: { label: 'Stop Sharing', disabled: 'false' },
+			before: { label: 'Stop sharing', disabled: 'false' },
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID], closed: true,
 		});
 	});
@@ -562,7 +563,7 @@ suite('RemotesEditor', () => {
 			errors: errors.map(error => String(error)),
 		}, {
 			pageHidden: true, status: 'Not shared',
-			feedback: 'Sharing via GitHub Environment didn\'t start. Open the sharing log for details, then try again. Connection failedOpen Sharing Log',
+			feedback: 'Sharing via GitHub Environment didn\'t start. Open the sharing log for details, then try again. Connection failedOpen sharing log',
 			errors: ['Error: Connection failed'],
 		});
 	});
@@ -584,38 +585,169 @@ suite('RemotesEditor', () => {
 			focused: dom.getActiveElement() === tunnel,
 			selected: tunnel.getAttribute('aria-checked'),
 			segmented: tunnel.parentElement?.classList.contains('segmented'),
-			explanation: [...container.querySelectorAll('.remotes-sharing-choice-description li')].map(point => point.textContent),
+			explanationUnchanged: [...container.querySelectorAll('.remotes-sharing-choice-description li')].every((point, index) => point.textContent === before[index]),
+			accessibleChoices: before.every(point => editor.getAccessibilityContent().includes(point!))
+				&& [github, tunnel].every(choice => before.filter(point => choice.textContent?.includes(point!)).every(point => choice.getAttribute('aria-label')?.includes(point!))),
 			preview: github.querySelector('.remotes-sharing-preview')?.textContent,
 			start: container.querySelector('.remotes-sharing-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled'),
 		}, {
-			before: ['Continue agent sessions in supported Copilot apps, VS Code, and vscode.dev/agents', 'Find this computer from devices signed in to the same GitHub account', 'No connection URL to manage', 'Use agents and folders from VS Code or vscode.dev/agents', 'Connect through a private dev tunnel using the same account', 'For full-editor access, use Remote Tunnels instead'],
+			before: ['Connect from VS Code, a browser, and supported Copilot apps', 'Use the same GitHub account on both devices', 'Stores session history on GitHub without end-to-end encryption', 'Connect from VS Code or a browser', 'Use the same GitHub or Microsoft account on both devices', 'Creates a private Dev Tunnel without registering a GitHub Environment'],
 			focused: true, selected: 'true', segmented: false, preview: 'Preview',
-			explanation: ['Continue agent sessions in supported Copilot apps, VS Code, and vscode.dev/agents', 'Find this computer from devices signed in to the same GitHub account', 'No connection URL to manage', 'Use agents and folders from VS Code or vscode.dev/agents', 'Connect through a private dev tunnel using the same account', 'For full-editor access, use Remote Tunnels instead'],
+			explanationUnchanged: true, accessibleChoices: true,
 			start: 'false',
 		});
 	});
 
-	test('sharing labels the computer and places naming guidance before the input', async () => {
+	for (const width of [360, 900]) {
+		test(`sharing radio cards retain circular indicators without moving the form at ${width}px`, async () => {
+			const { editor, container, input } = createEditor({
+				[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+			});
+			for (const size of [20, 40, 60, 80, 120, 160, 200, 240, 280, 320, 360]) {
+				container.style.setProperty(`--vscode-spacing-size${size}`, `${size / 10}px`);
+			}
+			container.style.setProperty('--vscode-codiconFontSize', '16px');
+			container.style.setProperty('--vscode-fontSize-body1', '13px');
+			container.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			editor.layout(new dom.Dimension(width, 1200));
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			await timeout(0);
+			container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+			const choices = [...container.querySelectorAll<HTMLElement>('.remotes-sharing-choices [role="radio"]')];
+			const name = container.querySelector<HTMLInputElement>('.remotes-sharing-name-field input')!;
+			const hint = container.querySelector<HTMLElement>('.remotes-sharing-name-hint')!;
+			const targetWindow = dom.getWindow(container);
+			const layout = () => [...container.querySelectorAll<HTMLElement>('.remotes-sharing-name-field input, .remotes-sharing-choices, .remotes-sharing-choices [role="radio"], .remotes-sharing-notice, .remotes-sharing-footer, .remotes-sharing-help')].map(element => {
+				const { x, y, width, height } = element.getBoundingClientRect();
+				return { x, y, width, height };
+			});
+			const initial = layout();
+			const states = [0, 1, 0].map(index => {
+				choices[index].click();
+				return {
+					stable: JSON.stringify(layout()) === JSON.stringify(initial),
+					rings: choices.map(choice => {
+						const ring = targetWindow.getComputedStyle(choice, '::before');
+						const diameter = parseFloat(ring.width);
+						return ring.content !== 'none' && diameter > 0 && ring.width === ring.height
+							&& parseFloat(ring.borderRadius) >= diameter / 2 && ring.borderStyle === 'solid'
+							&& ring.visibility === 'visible';
+					}),
+					checkedDots: choices.map(choice => targetWindow.getComputedStyle(choice, '::after').visibility === 'visible'),
+					hintVisible: targetWindow.getComputedStyle(hint).visibility === 'visible',
+					hintDescribed: name.getAttribute('aria-describedby')?.split(' ').includes(hint.id),
+					hintInAccessibleView: editor.getAccessibilityContent().includes(hint.textContent!),
+				};
+			});
+			assert.deepStrictEqual(states, [
+				{ stable: true, rings: [true, true], checkedDots: [true, false], hintVisible: false, hintDescribed: false, hintInAccessibleView: false },
+				{ stable: true, rings: [true, true], checkedDots: [false, true], hintVisible: true, hintDescribed: true, hintInAccessibleView: true },
+				{ stable: true, rings: [true, true], checkedDots: [true, false], hintVisible: false, hintDescribed: false, hintInAccessibleView: false },
+			]);
+		});
+	}
+
+	test('sharing groups editable identity before connection choices without repeating the name in the heading', async () => {
 		const { editor, container, input } = createEditor({
 			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
 		});
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		await timeout(0);
 		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
-		const github = container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!;
-		github.click();
-		const owner = container.querySelector<HTMLElement>('.remotes-task-heading .remotes-details-owner')!;
+		const nameField = container.querySelector<HTMLElement>('.remotes-sharing-name-field')!;
+		const name = nameField.querySelector<HTMLInputElement>('input')!;
+		const description = nameField.querySelector<HTMLElement>('.remotes-sharing-name-description')!;
+		const notice = container.querySelector<HTMLElement>('.remotes-sharing-notice')!;
+		const footer = container.querySelector<HTMLElement>('.remotes-sharing-footer')!;
+		const help = container.querySelector<HTMLElement>('.remotes-sharing-help')!;
+		const beforeSelection = { value: name.value, enabled: !name.disabled, startDisabled: container.querySelector('.remotes-sharing-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled') };
+		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
 		assert.deepStrictEqual({
-			name: owner.textContent,
-			summaryName: container.querySelector('.remotes-this-computer-name')?.textContent,
-			details: container.querySelector('.remotes-task-identity-detail')?.textContent?.startsWith('This computer'),
-			task: container.querySelector('.remotes-task-heading h2.remotes-task-title')?.textContent,
-			inlineDescription: !!github.querySelector('.remotes-sharing-choice-description'),
-			points: container.querySelectorAll('.remotes-sharing-choice-description li').length,
-			hintBeforeInput: !!(container.querySelector('.remotes-sharing-name-hint')!.compareDocumentPosition(container.querySelector('.remotes-sharing-name-field input')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+			beforeSelection,
+			heading: container.querySelector('.remotes-task-heading')?.textContent,
+			label: nameField.querySelector('label')?.textContent,
+			labelForInput: nameField.querySelector('label')?.htmlFor === name.id,
+			value: name.value,
+			description: description.textContent,
+			describedBy: name.getAttribute('aria-describedby')?.split(' ').includes(description.id),
+			taskMetadata: container.querySelectorAll('.remotes-sharing-system').length,
+			overviewMetadata: !!container.querySelector('.remotes-this-computer-system')?.textContent,
+			identityBeforeChoices: !!(nameField.compareDocumentPosition(container.querySelector('.remotes-sharing-choices')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+			notice: notice.textContent,
+			actionDescription: footer.querySelector('.monaco-button:not(.secondary)')?.getAttribute('aria-describedby') === notice.id,
+			guideAfterActions: !!(footer.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING),
+			accessible: [name.value, description.textContent!, notice.textContent!].every(text => editor.getAccessibilityContent().includes(text))
+				&& !editor.getAccessibilityContent().includes('Operating system'),
 		}, {
-			name: 'Computer name: my-workstation', summaryName: 'my-workstation', details: true,
-			task: 'Share this computer', inlineDescription: true, points: 6, hintBeforeInput: true,
+			beforeSelection: { value: 'my-workstation', enabled: true, startDisabled: 'true' },
+			heading: 'Share this computer', label: 'Computer name', labelForInput: true,
+			value: 'My Workstation (Code - OSS)',
+			description: 'Other devices see this name. You can change it here.',
+			describedBy: true, taskMetadata: 0, overviewMetadata: true, identityBeforeChoices: true,
+			notice: 'Other devices can use agent sessions, tools, and folders on this computer. Keep VS Code running, and keep this computer awake and online.',
+			actionDescription: true, guideAfterActions: true, accessible: true,
+		});
+	});
+
+	test('sharing distinguishes labels from readable instructions and supplemental help', async () => {
+		const { editor, container, input } = createEditor({
+			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+		});
+		container.style.setProperty('--vscode-fontSize-body1', '13px');
+		container.style.setProperty('--vscode-fontSize-label1', '12px');
+		container.style.setProperty('--vscode-fontWeight-semiBold', '600');
+		container.style.setProperty('--vscode-fontWeight-regular', '400');
+		container.style.setProperty('--vscode-foreground', '#dddddd');
+		container.style.setProperty('--vscode-descriptionForeground', '#aaaaaa');
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+		const labels = [...container.querySelectorAll<HTMLElement>('.remotes-sharing-question')];
+		const style = (element: HTMLElement) => {
+			const computed = dom.getWindow(element).getComputedStyle(element);
+			return { size: computed.fontSize, weight: computed.fontWeight, color: computed.color };
+		};
+		assert.deepStrictEqual({
+			labels: [...new Set(labels.map(element => JSON.stringify(style(element))))],
+			description: style(container.querySelector<HTMLElement>('.remotes-sharing-name-description')!),
+			hint: style(container.querySelector<HTMLElement>('.remotes-sharing-name-hint')!),
+			notice: style(container.querySelector<HTMLElement>('.remotes-sharing-notice')!),
+			helpSize: style(container.querySelector<HTMLElement>('.remotes-sharing-help')!).size,
+			choiceForeground: [...container.querySelectorAll<HTMLElement>('.remotes-sharing-choice-description')].every(element => style(element).color === 'rgb(221, 221, 221)'),
+		}, {
+			labels: [JSON.stringify({ size: '13px', weight: '600', color: 'rgb(221, 221, 221)' })],
+			description: { size: '13px', weight: '400', color: 'rgb(221, 221, 221)' },
+			hint: { size: '12px', weight: '400', color: 'rgb(221, 221, 221)' },
+			notice: { size: '13px', weight: '400', color: 'rgb(221, 221, 221)' },
+			helpSize: '12px', choiceForeground: true,
+		});
+	});
+
+	test('editing the name before choosing a method retains the draft and validates it for that method', async () => {
+		const { editor, container, input, configuration } = createEditor({
+			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+		});
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+		const name = container.querySelector<HTMLInputElement>('.remotes-sharing-name-field input')!;
+		name.value = 'My computer';
+		name.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		container.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
+		const tunnel = { value: name.value, invalid: name.getAttribute('aria-invalid'), startDisabled: container.querySelector('.remotes-sharing-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled') };
+		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
+		const github = { value: name.value, invalid: name.hasAttribute('aria-invalid') };
+		container.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
+		const restoredDraft = name.value;
+		container.querySelector<HTMLElement>('.remotes-sharing-footer .secondary')!.click();
+		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+		assert.deepStrictEqual({
+			tunnel, github, restoredDraft, reopened: name.value, saved: configuration.getValue(CONFIGURATION_KEY_HOST_NAME),
+		}, {
+			tunnel: { value: 'My computer', invalid: 'true', startDisabled: 'true' },
+			github: { value: 'My Workstation (Code - OSS)', invalid: false },
+			restoredDraft: 'My computer', reopened: 'my-workstation', saved: undefined,
 		});
 	});
 
@@ -657,7 +789,7 @@ suite('RemotesEditor', () => {
 		primary.click();
 		await timeout(0);
 		assert.deepStrictEqual({ expanded, toggledClosed, cancelled, escapedFromNavigation, commands, collapsed: details.hidden, stopped: primary.parentElement?.hidden, entrance: container.querySelector('.remotes-this-computer-share > .monaco-button')?.textContent }, {
-			expanded: { visible: true, commands: 0, headerActionsVisible: false, standardSplit: true, overviewHidden: true, expanded: 'true', actions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'] },
+			expanded: { visible: true, commands: 0, headerActionsVisible: false, standardSplit: true, overviewHidden: true, expanded: 'true', actions: isWindows ? ['Start sharing', 'Cancel'] : ['Cancel', 'Start sharing'] },
 			toggledClosed: true,
 			cancelled: { closed: true, restored: true, commands: 0 },
 			escapedFromNavigation: true,
@@ -668,16 +800,26 @@ suite('RemotesEditor', () => {
 	test('sharing details align with the summary and active status uses the antenna accent', async () => {
 		const { editor, container, input, tunnel } = createEditor({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true });
 		for (const [name, value] of Object.entries({
+			'--vscode-strokeThickness': '1px', '--vscode-widget-border': '#444444',
 			'--vscode-spacing-size20': '2px', '--vscode-spacing-size40': '4px', '--vscode-spacing-size80': '8px',
 			'--vscode-spacing-size120': '12px', '--vscode-spacing-size160': '16px', '--vscode-spacing-size200': '20px',
-			'--vscode-spacing-size280': '28px', '--vscode-focusBorder': '#2266ff',
+			'--vscode-spacing-size240': '24px', '--vscode-spacing-size280': '28px', '--vscode-focusBorder': '#2266ff',
+			'--vscode-fontSize-heading3': '13px', '--vscode-fontSize-body1': '13px',
+			'--vscode-fontWeight-semiBold': '600', '--vscode-fontWeight-regular': '400', '--vscode-codiconFontSize': '16px',
 		})) {
 			container.style.setProperty(name, value);
 		}
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
 		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const sectionContainer = container.querySelector<HTMLElement>('.remotes-editor-this-computer')!;
 		const share = section.querySelector<HTMLElement>('.remotes-this-computer-share')!;
 		const description = section.querySelector<HTMLElement>('.remotes-this-computer-description')!;
+		const heading = section.querySelector<HTMLElement>('h2.remotes-this-computer-title')!;
+		const otherHeading = container.querySelector<HTMLElement>('h2.remotes-heading-title')!;
+		const name = section.querySelector<HTMLElement>('.remotes-this-computer-name')!;
+		const headingStyle = dom.getWindow(section).getComputedStyle(heading);
+		const otherHeadingStyle = dom.getWindow(section).getComputedStyle(otherHeading);
 		const collapsed = {
 			flat: dom.getWindow(section).getComputedStyle(section).backgroundColor === 'rgba(0, 0, 0, 0)',
 			leftAligned: Math.abs(section.getBoundingClientRect().left - container.querySelector('.remotes-search-row')!.getBoundingClientRect().left) < 1,
@@ -685,14 +827,23 @@ suite('RemotesEditor', () => {
 			descriptionHidden: description.getBoundingClientRect().height === 0,
 			label: share.querySelector('.monaco-button')?.textContent,
 			systemFirst: section.querySelector('.remotes-this-computer-status')?.firstElementChild?.classList.contains('remotes-this-computer-system'),
+			separator: dom.getWindow(section).getComputedStyle(sectionContainer).borderBottomStyle,
+			heading: heading.textContent,
+			matchingTypography: headingStyle.fontSize === otherHeadingStyle.fontSize && headingStyle.fontWeight === otherHeadingStyle.fontWeight,
+			headingLabelsSection: section.getAttribute('aria-labelledby') === heading.id,
+			detailsBelowHeading: name.getBoundingClientRect().top >= heading.getBoundingClientRect().bottom,
+			detailsAligned: Math.abs(name.getBoundingClientRect().left - heading.getBoundingClientRect().left) < 1,
+			nameIsContent: name.tagName === 'DIV' && !name.contains(heading),
 		};
 		container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!.click();
 		const question = container.querySelector<HTMLElement>('.remotes-sharing-question')!;
-		const icon = container.querySelector<HTMLElement>('.remotes-this-computer-header > .codicon')!;
+		const icon = container.querySelector<HTMLElement>('.remotes-this-computer-heading > .codicon')!;
 		const task = {
 			aligned: Math.abs(description.getBoundingClientRect().left - question.getBoundingClientRect().left) < 1,
 			descriptionVisible: description.getBoundingClientRect().height > 0,
 			iconHiddenOnTask: icon.getBoundingClientRect().height === 0,
+			headingHiddenOnTask: heading.getBoundingClientRect().height === 0,
+			sharingSeparator: dom.getWindow(section).getComputedStyle(sectionContainer).borderBottomStyle,
 		};
 		container.querySelector<HTMLElement>('.remotes-task-back .action-label')!.click();
 		tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
@@ -700,11 +851,15 @@ suite('RemotesEditor', () => {
 		assert.deepStrictEqual({
 			collapsed,
 			...task,
+			headingRestored: heading.getBoundingClientRect().height > 0,
 			antenna: !!status.querySelector('.codicon-radio-tower'),
 			color: dom.getWindow(status).getComputedStyle(status.querySelector('.codicon')!).color,
 		}, {
-			collapsed: { flat: true, leftAligned: true, rightAligned: true, descriptionHidden: true, label: 'Share this computer', systemFirst: true },
-			aligned: true, descriptionVisible: true, iconHiddenOnTask: true, antenna: true, color: 'rgb(34, 102, 255)',
+			collapsed: {
+				flat: true, leftAligned: true, rightAligned: true, descriptionHidden: true, label: 'Share this computer', systemFirst: true, separator: 'solid',
+				heading: 'This computer', matchingTypography: true, headingLabelsSection: true, detailsBelowHeading: true, detailsAligned: true, nameIsContent: true,
+			},
+			aligned: true, descriptionVisible: true, iconHiddenOnTask: true, headingHiddenOnTask: true, sharingSeparator: 'none', headingRestored: true, antenna: true, color: 'rgb(34, 102, 255)',
 		});
 	});
 
@@ -732,10 +887,10 @@ suite('RemotesEditor', () => {
 			githubDisabled: github.getAttribute('aria-disabled'),
 			linkFocusable: link.tabIndex,
 			opened,
-			accessible: editor.getAccessibilityContent().includes('GitHub Environments is disabled by your organization. Contact your administrator.'),
+			accessible: editor.getAccessibilityContent().includes('Sharing through GitHub Environments is disabled by your organization. Contact your administrator.'),
 		}, {
 			visible: true,
-			text: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			text: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View setting',
 			describes: true,
 			githubDisabled: 'true',
 			linkFocusable: 0,
@@ -777,7 +932,7 @@ suite('RemotesEditor', () => {
 			heading: container.querySelector<HTMLElement>('.remotes-heading:not([hidden])')?.textContent,
 			region: container.querySelector('.remotes-widget[role="region"]')?.getAttribute('aria-labelledby') === container.querySelector('.remotes-heading-title')?.id,
 			accessible: editor.getAccessibilityContent().startsWith('This computer'),
-			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther Environments\n'),
+			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther environments\n'),
 		});
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
@@ -796,8 +951,8 @@ suite('RemotesEditor', () => {
 		await setEnabled(false);
 		assert.deepStrictEqual({ initial, enabled, reopened, disabled: read() }, {
 			initial: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
-			enabled: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
-			reopened: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
+			enabled: { hidden: false, sections: 1, heading: 'Other environments', region: true, accessible: true, accessibleHeading: true },
+			reopened: { hidden: false, sections: 1, heading: 'Other environments', region: true, accessible: true, accessibleHeading: true },
 			disabled: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
 		});
 	});
@@ -864,7 +1019,7 @@ suite('RemotesEditor', () => {
 			assert.deepStrictEqual({
 				disposed: model.disposed, canceled: model.refreshTokens[0].isCancellationRequested,
 				widgets: container.querySelectorAll('.remotes-widget').length, message: editor.getAccessibilityContent(),
-			}, { disposed: true, canceled: true, widgets: 0, message: setting === ENVIRONMENT_PICKER_SETTING ? 'The Environment picker is disabled.' : 'Remote Environments management is disabled.' });
+			}, { disposed: true, canceled: true, widgets: 0, message: setting === ENVIRONMENT_PICKER_SETTING ? 'The environment picker is disabled.' : 'Remote Environments management is disabled.' });
 		});
 	}
 
@@ -884,7 +1039,7 @@ suite('RemotesEditor', () => {
 		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /management is disabled/);
 		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true);
 		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, false);
-		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /Environment picker is disabled/);
+		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /environment picker is disabled/i);
 		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /disabled/);

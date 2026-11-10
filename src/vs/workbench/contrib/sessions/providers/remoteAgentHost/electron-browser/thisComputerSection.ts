@@ -43,17 +43,17 @@ const sharingChoices = {
 	githubEnvironment: {
 		label: localize('thisComputer.githubEnvironment', "GitHub Environment"),
 		points: [
-			localize('thisComputer.githubApps', "Continue agent sessions in supported Copilot apps, VS Code, and vscode.dev/agents"),
-			localize('thisComputer.githubAccount', "Find this computer from devices signed in to the same GitHub account"),
-			localize('thisComputer.githubNoURLs', "No connection URL to manage"),
+			localize('thisComputer.githubApps', "Connect from VS Code, a browser, and supported Copilot apps"),
+			localize('thisComputer.githubAccount', "Use the same GitHub account on both devices"),
+			localize('thisComputer.githubHistory', "Stores session history on GitHub without end-to-end encryption"),
 		],
 	},
 	devTunnel: {
 		label: localize('thisComputer.devTunnel', "Dev Tunnel"),
 		points: [
-			localize('thisComputer.tunnelApps', "Use agents and folders from VS Code or vscode.dev/agents"),
-			localize('thisComputer.tunnelAccount', "Connect through a private dev tunnel using the same account"),
-			localize('thisComputer.tunnelEditor', "For full-editor access, use Remote Tunnels instead"),
+			localize('thisComputer.tunnelApps', "Connect from VS Code or a browser"),
+			localize('thisComputer.tunnelAccount', "Use the same GitHub or Microsoft account on both devices"),
+			localize('thisComputer.tunnelConnection', "Creates a private Dev Tunnel without registering a GitHub Environment"),
 		],
 	},
 } satisfies Record<SharingMethod, { label: string; points: readonly string[] }>;
@@ -77,6 +77,7 @@ export class ThisComputerSection extends Disposable {
 	private readonly status: HTMLElement;
 	private readonly preview: HTMLElement;
 	private readonly pageDescription: HTMLElement;
+	private readonly sharingNotice: HTMLElement;
 	private readonly policy: HTMLElement;
 	private readonly feedback: HTMLElement;
 	private readonly feedbackContainer: HTMLElement;
@@ -86,12 +87,12 @@ export class ThisComputerSection extends Disposable {
 	private readonly backAction: Action;
 	private readonly backToolbar: WorkbenchToolBar;
 	private readonly navigation: HTMLElement;
-	private readonly pageOwner: HTMLElement;
 	private readonly nameInput: InputBox;
-	private readonly nameField: HTMLElement;
+	private readonly nameDescription: HTMLElement;
 	private readonly nameHint: HTMLElement;
 	private nameDrafts: Partial<Record<SharingMethod, string>> = {};
-	private readonly policyText = localize('thisComputer.policyDisabled', "GitHub Environments is disabled by your organization. Contact your administrator.");
+	private initialNameDraft: string | undefined;
+	private readonly policyText = localize('thisComputer.policyDisabled', "Sharing through GitHub Environments is disabled by your organization. Contact your administrator.");
 	private methods: readonly SharingMethod[] = [];
 	private itemsKey = '';
 	private selectedMethod: SharingMethod | undefined;
@@ -131,26 +132,25 @@ export class ThisComputerSection extends Disposable {
 		this.backAction = this._register(new Action('remotes.back', localize('thisComputer.back', "Back to Remote Environments"),
 			ThemeIcon.asClassName(Codicon.arrowLeft), true, () => this.close()));
 		this.backToolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(this.navigation, dom.$('.remotes-task-back')), {
-			ariaLabel: localize('thisComputer.navigation', "Page Navigation"), hoverDelegate,
+			ariaLabel: localize('thisComputer.navigation', "Page navigation"), hoverDelegate,
 		}));
 		this.backToolbar.setActions([this.backAction]);
 		const heading = dom.append(this.navigation, dom.$('.remotes-task-heading'));
 		dom.append(heading, dom.$('h2.remotes-task-title', undefined, localize('thisComputer.sharingTitle', "Share this computer")));
-		this.pageOwner = dom.append(heading, dom.$('p.remotes-details-owner'));
 		const system = OS === OperatingSystem.Windows ? localize('thisComputer.windows', "Windows")
 			: OS === OperatingSystem.Macintosh ? localize('thisComputer.mac', "macOS") : localize('thisComputer.linux', "Linux");
-		dom.append(heading, dom.$('p.remotes-task-identity-detail', undefined, localize('thisComputer.identity', "This computer \u00b7 {0}", system)));
+		const sectionHeading = dom.append(this.domNode, dom.$('.remotes-this-computer-heading'));
+		dom.append(sectionHeading, renderIcon(Codicon.deviceDesktop)).setAttribute('aria-hidden', 'true');
+		dom.append(sectionHeading, dom.$('h2.remotes-this-computer-title', { id: titleId }, localize('thisComputer.title', "This computer")));
 		const header = dom.append(this.domNode, dom.$('.remotes-this-computer-header'));
-		dom.append(header, renderIcon(Codicon.deviceDesktop)).setAttribute('aria-hidden', 'true');
 		const summary = dom.append(header, dom.$('.remotes-this-computer-summary'));
 		const nameRow = dom.append(summary, dom.$('.remotes-this-computer-name-row'));
-		this.name = dom.append(nameRow, dom.$('h2.remotes-this-computer-name'));
-		dom.append(nameRow, dom.$('span.remotes-this-computer-title', { id: titleId }, localize('thisComputer.title', "This computer")));
+		this.name = dom.append(nameRow, dom.$('.remotes-this-computer-name'));
 		this.nameHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.name, ''));
 		this.renameContainer = dom.append(nameRow, dom.$('.remotes-this-computer-rename'));
 		this.rename = this._register(new Action('remotes.renameThisComputer', localize('thisComputer.rename', "Rename This Computer"), ThemeIcon.asClassName(Codicon.edit), true, () => this.renameComputer()));
 		this.renameToolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.renameContainer, {
-			ariaLabel: localize('thisComputer.nameActions', "Computer Name Actions"),
+			ariaLabel: localize('thisComputer.nameActions', "Computer name actions"),
 			hoverDelegate,
 		}));
 		this.renameToolbar.setActions([this.rename]);
@@ -193,10 +193,10 @@ export class ThisComputerSection extends Disposable {
 				}),
 			},
 		}));
-		this.stopButton.label = localize('thisComputer.stop', "Stop Sharing");
+		this.stopButton.label = localize('thisComputer.stop', "Stop sharing");
 		this.optionsButton = this.stopButton.dropdownButton;
-		this.optionsButton.setTitle(localize('thisComputer.options', "Change Sharing Method"));
-		this.optionsButton.setAriaLabel(localize('thisComputer.options', "Change Sharing Method"));
+		this.optionsButton.setTitle(localize('thisComputer.options', "Change sharing method"));
+		this.optionsButton.setAriaLabel(localize('thisComputer.options', "Change sharing method"));
 		this.details = dom.append(this.domNode, dom.$('section.remotes-sharing-details', { id: generateUuid() }));
 		this.details.hidden = true;
 		this.shareButton.element.setAttribute('aria-controls', this.details.id);
@@ -210,6 +210,35 @@ export class ThisComputerSection extends Disposable {
 		this.pageDescription = dom.append(body, dom.$('p.remotes-this-computer-description'));
 		this.scrollable = this._register(new DomScrollableElement(body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		dom.append(this.details, this.scrollable.getDomNode()).classList.add('remotes-sharing-scroll');
+		const nameField = dom.append(body, dom.$('.remotes-sharing-name-field'));
+		const nameLabel = dom.append(nameField, dom.$('label.remotes-sharing-question', undefined,
+			localize('thisComputer.nameLabel', "Computer name")));
+		this.nameDescription = dom.append(nameField, dom.$('p.remotes-sharing-name-description', { id: generateUuid() },
+			localize('thisComputer.nameDescription', "Other devices see this name. You can change it here.")));
+		this.nameInput = this._register(new InputBox(nameField, contextViewService, {
+			inputBoxStyles: defaultInputBoxStyles,
+			ariaLabel: localize('thisComputer.nameLabel', "Computer name"),
+			placeholder: localize('thisComputer.namePlaceholder', "Computer name"),
+			validationOptions: {
+				validation: value => {
+					const content = this.selectedMethod && this.sharing.namesLoaded ? validateSharingName(this.selectedMethod, value) : undefined;
+					return content ? { content, type: MessageType.ERROR } : null;
+				},
+			},
+		}));
+		this.nameHint = dom.append(nameField, dom.$('p.remotes-sharing-name-hint', { id: generateUuid() }));
+		this.nameInput.inputElement.id = generateUuid();
+		nameLabel.setAttribute('for', this.nameInput.inputElement.id);
+		this._register(dom.addDisposableListener(this.nameInput.inputElement, dom.EventType.INPUT, () => {
+			if (!this.isBusy) {
+				if (this.selectedMethod) {
+					this.nameDrafts[this.selectedMethod] = this.nameInput.value;
+				} else {
+					this.initialNameDraft = this.nameInput.value;
+				}
+				this.updateNameValidation();
+			}
+		}));
 		const pageTitleId = generateUuid();
 		dom.append(body, dom.$('h3.remotes-sharing-question', { id: pageTitleId },
 			localize('thisComputer.sharingQuestion', "Connection method")));
@@ -221,47 +250,28 @@ export class ThisComputerSection extends Disposable {
 		this._register(this.radio.onDidSelect(index => {
 			if (!this.applying) {
 				this.selectedMethod = this.methods[index];
+				if (this.selectedMethod && this.initialNameDraft !== undefined) {
+					this.nameDrafts[this.selectedMethod] = this.initialNameDraft;
+					this.initialNameDraft = undefined;
+				}
 				this.changeFailed = false;
 				this.feedback.textContent = '';
 				this.update();
-			}
-		}));
-
-		const nameField = this.nameField = dom.append(body, dom.$('.remotes-sharing-name-field'));
-		const nameLabel = dom.append(nameField, dom.$('label.remotes-sharing-question', undefined,
-			localize('thisComputer.shareName', "Name other devices see")));
-		this.nameHint = dom.append(nameField, dom.$('p.remotes-sharing-name-hint', { id: generateUuid() }));
-		this.nameInput = this._register(new InputBox(nameField, contextViewService, {
-			inputBoxStyles: defaultInputBoxStyles,
-			ariaLabel: localize('thisComputer.shareName', "Name other devices see"),
-			placeholder: localize('thisComputer.namePlaceholder', "Computer name"),
-			validationOptions: {
-				validation: value => {
-					const content = this.selectedMethod && this.sharing.namesLoaded ? validateSharingName(this.selectedMethod, value) : undefined;
-					return content ? { content, type: MessageType.ERROR } : null;
-				},
-			},
-		}));
-		this.nameInput.inputElement.id = generateUuid();
-		nameLabel.setAttribute('for', this.nameInput.inputElement.id);
-		this.nameInput.inputElement.setAttribute('aria-describedby', this.nameHint.id);
-		this._register(this.nameInput.onDidChange(value => {
-			if (this.selectedMethod && !this.isBusy) {
-				this.nameDrafts[this.selectedMethod] = value;
-				this.updateNameValidation();
 			}
 		}));
 		this.policy = dom.append(body, dom.$('p.remotes-sharing-policy', { id: generateUuid() }));
 		dom.append(this.policy, renderIcon(Codicon.briefcase)).setAttribute('aria-hidden', 'true');
 		dom.append(this.policy, dom.$('span', undefined, `${this.policyText} `));
 		this._register(instantiationService.createInstance(Link, this.policy, {
-			label: localize('thisComputer.viewSetting', "View Setting"), href: '#',
+			label: localize('thisComputer.viewSetting', "View setting"), href: '#',
 		}, { opener: () => { void preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }); } }));
+		this.sharingNotice = dom.append(body, dom.$('p.remotes-sharing-notice', { id: generateUuid() },
+			localize('thisComputer.sharingNotice', "Other devices can use agent sessions, tools, and folders on this computer. Keep VS Code running, and keep this computer awake and online.")));
 		this.feedbackContainer = dom.append(body, dom.$('.remotes-sharing-feedback-container'));
 		this.feedback = dom.append(this.feedbackContainer, dom.$('p.remotes-sharing-feedback', { role: 'status' }));
 		this.feedbackLog = dom.append(this.feedbackContainer, dom.$('span'));
 		this._register(instantiationService.createInstance(Link, this.feedbackLog, {
-			label: localize('thisComputer.openSharingLog', "Open Sharing Log"), href: '#',
+			label: localize('thisComputer.openSharingLog', "Open sharing log"), href: '#',
 		}, {
 			opener: async () => {
 				await commandService.executeCommand('workbench.action.closeModalEditor');
@@ -273,7 +283,8 @@ export class ThisComputerSection extends Disposable {
 		this.cancelButton.label = localize('thisComputer.cancel', "Cancel");
 		this._register(this.cancelButton.onDidClick(() => this.close()));
 		this.applyButton = this._register(new Button(footer, defaultButtonStyles));
-		this.applyButton.label = localize('thisComputer.start', "Start Sharing");
+		this.applyButton.label = localize('thisComputer.start', "Start sharing");
+		this.applyButton.element.setAttribute('aria-describedby', this.sharingNotice.id);
 		this._register(this.applyButton.onDidClick(() => {
 			if (this.applyButton.enabled && this.selectedMethod) {
 				void this.apply(this.selectedMethod);
@@ -282,6 +293,11 @@ export class ThisComputerSection extends Disposable {
 		if (isWindows) {
 			footer.prepend(this.applyButton.element);
 		}
+		const help = dom.append(body, dom.$('p.remotes-sharing-help'));
+		this._register(instantiationService.createInstance(Link, help, {
+			label: localize('thisComputer.sharingGuide', "Remote connection setup and security"),
+			href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_choose-how-to-connect',
+		}, { hoverDelegate }));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (this.showingOptions && keyboardEvent.keyCode === KeyCode.Escape && !keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey && !keyboardEvent.shiftKey) {
@@ -305,6 +321,7 @@ export class ThisComputerSection extends Disposable {
 		const active = this.sharing.activeMethod;
 		this.selectedMethod = active === 'off' ? undefined : active;
 		this.nameDrafts = {};
+		this.initialNameDraft = undefined;
 		this.itemsKey = '';
 		this.showingOptions = true;
 		this.changeFailed = false;
@@ -425,7 +442,6 @@ export class ThisComputerSection extends Disposable {
 			this.radio.domNode.setAttribute('aria-describedby', this.policy.id);
 		}
 		const name = this.sharing.name;
-		this.pageOwner.textContent = localize('thisComputer.computerName', "Computer name: {0}", name ?? localize('thisComputer.title', "This computer"));
 		this.name.textContent = name ?? '';
 		this.name.hidden = !name;
 		this.nameHover.update(name ?? '');
@@ -458,11 +474,10 @@ export class ThisComputerSection extends Disposable {
 		this.feedbackContainer.hidden = !this.changeFailed && !this.applying;
 		this.feedbackContainer.classList.toggle('sharing-failed', this.changeFailed);
 		this.feedbackLog.hidden = !this.changeFailed;
-		this.pageDescription.textContent = localize('thisComputer.shareOverview', "Let your other devices use agents and folders on this computer. Choose how they connect. Keep this computer awake and online with either method.");
-		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
-		this.nameField.hidden = !this.selectedMethod;
-		this.nameInput.setEnabled(!this.isBusy && !!this.selectedMethod && this.sharing.namesLoaded);
-		this.nameInput.value = this.selectedMethod ? this.nameDrafts[this.selectedMethod] ?? this.sharing.getNameForMethod(this.selectedMethod) ?? '' : '';
+		this.pageDescription.textContent = localize('thisComputer.shareOverview', "Use agents on this computer from your other devices.");
+		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start sharing") : localize('thisComputer.switch', "Switch method");
+		this.nameInput.setEnabled(!this.isBusy && this.sharing.namesLoaded);
+		this.nameInput.value = this.selectedMethod ? this.nameDrafts[this.selectedMethod] ?? this.sharing.getNameForMethod(this.selectedMethod) ?? '' : this.initialNameDraft ?? name ?? '';
 		this.updateNameValidation();
 		this.cancelButton.enabled = !this.isBusy;
 		this.backAction.enabled = !this.isBusy;
@@ -473,10 +488,11 @@ export class ThisComputerSection extends Disposable {
 	private updateNameValidation(): void {
 		const method = this.selectedMethod;
 		const error = this.nameInput.validate();
+		const showHint = !this.sharing.namesLoaded || method === 'devTunnel';
 		this.nameHint.textContent = !this.sharing.namesLoaded ? localize('thisComputer.loadingName', "Loading this computer's name...")
-			: method === 'devTunnel'
-				? localize('thisComputer.tunnelNameHint', "Up to 20 letters, numbers, underscores, or dashes. Other devices see this name in lowercase.")
-				: localize('thisComputer.nameHint', "Use a name you'll recognize on your other devices.");
+			: localize('thisComputer.tunnelNameHint', "Use up to 20 letters, numbers, underscores, or dashes.");
+		this.nameHint.classList.toggle('not-applicable', !showHint);
+		this.nameInput.inputElement.setAttribute('aria-describedby', showHint ? `${this.nameDescription.id} ${this.nameHint.id}` : this.nameDescription.id);
 		this.applyButton.enabled = !this.isBusy && !this.sharing.getState().isConnecting && !!method
 			&& this.sharing.namesLoaded && !error && method !== this.sharing.activeMethod
 			&& (method !== 'githubEnvironment' || this.sharing.gitHubEnvironmentsAvailability === 'enabled');
@@ -506,19 +522,23 @@ export class ThisComputerSection extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		const summary = [localize('thisComputer.title', "This computer"), this.sharing.name ?? '', this.status.textContent ?? '',
+		const summary = [this.showingOptions ? localize('thisComputer.sharingTitle', "Share this computer") : localize('thisComputer.title', "This computer"),
+		...(this.showingOptions ? [] : [this.sharing.name ?? '']), this.status.textContent ?? '',
 		...(this.preview.hidden ? [] : [this.preview.textContent ?? '']),
 		...(this.feedbackContainer.hidden ? [] : [this.feedback.textContent ?? ''])];
 		return [...summary, ...(this.showingOptions ? [
 			this.pageDescription.textContent ?? '',
+			localize('thisComputer.accessibleName', "Name shown to other devices: {0}", this.nameInput.value),
+			this.nameDescription.textContent ?? '',
+			!this.sharing.namesLoaded || this.selectedMethod === 'devTunnel' ? this.nameHint.textContent ?? '' : '',
 			localize('thisComputer.sharingQuestion', "Connection method"),
-			localize('thisComputer.accessibleName', "Name other devices see: {0}", this.nameInput.value),
 			...this.methods.map(method => {
 				const choice = sharingChoices[method];
 				return localize('thisComputer.accessibleChoice', "{0}. {1}. {2}", choice.label, choice.points.join('. '),
 					method === this.selectedMethod ? localize('thisComputer.selected', "Selected") : '');
 			}),
 			...(this.policy.hidden ? [] : [this.policyText]),
+			this.sharingNotice.textContent ?? '',
 		] : [])].join('\n');
 	}
 }

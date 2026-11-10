@@ -141,10 +141,23 @@ export function getConnectionLabel(remote: ICustomizationRemote, connecting?: bo
 	if (RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus)) {
 		return localize('remotes.reconnecting', "Reconnecting");
 	}
+	if (RemoteAgentHostConnectionStatus.isIncompatible(remote.connectionStatus)) {
+		return localize('remotes.updateRequired', "Update required");
+	}
 	if (RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus) && remote.unavailableReason) {
-		return remote.kind === 'environment' ? localize('remotes.offline', "Host offline") : localize('remotes.unavailable', "Unavailable");
+		return remote.kind === 'environment' ? localize('remotes.offline', "Offline") : localize('remotes.unavailable', "Unavailable");
 	}
 	return getAgentHostConnectionStatusLabel(remote.connectionStatus);
+}
+
+export function getConnectionIcon(remote: ICustomizationRemote, connecting?: boolean): ThemeIcon {
+	if (connecting !== undefined || RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus)) {
+		return ThemeIcon.modify(Codicon.loadingCompact, 'spin');
+	}
+	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) ? Codicon.circleFilledCompact
+		: RemoteAgentHostConnectionStatus.isIncompatible(remote.connectionStatus) ? Codicon.warning
+			: RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus) && remote.unavailableReason ? Codicon.circleSlashCompact
+				: Codicon.debugDisconnectCompact;
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -187,7 +200,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					label: dom.append(connectionContainer, dom.$('.remotes-connection-state')),
 					warning: disposables.add(new ButtonWithIcon(nameRow, {
 						...defaultButtonStyles, secondary: true, hoverDelegate: this.actionHoverDelegate,
-						title: false, ariaLabel: localize('remotes.troubleshoot', "Troubleshoot Connection"),
+						title: false, ariaLabel: localize('remotes.troubleshoot', "Troubleshoot connection"),
 					})),
 				};
 				connection.warning.label = localize('remotes.troubleshootShort', "Troubleshoot");
@@ -274,7 +287,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'locationPreference');
 						}
 					}));
-					const troubleshoot = disposables.add(new Action('remotes.troubleshoot', localize('remotes.troubleshoot', "Troubleshoot Connection"), ThemeIcon.asClassName(Codicon.tools), true, async () => {
+					const troubleshoot = disposables.add(new Action('remotes.troubleshoot', localize('remotes.troubleshootAction', "Troubleshoot Connection"), ThemeIcon.asClassName(Codicon.tools), true, async () => {
 						if (template.row?.entry.type === 'remote') {
 							this.onAction(template.row.entry, 'troubleshoot');
 						}
@@ -432,14 +445,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...(showConfig ? [template.action] : []),
 					];
 					const secondary = showConnection ? Separator.join(
-						[template.action],
+						[template.action, template.troubleshoot],
 						[template.visibility],
 						[template.copyAddress],
 						[
 							template.rename,
 							...(showLocationPreference ? [template.locationPreference] : []),
 							...(showUpdate ? [template.updateServer] : []),
-							template.troubleshoot,
 							...(showDelete ? [template.delete] : []),
 						],
 					) : [];
@@ -498,11 +510,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.rename.label = localize('remotes.rename', "Rename...");
 					template.rename.enabled = !entry.busy;
 					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address");
-					template.locationPreference.label = localize('remotes.locationPreference', "Agent Run Behavior");
+					template.locationPreference.label = localize('remotes.locationPreference', "Configure Agent Run Behavior...");
 					template.locationPreference.enabled = !entry.busy
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
-					template.delete.label = localize('remotes.forget', "Forget...");
+					template.delete.label = entry.remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
+						: entry.remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
+							: localize('remotes.removeEnvironment', "Remove Environment...");
 					template.delete.enabled = showDelete && !entry.busy;
 					template.updateServer.label = localize('remotes.updateServer', "Update Server");
 					template.updateServer.enabled = showUpdate && !entry.busy;
@@ -514,7 +528,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	}
 
 	private renderConnection(entry: RemoteTableEntry, template: RemoteConnectionTemplate, store: DisposableStore): void {
-		const pending = isConnectionPending(entry);
 		const error = entry.type === 'remote' && entry.connecting === undefined ? entry.remote.lastConnectionError : undefined;
 		template.container.hidden = entry.type !== 'remote' || entry.showConnectionStatus === false;
 		template.indicator.hidden = entry.type !== 'remote' || entry.showConnectionStatus === false;
@@ -523,12 +536,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			&& RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 		dom.clearNode(template.indicator);
 		if (entry.type === 'remote') {
-			const connectionStatus = entry.remote.connectionStatus;
-			const icon = pending ? ThemeIcon.modify(Codicon.loadingCompact, 'spin')
-				: RemoteAgentHostConnectionStatus.isConnected(connectionStatus) ? Codicon.circleFilledCompact
-					: RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus) && entry.remote.unavailableReason ? Codicon.circleSlashCompact
-						: Codicon.debugDisconnectCompact;
-			dom.append(template.indicator, renderIcon(icon));
+			dom.append(template.indicator, renderIcon(getConnectionIcon(entry.remote, entry.connecting)));
 		}
 		template.warning.element.hidden = !error;
 		if (error) {

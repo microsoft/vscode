@@ -400,9 +400,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			this.checkEnvironment(target);
 			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
-				message: localize('remotes.forgetEnvironmentConfirmation', "Forget environment '{0}'?", remote.name),
+				message: localize('remotes.removeEnvironmentConfirmation', "Remove environment '{0}'?", remote.name),
 				detail: localize('remotes.forgetEnvironmentDetail', "This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again."),
-				primaryButton: localize('remotes.forgetEnvironmentButton', "&&Forget"),
+				primaryButton: localize('remotes.removeEnvironmentButton', "&&Remove"),
 			});
 			if (!confirmed) {
 				return;
@@ -519,7 +519,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.tunnelStatusUnavailable', "Tunnel hosting status is not available yet. Try again."));
 		}
 		if (isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, tunnel)) {
-			throw new Error(localize('remotes.tunnelForgetHosted', "This application is currently hosting this tunnel. Stop sharing it before forgetting it."));
+			throw new Error(localize('remotes.tunnelDeleteHosted', "This computer is sharing this dev tunnel. Stop sharing it before deleting it."));
 		}
 	}
 
@@ -606,18 +606,18 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 
 	private getPickerUnavailableReason(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, hidden: boolean, reader?: IReader): string | undefined {
 		if (target.kind === 'environment' && target.host.status !== 'online') {
-			return localize('remotes.pickerOffline', "Available in the picker when this computer is online.");
+			return localize('remotes.pickerOffline', "Available in the environment picker when this computer is online.");
 		}
 		if (!provider) {
 			return target.kind !== 'environment' && !this.registered.has(this.getId(target))
-				? localize('remotes.pickerConnectFirst', "Connect once to add this remote to the picker.")
-				: localize('remotes.pickerNotReady', "This remote is not ready for the picker. Try refreshing.");
+				? localize('remotes.pickerConnectFirst', "Connect once to add this remote to the environment picker.")
+				: localize('remotes.pickerNotReady', "This remote isn't ready for the environment picker. Refresh and try again.");
 		}
 		if (!isRemoteSessionCreationEnvironment(provider)) {
-			return localize('remotes.pickerUnsupported', "This remote does not support a separate entry in the Environment picker.");
+			return localize('remotes.pickerUnsupported', "This remote can't appear as a separate entry in the environment picker.");
 		}
 		if (provider.isAvailableInEnvironmentPicker?.read(reader) === false || !hidden && provider.isVisibleInEnvironmentPicker?.read(reader) === false) {
-			return localize('remotes.pickerUnavailable', "This remote is currently unavailable in the picker.");
+			return localize('remotes.pickerUnavailable', "This remote isn't currently available in the environment picker.");
 		}
 		return undefined;
 	}
@@ -767,7 +767,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					name = target.host.displayName ?? target.host.name;
 					detail = target.host.id;
 					unavailableReason = target.host.status !== 'online'
-						? localize('remotes.environmentOffline', "This computer is offline. Start sharing on it before connecting.") : undefined;
+						? localize('remotes.environmentOffline', "The remote computer is offline. Start sharing it before connecting.") : undefined;
 					break;
 			}
 			const provider = providersByAddress.get(id);

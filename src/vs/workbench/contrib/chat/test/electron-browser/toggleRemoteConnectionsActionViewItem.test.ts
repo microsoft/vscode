@@ -288,9 +288,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 	test('connection explanations are available through managed hovers and accessible descriptions', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().filter(action => action.checked !== undefined).map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
-			{ id: 'remoteConnections.off', description: 'Don\'t allow connections from other devices through this app.', hoverMatches: true },
+			{ id: 'remoteConnections.off', description: 'Don\'t let other devices connect to agents on this computer.', hoverMatches: true },
 			{ id: 'remoteConnections.githubEnvironment', description: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', hoverMatches: true },
-			{ id: 'remoteConnections.devTunnel', description: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', hoverMatches: true },
+			{ id: 'remoteConnections.devTunnel', description: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full editor access, use Remote Tunnels.', hoverMatches: true },
 		]);
 	});
 
@@ -310,7 +310,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			actions: ['remoteConnections.off', 'remoteConnections.devTunnel', 'remoteConnections.rename'],
 			updates: [[GitHubEnvironmentsEnabledSettingId, false]],
 			sharing: [],
-			message: new Error('GitHub Environments are disabled by your settings or your organization.'),
+			message: new Error('Sharing through GitHub Environments is disabled by your settings or your organization.'),
 		});
 	});
 
@@ -321,7 +321,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const action = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
 		assert.deepStrictEqual({ enabled: action.enabled, detail: action.ariaDescription, icon: action.labelIcon }, {
 			enabled: false,
-			detail: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
+			detail: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator to enable it.',
 			icon: Codicon.briefcase,
 		});
 	});
@@ -365,7 +365,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			tabFocus: true, shiftTabFocus: true, describedBy: true,
 			header: undefined,
-			explanation: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View setting',
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
@@ -386,7 +386,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			openSettings: openSettings.callCount,
 			sharing: sharing.calls,
 		}, {
-			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
+			footer: 'Sharing through GitHub Environments is disabled by your organization. Contact Admin',
 			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
 			openSettings: 0,
@@ -642,7 +642,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			toggles: run.callCount,
 		}, {
 			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environment', checked: false }, { label: 'Dev Tunnel', checked: false }],
-			label: 'Remote Connections: Off',
+			label: 'Remote connections: Off',
 			pressed: null,
 			sharing: [false],
 			toggles: 0,
@@ -756,7 +756,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			focused: [true, true, true],
 			expanded: 'true',
 			collapsed: 'false',
-			label: 'Remote Connections: Off',
+			label: 'Remote connections: Off',
 			menuItems: 4,
 			toggles: 0,
 		});
@@ -799,7 +799,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			name: sharing.environmentName.get(),
 			sharing: sharing.state.get(),
 		}, {
-			title: 'Rename Remote Environment', value: 'Test Machine (VS Code Insiders)',
+			title: 'Rename remote environment', value: 'Test Machine (VS Code Insiders)',
 			invalid: 'Enter an environment name without control characters.',
 			name: 'Renamed workstation', sharing: 'disabled',
 		});
@@ -862,9 +862,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	test('GitHub sharing hover keeps the description concise', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
 			_usesMissionControl: () => true,
-			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
+			getAriaLabel: () => 'Share this computer as a GitHub Environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Share this computer as a GitHub Environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
@@ -1106,10 +1106,10 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				};
 			});
 			assert.deepStrictEqual(snapshots, [
-				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
-				{ label: 'Registering GitHub environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
-				{ label: 'Remote Connections via GitHub environment are enabled', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
-				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Registering this computer as a GitHub Environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
+				{ label: 'This computer is shared as a GitHub Environment', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
+				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
 			]);
 		});
 

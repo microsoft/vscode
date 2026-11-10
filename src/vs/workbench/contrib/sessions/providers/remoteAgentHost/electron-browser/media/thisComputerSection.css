@@ -17,14 +17,23 @@
 	margin-bottom: 0;
 }
 
+.remotes-this-computer-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
 .remotes-this-computer-header {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	flex-shrink: 0;
 	min-width: 0;
+	padding-inline-start: var(--vscode-spacing-size240);
 }
 
+.remotes-this-computer.sharing-expanded .remotes-this-computer-heading,
 .remotes-this-computer.sharing-expanded .remotes-this-computer-header {
 	display: none;
 }
@@ -45,15 +54,15 @@
 .remotes-this-computer-title {
 	flex-shrink: 0;
 	margin: 0;
-	font-size: var(--vscode-fontSize-body2);
-	font-weight: var(--vscode-fontWeight-regular);
-	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
 }
 
 .remotes-this-computer-name {
 	margin: 0;
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.5;
 }
 
@@ -104,15 +113,13 @@
 	flex-shrink: 0;
 }
 
-.remotes-this-computer-header > .codicon,
+.remotes-this-computer-heading > .codicon,
 .remotes-sharing-status-icon {
 	flex-shrink: 0;
 }
 
-.remotes-this-computer-header > .codicon {
-	align-self: start;
-	line-height: 16px;
-	margin-top: var(--vscode-spacing-size60);
+.remotes-this-computer-heading > .codicon {
+	width: var(--vscode-codiconFontSize);
 	font-size: var(--vscode-codiconFontSize);
 }
 
@@ -145,10 +152,6 @@
 .remotes-this-computer-share .monaco-button-dropdown[hidden],
 .remotes-sharing-footer .monaco-button[hidden],
 .remotes-sharing-details[hidden] {
-	display: none;
-}
-
-.remotes-sharing-name-field[hidden] {
 	display: none;
 }
 
@@ -191,6 +194,20 @@
 	padding-bottom: var(--vscode-spacing-size160);
 }
 
+.remotes-sharing-notice {
+	margin: var(--vscode-spacing-size160) 0 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.5;
+	text-wrap: pretty;
+}
+
+.remotes-sharing-help {
+	margin: var(--vscode-spacing-size120) 0 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
 .remotes-sharing-feedback {
 	margin: 0;
 	line-height: 1.5;
@@ -199,8 +216,6 @@
 
 .remotes-sharing-question {
 	margin: 0 0 var(--vscode-spacing-size160);
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .remotes-sharing-choice-description {
@@ -246,7 +261,7 @@
 }
 
 .remotes-sharing-name-field {
-	margin-top: var(--vscode-spacing-size240);
+	margin-bottom: var(--vscode-spacing-size160);
 	max-width: 420px;
 }
 
@@ -255,9 +270,24 @@
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
+.remotes-sharing-name-description,
 .remotes-sharing-name-hint {
-	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.5;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
+}
+
+.remotes-sharing-name-description {
 	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
+	text-wrap: pretty;
+}
+
+.remotes-sharing-name-hint {
+	margin: var(--vscode-spacing-size80) 0 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.remotes-sharing-name-hint.not-applicable {
+	visibility: hidden;
 }

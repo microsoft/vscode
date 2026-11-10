@@ -74,8 +74,8 @@ registerAction2(class extends Action2 {
 
 		// Prompt for address
 		const address = await quickInputService.input({
-			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
+			title: localize('addRemoteTitle', "Add remote agent host"),
+			prompt: localize('addRemotePrompt', "Enter the address of an already running remote agent host (host, host:port, or WebSocket URL). Example: {0}", 'ws://127.0.0.1:8089'),
 			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
@@ -100,8 +100,8 @@ registerAction2(class extends Action2 {
 		// Prompt for display name
 		const defaultName = parsed.parsed.suggestedName;
 		const name = await quickInputService.input({
-			title: localize('nameRemoteTitle', "Name Remote Agent Host"),
-			prompt: localize('nameRemotePrompt', "Enter a display name for this remote agent host."),
+			title: localize('nameRemoteTitle', "Name remote agent host"),
+			prompt: localize('nameRemotePrompt', "Enter a name for this remote agent host."),
 			placeHolder: localize('nameRemotePlaceholder', "My Remote"),
 			value: defaultName,
 			valueSelection: [0, defaultName.length],
@@ -124,7 +124,7 @@ registerAction2(class extends Action2 {
 			});
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
-			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
+			notificationService.error(localize('addRemoteFailed', "Couldn't connect to remote agent host {0}.", parsed.parsed.address));
 		}
 	}
 });

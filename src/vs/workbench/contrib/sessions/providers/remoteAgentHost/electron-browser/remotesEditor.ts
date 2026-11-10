@@ -110,7 +110,7 @@ export class RemotesEditor extends EditorPane {
 			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
 		this.disabledMessage.textContent = managementEnabled
 			? environmentPickerEnabled ? localize('remotes.editorDisabled', "Remote agent hosts are disabled.")
-				: localize('remotes.environmentPickerDisabled', "The Environment picker is disabled.")
+				: localize('remotes.environmentPickerDisabled', "The environment picker is disabled.")
 			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
 		this.content.hidden = !enabled;
@@ -141,7 +141,7 @@ export class RemotesEditor extends EditorPane {
 				this.layoutContents();
 			});
 		}
-		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other Environments") : undefined);
+		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());
 		this.layoutContents();
 	}
