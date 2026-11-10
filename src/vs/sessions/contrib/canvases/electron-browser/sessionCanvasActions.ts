@@ -21,7 +21,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
-import { getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
@@ -170,8 +170,12 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 		const definitions = registryService.availableCanvases.read(reader);
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
 		const canvases = activeCanvases.read(reader);
-		// Running lists the canvases the chat's canvas pill does, whether or not their tab is open.
-		const targets = canvases.filter(({ reference, canvas }) => canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader));
+		// Running lists the canvases the focused chat's canvas pill does, whether or not their tab is open, and not those
+		// of chats other windows show.
+		const owner = registryService.owner.read(reader);
+		const targets = owner
+			? canvases.filter(({ reference, canvas }) => isCanvasOwner(reference, owner) && canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader))
+			: [];
 		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
 		// Without canvases of its own, the Session Activity Bar offers the same entries as Add Tab.
 		const inActivityBar = canvases.length === 0;

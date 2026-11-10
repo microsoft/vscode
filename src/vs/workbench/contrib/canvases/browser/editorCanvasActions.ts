@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { getCanvasDefinitionLabels, getCanvasInstanceLabels, getNewCanvasDefinitionInstanceId, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
+import { CanvasDefinitionOpener, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
 import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
 import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
@@ -107,6 +107,7 @@ export function registerEditorCanvasActions(
 		observableSignalFromEvent(reader.store, definitionProvider.onDidChangeDefinitions).read(reader);
 		return { owner: context.owner, listCanvases: () => definitionProvider.listCanvases() };
 	}, '[EditorCanvasActions]', logService)).definitions;
+	const opener = new CanvasDefinitionOpener();
 	let commandSequence = 0;
 
 	store.add(autorun(reader => {
@@ -179,12 +180,13 @@ export function registerEditorCanvasActions(
 	/** Opens a new canvas of `canvas`'s type, beside any canvases of that type the chat already has. */
 	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
 		const context = currentContext.get();
+		const definitionProvider = context?.definitionProvider;
 		const definitionAvailable = availableDefinitions.get().some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
-		if (!canvasService.enabled.get() || !context?.definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
+		if (!canvasService.enabled.get() || !context || !definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
 			return;
 		}
 		try {
-			await context.definitionProvider.openCanvas(canvas, getNewCanvasDefinitionInstanceId(canvas, context.canvases.get() ?? []));
+			await opener.open(context.owner, canvas, context.canvases.get() ?? [], instanceId => definitionProvider.openCanvas(canvas, instanceId));
 		} catch (error) {
 			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
 		}

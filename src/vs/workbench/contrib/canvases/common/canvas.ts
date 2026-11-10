@@ -18,7 +18,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
-import { ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
@@ -309,11 +309,10 @@ function getIndexedCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'e
 }
 
 /**
- * Produces the instance identifier that opens another canvas of a registered canvas type beside the chat's `canvases`:
- * the type's stable instance identifier while no canvas uses it, else the first free numbered one.
+ * Produces the instance identifier of a new canvas of a registered canvas type: the type's stable instance identifier
+ * while it is not in `used`, else the first free numbered one.
  */
-export function getNewCanvasDefinitionInstanceId(canvas: ICanvasDefinition, canvases: readonly ICanvas[]): string {
-	const used = new Set(canvases.map(candidate => candidate.instanceId));
+function getNewCanvasDefinitionInstanceId(canvas: ICanvasDefinition, used: ReadonlySet<string>): string {
 	for (let index = 1; ; index++) {
 		const instanceId = getIndexedCanvasDefinitionInstanceId(canvas, index);
 		if (!used.has(instanceId)) {
@@ -323,8 +322,45 @@ export function getNewCanvasDefinitionInstanceId(canvas: ICanvasDefinition, canv
 }
 
 /**
+ * Opens new canvases of registered canvas types, each with an instance identifier of its own. An identifier is reserved
+ * for its owner from the open request until the owner's canvases include it, so that opens that overlap, or that the
+ * host has yet to publish, never share one. A failed open releases its identifier.
+ */
+export class CanvasDefinitionOpener {
+
+	/** By owner, the reserved instance identifiers, and whether their open succeeded. */
+	private readonly reservations = new Map<string, Map<string, boolean>>();
+
+	/** Opens a new canvas of `canvas`'s type beside `canvases`, the owner's current canvases, through `open`. */
+	async open(owner: ICanvasOwner, canvas: ICanvasDefinition, canvases: readonly ICanvas[], open: (instanceId: string) => Promise<void>): Promise<void> {
+		const key = canvasOwnerKey(owner);
+		const reserved = this.reservations.get(key) ?? new Map<string, boolean>();
+		this.reservations.set(key, reserved);
+		const used = new Set(canvases.flatMap(candidate => candidate.instanceId ? [candidate.instanceId] : []));
+		for (const [instanceId, opened] of reserved) {
+			if (opened && used.has(instanceId)) {
+				reserved.delete(instanceId);
+			}
+			used.add(instanceId);
+		}
+		const instanceId = getNewCanvasDefinitionInstanceId(canvas, used);
+		reserved.set(instanceId, false);
+		try {
+			await open(instanceId);
+		} catch (error) {
+			reserved.delete(instanceId);
+			if (reserved.size === 0 && this.reservations.get(key) === reserved) {
+				this.reservations.delete(key);
+			}
+			throw error;
+		}
+		reserved.set(instanceId, true);
+	}
+}
+
+/**
  * The number of `canvas` among the canvases of its registered canvas type, counting from 1, when its instance identifier
- * is one {@link getNewCanvasDefinitionInstanceId} produces.
+ * is one {@link CanvasDefinitionOpener} produces.
  */
 function getCanvasDefinitionInstanceIndex(canvas: ICanvas): number | undefined {
 	if (!canvas.instanceId || !canvas.extensionId || !canvas.canvasId) {

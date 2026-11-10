@@ -584,7 +584,7 @@ suite('SessionCanvasRegistryService', () => {
 		});
 	});
 
-	test('lists the chat\'s running canvases as Running, open or not, and opens another one from Available', async () => {
+	test('lists the focused chat\'s running canvases as Running, open or not and not those of chats other windows show, and opens another one from Available', async () => {
 		const definition: ISessionCanvasDefinition = {
 			canvasId: 'timeline', extensionId: 'user:timeline', extensionSource: 'user',
 			displayName: 'Timeline', description: 'A timeline.', requiresInput: false,
@@ -597,7 +597,15 @@ suite('SessionCanvasRegistryService', () => {
 		});
 		const first = instance(getSessionCanvasDefinitionInstanceId(definition));
 		harness.canvases.set([first], undefined);
-		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
+		// A chat window shows another chat, whose running canvas the canvas service presents there.
+		const otherWindowChat = {
+			owner: { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/other'), chat: URI.parse('agent-host-chat:/other/main') },
+			canvases: constObservable([{ ...instance('other-window'), title: 'Other Window Canvas' }]),
+		};
+		const contextService = upcastPartial<ICanvasContextService>({
+			contexts: derived(reader => [...harness.contextService.contexts.read(reader), otherWindowChat]),
+		});
+		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, contextService));
 		const getEntries = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`) || item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
