@@ -228,8 +228,8 @@ jobs:
       # dependencies are installed, and its .git holds the commit it was built at, so the checkout
       # writes and the install steps install only what changed since. Its scripts run before the
       # checkout, so they come from the API, at the commit that the job tests, as in
-      # pr-workspace-images.yml. Without an image, or on any error, the jobs set up as before. The
-      # other jobs reuse these steps.
+      # pr-workspace-images.yml. Without an image, or on any error, the install steps install
+      # everything, without the pnpm store cache. The other jobs reuse these steps.
       - &image-scripts
         name: Download the workspace image scripts
         id: image-scripts
@@ -299,14 +299,6 @@ jobs:
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
-
-      # A workspace image holds the node_modules of its commit, which the install step updates, and its
-      # pnpm store
-      - name: Restore pnpm store cache
-        if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-pnpm-store
-        with:
-          key-prefix: pnpm-store-linux
 
       - name: Install build tools
         run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
@@ -424,15 +416,6 @@ jobs:
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
-
-      # Reuse the pnpm store that .github/workflows/pr-pnpm-store.yml keeps warm on `main`. Never
-      # save: PR-scoped caches are not shared with other PRs and only evict the shared ones. A
-      # workspace image holds its own store.
-      - name: Restore pnpm store cache
-        if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-pnpm-store
-        with:
-          key-prefix: pnpm-store-linux
 
       - name: Install system dependencies
         run: |
@@ -668,13 +651,7 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore pnpm store cache
-        if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-pnpm-store
-        with:
-          key-prefix: pnpm-store-copilot-linux
-
-      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
@@ -774,13 +751,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
-      - name: Restore pnpm store cache
-        if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-pnpm-store
-        with:
-          key-prefix: pnpm-store-copilot-linux
-
-      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
@@ -885,13 +856,7 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
-      - name: Restore pnpm store cache
-        if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-pnpm-store
-        with:
-          key-prefix: pnpm-store-copilot-windows
-
-      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
@@ -953,7 +918,8 @@ jobs:
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
         with:
-          restore-pnpm-store: ${{ steps.image.outputs.used != 'true' }}
+          # Installs on top of the workspace image, or everything without an image
+          restore-pnpm-store: 'false'
 
   # Commented out with the macOS test jobs (see macos-tests).
   # chat-lib-macos-tests:

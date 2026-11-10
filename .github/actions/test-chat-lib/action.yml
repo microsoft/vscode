@@ -3,7 +3,7 @@ description: Extracts the chat-lib package from the Copilot extension, then buil
 
 inputs:
   restore-pnpm-store:
-    description: Restore the pnpm store from the cache. 'false' when the job uses a workspace image, which holds its own store and the dependencies of Copilot (see .github/workflows/workspace_image/README.md).
+    description: Restore the pnpm store from the cache. 'false' installs without it, as the jobs of pr.yml that start from a workspace image do, whose image holds the dependencies of Copilot (see .github/workflows/workspace_image/README.md).
     default: 'true'
 
 runs:
