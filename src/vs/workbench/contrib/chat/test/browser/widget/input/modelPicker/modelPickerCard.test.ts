@@ -1005,17 +1005,20 @@ suite('ModelCard', () => {
 		});
 		element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
 		result.update({ model: fast });
+		const shownWhileSaving = selectedOptions(result.card);
 		await saved.complete();
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			writes,
+			shownWhileSaving,
 			selectedModels: result.selectedModels,
 			accepted: result.accepted,
 			name: element(result.card.element, '.chat-model-card-name').textContent,
 			changes: result.changes,
 		}, {
 			writes: [standard.identifier],
+			shownWhileSaving: ['Medium', '264K'],
 			selectedModels: [],
 			accepted: 0,
 			name: 'Fast Model',
@@ -1285,6 +1288,47 @@ suite('ModelCard', () => {
 			accepted: 1,
 			selected: ['High', '264K'],
 			focused: 'High',
+		});
+	});
+
+	test('a refresh keeps showing a choice until it saves', async () => {
+		const secondSave = new DeferredPromise<void>();
+		const values: IStringDictionary<unknown> = {};
+		const writes: IStringDictionary<unknown>[] = [];
+		const result = await createAnimatedCard({
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				setModelConfiguration: async (_modelId, next) => {
+					writes.push(next);
+					if (writes.length === 2) {
+						await secondSave.p;
+					}
+					Object.assign(values, next);
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const settleMotion = (finish: boolean) => result.card.element.querySelectorAll('.monaco-radio-selection').forEach(indicator => indicator.getAnimations().forEach(animation => finish ? animation.finish() : animation.pause()));
+		effortOption('Low').click();
+		settleMotion(false);
+		await timeout(0);
+		result.card.refresh();
+		effortOption('High').click();
+		result.card.refresh();
+		settleMotion(true);
+		await timeout(0);
+		const whileSaving = selectedOptions(result.card);
+		effortOption('Low').click();
+		settleMotion(true);
+		await secondSave.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileSaving, writes, values, selected: selectedOptions(result.card) }, {
+			whileSaving: ['High', '264K'],
+			writes: [{ effort: 'low' }, { effort: 'high' }, { effort: 'low' }],
+			values: { effort: 'low' },
+			selected: ['Low', '264K'],
 		});
 	});
 

@@ -172,6 +172,22 @@ export class ModelCard extends DisposableStore {
 	private readonly _groupControls = new Map<string, Radio>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
+	/** Choices made here that are still saving, in the order they were made. */
+	private readonly _pendingEdits = new Set<{ readonly configurationAccess: IModelConfigurationAccess; readonly modelId: string; readonly values: IStringDictionary<unknown> }>();
+	/** Reads the saved configuration with those choices on top, so a rebuild before they save keeps showing them. */
+	private readonly _configurationReader: Pick<IModelConfigurationAccess, 'getModelConfiguration' | 'getModelConfigurationSchema'> = {
+		getModelConfiguration: modelId => {
+			const { configurationAccess } = this._options;
+			let values = configurationAccess.getModelConfiguration(modelId);
+			for (const edit of this._pendingEdits) {
+				if (edit.configurationAccess === configurationAccess && edit.modelId === modelId) {
+					values = { ...values, ...edit.values };
+				}
+			}
+			return values;
+		},
+		getModelConfigurationSchema: modelId => this._options.configurationAccess.getModelConfigurationSchema?.(modelId),
+	};
 	private _renderPending = false;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
@@ -220,7 +236,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _configProperty(group: string): IModelConfigProperty | undefined {
-		return getModelConfigProperty(this._options.model, this._options.configurationAccess, group, this._options.useModelConfigurationSchema);
+		return getModelConfigProperty(this._options.model, this._configurationReader, group, this._options.useModelConfigurationSchema);
 	}
 
 	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string): Promise<void> {
@@ -237,7 +253,7 @@ export class ModelCard extends DisposableStore {
 			}
 		}
 		try {
-			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
+			await this._saveValues(options, values);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
 				if (options.selectModelOnConfigurationChange !== false) {
 					options.onSelect?.(options.model);
@@ -252,6 +268,16 @@ export class ModelCard extends DisposableStore {
 		}
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
 			options.onDidAccept?.();
+		}
+	}
+
+	private async _saveValues(options: IModelCardOptions, values: IStringDictionary<unknown>): Promise<void> {
+		const edit = { configurationAccess: options.configurationAccess, modelId: options.model.identifier, values };
+		this._pendingEdits.add(edit);
+		try {
+			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
+		} finally {
+			this._pendingEdits.delete(edit);
 		}
 	}
 
@@ -419,7 +445,7 @@ export class ModelCard extends DisposableStore {
 			}
 		}
 
-		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess, this._options.useModelConfigurationSchema);
+		const changed = getChangedModelConfigProperties(this._options.model, this._configurationReader, this._options.useModelConfigurationSchema);
 		if (!changed.length && !this._options.onTogglePin) {
 			return;
 		}
