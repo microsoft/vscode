@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
-import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
+import { getSessionArtifactValue, isGitHubArtifactLink, isSessionArtifactMode, SESSION_ARTIFACT_MODES, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact, type SessionArtifactMode } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
 export interface ISessionArtifactInput {
@@ -16,6 +16,8 @@ export interface ISessionArtifactInput {
 	readonly link?: string;
 	readonly uri?: string;
 	readonly commitHash?: string;
+	/** How the chat should show the entry; see {@link SessionArtifactMode}. */
+	readonly mode?: SessionArtifactMode;
 }
 
 export interface IAddSessionArtifactResult {
@@ -96,7 +98,12 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 	}
 
 	const artifactType = type as SessionArtifactType;
-	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
+	const mode = args['mode'];
+	if (mode !== undefined && !isSessionArtifactMode(mode)) {
+		throw new Error(`Invalid ${toolName} input: ${field('mode')} must be one of ${SESSION_ARTIFACT_MODES.join(', ')}.`);
+	}
+	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string; mode?: SessionArtifactMode } = {
+		...(mode !== undefined ? { mode } : {}),
 		type: artifactType,
 		label: requireString(args['label'], field('label'), toolName),
 		isArtifact: args['isArtifact'],
@@ -155,6 +162,11 @@ export class SessionArtifactCollection {
 		const artifact = this._create(input, createId, origin);
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
+		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
+			// Recording an entry again with another mode changes how the chat shows it.
+			const updated = { ...existing, mode: input.mode };
+			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false };
+		}
 		if (existing) {
 			return { artifacts: this._artifacts, artifact: existing, added: false };
 		}
@@ -194,7 +206,9 @@ export class SessionArtifactCollection {
 			commitHash?: string;
 			isGitHub?: boolean;
 			origin?: ArtifactOrigin;
+			mode?: SessionArtifactMode;
 		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
+		if (input.mode !== undefined) { artifact.mode = input.mode; }
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }

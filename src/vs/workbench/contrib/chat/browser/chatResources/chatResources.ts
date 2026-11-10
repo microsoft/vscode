@@ -7,6 +7,7 @@ import * as glob from '../../../../../base/common/glob.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
+import { AgentHostChatResourcesConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 
@@ -51,6 +52,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			// Agents learn that they can choose how the chat shows what they record.
+			agentHost: { key: AgentHostChatResourcesConfigKey },
 			markdownDescription: nls.localize('chatResources.enabled', "Whether a chat can show its resources, such as files its agent recorded, with pills of their own or above the chat input."),
 			tags: ['experimental'],
 		},
