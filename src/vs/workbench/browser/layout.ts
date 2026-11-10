@@ -553,9 +553,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
 		if (container === this.mainContainer) {
-			if (this.workbenchGrid) {
-				updateSashEndpoints(this.workbenchGrid.element, this.isFloatingPanelsEnabled() && !this.isModernUICompact());
-			}
+			this.updateSashEndpoints();
 			this._onDidLayoutMainContainer.fire(dimension);
 		}
 
@@ -564,6 +562,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this._onDidLayoutContainer.fire({ container, dimension });
+	}
+
+	private updateSashEndpoints(): void {
+		if (this.workbenchGrid) {
+			updateSashEndpoints(this.workbenchGrid.element, this.isFloatingPanelsEnabled() && !this.isModernUICompact());
+		}
 	}
 
 	private onFullscreenChanged(windowId: number): void {
@@ -2104,6 +2108,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
+		this.updateSashEndpoints();
 		this._onDidChangePanelAlignment.fire(alignment);
 	}
 
@@ -2515,6 +2520,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.adjustPartPositions(this.getSideBarPosition(), this.getPanelAlignment(), position);
 		}
 
+		this.updateSashEndpoints();
 		this._onDidChangePanelPosition.fire(newPositionValue);
 	}
 
