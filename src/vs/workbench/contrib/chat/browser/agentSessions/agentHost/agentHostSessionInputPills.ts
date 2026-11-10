@@ -971,14 +971,15 @@ export class AgentHostSessionInputPills extends Disposable {
 				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
-		// Artifacts and references with a resource are chat resources, whether the agent host or a chat
+		// Artifacts and references with a resource or a website link are chat resources, whether the agent host or a chat
 		// tool recorded them: the agent or the user can give them a pill of their own or show them in the chat.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
 			return [...allArtifactSections.read(reader), ...allReferenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
-				const resource = entry.resource;
+				// Websites have a link rather than a resource; they show in the integrated browser.
+				const resource = entry.resource ?? (artifact?.type === SessionArtifactType.Website ? parseUri(artifact.link) : undefined);
 				if (!resource) {
 					return [];
 				}
