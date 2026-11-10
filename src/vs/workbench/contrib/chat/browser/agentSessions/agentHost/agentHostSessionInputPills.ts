@@ -558,6 +558,9 @@ export class AgentHostSessionInputPills extends Disposable {
 	private readonly _commitHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
 	private readonly _gitHubResourceDetailsResolver: GitHubResourceDetailsResolver;
+
+	/** The session's changed files, so that a changed file shown in the chat shows its changes. */
+	private _changes: IObservable<readonly IEditSessionEntryDiff[]> = constObservable([]);
 	/** Runs the file operations on each working set channel one after another, so a Keep staged with Git waits for one in progress. */
 	private readonly _fileOperations = new SequencerByKey<string>();
 
@@ -577,7 +580,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IChatEditingService chatEditingService: IChatEditingService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -761,7 +764,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
 		});
-		const changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
+		const changes = this._changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const files = changesetFiles.read(reader)?.files;
 			if (!currentResolution || !files) {
@@ -780,8 +783,8 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const checkpointReview = derived(this, reader => {
 			const resource = sessionResource.read(reader);
-			chatEditingService.editingSessionsObs.read(reader);
-			const session = resource ? chatEditingService.getEditingSession(resource) : undefined;
+			this._chatEditingService.editingSessionsObs.read(reader);
+			const session = resource ? this._chatEditingService.getEditingSession(resource) : undefined;
 			return session instanceof AgentHostSnapshotController ? session.checkpointReview : undefined;
 		});
 		const checkpointSource = derived(this, reader => {
@@ -979,8 +982,9 @@ export class AgentHostSessionInputPills extends Disposable {
 				if (!resource) {
 					return [];
 				}
+				const originalResource = entry.resource ? this._getOriginalResource(entry.resource, reader) : undefined;
 				// The agent's label describes the resource for people; lists show files by their name.
-				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, defaultMode: 'none' }];
+				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, ...(originalResource ? { originalResource } : {}), defaultMode: 'none' }];
 			}));
 		});
 		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
@@ -1648,6 +1652,20 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			openChatFileChanges(this._editorService, label, diffs);
 		}
+	}
+
+	/**
+	 * The version of a file before this chat changed it, if the chat changed an existing file: from the agent host's changeset,
+	 * or from the chat's editing session. Files the chat created have none: a diff would only show their content as added.
+	 */
+	private _getOriginalResource(resource: URI, reader: IReader): URI | undefined {
+		const change = this._changes.read(reader).find(diff => isEqual(diff.modifiedURI, resource));
+		if (change) {
+			return change.isCreated || change.isDeleted ? undefined : change.originalURI;
+		}
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		const editingSession = sessionResource ? this._chatEditingService.getEditingSession(sessionResource) : undefined;
+		return editingSession?.entries.read(reader).find(entry => isEqual(entry.modifiedURI, resource))?.originalURI;
 	}
 
 	private _openExternal(resource: URI): void {
