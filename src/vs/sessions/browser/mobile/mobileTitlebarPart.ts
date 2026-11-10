@@ -10,10 +10,10 @@ import { autorun, observableSignalFromEvent } from '../../../base/common/observa
 import { localize } from '../../../nls.js';
 import { SideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
-import { MobileTitlebarPart } from '../parts/mobile/mobileTitlebarPart.js';
+import { MobileTitlebarPart as BaseMobileTitlebarPart } from '../parts/mobile/mobileTitlebarPart.js';
 
-/** Title and account-sheet presentation for the experimental mobile workbench. */
-export class ExperimentalMobileTitlebarPart extends MobileTitlebarPart {
+/** Title and account-sheet presentation for the mobile workbench. */
+export class MobileTitlebarPart extends BaseMobileTitlebarPart {
 
 	protected override registerTitleListener(): void {
 		const titleKeys = new Set([IsNewChatSessionContext.key, SideBarVisibleContext.key]);

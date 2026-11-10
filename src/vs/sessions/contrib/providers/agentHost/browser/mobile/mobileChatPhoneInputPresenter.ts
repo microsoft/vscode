@@ -48,7 +48,7 @@ import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWell
 import { normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
-import { ExperimentalMobileChatInputActionViewItem } from './experimentalMobileChatInputActionViewItem.js';
+import { MobileChatInputActionViewItem } from './mobileChatInputActionViewItem.js';
 import { PermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { IChat, ISession, ISessionAgentRef } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -136,7 +136,7 @@ function getActionKey(action: ChatPhonePickerAction): string {
  * the sheet primitive: it only sees the {@link IChatPhoneInputPresenter}
  * decorator interface, so this wiring stays out of the workbench layer.
  */
-class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IChatPhonePresenterImpl {
+class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePresenterImpl {
 
 	readonly enabled: IObservable<boolean>;
 	readonly supportsUnifiedConfiguration = true;
@@ -169,11 +169,11 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		this.enabled = derived(this, reader => isPhoneCtx.read(reader) === true);
 	}
 
-	createActionViewItem(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): ExperimentalMobileChatInputActionViewItem {
+	createActionViewItem(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): MobileChatInputActionViewItem {
 		const request: ChatPhoneInputPresenterRequest = {
 			kind: 'delegates', modeDelegate: mode, modelDelegate: model,
 		};
-		return new ExperimentalMobileChatInputActionViewItem(action, mode, model, target => this.showCombinedModeAndModelSheet(target, request), () => this._phonePresenter.registerSessionModelPicker({
+		return new MobileChatInputActionViewItem(action, mode, model, target => this.showCombinedModeAndModelSheet(target, request), () => this._phonePresenter.registerSessionModelPicker({
 			getSessionContext: () => this._getSessionContext(request),
 			modelDelegate: model,
 			selectModel: identifier => {
@@ -790,9 +790,9 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 	}
 }
 
-export class ExperimentalMobileChatPhoneInputPresenterContribution extends Disposable implements IWorkbenchContribution {
+export class MobileChatPhoneInputPresenterContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'sessions.contrib.experimentalMobileChatPhoneInputPresenter';
+	static readonly ID = 'sessions.mobile.chatPhoneInputPresenter';
 
 	private readonly _registration = this._register(new MutableDisposable<IDisposable>());
 
@@ -802,7 +802,7 @@ export class ExperimentalMobileChatPhoneInputPresenterContribution extends Dispo
 	) {
 		super();
 
-		const impl = this._register(instantiationService.createInstance(ExperimentalMobileChatPhoneInputPresenter));
+		const impl = this._register(instantiationService.createInstance(MobileChatPhoneInputPresenter));
 
 		// Keep the registration mounted for the lifetime of the
 		// contribution. The workbench presenter's `enabled` observable
@@ -813,7 +813,7 @@ export class ExperimentalMobileChatPhoneInputPresenterContribution extends Dispo
 }
 
 registerWorkbenchContribution2(
-	ExperimentalMobileChatPhoneInputPresenterContribution.ID,
-	ExperimentalMobileChatPhoneInputPresenterContribution,
+	MobileChatPhoneInputPresenterContribution.ID,
+	MobileChatPhoneInputPresenterContribution,
 	WorkbenchPhase.BlockRestore,
 );

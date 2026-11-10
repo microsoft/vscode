@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Test entry point for the mobile Sessions workbench with mock services.
+// Test entry point for the mobile Agents workbench with mock services.
 // Mirrors agents.web.mobile.main.internal.ts but uses TestSessionsBrowserMain.
 
 import '../agents.web.mobile.main.js';

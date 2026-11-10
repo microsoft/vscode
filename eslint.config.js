@@ -2378,7 +2378,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/test/sessions.web.mobile.test.internal.ts',
+					'target': 'src/vs/sessions/test/agents.web.mobile.test.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',

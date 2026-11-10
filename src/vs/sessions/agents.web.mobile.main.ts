@@ -318,7 +318,7 @@ import './contrib/providers/remoteAgentHost/browser/mobileHostFilter.contributio
 
 // Phone pickers for mode and model in the chat input
 import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.js';
-import './contrib/providers/agentHost/browser/mobile/experimentalMobileChatPhoneInputPresenter.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
 // Agent feedback is not supported on web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

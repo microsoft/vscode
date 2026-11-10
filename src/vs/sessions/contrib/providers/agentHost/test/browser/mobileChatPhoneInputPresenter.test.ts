@@ -69,7 +69,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionModelsSnapshot } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ExperimentalMobileChatPhoneInputPresenterContribution } from '../../browser/mobile/experimentalMobileChatPhoneInputPresenter.js';
+import { MobileChatPhoneInputPresenterContribution } from '../../browser/mobile/mobileChatPhoneInputPresenter.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { ModelPicker } from '../../../../chat/browser/modelPicker.js';
 import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
@@ -88,7 +88,7 @@ import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menu
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 
-suite('ExperimentalMobileChatPhoneInputPresenter', () => {
+suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => resetShownWarnings());
 
@@ -320,7 +320,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		store.add(instantiationService.get(ISessionsProvidersService).registerProvider(provider));
 		const presenter = instantiationService.get(IChatPhoneInputPresenter);
 		const enabledBefore = presenter.enabled.get();
-		const contribution = store.add(instantiationService.createInstance(ExperimentalMobileChatPhoneInputPresenterContribution));
+		const contribution = store.add(instantiationService.createInstance(MobileChatPhoneInputPresenterContribution));
 		const delegates: ChatPhoneInputPresenterRequest = {
 			kind: 'delegates',
 			modeDelegate: {

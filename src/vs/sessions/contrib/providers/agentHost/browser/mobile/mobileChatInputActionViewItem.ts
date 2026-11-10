@@ -15,8 +15,8 @@ import { localize } from '../../../../../../nls.js';
 import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
 import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 
-/** The experimental composer uses a model label and chevron, without mode or provider icons. */
-export class ExperimentalMobileChatInputActionViewItem extends BaseActionViewItem {
+/** The mobile composer uses a model label and chevron, without mode or provider icons. */
+export class MobileChatInputActionViewItem extends BaseActionViewItem {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private trigger: HTMLElement | undefined;
 	private showing = false;

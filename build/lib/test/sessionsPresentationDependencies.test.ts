@@ -31,8 +31,8 @@ const experimentalPicker = [
 const dependenciesByFile = new Map<string, readonly string[]>();
 const composerRoot = 'src/vs/sessions/contrib/providers/agentHost/browser/mobile/';
 const originalConfigurationPresenter = 'src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts';
-const experimentalConfigurationPresenter = composerRoot + 'experimentalMobileChatPhoneInputPresenter.ts';
-const experimentalInputButton = composerRoot + 'experimentalMobileChatInputActionViewItem.ts';
+const mobileConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
+const mobileInputButton = composerRoot + 'mobileChatInputActionViewItem.ts';
 const defaultRepositoryPicker = 'src/vs/workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.ts';
 const mobileRepositoryPicker = 'src/vs/sessions/contrib/mobile/browser/mobileRepositoryPicker.ts';
 const defaultChatPresentation = 'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts';
@@ -45,7 +45,7 @@ const coreSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/ses
 suite('Sessions presentation entry isolation', () => {
 	for (const { entry, expected, configurationPresenter } of [
 		{ entry: 'src/vs/sessions/sessions.web.main.ts', expected: originalPicker, configurationPresenter: originalConfigurationPresenter },
-		{ entry: 'src/vs/sessions/agents.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: experimentalConfigurationPresenter },
+		{ entry: 'src/vs/sessions/agents.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: mobileConfigurationPresenter },
 	]) {
 		test(`${entry} reaches only its own host picker implementation and styles`, () => {
 			const dependencies = collectSourceDependencies(entry);
@@ -55,7 +55,7 @@ suite('Sessions presentation entry isolation', () => {
 
 		test(`${entry} reaches only its own Configure Session presenter`, () => {
 			const dependencies = collectSourceDependencies(entry);
-			assert.deepStrictEqual([originalConfigurationPresenter, experimentalConfigurationPresenter]
+			assert.deepStrictEqual([originalConfigurationPresenter, mobileConfigurationPresenter]
 				.filter(file => dependencies.has(file)), [configurationPresenter]);
 		});
 
@@ -158,11 +158,11 @@ suite('Sessions presentation entry isolation', () => {
 				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
 		});
 
-		test(`${entry} includes redesigned input and edit rendering only for experimental mobile`, () => {
+		test(`${entry} includes redesigned input and edit rendering only for the mobile entry`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const mobile = entry.includes('.mobile.');
 			const implementations = [
-				experimentalInputButton,
+				mobileInputButton,
 				'src/vs/sessions/contrib/mobile/browser/mobileChatEditRow.ts',
 				'src/vs/sessions/contrib/mobile/browser/mobileSessionsListPresentation.ts',
 				hostPickerRoot + 'mobileAgentHostFilterService.ts',
@@ -174,7 +174,7 @@ suite('Sessions presentation entry isolation', () => {
 	test('mobile embedder and mock bootstrap share the Agents mobile entry', () => {
 		const entries = [
 			'src/vs/sessions/agents.web.mobile.main.internal.ts',
-			'src/vs/sessions/test/sessions.web.mobile.test.internal.ts',
+			'src/vs/sessions/test/agents.web.mobile.test.internal.ts',
 		];
 		assert.deepStrictEqual(entries.filter(entry => collectSourceDependencies(entry)
 			.has('src/vs/sessions/agents.web.mobile.main.ts')), entries);
@@ -195,17 +195,17 @@ suite('Sessions presentation entry isolation', () => {
 		'src/vs/workbench/workbench.web.main.internal.ts',
 		'src/vs/workbench/workbench.desktop.main.ts',
 	]) {
-		test(`${entry} excludes experimental mobile UI, CSS and defaults`, () => {
+		test(`${entry} excludes dedicated mobile UI, CSS and defaults`, () => {
 			const dependencies = collectSourceDependencies(entry);
-			const unexpected = [...dependencies].filter(isExperimentalMobileFile);
+			const unexpected = [...dependencies].filter(isMobileEntryFile);
 			assert.deepStrictEqual(unexpected, []);
 		});
 	}
 
 	for (const target of ['web', 'desktop', 'server-web'] as const) {
-		test(`${target} production resource copying excludes experimental mobile assets`, async () => {
+		test(`${target} production resource copying excludes dedicated mobile assets`, async () => {
 			const resources = await getResourcePaths(path.join(repositoryRoot, 'src'), target);
-			assert.deepStrictEqual(resources.map(file => `src/${file}`).filter(isExperimentalMobileFile), []);
+			assert.deepStrictEqual(resources.map(file => `src/${file}`).filter(isMobileEntryFile), []);
 		});
 	}
 
@@ -229,12 +229,17 @@ function getSingletonRegistrations(file: string): string[][] {
 	});
 }
 
-function isExperimentalMobileFile(file: string): boolean {
+function isMobileEntryFile(file: string): boolean {
 	return file.startsWith('src/vs/sessions/contrib/mobile/') ||
 		file.startsWith('src/vs/sessions/browser/mobile/') ||
 		/^src\/vs\/sessions\/sessions\.core(?:\.web)?\.main\.ts$/.test(file) ||
-		/\/experimentalMobile[^/]*\.(?:ts|css)$/.test(file) ||
-		[...experimentalPicker, hostPickerRoot + 'mobileAgentHostFilterService.ts', hostPickerRoot + 'mobileTunnelConnection.ts'].includes(file);
+		[
+			...experimentalPicker,
+			mobileConfigurationPresenter,
+			mobileInputButton,
+			hostPickerRoot + 'mobileAgentHostFilterService.ts',
+			hostPickerRoot + 'mobileTunnelConnection.ts',
+		].includes(file);
 }
 
 /** Includes type imports conservatively: neither source graph may depend on the other presentation. */
