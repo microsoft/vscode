@@ -26,7 +26,7 @@ import { ChatPillActionViewItem, IChatPill, withChatPillHoverLabel } from '../..
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatInputPillSource } from '../chatInputPills.js';
-import { createChatResourceContent, IChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
+import { createChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
 import { ChatResourceArea, ChatResourceMode, ChatResourceModesSettingId, getConfiguredChatResourceMode, isChatResourceMode } from './chatResources.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
@@ -419,7 +419,6 @@ class ChatShownResourceFrame extends Disposable {
 
 	readonly element: HTMLElement;
 	private readonly _body: HTMLElement;
-	private readonly _content = observableValue<IChatResourceContent | undefined>(this, undefined);
 	constructor(
 		private readonly _resource: IChatResource,
 		area: ChatResourceArea,
@@ -430,7 +429,6 @@ class ChatShownResourceFrame extends Disposable {
 		actions: IChatShownResourceFrameActions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		const elements = dom.h('.chat-embedded-resource@root', [
@@ -459,17 +457,9 @@ class ChatShownResourceFrame extends Disposable {
 			}));
 			return button;
 		};
-		const saveButton = addButton(localize('chatResources.save', "Save"), Codicon.save, () => void this._save());
 		addButton(localize('chatResources.openInEditorButton', "Open in Editor"), Codicon.goToFile, actions.openInEditor);
 		addButton(localize('chatResources.close', "Close"), Codicon.close, actions.close);
 
-		// Like an editor tab, the header shows unsaved changes, and offers to save them.
-		this._register(autorun(reader => {
-			const dirty = this._content.read(reader)?.isDirty?.read(reader) ?? false;
-			this.element.classList.toggle('dirty', dirty);
-			elements.title.textContent = dirty ? `● ${_resource.label}` : _resource.label;
-			saveButton.style.display = dirty ? '' : 'none';
-		}));
 
 		const height = derived(this, reader => getChatEmbeddedResourceHeight(this._size.read(reader), this._contentHeight.read(reader), availableHeight.read(reader)));
 		this._register(autorun(reader => {
@@ -557,14 +547,6 @@ class ChatShownResourceFrame extends Disposable {
 		return store;
 	}
 
-	private async _save(): Promise<void> {
-		try {
-			await this._content.get()?.save?.();
-		} catch (error) {
-			this._notificationService.error(error);
-		}
-	}
-
 	private async _render(): Promise<void> {
 		try {
 			const content = await createChatResourceContent(this._resource, this._body, this._getClippingContainer, this._instantiationService);
@@ -573,7 +555,6 @@ class ChatShownResourceFrame extends Disposable {
 				return;
 			}
 			this._register(content);
-			this._content.set(content, undefined);
 			this._register(this._followContentHeight(content.contentHeight));
 			const layout = () => content.layout(this._body.clientWidth, this._body.clientHeight);
 			const resizeObserver = new (dom.getWindow(this._body).ResizeObserver)(layout);

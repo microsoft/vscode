@@ -5,11 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { Event } from '../../../../../base/common/event.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
@@ -25,9 +21,7 @@ import { MenuPreventer } from '../../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../../codeEditor/browser/selectionClipboard.js';
 import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
 import { ICustomEditorService } from '../../../customEditor/common/customEditor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 /** What a embedded resource shows: a resource, or the changes from an original to a modified resource. */
@@ -41,16 +35,13 @@ export interface IChatResourceTarget {
 export interface IChatResourceContent extends Disposable {
 	/** The height the content needs, or `undefined` until it is known. */
 	readonly contentHeight: IObservable<number | undefined>;
-	/** Whether editable content has changes that are not saved yet; absent for content that cannot be edited. */
-	readonly isDirty?: IObservable<boolean>;
-	save?(): Promise<void>;
 	layout(width: number, height: number): void;
 }
 
 /**
  * Renders a resource with the editor that opens it by default: its custom editor when that is the default (such as an
- * extension's view or an image preview), and a text editor otherwise, both editable like in an editor unless the resource
- * is readonly. A text resource with an original shows as a readonly diff.
+ * extension's view or an image preview), and a readonly text editor otherwise. A text resource with an original shows as a
+ * readonly diff.
  */
 export async function createChatResourceContent(
 	target: IChatResourceTarget,
@@ -87,7 +78,6 @@ const editorContributions = () => EditorExtensionsRegistry.getSomeEditorContribu
 const embeddedEditorOptions: IEditorConstructionOptions = {
 	// The resource is a document, so it looks like it does in an editor, rather than like the input boxes of the part around the chat.
 	extraEditorClassName: 'keep-editor-background',
-	// Diffs stay readonly; text content becomes editable once its document turns out to be writable.
 	readOnly: true,
 	scrollBeyondLastLine: false,
 	// The chat is narrow: wrapping keeps whole lines in view, especially prose such as Markdown.
@@ -103,14 +93,10 @@ const embeddedEditorOptions: IEditorConstructionOptions = {
 	automaticLayout: false,
 };
 
-/**
- * A text resource in a code editor. It edits the document an editor of the resource edits, so both share their changes,
- * undo history and unsaved state; Ctrl+S saves it, since the workbench's save command only saves the active editor.
- */
+/** A text resource in a readonly code editor, showing the document an editor of the resource edits, including unsaved changes. */
 class ChatResourceTextContent extends Disposable implements IChatResourceContent {
 	private readonly _contentHeight = observableValue<number | undefined>(this, undefined);
 	readonly contentHeight: IObservable<number | undefined> = this._contentHeight;
-	readonly isDirty: IObservable<boolean>;
 	private readonly _editor: CodeEditorWidget;
 
 	constructor(
@@ -118,25 +104,11 @@ class ChatResourceTextContent extends Disposable implements IChatResourceContent
 		body: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
 		super();
 		const options: ICodeEditorWidgetOptions = { isSimpleWidget: false, contributions: editorContributions() };
 		this._editor = this._register(instantiationService.createInstance(CodeEditorWidget, body, embeddedEditorOptions, options));
 		this._register(this._editor.onDidContentSizeChange(() => this._contentHeight.set(this._editor.getContentHeight(), undefined)));
-		this.isDirty = observableFromEvent(this, Event.filter(_textFileService.files.onDidChangeDirty, model => isEqual(model.resource, _resource)), () => _textFileService.isDirty(_resource));
-		this._register(dom.addDisposableListener(body, dom.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.KeyS)) {
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				void this.save();
-			}
-		}, true));
-	}
-
-	async save(): Promise<void> {
-		await this._textFileService.save(this._resource);
 	}
 
 	async ready(): Promise<this> {
@@ -146,7 +118,6 @@ class ChatResourceTextContent extends Disposable implements IChatResourceContent
 			return this;
 		}
 		this._register(reference);
-		this._editor.updateOptions({ readOnly: !!reference.object.isReadonly() });
 		this._editor.setModel(reference.object.textEditorModel);
 		this._contentHeight.set(this._editor.getContentHeight(), undefined);
 		return this;
@@ -209,15 +180,10 @@ class ChatResourceDiffContent extends Disposable implements IChatResourceContent
 	}
 }
 
-/** A resource rendered by its custom editor in an overlay webview anchored to the view's body, editable as in an editor. */
+/** A resource rendered by its custom editor in an overlay webview anchored to the view's body. */
 class ChatResourceWebviewContent extends Disposable implements IChatResourceContent {
 	private readonly _contentHeight = observableValue<number | undefined>(this, undefined);
 	readonly contentHeight: IObservable<number | undefined> = this._contentHeight;
-	private readonly _input = observableValue<CustomEditorInput | undefined>(this, undefined);
-	readonly isDirty: IObservable<boolean> = derived(this, reader => {
-		const input = this._input.read(reader);
-		return !!input && observableFromEvent(input.onDidChangeDirty, () => input.isDirty()).read(reader);
-	});
 
 	constructor(
 		private readonly _target: IChatResourceTarget,
@@ -225,13 +191,8 @@ class ChatResourceWebviewContent extends Disposable implements IChatResourceCont
 		private readonly _body: HTMLElement,
 		private readonly _getClippingContainer: () => HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
-	}
-
-	async save(): Promise<void> {
-		await this._input.get()?.save(this._editorGroupsService.activeGroup.id);
 	}
 
 	async ready(): Promise<this> {
@@ -254,7 +215,6 @@ class ChatResourceWebviewContent extends Disposable implements IChatResourceCont
 	}
 
 	private _attach(input: CustomEditorInput): void {
-		this._input.set(input, undefined);
 		const webview = input.webview;
 		const targetWindow = dom.getWindow(this._body);
 		// Webviews report the height of their document, which is the content height.
