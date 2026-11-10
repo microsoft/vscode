@@ -225,7 +225,8 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 					return;
 				}
 				if (input.closeHandler.showConfirm()) {
-					event.veto(localize('issueReporterUnsavedChanges', "The issue report has unsaved changes. Confirm whether to discard them to close the window."));
+					// The reporter asks whether to discard the report, so the window must not explain the veto in another dialog.
+					event.vetoSilently();
 					void this.closeReporterWindow(window).catch(error => {
 						this.logService.error('[IssueReporter] Close failed:', error);
 						void this.dialogService.error(localize('issueReporterCloseFailed', "The issue reporter could not be closed. Please try again."))

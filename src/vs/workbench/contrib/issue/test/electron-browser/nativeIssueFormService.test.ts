@@ -96,6 +96,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	disposeCalls = 0;
 	blockNativeClose = false;
 	readonly vetoReasons: string[] = [];
+	silentVetoes = 0;
 	private disposing = false;
 
 	constructor(id: number, closeOnRegister: boolean) {
@@ -146,6 +147,10 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 					vetoed = true;
 					this.vetoReasons.push(reason);
 				}
+			},
+			vetoSilently: () => {
+				vetoed = true;
+				this.silentVetoes++;
 			}
 		});
 		if (vetoed) {
@@ -581,10 +586,11 @@ suite('NativeIssueFormService reporter windows', () => {
 		controls.confirm = false;
 		windows[0].window.close();
 		await timeout(0);
-		assert.deepStrictEqual({ afterDiscard, quitResult, stillOpen: windows[0].frame.isConnected, disposed: input.isDisposed(), confirmations, closeVetoes: windows[0].vetoReasons.length }, {
+		assert.deepStrictEqual({ afterDiscard, quitResult, stillOpen: windows[0].frame.isConnected, disposed: input.isDisposed(), confirmations, closeVetoes: { reasons: windows[0].vetoReasons, silent: windows[0].silentVetoes } }, {
 			afterDiscard: { disposed: false, description, oldSubmissionAborted: true, nextSubmissionAborted: false },
 			quitResult: { vetoed: true, participants: 2 }, stillOpen: true, disposed: false,
-			confirmations: ['Discard issue report?', 'Discard issue report?'], closeVetoes: 2,
+			// The reporter asks itself whether to discard the report, so its vetoes show no other dialog.
+			confirmations: ['Discard issue report?', 'Discard issue report?'], closeVetoes: { reasons: [], silent: 2 },
 		});
 	});
 
