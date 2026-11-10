@@ -28,15 +28,15 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatInputPillSource } from '../chatInputPills.js';
 import { createChatResourceContent, getChatResourceContentProvider, IChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
-import { ChatResourceArea, ChatResourceMode, ChatResourceModesSettingId, chatResourceContributions, getConfiguredChatResourceMode, isChatResourceMode, resolveChatResourceTemplate } from './chatResources.js';
+import { ChatResourceArea, ChatResourceMode, ChatResourceModesSettingId, getConfiguredChatResourceMode, isChatResourceMode } from './chatResources.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
-/** A resource of a chat: contributed by an extension, or recorded for the chat, for example by its agent. */
+/** A resource recorded for a chat, for example by its agent. */
 export interface IChatResource extends IChatResourceTarget {
 	/** Identifies the resource within its chat. */
 	readonly id: string;
 	readonly icon: ThemeIcon | undefined;
-	/** The mode unless the user configured another: from the extension that contributes it, or from whoever recorded it. */
+	/** The mode unless the user configured another: from whoever recorded it. */
 	readonly defaultMode: ChatResourceMode;
 }
 
@@ -47,7 +47,7 @@ const SHOWN_RESOURCE_CHROME_HEIGHT = 36;
 const MODE_OVERRIDES_STORAGE_KEY = 'chat.resources.modeOverrides';
 
 /**
- * Shows a chat's resources as the user, extensions, and agents chose (see {@link ChatResourceMode}): it supplies the pills of
+ * Shows a chat's resources as the user and agents chose (see {@link ChatResourceMode}): it supplies the pills of
  * resources that have one, and shows the selected resource above the chat input. The pills of the resources shown there
  * act as tabs: one of them is shown at a time, and clicking the shown one hides it.
  */
@@ -57,10 +57,8 @@ export class ChatResourcesControl extends Disposable {
 	/** The height the resource above the chat input takes up, including its spacing. */
 	readonly height: IObservable<number>;
 
-	/** The chat's resources, contributed ones first. */
+	/** The chat's resources that exist. */
 	readonly resources: IObservable<readonly IChatResource[]>;
-	/** Contributed resources the user chose to only list; recorded resources are listed where they were recorded. */
-	readonly listedContributions: IObservable<readonly IChatResource[]>;
 	/** Modes the user chose for single resources, by chat and resource id. */
 	private readonly _modeOverrides: ISettableObservable<Readonly<Record<string, Readonly<Record<string, ChatResourceMode>>>>>;
 	/** The shown resource by chat and area; `null` when the user hid the area, absent before the user chose; see {@link getShownChatResource}. */
@@ -98,21 +96,6 @@ export class ChatResourcesControl extends Disposable {
 		this._modeOverrides = observableValue(this, this._readModeOverrides());
 		this._configuredModes = observableConfigValue<Readonly<Record<string, unknown>> | undefined>(ChatResourceModesSettingId, undefined, configurationService);
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
-		const candidates = derived(this, reader => {
-			const session = sessionResource.read(reader);
-			if (!session) {
-				return [];
-			}
-			return chatResourceContributions.read(reader).flatMap((contribution): IChatResource[] => {
-				const resource = resolveChatResourceTemplate(contribution, session);
-				return resource ? [{ id: `contributed:${contribution.extensionId.value}/${contribution.id}`, label: contribution.label, icon: contribution.icon, resource, defaultMode: contribution.mode }] : [];
-			});
-		});
-		const withExistence = mapObservableArrayCached(this, candidates, (resource, store) => ({
-			resource,
-			exists: this._observeExists(resource.resource, store),
-		}), resource => `${resource.id}\u0000${resource.resource.toString()}`);
-		const contributed = derived(this, reader => withExistence.read(reader).filter(entry => entry.exists.read(reader)).map(entry => entry.resource));
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
 		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, this._observeRecordedExists(URI.parse(target), store)] as const);
@@ -120,8 +103,7 @@ export class ChatResourcesControl extends Disposable {
 			const existence = new Map(recordedExistence.read(reader));
 			return recorded.read(reader).filter(resource => existence.get(resource.resource.toString())?.read(reader) ?? false);
 		});
-		this.resources = derived(this, reader => this._chatKey.read(reader) === undefined ? [] : [...contributed.read(reader), ...existingRecorded.read(reader)]);
-		this.listedContributions = derived(this, reader => contributed.read(reader).filter(resource => this.getMode(resource, reader) === 'none'));
+		this.resources = derived(this, reader => this._chatKey.read(reader) === undefined ? [] : existingRecorded.read(reader));
 		const shownIn = (area: ChatResourceArea) => derived(this, reader => {
 			const chat = this._chatKey.read(reader);
 			const selected = chat === undefined ? undefined : this._selection.read(reader).get(`${chat}\u0000${area}`);
@@ -365,10 +347,6 @@ export class ChatResourcesControl extends Disposable {
 		if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 			return constObservable(true);
 		}
-		return this._observeExists(resource, store, true);
-	}
-
-	private _observeExists(resource: URI, store: DisposableStore, existsWithoutProvider = false): IObservable<boolean> {
 		const exists = observableValue(this, false);
 		let version = 0;
 		const refresh = async () => {
@@ -376,7 +354,7 @@ export class ChatResourcesControl extends Disposable {
 			let result = false;
 			try {
 				await this._fileService.activateProvider(resource.scheme);
-				result = existsWithoutProvider && !this._fileService.hasProvider(resource) ? true : await this._fileService.exists(resource);
+				result = !this._fileService.hasProvider(resource) || await this._fileService.exists(resource);
 			} catch {
 				result = false;
 			}
