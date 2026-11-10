@@ -1024,7 +1024,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
 		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-		default: false,
+		default: true,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
