@@ -11,7 +11,6 @@ import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { LocalModelEnabledSettingId } from '../../../../../platform/agentHost/common/localModel.js';
-import { CloudSandboxEarlyPreparationSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -87,7 +86,7 @@ export function getChatInputSessionLinkAccessibilityHelp(): string {
 }
 
 export function getCloudSandboxPreparationAccessibilityHelp(): string {
-	return localize('chat.cloudSandboxEarlyPreparation', "When {0} is enabled, typing in a new Cloud chat, with or without a repository, can prepare cloud resources in the background. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for pending preparation and reuses it when possible, otherwise it can continue without early preparation. While the window is running, VS Code attempts to release unused preparation after five minutes, when you change repositories, or when you turn the setting off.", CloudSandboxEarlyPreparationSettingId);
+	return localize('chat.cloudSandboxEarlyPreparation', "Typing in a new Cloud chat, with or without a repository, can prepare cloud resources in the background. This can allocate cloud compute before you send a message. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for pending preparation and reuses it when possible, otherwise it can continue without early preparation. While the window is running, VS Code attempts to release unused preparation after five minutes or when you change repositories.");
 }
 
 export function getModelPickerConfigurationAccessibilityHelp(): string {

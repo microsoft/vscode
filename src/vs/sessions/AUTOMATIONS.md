@@ -57,7 +57,7 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 
 ## Definitions and session configuration
 
-Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
+Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Scheduled Cloud drafts use the scheduled-Cloud model catalogue and configuration contract, while interactive Cloud sessions always use sandboxes. Automation configuration drafts cannot send interactive requests; running them remains owned by the Automations API.
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 

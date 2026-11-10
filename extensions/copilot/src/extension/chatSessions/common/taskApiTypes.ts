@@ -12,7 +12,6 @@
 import type {
 	AgentTask,
 	AgentTaskCreatePullRequestResponse,
-	AgentTaskCreateRequest,
 	AgentTaskGetResponse,
 	AgentTaskListEventsResponse,
 	AgentTaskListResponse,
@@ -43,7 +42,6 @@ export interface ListTaskEventsOptions {
  * `ICAPIClientService.makeRequest({...}, { type: RequestType.AgentTask, ... })`.
  */
 export interface ITaskApiClient {
-	createTask(owner: string, repo: string, request: AgentTaskCreateRequest): Promise<AgentTask>;
 	listTasksForRepo(owner: string, repo: string, options?: ListTasksOptions): Promise<AgentTaskListResponse>;
 	listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse>;
 	getTask(taskId: string): Promise<AgentTaskGetResponse>;

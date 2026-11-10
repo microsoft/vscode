@@ -24,21 +24,14 @@ import { isRetryableMissionControlError, MissionControlErrorMetadata } from '../
 import { CLOUD_SANDBOX_TASK_SCHEME } from './agentHostSessionType.js';
 export { CLOUD_SANDBOX_TASK_SCHEME } from './agentHostSessionType.js';
 
-/** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
-export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
-
-export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
-
-export const CloudSandboxEarlyPreparationSettingId = 'chat.agentHost.cloudSandbox.earlyPreparation';
-export const CloudSandboxSessionFeedEnabledSettingId = 'chat.agentHost.cloudSandbox.sessionFeed.enabled';
+export const CloudAutoConnectOnOpenSettingId = 'chat.agentHost.cloud.autoConnectOnOpen';
 
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
  */
 export function isCloudSandboxEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(CloudSandboxEnabledSettingId) === true
-		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
+	return configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
 }
 
 /** Prefix for the synthesized display address of a cloud sandbox connection. */
@@ -74,7 +67,6 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
 
 /**
  * Historical sandbox agent slug, retained for discovery diagnostics rather than filtering.
- * Keep sandbox discovery opt-in until overlap with the Copilot extension's cloud provider is resolved.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 

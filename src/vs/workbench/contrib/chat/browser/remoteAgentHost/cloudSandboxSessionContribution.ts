@@ -18,9 +18,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CLOUD_SANDBOX_SESSION_SCHEME,
-	CloudSandboxEnabledSettingId,
-	CloudSandboxAutoConnectOnOpenSettingId,
-	CloudSandboxSessionFeedEnabledSettingId,
+	CloudAutoConnectOnOpenSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxRequestError,
 	cloudSandboxAddress,
@@ -285,16 +283,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// when disabled, so enabling the setting doesn't require a reload and disabling it doesn't
 		// leave stale providers, connections, or credential refreshers behind.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
 				this._updateEnablement();
-			}
-			if (e.affectsConfiguration(CloudSandboxSessionFeedEnabledSettingId)) {
-				for (const taskId of this._sessionFeed.value?.takePendingTaskIds() ?? []) {
-					this._pendingTaskIds.add(taskId);
-				}
-				this._sessionFeed.clear();
-				void this._refreshPendingTasks();
-				void this._discoverAndSeed({ incremental: true, trigger: 'configurationChange', retry: true });
 			}
 		}));
 
@@ -480,9 +470,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected _refreshFromFeed(refresh: CloudSandboxSessionFeedRefresh): Promise<void> {
-		if (this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
-			return Promise.resolve();
-		}
 		if (refresh.reason === 'change') {
 			return this._refreshTasks(refresh.taskIds);
 		}
@@ -494,7 +481,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	private _refreshTasks(taskIds: readonly string[]): Promise<void> {
-		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
+		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed) {
 			return Promise.resolve();
 		}
 		for (const id of taskIds) {
@@ -572,7 +559,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!accountKey) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
-			while (!token.isCancellationRequested && this._isEnabled() && this.discoveryActive && this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
+			while (!token.isCancellationRequested && this._isEnabled() && this.discoveryActive) {
 				const feed = this._sessionFeed.value ??= this._instantiationService.createInstance(CloudSandboxSessionFeed,
 					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && (
 						this.discoveryActive || this._inactiveSince !== undefined && Date.now() - this._inactiveSince < SESSION_FEED_INACTIVITY_GRACE_MS));
@@ -1369,7 +1356,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	private async _connectOnOpen(sessionType: string, address: string, env: ICloudSandboxSessionEnvironment, token: CancellationToken, isCurrentActivation: () => boolean): Promise<boolean> {
 		const shouldConnect = this.supportsBackgroundConnection
-			? this._configurationService.getValue<boolean>(CloudSandboxAutoConnectOnOpenSettingId) === true
+			? this._configurationService.getValue<boolean>(CloudAutoConnectOnOpenSettingId) === true
 			: !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;

@@ -9,15 +9,13 @@ import {
 	AgentTask,
 	AgentTaskArtifact,
 	AgentTaskBranchResourceData,
-	AgentTaskCreatePullRequestResponse,
-	AgentTaskCreateRequest,
-	AgentTaskGetResponse,
+	AgentTaskCreatePullRequestResponse, AgentTaskGetResponse,
 	AgentTaskGitHubResourceData,
 	AgentTaskListEventsResponse,
 	AgentTaskListResponse,
 	AgentTaskSessionEvent,
 	AgentTaskSteerRequest,
-	RequestType,
+	RequestType
 } from '@vscode/copilot-api';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
@@ -31,14 +29,10 @@ import {
 	ListTasksOptions,
 } from '../common/taskApiTypes';
 import {
-	CloudDelegationResult,
 	CloudAgentBackend,
-	CloudSessionData,
-	CreateCloudSessionParams,
-	PullArtifactRef,
-	TaskContent,
+	CloudSessionData, PullArtifactRef,
+	TaskContent
 } from '../vscode/cloudAgentBackend';
-import { extractTitle } from '../vscode/copilotCodingAgentUtils';
 
 const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
 const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
@@ -197,45 +191,6 @@ export class TaskApiBackend implements CloudAgentBackend {
 		private readonly _octoKitService: IOctoKitService,
 		private readonly _instrumentation: ICloudBackendInstrumentation,
 	) { }
-
-	async createSession(params: CreateCloudSessionParams): Promise<CloudDelegationResult> {
-		const request: AgentTaskCreateRequest = {
-			prompt: params.prompt,
-			event_content: params.prompt,
-			problem_statement: params.problemStatement,
-			base_ref: params.baseRef,
-			// Tasks do not auto-create a PR. The provider surfaces a "Create pull
-			// request" toolbar action in the chat input when the task completes without an
-			// attached pull artifact, so the user can opt in. See
-			// `CopilotCloudSessionsProvider.handleCreatePullRequestForTaskCommand`.
-			create_pull_request: false,
-			event_type: 'visual_studio_code_remote_agent_tool_invoked',
-			...(params.headRef && { head_ref: params.headRef }),
-			...(params.customAgent && { custom_agent: params.customAgent }),
-			...(params.model && { model: params.model }),
-			...(params.partnerAgentId !== undefined && { agent_id: params.partnerAgentId }),
-		};
-
-		const createStart = Date.now();
-		let task: AgentTask;
-		try {
-			task = await this._taskApiClient.createTask(params.owner, params.repo, request);
-		} catch (e) {
-			this._instrumentation.sessionCreated('failure', Date.now() - createStart, e);
-			throw e;
-		}
-		this._instrumentation.sessionCreated('success', Date.now() - createStart);
-
-		// Return immediately. The pull artifact (if any) may not exist yet; the provider
-		// resolves it asynchronously via `resolvePullArtifactWithRetry` so creation isn't
-		// gated on PR materialization. PR-less tasks are first-class in the Task API.
-		return {
-			taskId: task.id,
-			taskUrl: task.html_url ?? '',
-			title: task.name ?? extractTitle(params.prompt, params.problemStatement) ?? params.title ?? 'Copilot task',
-			sessionId: task.id,
-		};
-	}
 
 	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean): Promise<CloudSessionData[]> {
 		const listOpts: ListTasksOptions = { per_page: 100 };
@@ -525,14 +480,6 @@ export class TaskApiHttpClient implements ITaskApiClient {
 			return undefined;
 		}
 		return await response.json() as T;
-	}
-
-	async createTask(owner: string, repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
-		const task = await this._request<AgentTask>('POST', 'create', { owner, repo, body: request });
-		if (!task) {
-			throw new Error(l10n.t('Task API createTask returned an empty response.'));
-		}
-		return task;
 	}
 
 	async listTasksForRepo(owner: string, repo: string, options?: ListTasksOptions): Promise<AgentTaskListResponse> {

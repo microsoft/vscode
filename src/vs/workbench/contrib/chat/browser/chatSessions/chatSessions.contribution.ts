@@ -219,6 +219,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
+				hideFromSessionTypePicker: {
+					description: localize('chatSessionsExtPoint.hideFromSessionTypePicker', 'Whether this type only opens existing sessions and is hidden from new-session commands and pickers.'),
+					type: 'boolean',
+					default: false
+				},
 				customAgentTarget: {
 					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
 					type: 'string'
@@ -453,6 +458,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 
 			for (const type of activatedProviders) {
+				if (this._contributions.get(type)?.contribution.hideFromSessionTypePicker) {
+					continue;
+				}
 				// TODO: Remove hardcoded providers from core
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
@@ -848,11 +856,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._logService.trace(`[ChatSessionsService] _enableContribution: type='${contribution.type}', canDelegate=${contribution.canDelegate}`);
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
-		if (contribution.canDelegate) {
+		if (contribution.canDelegate || contribution.hideFromSessionTypePicker) {
 			disposableStore.add(this._registerAgent(contribution, ext));
-			disposableStore.add(this._registerCommands(contribution));
 		}
-		disposableStore.add(this._registerMenuItems(contribution, ext));
+		if (!contribution.hideFromSessionTypePicker) {
+			if (contribution.canDelegate) {
+				disposableStore.add(this._registerCommands(contribution));
+			}
+			disposableStore.add(this._registerMenuItems(contribution, ext));
+		}
 	}
 
 	/**

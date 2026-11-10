@@ -35,7 +35,7 @@ import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspa
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
+import { IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext, takePendingCopilotCLIRequestContext } from '../copilotcli/common/pendingRequestContext';
@@ -48,7 +48,6 @@ import { CHAT_SESSION_ITEM_MAX_PARALLELISM, ICopilotCLISessionItem, ICopilotCLIS
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
-import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
 import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
@@ -69,18 +68,6 @@ const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
 
 // Re-export for backward compatibility
 export { resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from './sessionOptionGroupBuilder';
-
-/**
- * Escape XML special characters
- */
-function escapeXml(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&apos;');
-}
 
 function getIssueRuntimeInfo(): { readonly platform: string; readonly vscodeInfo: string; readonly extensionVersion: string } {
 	const extensionVersion = vscode.extensions.getExtension(EXTENSION_ID)?.packageJSON?.version;
@@ -632,11 +619,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	constructor(
 		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider,
 		private readonly promptResolver: CopilotCLIPromptResolver,
-		private readonly cloudSessionProvider: CopilotCloudSessionsProvider | undefined,
 		private readonly branchNameGenerator: GitBranchNameGenerator | undefined,
-		@IGitService private readonly gitService: IGitService,
 		@ICopilotCLISessionService private readonly sessionService: ICopilotCLISessionService,
-		@IChatSessionWorktreeService private readonly copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IChatDelegationSummaryService private readonly chatDelegationSummaryService: IChatDelegationSummaryService,
@@ -848,13 +832,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0, session.object.workspace, agent?.name);
 
-			if (request.command === 'delegate') {
-				await this.handleDelegationToCloud(session.object, request, context, stream, token);
-				return {};
-			} else {
-				const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
-				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
-			}
+			const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
+			await session.object.handleRequest(request, input, attachments, model, authInfo, token);
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
@@ -899,27 +878,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 
 		return { session, isNewSession, model, agent, trusted };
-	}
-
-	private async handleDelegationToCloud(session: ICopilotCLISession, request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
-		if (!this.cloudSessionProvider) {
-			stream.warning(l10n.t('No cloud agent available'));
-			return;
-		}
-
-		// Check for uncommitted changes
-		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.sessionId);
-		const repositoryPath = worktreeProperties?.repositoryPath ? Uri.file(worktreeProperties.repositoryPath) : getWorkingDirectory(session.workspace);
-		const repository = repositoryPath ? await this.gitService.getRepository(repositoryPath) : undefined;
-		const hasChanges = (repository?.changes?.indexChanges && repository.changes.indexChanges.length > 0);
-
-		if (hasChanges) {
-			stream.warning(l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last committed state. Consider committing your changes first if you want to include them.'));
-		}
-
-		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
-		await this.recordPushToSession(session, `/delegate ${request.prompt}`, prInfo);
-
 	}
 
 	private async handleDelegationFromAnotherChat(
@@ -988,19 +946,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return true;
 		});
 		return !allResponsesEmpty;
-	}
-
-	private async recordPushToSession(
-		session: ICopilotCLISession,
-		userPrompt: string,
-		prInfo: vscode.ChatResponsePullRequestPart
-	): Promise<void> {
-		// Add user message event
-		session.addUserMessage(userPrompt);
-
-		// Add assistant message event with embedded PR metadata
-		const assistantMessage = `A cloud agent has begun working on your request. Follow its progress in the associated chat and pull request.\n<pr_metadata uri="${prInfo.uri?.toString()}" title="${escapeXml(prInfo.title)}" description="${escapeXml(prInfo.description)}" author="${escapeXml(prInfo.author)}" linkTag="${escapeXml(prInfo.linkTag)}"/>`;
-		session.addUserAssistantMessage(assistantMessage);
 	}
 }
 

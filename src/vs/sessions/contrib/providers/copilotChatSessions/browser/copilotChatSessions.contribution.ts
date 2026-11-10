@@ -11,15 +11,14 @@ import { CopilotChatSessionsProvider } from '../../../../../workbench/contrib/se
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
  *
- * The provider only surfaces Copilot Cloud sessions from the Copilot extension;
- * local Copilot CLI sessions are owned by the agent host providers.
+ * Interactive Cloud sessions use sandboxes; the extension supplies automation runs.
  */
 class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.defaultSessionsProvider';
@@ -48,7 +47,7 @@ class DefaultSessionsProviderContribution extends Disposable implements IWorkben
 				}
 			};
 			this._register(configurationService.onDidChangeConfiguration(event => {
-				if (event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
 					updateSandboxRegistration();
 				}
 			}));

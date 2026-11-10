@@ -12,7 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -62,8 +62,6 @@ suite('CloudSandboxDraftPreparationService', () => {
 		const lifecycleEvents: Record<string, unknown>[] = [];
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
-			[CloudSandboxEarlyPreparationSettingId]: true,
-			[CloudSandboxEnabledSettingId]: true,
 			[RemoteAgentHostsEnabledSettingId]: true,
 			[ChatAIDisabledSettingId]: false,
 			...options.configuration,
@@ -239,7 +237,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 			const created = { ...reservedSession(claimed ? 'env-1' : 'fallback'), claimed };
 			fixture.service.markSubmitted(reservation, created, 'owner/repo');
 			await fixture.service.clear();
-			await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+			await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 			fixture.service.updateRepository(editorDraft, 'another/repo');
 			await assert.rejects(fixture.service.release(reservation), /submitted cloud task cannot be released/);
 			const retained = fixture.service.getSubmittedDraft(editorDraft);
@@ -272,23 +270,21 @@ suite('CloudSandboxDraftPreparationService', () => {
 		assert.throws(() => fixture.service.markSubmitted(prepared, { ...reservedSession('env-1'), claimed: true }, undefined), /not handed off/);
 	});
 
-	for (const enabled of [false, true, undefined]) {
-		test(`logs experiment exposure in the eligible input path with setting ${enabled}`, async () => {
-			const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: enabled } });
-			fixture.service.prepare(editorDraft);
-			fixture.service.prepare(editorDraft);
-			await timeout(0);
-			const callsWhileDrafting = [...fixture.calls];
-			const accountLookups = fixture.accountLookups();
-			await fixture.service.clear();
+	test('prepares eligible drafts without a feature setting or experiment exposure', async () => {
+		const fixture = createFixture();
+		fixture.service.prepare(editorDraft);
+		fixture.service.prepare(editorDraft);
+		await timeout(0);
+		const callsWhileDrafting = [...fixture.calls];
+		const accountLookups = fixture.accountLookups();
+		await fixture.service.clear();
 
-			assert.deepStrictEqual({ callsWhileDrafting, accountLookups, triggers: fixture.triggers }, {
-				callsWhileDrafting: enabled === true ? ['reserve'] : [],
-				accountLookups: enabled === true ? 1 : 0,
-				triggers: [`config.${CloudSandboxEarlyPreparationSettingId}`],
-			});
+		assert.deepStrictEqual({ callsWhileDrafting, accountLookups, triggers: fixture.triggers }, {
+			callsWhileDrafting: ['reserve'],
+			accountLookups: 1,
+			triggers: [],
 		});
-	}
+	});
 
 	for (const pendingAtSend of [false, true]) {
 		test(`logs the reservation handoff with ${pendingAtSend ? 'pending' : 'received'} preparation without draft contents`, () => runWithFakedTimers({}, async () => {
@@ -317,31 +313,32 @@ suite('CloudSandboxDraftPreparationService', () => {
 	}
 
 	test('logs a disabled preparation reason once rather than on every keystroke', async () => {
-		const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: false } });
+		const fixture = createFixture({ configuration: { [RemoteAgentHostsEnabledSettingId]: false } });
 		for (let i = 0; i < 20; i++) {
 			fixture.service.prepare(URI.parse(editorDraft.toString()), 'private-owner/private-repo');
 		}
 
 		assert.deepStrictEqual({ infos: fixture.infos, calls: fixture.calls }, {
-			infos: ['[CloudSandboxPreparation] event=skipped reason=settingDisabled'], calls: [],
+			infos: ['[CloudSandboxPreparation] event=skipped reason=featureDisabled'], calls: [],
 		});
 	});
 
 	test('skip diagnostics reset with the logical draft rather than accumulating after disposal', async () => {
-		const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: false } });
+		const fixture = createFixture({ configuration: { [RemoteAgentHostsEnabledSettingId]: false } });
 		fixture.service.prepare(editorDraft);
 		await fixture.service.forget(editorDraft);
 		fixture.service.prepare(URI.parse(editorDraft.toString()));
 
 		assert.deepStrictEqual(fixture.infos, [
-			'[CloudSandboxPreparation] event=skipped reason=settingDisabled',
-			'[CloudSandboxPreparation] event=skipped reason=settingDisabled',
+			'[CloudSandboxPreparation] event=skipped reason=featureDisabled',
+			'[CloudSandboxPreparation] event=skipped reason=featureDisabled',
 		]);
 	});
 
 	test('a changed skip reason is logged once without starting preparation', async () => {
-		const fixture = createFixture({ trusted: false, configuration: { [CloudSandboxEarlyPreparationSettingId]: false } });
+		const fixture = createFixture({ trusted: false });
 		fixture.service.prepare(editorDraft);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		fixture.setTrusted(true);
 		fixture.service.prepare(editorDraft);
 		fixture.service.prepare(editorDraft);
@@ -349,7 +346,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 		assert.deepStrictEqual({ infos: fixture.infos, calls: fixture.calls }, {
 			infos: [
 				'[CloudSandboxPreparation] event=skipped reason=workspaceUntrusted',
-				'[CloudSandboxPreparation] event=skipped reason=settingDisabled',
+				'[CloudSandboxPreparation] event=skipped reason=featureDisabled',
 			],
 			calls: [],
 		});
@@ -392,7 +389,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 			switch (reason) {
 				case 'repositoryChanged': fixture.service.updateRepository(editorDraft, 'private-owner/other'); break;
 				case 'expired': await timeout(300_000); break;
-				case 'disabled': await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false); break;
+				case 'disabled': await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false); break;
 				case 'accountChanged': fixture.setAccount('other-account'); break;
 			}
 			await fixture.service.discard(editorDraft);
@@ -412,9 +409,9 @@ suite('CloudSandboxDraftPreparationService', () => {
 		}));
 	}
 
-	test('constructing the service or enabling the setting alone does not prepare or log exposure', async () => {
-		const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: false } });
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, true, ConfigurationTarget.DEFAULT);
+	test('constructing the service or enabling remote hosts alone does not prepare', async () => {
+		const fixture = createFixture({ configuration: { [RemoteAgentHostsEnabledSettingId]: false } });
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, true, ConfigurationTarget.DEFAULT);
 		await timeout(0);
 
 		assert.deepStrictEqual({ calls: fixture.calls, accountLookups: fixture.accountLookups(), triggers: fixture.triggers }, {
@@ -422,21 +419,20 @@ suite('CloudSandboxDraftPreparationService', () => {
 		});
 	});
 
-	test('picks up a changed experiment default on the next eligible input without replacing the service', async () => {
-		const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: false } });
+	test('starts preparation on the next input after remote hosts are enabled', async () => {
+		const fixture = createFixture({ configuration: { [RemoteAgentHostsEnabledSettingId]: false } });
 		fixture.service.prepare(editorDraft);
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, true, ConfigurationTarget.DEFAULT);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, true, ConfigurationTarget.DEFAULT);
 		fixture.service.prepare(editorDraft);
 		const result = await fixture.service.take(editorDraft, CancellationToken.None);
 
 		assert.deepStrictEqual({ result, calls: fixture.calls, triggers: fixture.triggers }, {
 			result: prepared, calls: ['reserve'],
-			triggers: [`config.${CloudSandboxEarlyPreparationSettingId}`],
+			triggers: [],
 		});
 	});
 
 	for (const unavailable of [
-		{ name: 'Cloud disabled', configuration: { [CloudSandboxEnabledSettingId]: false }, reason: 'featureDisabled' },
 		{ name: 'remote hosts disabled', configuration: { [RemoteAgentHostsEnabledSettingId]: false }, reason: 'featureDisabled' },
 		{ name: 'AI disabled', configuration: { [ChatAIDisabledSettingId]: true }, reason: 'aiDisabled' },
 		{ name: 'AI hidden', hidden: true, reason: 'aiHidden' },
@@ -462,7 +458,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 		});
 		fixture.service.prepare(editorDraft);
 		await entered.p;
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await account.complete('account-a');
 		await fixture.service.clear();
 
@@ -470,8 +466,6 @@ suite('CloudSandboxDraftPreparationService', () => {
 	});
 
 	for (const change of [
-		{ name: 'preparation setting', apply: (fixture: ReturnType<typeof createFixture>) => fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false) },
-		{ name: 'Cloud setting', apply: (fixture: ReturnType<typeof createFixture>) => fixture.setConfiguration(CloudSandboxEnabledSettingId, false) },
 		{ name: 'remote hosts setting', apply: (fixture: ReturnType<typeof createFixture>) => fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false) },
 		{ name: 'AI setting', apply: (fixture: ReturnType<typeof createFixture>) => fixture.setConfiguration(ChatAIDisabledSettingId, true) },
 		{ name: 'AI sentiment', apply: async (fixture: ReturnType<typeof createFixture>) => fixture.setHidden(true) },
@@ -494,22 +488,22 @@ suite('CloudSandboxDraftPreparationService', () => {
 		const fixture = createFixture();
 		fixture.service.prepare(editorDraft);
 		await fixture.enteredAllocation;
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await fixture.service.clear();
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, true);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, true);
 		fixture.service.prepare(editorDraft);
 		await timeout(0);
 
 		assert.deepStrictEqual(fixture.calls, ['reserve', 'delete:task-env-1']);
 	});
 
-	test('disabling early preparation does not cancel an allocation already claimed by Send', async () => {
+	test('disabling remote hosts does not cancel an allocation already claimed by Send', async () => {
 		const allocation = new DeferredPromise<string>();
 		const fixture = createFixture({ provision: () => allocation.p });
 		fixture.service.prepare(editorDraft);
 		await fixture.enteredAllocation;
 		const claimed = fixture.service.take(editorDraft, CancellationToken.None);
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await fixture.service.clear();
 		await allocation.complete('env-1');
 
@@ -522,7 +516,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 		const fixture = createFixture({ deleteTask: async () => { throw new Error('unavailable'); } });
 		fixture.service.prepare(editorDraft);
 		await fixture.enteredAllocation;
-		await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+		await fixture.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await fixture.service.clear();
 
 		assert.deepStrictEqual({ calls: fixture.calls, warnings: fixture.warnings }, {

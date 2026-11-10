@@ -354,10 +354,7 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			sessionItemProvider,
 			promptResolver,
 			undefined,
-			undefined,
-			new TestGitService(),
 			sessionService,
-			new TestWorktreeService(),
 			new class extends mock<ITelemetryService>() {
 				declare readonly _serviceBrand: undefined;
 				override sendMSFTTelemetryEvent = vi.fn();

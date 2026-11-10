@@ -24,7 +24,6 @@ import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService 
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
 	CloudSandboxAuthenticationRequiredError,
-	CloudSandboxEnabledSettingId,
 	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	cloudSandboxAddress,
@@ -127,7 +126,6 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 
 	const configurationService = new TestConfigurationService();
-	configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
 	configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
 	instantiationService.stub(IConfigurationService, configurationService);
 

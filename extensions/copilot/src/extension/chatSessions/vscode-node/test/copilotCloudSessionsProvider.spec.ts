@@ -12,12 +12,9 @@ import { IAuthenticationService } from '../../../../platform/authentication/comm
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
 import { IDomainService } from '../../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
-import { FileType } from '../../../../platform/filesystem/common/fileTypes';
-import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
-import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService, RepoContext } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
-import { CustomAgentListItem, IGithubRepositoryService, IOctoKitService } from '../../../../platform/github/common/githubService';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
@@ -30,15 +27,13 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { observableValue } from '../../../../util/vs/base/common/observable';
-import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRecentInternalActivityCutoff, ICloudSessionVisibilityOptions, normalizeInitialSessionOptions, parseGitHubContextUrl, readExternalSessionsMode, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, SHOW_EXTERNAL_SESSIONS_SETTING, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions, getCloudSessionItemMetadata, getCloudSessionResources, getRecentInternalActivityCutoff, ICloudSessionVisibilityOptions, parseGitHubContextUrl, readExternalSessionsMode, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, SHOW_EXTERNAL_SESSIONS_SETTING, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { CloudTaskOwnership } from '../cloudTaskOwnership';
 import { TaskApiBackend, TaskApiError, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { CloudSessionData } from '../../vscode/cloudAgentBackend';
-import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -85,23 +80,6 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
-	it('formats every redesigned new-session context pill for the cloud request', () => {
-		const references = [
-			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },
-			{ id: 'github-context:https://github.com/microsoft/vscode/pull/332825', name: 'Pull request', value: 'GitHub context' },
-			{ id: 'sessions-additional-repository:https://github.com/microsoft/typescript', name: 'Repository', value: 'GitHub context' },
-			{ id: 'sessions-additional-folder:file:///workspace/docs', name: 'Folder', value: vscode.Uri.file('/workspace/docs') },
-			{ id: 'unrelated', name: 'Unrelated', value: 'Other context' },
-		] satisfies vscode.ChatPromptReference[];
-
-		expect(references.map(formatNewSessionContextReference)).toEqual([
-			'GitHub resource: https://github.com/microsoft/vscode/issues/332805',
-			'GitHub resource: https://github.com/microsoft/vscode/pull/332825',
-			'GitHub repository: https://github.com/microsoft/typescript',
-			`Folder: ${vscode.Uri.file('/workspace/docs').fsPath}`,
-			undefined,
-		]);
-	});
 
 	it('parses pasted GitHub issue and pull request URLs for the matching picker', () => {
 		expect({
@@ -154,33 +132,6 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			noFolder: undefined,
 		});
 		expect(pickRepository).toHaveBeenCalledTimes(1);
-	});
-
-	it('coerces object-shaped initialSessionOptions into option entries', () => {
-		const logService = new RecordingLogService();
-		const sessionResource = vscode.Uri.parse('copilot-cloud-agent:/1');
-
-		const result = normalizeInitialSessionOptions({
-			models: { id: 'gpt-4.1', name: 'GPT-4.1' },
-			repositories: 'microsoft/vscode',
-		}, logService, sessionResource);
-
-		expect(result).toEqual([
-			{ optionId: 'models', value: { id: 'gpt-4.1', name: 'GPT-4.1' } },
-			{ optionId: 'repositories', value: 'microsoft/vscode' },
-		]);
-		expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('Coerced object-shaped initialSessionOptions'));
-	});
-
-	it('ignores unsupported initialSessionOptions payloads and logs a warning', () => {
-		const logService = new RecordingLogService();
-
-		const result = normalizeInitialSessionOptions({
-			models: { foo: 'bar' },
-		}, logService);
-
-		expect(result).toEqual([]);
-		expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring unsupported initialSessionOptions'));
 	});
 
 	it('includes the task branch in PR-less cloud session metadata', () => {
@@ -360,10 +311,10 @@ describe('cloud session visibility', () => {
 		let authenticationChanged: Emitter<void>;
 		let logService: RecordingLogService;
 		let gitService: TestGitService;
-		let fileSystemService: MockFileSystemService;
 
 		const session = (taskId: string, lastActivity = now): CloudSessionData => ({
 			taskId,
+			automationId: 'automation-1',
 			title: taskId,
 			state: 'idle',
 			createdAt: new Date(now - 120 * day).toISOString(),
@@ -381,7 +332,6 @@ describe('cloud session visibility', () => {
 			authenticationChanged = store.add(new Emitter<void>());
 			logService = new RecordingLogService();
 			gitService = new TestGitService();
-			fileSystemService = new MockFileSystemService();
 			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
 			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last30Days');
 			extensionContext = new class extends mock<IVSCodeExtensionContext>() {
@@ -407,7 +357,6 @@ describe('cloud session visibility', () => {
 				gitService,
 				new NullTelemetryService(),
 				logService,
-				new class extends mock<IGitExtensionService>() { }(),
 				new class extends mock<IPullRequestFileChangesService>() {
 					override getComparisonChangedFiles = getComparisonChangedFiles;
 				}(),
@@ -415,9 +364,6 @@ describe('cloud session visibility', () => {
 					override readonly onDidAuthenticationChange = authenticationChanged.event;
 				}(),
 				context,
-				new class extends mock<IInstantiationService>() { }(),
-				new class extends mock<IGithubRepositoryService>() { }(),
-				new class extends mock<IChatDelegationSummaryService>() { }(),
 				new class extends mock<IExperimentationService>() {
 					override getTreatmentVariable = () => undefined;
 				}(),
@@ -425,148 +371,48 @@ describe('cloud session visibility', () => {
 					override readonly onDidChangeDomains = Event.None;
 				}(),
 				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-				fileSystemService,
 				new class extends mock<ICAPIClientService>() { }(),
 				configurationService,
 			));
 		}
 
-		describe('custom agent options', () => {
-			const workspaceUri = vscode.Uri.file('/workspace');
-			const agentsDir = vscode.Uri.joinPath(workspaceUri, '.github/agents');
-			const defaultAgent = {
-				id: '___vscode_default___',
-				default: true,
-				name: 'Agent',
-				icon: new vscode.ThemeIcon('agent'),
-			};
-			let octoKitService: MockOctoKitService;
+		it('keeps automation runs while excluding legacy interactive tasks', async () => {
+			const ordinary = { ...session('ordinary'), automationId: undefined };
+			fetchSessionList.mockResolvedValue([session('automation'), ordinary]);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(ordinary);
+			const provider = createProvider();
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await expect(resolve(getCloudSessionResources('ordinary', undefined).resource)).rejects.toThrow('only supports cloud automation runs');
+			expect(items.map(item => ({ label: item.label, automation: item.metadata?.isAutomation }))).toEqual([
+				{ label: 'automation', automation: true },
+			]);
+		});
 
-			beforeEach(() => {
-				vi.spyOn(vscode.workspace, 'workspaceFolders', 'get').mockReturnValue([{ uri: workspaceUri, name: 'workspace', index: 0 }]);
-				gitService.activeRepository.set(new class extends mock<RepoContext>() {
-					override readonly rootUri = workspaceUri;
-					override readonly remoteFetchUrls = ['https://github.com/microsoft/vscode.git'];
-				}(), undefined);
-				octoKitService = new MockOctoKitService();
-			});
-
-			function remoteAgent(name: string, overrides: Partial<CustomAgentListItem> = {}): CustomAgentListItem {
-				return {
-					name,
-					display_name: name,
-					description: '',
-					repo_owner_id: 1,
-					repo_owner: 'microsoft',
-					repo_id: 2,
-					repo_name: '.github-private',
-					tools: [],
-					version: '1',
-					...overrides,
-				};
+		it('rejects legacy interactive drafts and non-automation follow-ups', async () => {
+			createProvider();
+			const read = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue({ ...session('ordinary'), automationId: undefined });
+			const send = vi.spyOn(TaskApiBackend.prototype, 'sendFollowUpToTask');
+			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
+			const errors: (string | undefined)[] = [];
+			for (const resource of [vscode.Uri.parse('copilot-cloud-agent:/untitled-draft'), getCloudSessionResources('ordinary', undefined).resource]) {
+				const request = new class extends mock<vscode.ChatRequest>() {
+					override readonly prompt = 'Start work';
+					override readonly sessionResource = resource;
+				}();
+				const context = new class extends mock<vscode.ChatContext>() {
+					override readonly history = [];
+					override readonly chatSessionContext = {
+						chatSessionItem: { resource, label: 'Task' },
+						isUntitled: resource.path.startsWith('/untitled-'),
+						inputState: new class extends mock<vscode.ChatSessionInputState>() { }(),
+					};
+				}();
+				const result = await handler(request, context, new MockChatResponseStream(), CancellationToken.None);
+				errors.push(result?.errorDetails?.message);
 			}
-
-			function mockLocalAgents(files: Record<string, string>): void {
-				fileSystemService.mockDirectory(agentsDir, Object.keys(files).map(name => [name, FileType.File]));
-				for (const [name, content] of Object.entries(files)) {
-					fileSystemService.mockFile(vscode.Uri.joinPath(agentsDir, name), content);
-				}
-			}
-
-			it('hides non-user-invocable remote agents without hiding manual-only or default-visible agents', async () => {
-				octoKitService.setCustomAgents([
-					remoteAgent('hidden', { user_invocable: false }),
-					remoteAgent('visible', { user_invocable: true, display_name: 'Visible Agent' }),
-					remoteAgent('default-visible', { display_name: '' }),
-					remoteAgent('manual-only', { disable_model_invocation: true }),
-				]);
-
-				const options = await createProvider(octoKitService).provideChatSessionProviderOptions(CancellationToken.None);
-
-				expect(options.optionGroups?.find(group => group.id === 'customAgents')?.items).toEqual([
-					defaultAgent,
-					{ id: 'visible', name: 'Visible Agent' },
-					{ id: 'default-visible', name: 'default-visible' },
-					{ id: 'manual-only', name: 'manual-only' },
-				]);
-			});
-
-			it('omits the custom agent group when every remote agent is hidden', async () => {
-				octoKitService.setCustomAgents([remoteAgent('hidden', { user_invocable: false })]);
-				mockLocalAgents({ 'hidden.agent.md': '---\nuser-invocable: true\n---\nLocal copy' });
-
-				const options = await createProvider(octoKitService).provideChatSessionProviderOptions(CancellationToken.None);
-
-				expect(options.optionGroups).toEqual([]);
-			});
-
-			it('keeps remote visibility authoritative when matching local files', async () => {
-				octoKitService.setCustomAgents([
-					remoteAgent('hidden', { user_invocable: false }),
-					remoteAgent('visible'),
-				]);
-				mockLocalAgents({
-					'HiDdEn.AGENT.MD': '---\nuser-invocable: true\n---\nLocal copy',
-					'visible.agent.md': '---\nuser-invocable: false\n---\nLocal changes',
-				});
-
-				const options = await createProvider(octoKitService).provideChatSessionProviderOptions(CancellationToken.None);
-
-				expect(options.optionGroups?.find(group => group.id === 'customAgents')?.items).toEqual([
-					defaultAgent,
-					{ id: 'visible', name: 'visible', description: 'visible.md' },
-				]);
-			});
-
-			it.each([false, true])('honors local frontmatter for warning entries (remote fetch fails: %s)', async remoteFetchFails => {
-				if (remoteFetchFails) {
-					vi.spyOn(octoKitService, 'getCustomAgents').mockRejectedValue(new Error('Remote unavailable'));
-				}
-				mockLocalAgents({
-					'hidden.agent.md': '---\nuser-invocable: false\n---\nHidden agent',
-					'hidden-plain.md': '---\r\nuser-invocable: false # subagent only\r\n---\r\nHidden agent',
-					'visible.agent.md': '---\nuser-invocable: true\n---\nVisible agent',
-					'default.md': '---\ndescription: Visible by default\n---\nAgent',
-					'body-only.md': 'The body mentions user-invocable: false, not frontmatter.',
-					'nested.md': '---\nmetadata:\n  user-invocable: false\n---\nAgent',
-				});
-
-				const options = await createProvider(octoKitService).provideChatSessionProviderOptions(CancellationToken.None);
-
-				expect(options.optionGroups?.find(group => group.id === 'customAgents')?.items).toEqual([
-					defaultAgent,
-					...['visible', 'default', 'body-only', 'nested'].map(name => ({
-						id: name,
-						name,
-						description: 'Missing from microsoft/vscode',
-						locked: true,
-						icon: new vscode.ThemeIcon('warning'),
-					})),
-				]);
-			});
-
-			it.each([
-				{ reason: 'deleted', error: new vscode.FileSystemError('File not found') },
-				{ reason: 'unreadable', error: new Error('Read denied') },
-			])('logs a $reason local file and continues discovering other agents', async ({ error }) => {
-				mockLocalAgents({
-					'unreadable.agent.md': 'Agent',
-					'visible.md': 'Agent',
-				});
-				fileSystemService.mockError(vscode.Uri.joinPath(agentsDir, 'unreadable.agent.md'), error);
-
-				const options = await createProvider(octoKitService).provideChatSessionProviderOptions(CancellationToken.None);
-
-				expect({
-					items: options.optionGroups?.find(group => group.id === 'customAgents')?.items,
-					warnings: logService.warn.mock.calls,
-				}).toEqual({
-					items: [
-						defaultAgent,
-						{ id: 'visible', name: 'visible', description: 'Missing from microsoft/vscode', locked: true, icon: new vscode.ThemeIcon('warning') },
-					],
-					warnings: [[expect.stringContaining('unreadable.agent.md')]],
-				});
+			expect({ rejected: errors.every(message => message?.includes('only supports')), reads: read.mock.calls.length, sends: send.mock.calls }).toEqual({
+				rejected: true, reads: 1, sends: [],
 			});
 		});
 
@@ -910,44 +756,6 @@ describe('cloud session visibility', () => {
 			});
 		});
 
-		it('keeps session-option updates in the extension and does not apply clone URLs or cancelled picks', async () => {
-			const extensionContext = new class extends mock<IVSCodeExtensionContext>() {
-				override readonly globalState = {
-					...new MockExtensionContext().globalState,
-					setKeysForSync: () => { },
-				};
-			}();
-			const updates = vi.spyOn(extensionContext.globalState, 'update');
-			const provider = createProvider(new MockOctoKitService(), extensionContext);
-			const changes: vscode.ChatSessionOptionChangeEvent[] = [];
-			store.add(provider.onDidChangeChatSessionOptions(event => changes.push(event)));
-			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');
-			expect(registration).toBeDefined();
-			const resource = vscode.Uri.parse('copilot-cloud-agent:/untitled-repository-test');
-			vi.mocked(vscode.commands.executeCommand)
-				.mockResolvedValueOnce({ repository: 'microsoft/vscode' })
-				.mockResolvedValueOnce({ cloneUrl: 'https://gitlab.com/example/project.git' })
-				.mockResolvedValueOnce(undefined);
-
-			await registration![1](resource);
-			await registration![1](resource, { allowRepositoryUrl: true });
-			await registration![1](resource);
-
-			expect({
-				changes,
-				storedValues: updates.mock.calls.map(([, value]) => value),
-			}).toEqual({
-				changes: [{
-					resource,
-					updates: [{
-						optionId: 'repositories',
-						value: { id: 'microsoft/vscode', name: 'microsoft/vscode', icon: new vscode.ThemeIcon('repo') },
-					}],
-				}],
-				storedValues: [[{ name: 'microsoft/vscode', timestamp: now }]],
-			});
-		});
-
 		it('filters external sessions before fetching changes and refreshes when visibility changes', async () => {
 			await new CloudTaskOwnership(extensionContext.globalState).record('owned');
 			fetchSessionList.mockResolvedValue([session('recent', now - 2 * day), session('old', now - 31 * day), session('owned', now - 90 * day)]);
@@ -1004,6 +812,7 @@ describe('cloud session visibility', () => {
 		it('marks unrecorded tasks as external until a message adopts them, even when the message fails', async () => {
 			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
 			fetchSessionList.mockResolvedValue([session('started-here'), session('external')]);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('external'));
 			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue(undefined);
 			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockResolvedValue([]);
 			const provider = createProvider();
@@ -1033,6 +842,7 @@ describe('cloud session visibility', () => {
 		});
 
 		it.each([false, true])('returns failed steering as a chat error with an active stream: %s', async active => {
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('task-1'));
 			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue({ task: makeTask(), turns: [], pullArtifact: undefined });
 			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockResolvedValue([]);
 			const send = vi.spyOn(TaskApiBackend.prototype, 'sendFollowUpToTask').mockResolvedValue(false);
@@ -1718,22 +1528,6 @@ describe('TaskApiBackend', () => {
 		expect(sessions.map(({ taskId, createdAt, updatedAt }) => ({ taskId, createdAt, updatedAt }))).toEqual(
 			states.map(taskId => ({ taskId, createdAt: '2026-03-27T00:00:00Z', updatedAt: '2026-09-16T00:00:00Z' })),
 		);
-	});
-
-	it('createSession sends create_pull_request: false so tasks do not auto-create PRs', async () => {
-		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
-
-		await backend.createSession({
-			owner: 'octocat',
-			repo: 'hello-world',
-			title: 'New task',
-			prompt: 'Do the thing',
-			problemStatement: 'Statement',
-			baseRef: 'main',
-		});
-
-		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
 	});
 
 	it('createPullRequestForTask resolves owner/repo from the task html_url and delegates to createPRForTask', async () => {

@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
-import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudAutoConnectOnOpenSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId, WorkspaceRemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -26,6 +26,7 @@ import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnecti
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { RemoteAgentHostAuthenticationResolver } from './remoteAgentHostAuthenticationResolver.js';
 import { MissionControlAvailabilityService } from './missionControlAvailabilityService.js';
+import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 
 class MissionControlContribution {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -129,37 +130,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'auto' },
 			agentHost: { key: MissionControlUseLocalCredentialsConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
-		[CloudSandboxEnabledSettingId]: {
+		[CloudAutoConnectOnOpenSettingId]: {
 			type: 'boolean',
-			description: localize('chat.agentHost.cloudSandbox.enabled', "Use GitHub Cloud for new Cloud sessions in the Agents Window instead of Copilot coding agent on GitHub Actions. Also enables discovering and opening GitHub Cloud sessions."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-		},
-		[CloudSandboxAutoConnectOnOpenSettingId]: {
-			type: 'boolean',
-			description: localize('chat.agentHost.cloudSandbox.autoConnectOnOpen', "Automatically connect to or wake a cloud sandbox environment in the background when opening or restoring its chat in the Agents Window. When disabled, connecting waits until you start composing or explicitly connect."),
+			description: localize('chat.agentHost.cloud.autoConnectOnOpen', "Automatically connect to or wake a cloud environment in the background when opening or restoring its chat in the Agents Window. When disabled, connecting waits until you start composing or explicitly connect."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-		},
-		[CloudSandboxEarlyPreparationSettingId]: {
-			type: 'boolean',
-			description: localize('chat.agentHost.cloudSandbox.earlyPreparation', "Prepare an eligible cloud environment while typing in a new Cloud chat in the editor or Agents Window. This can allocate cloud compute before you send a message."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-		},
-		[CloudSandboxSessionFeedEnabledSettingId]: {
-			type: 'boolean',
-			description: localize('chat.agentHost.cloudSandbox.sessionFeed.enabled', "Try Mission Control push notifications to discover and refresh cloud sandbox sessions when enabled for your GitHub account. If unavailable, use normal polling without repeated connection attempts until the window reloads, the account changes, or this setting is toggled. When disabled, do not request feed credentials or open a feed connection; use normal polling only."),
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
 		},
 	},
 });
+
+const legacyCloudAutoConnectOnOpenSetting = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: legacyCloudAutoConnectOnOpenSetting,
+	includeApplication: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[legacyCloudAutoConnectOnOpenSetting, { value: undefined }]];
+		if (typeof value === 'boolean' && accessor(CloudAutoConnectOnOpenSettingId) === undefined) {
+			pairs.push([CloudAutoConnectOnOpenSettingId, { value }]);
+		}
+		return pairs;
+	},
+}]);

@@ -33,7 +33,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../../plat
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { cloudSandboxAddress, cloudSandboxTaskResource, CloudAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -7521,7 +7521,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 	test('wakes cached sessions on open and restore without blocking or sending their draft', async () => {
 		let connectCalls = 0;
 		let wake = new DeferredPromise<void>();
-		const configurationService = new TestConfigurationService({ [CloudSandboxAutoConnectOnOpenSettingId]: true });
+		const configurationService = new TestConfigurationService({ [CloudAutoConnectOnOpenSettingId]: true });
 		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:open-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
@@ -7545,10 +7545,10 @@ suite('CloudSandboxSessionsProvider opening', () => {
 		await wake.complete();
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		wake = new DeferredPromise<void>();
-		await configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, false);
+		await configurationService.setUserConfiguration(CloudAutoConnectOnOpenSettingId, false);
 		await provider.prepareSessionForOpen(session, 'open');
 		const disabled = connectCalls;
-		await configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, true);
+		await configurationService.setUserConfiguration(CloudAutoConnectOnOpenSettingId, true);
 		await provider.prepareSessionForOpen(session, 'open');
 		const reopened = { connectCalls, wakeSettled: wake.isSettled };
 		await wake.complete();
@@ -7578,7 +7578,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				ctor: CloudSandboxSessionsProvider,
 				noConnection: true,
-				configurationService: new TestConfigurationService({ [CloudSandboxAutoConnectOnOpenSettingId]: false }),
+				configurationService: new TestConfigurationService({ [CloudAutoConnectOnOpenSettingId]: false }),
 				connectOnDemand: async () => { connectCalls++; },
 			});
 			provider.seedSessions([createSession('sandbox-session', { provider: 'copilot' })]);

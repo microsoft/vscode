@@ -124,9 +124,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		// depend on the extension-host Copilot CLI session provider. Its services are created as a
 		// child of this container so both share one session tracker and terminal integration.
 		const copilotCLITerminalInstaService = this.registerCopilotCLITerminal(instantiationService);
-		// The cloud agent does not depend on the extension-host Copilot CLI session provider, which
-		// only uses it to delegate a session to the cloud.
-		const cloudSessionProvider = this.registerCopilotCloudAgent();
+		this.registerCopilotCloudAgent();
 		const legacyProviderEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.CLILegacyProviderEnabled, experimentationService);
 		// The `when` clauses check the setting, which VS Code resolves at startup including its
 		// experiment. This context key carries the value the extension acts on, so the two cannot
@@ -138,8 +136,8 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 			return;
 		}
 		useController
-			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService)
-			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService);
+			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, logService)
+			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, logService);
 	}
 
 	private registerCopilotCLITerminal(instantiationService: IInstantiationService): IInstantiationService {
@@ -154,7 +152,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		return copilotCLITerminalInstaService;
 	}
 
-	private registerCopilotCLIServices(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, cloudSessionProvider: CopilotCloudSessionsProvider | undefined, logService: ILogService) {
+	private registerCopilotCLIServices(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, logService: ILogService) {
 		const copilotcliAgentInstaService = instantiationService.createChild(
 			new ServiceCollection(
 				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
@@ -197,7 +195,6 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 			CopilotCLIChatSessionParticipant,
 			copilotcliChatSessionContentProvider,
 			promptResolver,
-			cloudSessionProvider,
 			branchNameGenerator,
 		));
 		const copilotCLISessionService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(ICopilotCLISessionService));
@@ -224,7 +221,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		return { sessionMetadata };
 	}
 
-	private registerCopilotCLIServicesV1(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, cloudSessionProvider: CopilotCloudSessionsProvider | undefined, logService: ILogService) {
+	private registerCopilotCLIServicesV1(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, logService: ILogService) {
 		const copilotcliAgentInstaService = instantiationService.createChild(
 			new ServiceCollection(
 				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
@@ -267,7 +264,6 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 			copilotcliChatSessionContentProvider,
 			promptResolver,
 			copilotcliSessionItemProvider,
-			cloudSessionProvider,
 			branchNameGeneratorV1,
 		));
 		const copilotCLISessionService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(ICopilotCLISessionService));
@@ -364,11 +360,6 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 				cloudSessionsProvider.chatParticipant,
 				{ supportsInterruptions: true }
 			)
-		);
-		this.copilotCloudRegistrations.add(
-			vscode.commands.registerCommand('github.copilot.cloud.resetWorkspaceConfirmations', () => {
-				cloudSessionsProvider.resetWorkspaceContext();
-			})
 		);
 		this.copilotCloudRegistrations.add(
 			vscode.commands.registerCommand('github.copilot.cloud.sessions.openInBrowser', async (chatSessionItem: vscode.ChatSessionItem) => {
