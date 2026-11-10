@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
@@ -42,6 +42,9 @@ import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agen
 import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier, IRelaxedExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
+import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
@@ -89,6 +92,49 @@ suite('Codex Agent Host preference', () => {
 			editorWindowNotPreferred: true,
 			agentHostDisabled: true,
 			codexAgentDisabled: true,
+		});
+	});
+});
+
+suite('ChatSessionsService - existing-only extension sessions', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the conversation agent without registering creation commands', () => {
+		const instantiation = store.add(workbenchInstantiationService(undefined, store));
+		const context = store.add(new ContextKeyService(new TestConfigurationService()));
+		const enabled = new RawContextKey<boolean>('test.automationSessionsEnabled', true).bindTo(context);
+		instantiation.stub(IContextKeyService, context);
+		const agents = new Set<string>();
+		instantiation.stub(IChatAgentService, upcastPartial<IChatAgentService>({
+			registerAgent: id => {
+				agents.add(id);
+				return toDisposable(() => agents.delete(id));
+			},
+		}));
+		const service = store.add(instantiation.createInstance(ChatSessionsService));
+		const type = 'test-cloud-automation';
+		store.add(service['registerContribution']({
+			type, name: type, displayName: 'Cloud Automation', description: '',
+			when: 'test.automationSessionsEnabled', canDelegate: false, hideFromSessionTypePicker: true,
+		}, upcastPartial<IRelaxedExtensionDescription>({
+			identifier: new ExtensionIdentifier('test.cloud'),
+		})));
+		store.add(service.registerChatSessionItemController(type, {
+			items: [], onDidChangeChatSessionItems: Event.None, refresh: async () => { },
+		}));
+		const snapshot = () => ({
+			agent: agents.has(type),
+			commands: ['openNewSessionEditor', 'openNewSessionSidebar', 'openNewChatSessionExternal', 'openNewChatSessionInPlace']
+				.filter(command => CommandsRegistry.getCommand(`workbench.action.chat.${command}.${type}`)),
+		});
+		const initial = snapshot();
+		enabled.set(false);
+		const disabled = snapshot();
+		enabled.set(true);
+		assert.deepStrictEqual({ initial, disabled, restored: snapshot() }, {
+			initial: { agent: true, commands: [] },
+			disabled: { agent: false, commands: [] },
+			restored: { agent: true, commands: [] },
 		});
 	});
 });

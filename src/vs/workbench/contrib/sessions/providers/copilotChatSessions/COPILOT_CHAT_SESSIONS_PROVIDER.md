@@ -4,7 +4,7 @@
 
 ## Scope
 
-`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud only. Local Copilot CLI sessions contributed by the Copilot extension are not surfaced in the Agents Window; local Copilot sessions are owned by the Agent Host providers.
+`CopilotChatSessionsProvider` owns Cloud sandbox creation and adapts existing cloud automation runs into `ISessionsProvider`. Interactive cloud sessions use sandboxes exclusively. Local Copilot CLI sessions contributed by the Copilot extension are not surfaced in the Agents Window; local Copilot sessions are owned by the Agent Host providers.
 
 ## Registration and identity
 
@@ -18,21 +18,21 @@
 
 The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes.
 
-On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns sandbox drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
+On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while remote agent hosts are enabled and AI features are visible. This instance owns sandbox drafts, not existing automation or CLI history. It advertises the Copilot sandbox creation type.
 
 ## Drafts
 
 Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
-For new interactive Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Interactive draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
+New interactive Cloud sessions always use GitHub Cloud sandboxes. Draft models, configuration controls, and first-send routing remain sandbox-backed even if remote connections become unavailable; sending then fails rather than falling back to the legacy coding agent.
 
-Automation configuration drafts instead retain the scheduled-Cloud model catalogue and configuration contract regardless of this setting; see [Automations](../../../../../sessions/AUTOMATIONS.md#definitions-and-session-configuration).
+Automation configuration drafts retain the scheduled-Cloud model catalogue and configuration contract; they cannot be sent as interactive chats. Definitions and dispatch use the Automations API, independently of sandbox creation; see [Automations](../../../../../sessions/AUTOMATIONS.md#definitions-and-session-configuration).
 
-While GitHub sandboxes are enabled and AI features are visible, the provider also advertises quick chats. These drafts explicitly have no workspace or repository and always require the sandbox backend; disabling it withdraws that capability and prevents a pending quick chat from falling back to the repository-bound legacy agent.
+While remote agent hosts are enabled and AI features are visible, the provider also advertises quick chats. These drafts explicitly have no workspace or repository and always require the sandbox backend.
 
 ## Existing sessions
 
-`AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.
+`AgentSessionAdapter` projects an existing Copilot Cloud automation run into a stable `ISession` facade. Non-automation sessions and sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes. The extension's task-backed provider retains automation history and follow-up turns but no longer creates or delegates interactive tasks, advertises a creation target, or offers legacy custom-agent and partner-agent controls.
 
 The provider cache is keyed by resource identity. Refreshing the backing agent session list updates existing adapters and emits added, removed, changed, or replacement catalog notifications as appropriate.
 
@@ -40,7 +40,7 @@ Provider metadata translation, including repository and pull-request metadata, r
 
 The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.
 
-The Task API does not report which client started a task, so the Copilot extension records the tasks VS Code creates or sends a message to. Every other task carries `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external tasks according to `chat.agentSessions.showExternal`, and a sent message adopts a task by clearing the flag.
+The Copilot extension records automation tasks that receive a message from VS Code. Other tasks carry `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external runs according to `chat.agentSessions.showExternal`, and a sent message adopts a run by clearing the flag.
 
 ## Cloud automation coordination
 
@@ -92,7 +92,7 @@ Delete, archive, rename, and read-state operations delegate to the backing agent
 
 ## Testing
 
-Provider tests own concrete local/cloud option behavior, commit timing, metadata translation, and regressions. Shared provider lifecycle behavior is covered by Sessions management tests.
+Provider tests own sandbox creation, automation configuration and history, metadata translation, and regressions. Shared provider lifecycle behavior is covered by Sessions management tests.
 
 ## Change policy
 

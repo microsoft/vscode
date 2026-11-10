@@ -54,7 +54,6 @@ import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCo
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotcli/node/userInputHelpers';
 import { CustomSessionTitleService } from '../../copilotcli/vscode-node/customSessionTitleServiceImpl';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider, CopilotCLIChatSessionParticipant } from '../copilotCLIChatSessionsContribution';
-import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
 
@@ -223,17 +222,6 @@ class FakeGitService extends mock<IGitService>() {
 	}
 }
 
-// Cloud provider fake for delegate scenario
-class FakeCloudProvider extends mock<CopilotCloudSessionsProvider>() {
-	override delegate = vi.fn(async () => ({
-		uri: vscode.Uri.parse('pr://1'),
-		title: 'PR Title',
-		description: 'PR Description',
-		author: 'Test Author',
-		linkTag: '#1'
-	})) as unknown as CopilotCloudSessionsProvider['delegate'];
-}
-
 
 function createChatContext(sessionId: string, isUntitled: boolean, ...requests: TestChatRequest[]): vscode.ChatContext {
 	// Mirror the production invariant enforced by `isUntitledChatSession` in
@@ -311,7 +299,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	const disposables = new DisposableStore();
 	let promptResolver: CopilotCLIPromptResolver;
 	let itemProvider: CopilotCLIChatSessionItemProvider;
-	let cloudProvider: FakeCloudProvider;
 	let summarizer: ChatSummarizerProvider;
 	let worktree: FakeChatSessionWorktreeService;
 	let worktreeCheckpointService: FakeChatSessionWorktreeCheckpointService;
@@ -375,7 +362,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			override isNewSession = vi.fn((_session: string) => false);
 			override detectPullRequestOnSessionOpen = vi.fn(async () => { });
 		}();
-		cloudProvider = new FakeCloudProvider();
 		summarizer = new class extends mock<ChatSummarizerProvider>() {
 			override provideChatSummary(_context: vscode.ChatContext) { return Promise.resolve('summary text'); }
 		}();
@@ -457,7 +443,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			contentProvider,
 			promptResolver,
 			itemProvider,
-			cloudProvider,
 			undefined,
 			git,
 			models as unknown as ICopilotCLIModels,
@@ -927,7 +912,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			invalidContentProvider,
 			promptResolver,
 			itemProvider,
-			cloudProvider,
 			undefined,
 			git,
 			models as unknown as ICopilotCLIModels,
@@ -979,36 +963,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(invalidSessionService.createSession).not.toHaveBeenCalled();
 	});
 
-	it('handles /delegate command for existing session (no session.handleRequest)', async () => {
-		const sessionId = 'existing-123';
-		const sdkSession = new MockCliSdkSession(sessionId, new Date());
-		manager.sessions.set(sessionId, sdkSession);
-
-		git.activeRepository = { get: () => ({ changes: { indexChanges: [{ path: 'file.ts' }] } }) } as unknown as IGitService['activeRepository'];
-		const request = new TestChatRequest('Build feature');
-		request.command = 'delegate';
-		const context = createChatContext(sessionId, false, request);
-		const stream = new MockChatResponseStream();
-		const token = disposables.add(new CancellationTokenSource()).token;
-		expect(cliSessions.length).toBe(0);
-
-		await participant.createHandler()(request, context, stream, token);
-
-		expect(cliSessions.length).toBe(1);
-		expect(cliSessions[0].sessionId).toBe(sessionId);
-		expect(cliSessions[0].requests.length).toBe(0);
-		expect(sdkSession.emittedEvents.length).toBe(2);
-		expect(sdkSession.emittedEvents[0].event).toBe('user.message');
-		expect(sdkSession.emittedEvents[0].content).toBe('/delegate Build feature');
-		expect(sdkSession.emittedEvents[1].event).toBe('assistant.message');
-		expect(sdkSession.emittedEvents[1].content).toContain('pr://1');
-		// Uncommitted changes warning surfaced
-		// Warning should appear (we emitted stream.warning). The mock stream only records markdown.
-		// Delegate path adds assistant PR metadata; ensure output contains PR metadata tag instead of relying on warning capture.
-		expect(sdkSession.emittedEvents[1].content).toMatch(/<pr_metadata uri="pr:\/\/1"/);
-		expect(cloudProvider.delegate).toHaveBeenCalled();
-	});
-
 	it('handles /delegate command from another chat (has uncommitted changes and user copies changes)', async () => {
 		expect(manager.sessions.size).toBe(0);
 		const repoContext = { rootUri: Uri.file(`${sep}workspace`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext;
@@ -1044,31 +998,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(manager.sessions.size).toBe(1);
 		// No confirmation should be invoked when there are no uncommitted changes
 		expect(tools.invokeTool).not.toHaveBeenCalled();
-	});
-
-	it('handles /delegate command for new session without uncommitted changes', async () => {
-		expect(manager.sessions.size).toBe(0);
-		git.activeRepository = { get: () => ({ changes: { indexChanges: [], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		const request = new TestChatRequest('Build feature');
-		request.command = 'delegate';
-		const context = createChatContext('existing-delegate', true, request);
-		const stream = new MockChatResponseStream();
-		const token = disposables.add(new CancellationTokenSource()).token;
-
-		await participant.createHandler()(request, context, stream, token);
-
-		expect(manager.sessions.size).toBe(1);
-		const sdkSession = Array.from(manager.sessions.values())[0];
-		expect(cloudProvider.delegate).toHaveBeenCalled();
-		// PR metadata recorded
-		expect(sdkSession.emittedEvents.length).toBe(2);
-		expect(sdkSession.emittedEvents[0].event).toBe('user.message');
-		expect(sdkSession.emittedEvents[0].content).toBe('/delegate Build feature');
-		expect(sdkSession.emittedEvents[1].event).toBe('assistant.message');
-		expect(sdkSession.emittedEvents[1].content).toContain('pr://1');
-		// Warning should appear (we emitted stream.warning). The mock stream only records markdown.
-		// Delegate path adds assistant PR metadata; ensure output contains PR metadata tag instead of relying on warning capture.
-		expect(sdkSession.emittedEvents[1].content).toMatch(/<pr_metadata uri="pr:\/\/1"/);
 	});
 
 	it('starts a new chat session and submits the request', async () => {
@@ -2102,7 +2031,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 				contentProvider,
 				promptResolver,
 				itemProvider,
-				cloudProvider,
 				undefined,
 				git,
 				models as unknown as ICopilotCLIModels,
@@ -2236,7 +2164,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 				contentProvider,
 				promptResolver,
 				itemProvider,
-				cloudProvider,
 				undefined,
 				git,
 				models as unknown as ICopilotCLIModels,

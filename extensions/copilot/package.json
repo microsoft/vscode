@@ -2882,10 +2882,6 @@
         "icon": "$(pinned-dirty)"
       },
       {
-        "command": "github.copilot.cloud.resetWorkspaceConfirmations",
-        "title": "%github.copilot.command.resetCloudAgentWorkspaceConfirmations%"
-      },
-      {
         "command": "github.copilot.cloud.sessions.openInBrowser",
         "title": "%github.copilot.command.openCopilotAgentSessionsInBrowser%",
         "icon": "$(link-external)"
@@ -3084,11 +3080,6 @@
             "markdownDescription": "%github.copilot.config.backgroundAgent.enabled%",
             "markdownDeprecationMessage": "%github.copilot.config.backgroundAgent.enabled.deprecationMessage%",
             "deprecationMessageSeverity": "info"
-          },
-          "github.copilot.chat.cloudAgent.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
           },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",
@@ -6586,11 +6577,6 @@
         },
         "commands": [
           {
-            "name": "delegate",
-            "description": "Delegate chat session to cloud agent and create associated PR",
-            "when": "config.github.copilot.chat.cloudAgent.enabled"
-          },
-          {
             "name": "compact",
             "description": "%github.copilot.command.cli.compact.description%"
           },
@@ -6623,13 +6609,14 @@
         "name": "cloud",
         "displayName": "Cloud",
         "icon": "$(cloud)",
-        "welcomeTitle": "Cloud Agent",
-        "welcomeMessage": "Delegate tasks to the cloud",
-        "inputPlaceholder": "Delegate tasks to the cloud, type `#` for adding context",
+        "welcomeTitle": "%github.copilot.session.cloudAutomations.welcomeTitle%",
+        "welcomeMessage": "%github.copilot.session.cloudAutomations.welcomeMessage%",
+        "inputPlaceholder": "%github.copilot.session.cloudAutomations.inputPlaceholder%",
         "order": 2,
-        "canDelegate": true,
+        "canDelegate": false,
+        "hideFromSessionTypePicker": true,
         "description": "%github.copilot.session.providerDescription.cloud%",
-        "when": "config.github.copilot.chat.cloudAgent.enabled",
+        "when": "!config.chat.disableAIFeatures",
         "supportsAutoModel": false,
         "requiresCopilotSignIn": true,
         "capabilities": {

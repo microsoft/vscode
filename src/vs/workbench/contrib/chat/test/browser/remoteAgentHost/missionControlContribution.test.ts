@@ -16,7 +16,7 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudAutoConnectOnOpenSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -41,6 +41,7 @@ import { LOCAL_MACHINE_SCOPES } from '../../../../../services/configuration/comm
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
 import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
+import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../common/configuration.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const disableRepositoryMetadataSetting = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
@@ -75,11 +76,11 @@ const expectedOptions: IMissionControlOptions = {
 suite('Cloud sandbox configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers one shared preparation service and experiment-configurable application settings', () => {
+	test('registers default-on cloud auto-connect without sandbox feature switches', () => {
 		const services = new Map(getSingletonServiceDescriptors());
 
 		assert.deepStrictEqual({
-			settings: [CloudSandboxEnabledSettingId, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId].map(id => {
+			settings: [CloudAutoConnectOnOpenSettingId].map(id => {
 				const setting = configurationProperties[id];
 				return {
 					id,
@@ -88,16 +89,36 @@ suite('Cloud sandbox configuration', () => {
 					scope: setting.scope,
 					restricted: setting.restricted,
 					experiment: setting.experiment,
+					tags: setting.tags,
 				};
 			}),
+			removed: ['enabled', 'earlyPreparation', 'sessionFeed.enabled', 'autoConnectOnOpen'].filter(key => configurationProperties[`chat.agentHost.cloudSandbox.${key}`]),
 			service: services.get(ICloudSandboxDraftPreparationService)?.ctor,
 		}, {
 			settings: [
-				{ id: CloudSandboxEnabledSettingId, type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION, restricted: false, experiment: { mode: 'auto' } },
-				{ id: CloudSandboxAutoConnectOnOpenSettingId, type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, restricted: false, experiment: { mode: 'auto' } },
-				{ id: CloudSandboxEarlyPreparationSettingId, type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION, restricted: true, experiment: { mode: 'auto' } },
+				{ id: CloudAutoConnectOnOpenSettingId, type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, restricted: false, experiment: undefined, tags: undefined },
 			],
+			removed: [],
 			service: CloudSandboxDraftPreparationService,
+		});
+	});
+
+	test('migrates cloud auto-connect preferences without overwriting the new setting', async () => {
+		const key = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+		const migration = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations.find(migration => migration.key === key);
+		assert.ok(migration);
+		assert.deepStrictEqual({
+			application: migration.includeApplication,
+			disabled: await migration.migrateFn(false, () => undefined),
+			enabled: await migration.migrateFn(true, () => undefined),
+			existing: await migration.migrateFn(true, () => false),
+			absent: await migration.migrateFn(undefined, () => undefined),
+		}, {
+			application: true,
+			disabled: [[key, { value: undefined }], [CloudAutoConnectOnOpenSettingId, { value: false }]],
+			enabled: [[key, { value: undefined }], [CloudAutoConnectOnOpenSettingId, { value: true }]],
+			existing: [[key, { value: undefined }]],
+			absent: [[key, { value: undefined }]],
 		});
 	});
 });

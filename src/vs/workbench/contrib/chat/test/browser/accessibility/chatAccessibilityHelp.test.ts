@@ -127,13 +127,13 @@ suite('Chat Accessibility Help', () => {
 
 		assert.deepStrictEqual({
 			included: help.includes(preparation),
-			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			compute: preparation.includes('allocate cloud compute before you send a message'),
 			repositories: preparation.includes('with or without a repository'),
 			private: preparation.includes('no conversation is added to the session list until you press Send'),
 			pending: preparation.includes('Send waits for pending preparation'),
 			fallback: preparation.includes('otherwise it can continue without early preparation'),
 			repositoryChange: preparation.includes('when you change repositories'),
-		}, { included: true, setting: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
+		}, { included: true, compute: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
 	});
 
 	test('explains the disabled Local harness only on editor chat surfaces', () => {

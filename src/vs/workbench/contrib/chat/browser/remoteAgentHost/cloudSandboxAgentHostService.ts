@@ -25,7 +25,6 @@ import {
 	buildWpsUrl,
 	cloudSandboxAddress,
 	cloudSandboxEnvironmentId,
-	CloudSandboxEnabledSettingId,
 	CloudSandboxNetworkError,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxConnectOptions,
@@ -460,9 +459,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	async connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string> {
-		if (options.environmentKind !== 'user-local' && !this._configurationService.getValue<boolean>(CloudSandboxEnabledSettingId)) {
-			throw new Error('Copilot cloud sandbox connections are not enabled.');
-		}
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}

@@ -56,7 +56,6 @@ import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLIS
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
 import { getCopilotCLIModelDetails, persistCopilotCLIResponseModelId } from './copilotCLIModelDetails';
 import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
-import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { IPullRequestCreationService } from './pullRequestCreationService';
 import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
@@ -97,18 +96,6 @@ namespace SessionIdForCLI {
 	export function isCLIResource(resource: vscode.Uri): boolean {
 		return resource.scheme === 'copilotcli';
 	}
-}
-
-/**
- * Escape XML special characters
- */
-function escapeXml(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&apos;');
 }
 
 function getIssueRuntimeInfo(): { readonly platform: string; readonly vscodeInfo: string; readonly extensionVersion: string } {
@@ -1194,7 +1181,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		private readonly contentProvider: CopilotCLIChatSessionContentProvider,
 		private readonly promptResolver: CopilotCLIPromptResolver,
 		private readonly sessionItemProvider: CopilotCLIChatSessionItemProvider,
-		private readonly cloudSessionProvider: CopilotCloudSessionsProvider | undefined,
 		private readonly branchNameGenerator: GitBranchNameGenerator | undefined,
 		@IGitService private readonly gitService: IGitService,
 		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
@@ -1514,9 +1500,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			this.pendingRequestBySession.set(session.object.sessionId, requestsForSession);
 
 			const isCopilotCLICommand = !!request.command && (copilotCLICommands as readonly string[]).includes(request.command);
-			if (request.command === 'delegate') {
-				await this.handleDelegationToCloud(session.object, request, context, stream, token);
-			} else if (contextForRequest) {
+			if (contextForRequest) {
 				// This is a request that was created in createCLISessionAndSubmitRequest with attachments already resolved.
 				const { prompt, attachments } = contextForRequest;
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
@@ -1960,27 +1944,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		return { model: defaultModel };
 	}
 
-	private async handleDelegationToCloud(session: ICopilotCLISession, request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
-		if (!this.cloudSessionProvider) {
-			stream.warning(l10n.t('No cloud agent available'));
-			return;
-		}
-
-		// Check for uncommitted changes
-		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.sessionId);
-		const repositoryPath = worktreeProperties?.repositoryPath ? Uri.file(worktreeProperties.repositoryPath) : getWorkingDirectory(session.workspace);
-		const repository = repositoryPath ? await this.gitService.getRepository(repositoryPath) : undefined;
-		const hasChanges = (repository?.changes?.indexChanges && repository.changes.indexChanges.length > 0);
-
-		if (hasChanges) {
-			stream.warning(l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last committed state. Consider committing your changes first if you want to include them.'));
-		}
-
-		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
-		await this.recordPushToSession(session, `/delegate ${request.prompt}`, prInfo);
-
-	}
-
 	private async getOrInitializeWorkingDirectory(
 		chatSessionContext: vscode.ChatSessionContext | undefined,
 		stream: vscode.ChatResponseStream,
@@ -2113,19 +2076,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return true;
 		});
 		return !allResponsesEmpty;
-	}
-
-	private async recordPushToSession(
-		session: ICopilotCLISession,
-		userPrompt: string,
-		prInfo: vscode.ChatResponsePullRequestPart
-	): Promise<void> {
-		// Add user message event
-		session.addUserMessage(userPrompt);
-
-		// Add assistant message event with embedded PR metadata
-		const assistantMessage = `A cloud agent has begun working on your request. Follow its progress in the associated chat and pull request.\n<pr_metadata uri="${prInfo.uri?.toString()}" title="${escapeXml(prInfo.title)}" description="${escapeXml(prInfo.description)}" author="${escapeXml(prInfo.author)}" linkTag="${escapeXml(prInfo.linkTag)}"/>`;
-		session.addUserAssistantMessage(assistantMessage);
 	}
 }
 

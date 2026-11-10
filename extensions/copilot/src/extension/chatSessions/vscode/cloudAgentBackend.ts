@@ -17,26 +17,6 @@ export interface PullArtifactRef {
 	readonly headRef?: string;
 }
 
-export interface CloudDelegationResult {
-	readonly taskId: string;
-	readonly taskUrl: string;
-	readonly title: string;
-	readonly sessionId: string;
-}
-
-export interface CreateCloudSessionParams {
-	readonly owner: string;
-	readonly repo: string;
-	readonly title: string | undefined;
-	readonly prompt: string;
-	readonly problemStatement: string;
-	readonly baseRef: string;
-	readonly headRef?: string;
-	readonly customAgent?: string;
-	readonly model?: string;
-	readonly partnerAgentId?: number;
-}
-
 export interface CloudSessionData {
 	readonly taskId: string;
 	readonly eventType?: string;
@@ -66,8 +46,6 @@ export interface CloudAgentBackend {
 		repoIds: GithubRepoId[] | undefined,
 		isAgentWorkspace: boolean,
 	): Promise<CloudSessionData[]>;
-
-	createSession(params: CreateCloudSessionParams): Promise<CloudDelegationResult>;
 
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 

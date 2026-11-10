@@ -10,12 +10,11 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../base/co
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, ICloudSandboxSubmittedDraft, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, ICloudSandboxSubmittedDraft, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -25,7 +24,7 @@ const UNUSED_RESERVATION_LIFETIME_MS = 5 * 60_000;
 const RESERVATION_WAIT_TIMEOUT_MS = 5 * 60_000;
 const LOG_PREFIX = '[CloudSandboxPreparation]';
 
-type PreparationSkipReason = 'featureDisabled' | 'aiDisabled' | 'aiHidden' | 'workspaceUntrusted' | 'settingDisabled' | 'unavailable';
+type PreparationSkipReason = 'featureDisabled' | 'aiDisabled' | 'aiHidden' | 'workspaceUntrusted' | 'unavailable';
 type PreparationReleaseReason = 'expired' | 'repositoryChanged' | 'accountChanged' | 'disabled' | 'discarded' | 'reservationFailed' | 'sendAborted' | 'returnedBeforeSubmit';
 
 interface IPreparation {
@@ -61,21 +60,19 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
-		this._lifecycle = new CloudSandboxLifecycleTelemetry(_telemetryService);
+		this._lifecycle = new CloudSandboxLifecycleTelemetry(telemetryService);
 		const updateEnablement = () => {
 			if (!this._isEnabled()) {
 				void this.clear();
 			}
 		};
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(CloudSandboxEarlyPreparationSettingId)
-				|| event.affectsConfiguration(CloudSandboxEnabledSettingId)
-				|| event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
 				|| event.affectsConfiguration(ChatAIDisabledSettingId)) {
 				updateEnablement();
 			}
@@ -113,7 +110,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 	}
 
 	private _isEnabled(): boolean {
-		return this._unavailableReason() === undefined && this._configurationService.getValue<boolean>(CloudSandboxEarlyPreparationSettingId) === true;
+		return this._unavailableReason() === undefined;
 	}
 
 	prepare(draftResource: URI, repoNwo?: string): void {
@@ -122,11 +119,6 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		const unavailableReason = this._unavailableReason();
 		if (unavailableReason) {
 			this._logSkipped(draftResource, unavailableReason);
-			return;
-		}
-		logSettingExperimentTrigger(this._telemetryService, CloudSandboxEarlyPreparationSettingId);
-		if (!this._isEnabled()) {
-			this._logSkipped(draftResource, this._unavailableReason() ?? 'settingDisabled');
 			return;
 		}
 		const previous = this._entries.get(draftResource);

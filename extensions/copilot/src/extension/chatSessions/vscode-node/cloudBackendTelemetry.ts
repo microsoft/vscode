@@ -10,7 +10,6 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 export type CloudBackendOutcome = 'success' | 'failure';
 
 export type CloudBackendOperation =
-	| 'createSession'
 	| 'fetchSessionList'
 	| 'fetchContent'
 	| 'fetchEvents'
@@ -21,7 +20,6 @@ export type CloudBackendOperation =
 const MAX_ERROR_MESSAGE_LENGTH = 300;
 
 export interface ICloudBackendInstrumentation {
-	sessionCreated(outcome: CloudBackendOutcome, durationMs: number, error?: unknown): void;
 	sessionActivated(durationMs: number): void;
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void;
 	operationFailed(operation: CloudBackendOperation, error: unknown, status?: number): void;
@@ -59,37 +57,6 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _otelService: IOTelService,
 	) { }
-
-	sessionCreated(outcome: CloudBackendOutcome, durationMs: number, error?: unknown): void {
-		if (outcome === 'failure') {
-			/* __GDPR__
-				"copilotcloud.chat.sessionCreate" : {
-					"owner": "osortega",
-					"comment": "Cloud agent task creation outcome.",
-					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
-					"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier (e.g. http_500) when creation failed." },
-					"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Error message when creation failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
-				}
-			*/
-			this._telemetryService.sendMSFTTelemetryErrorEvent('copilotcloud.chat.sessionCreate', {
-				outcome,
-				errorType: cloudErrorType(error),
-				errorMessage: errorMessageOf(error),
-			}, { durationMs });
-		} else {
-			/* __GDPR__
-				"copilotcloud.chat.sessionCreate" : {
-					"owner": "osortega",
-					"comment": "Cloud agent task creation outcome.",
-					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
-				}
-			*/
-			this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.sessionCreate', { outcome }, { durationMs });
-		}
-		GenAiMetrics.recordCloudOperation(this._otelService, 'createSession', outcome === 'success', durationMs);
-	}
 
 	sessionActivated(durationMs: number): void {
 		/* __GDPR__
@@ -155,7 +122,6 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 }
 
 export const NullCloudBackendInstrumentation: ICloudBackendInstrumentation = {
-	sessionCreated() { },
 	sessionActivated() { },
 	followUp() { },
 	operationFailed() { },
