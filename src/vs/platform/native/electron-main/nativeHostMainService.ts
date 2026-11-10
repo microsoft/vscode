@@ -462,7 +462,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
+		const window = this.exactWindowById(windowId, options);
 		if (window?.win) {
 			if (window.win.isFullScreen()) {
 				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
@@ -1730,6 +1730,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
+	}
+
+	/**
+	 * The window `options` target, or else the calling window. Unlike {@link windowById}, a target that no longer exists
+	 * resolves to no window rather than to the caller, which a request meant for a closed auxiliary window must not change.
+	 */
+	private exactWindowById(windowId: number | undefined, options?: INativeHostOptions): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.windowById(typeof options?.targetWindowId === 'number' ? options.targetWindowId : windowId);
 	}
 
 	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
