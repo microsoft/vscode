@@ -6,13 +6,14 @@
 import { EditorModel, EditorView, OffsetRange, RenameModel, RenameWidget } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import type { MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import type { EditorTextVersions } from './editorTextVersions';
 import '@vscode/markdown-editor/rename.css';
 import './rename.css';
 
 export class RenameController extends Disposable {
 	readonly #editor: EditorModel;
 	readonly #host: MarkdownEditorHost;
-	readonly #epoch: () => number;
+	readonly #versions: EditorTextVersions;
 	readonly #rename: RenameModel<RenameContext>;
 	readonly #widget: RenameWidget<RenameContext>;
 	readonly #status = observableValue<string | undefined>('renameStatus', undefined);
@@ -20,11 +21,11 @@ export class RenameController extends Disposable {
 	#active: { requestId: number; source: string; offset: number } | undefined;
 	#disposed = false;
 
-	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, epoch: () => number) {
+	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, versions: EditorTextVersions) {
 		super();
 		this.#editor = editor;
 		this.#host = host;
-		this.#epoch = epoch;
+		this.#versions = versions;
 		this.#rename = this._register(new RenameModel({
 			validate: name => /[\r\n]/.test(name) ? 'Enter a single-line name.' : undefined,
 			onSubmit: async ({ name, context, signal }) => {
@@ -148,12 +149,18 @@ export class RenameController extends Disposable {
 		this.#active = active;
 		this.#status.set('Preparing rename...', undefined);
 		try {
-			const prepared = await this.#host.prepareRename({ requestId: active.requestId, offset: active.offset, editEpoch: this.#epoch() });
+			const prepared = await this.#host.prepareRename({ requestId: active.requestId, offset: active.offset, version: this.#versions.current });
 			if (this.#disposed || this.#active !== active) { return; }
+			const start = this.#versions.fromHost(prepared.version, prepared.start);
+			const endExclusive = this.#versions.fromHost(prepared.version, prepared.endExclusive);
+			if (start === undefined || endExclusive === undefined) {
+				this.#status.set('The document changed. Start rename again.', undefined);
+				return;
+			}
 			this.#status.set(undefined, undefined);
 			this.#rename.open({
 				initialName: prepared.placeholder,
-				context: { requestId: active.requestId, range: OffsetRange.fromTo(prepared.start, prepared.endExclusive) },
+				context: { requestId: active.requestId, range: OffsetRange.fromTo(start, endExclusive) },
 			});
 			this.#widget.focusAndSelect();
 		} catch (error) {
