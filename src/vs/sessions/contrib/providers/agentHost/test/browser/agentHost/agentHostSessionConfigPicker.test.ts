@@ -448,7 +448,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('places branch creation after a separator below available and filtered branches', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
-		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
 		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
@@ -465,13 +465,14 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	for (const isolation of ['folder', 'worktree', undefined] as const) {
-		test(`creates and selects a branch only after Git succeeds with ${isolation ?? 'default worktree'} isolation`, async () => {
+	for (const isolation of ['folder', undefined] as const) {
+		test(`creates and selects a branch only after Git succeeds with ${isolation ?? 'default folder'} isolation`, async () => {
 			const created = new DeferredPromise<void>();
 			const services = setupServices(store, { createBranchSupported: true }, () => created.p);
 			services.provider.config = makeDynamicBranchConfig('main', isolation);
 			if (isolation === undefined) {
 				services.provider.config = { ...services.provider.config, values: { branch: 'main' } };
+				services.provider.config.schema.properties.isolation.default = 'folder';
 			}
 			services.provider.completions = [{ value: 'main', label: 'main' }];
 			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
@@ -494,7 +495,7 @@ suite('Agent Host Session Config Picker', () => {
 				callsBeforeCreation: 0,
 				invocations: [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'main', checkout: isolation === 'folder' } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'main', checkout: true } },
 				}],
 				selection: 'feature/new',
 				label: 'feature/new',
@@ -502,9 +503,44 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	}
 
+	for (const isolation of ['worktree', undefined] as const) {
+		test(`does not offer branch creation with ${isolation ?? 'default worktree'} isolation`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main');
+			if (isolation === undefined) {
+				services.provider.config = { ...services.provider.config, values: { branch: 'main' } };
+			}
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const filtered = await services.actionWidget.delegate!.onFilter!('main', CancellationToken.None);
+			assert.deepStrictEqual({
+				initial: services.actionWidget.items.some(item => item.item?.createBranch),
+				filtered: filtered.some(item => item.item?.createBranch),
+			}, { initial: false, filtered: false });
+		});
+	}
+
+	test('does not create a branch from a stale action after selecting worktree isolation', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		let inputShown = false;
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input() { inputShown = true; return 'feature/new'; }
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const action = services.actionWidget.items.find(item => item.item?.createBranch)!.item!;
+		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
+		await services.actionWidget.delegate!.onSelect(action);
+		assert.deepStrictEqual({ inputShown, invocations: services.checkoutInvocations }, { inputShown: false, invocations: [] });
+	});
+
 	test('validates new branch names and ref conflicts in the anchored input', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
-		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
 		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
 		let inputOptions: IInputOptions | undefined;
 		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
@@ -531,7 +567,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('warns about case-only branch matches but allows attempting creation', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
-		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
 		services.provider.completions = ['main', 'Feature/Existing'].map(value => ({ value, label: value }));
 		let inputOptions: IInputOptions | undefined;
 		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
@@ -562,7 +598,7 @@ suite('Agent Host Session Config Picker', () => {
 			distinct: undefined,
 			invocations: [{
 				operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'main', checkout: false } },
+				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'main', checkout: true } },
 			}],
 			selection: 'feature/existing',
 		});
@@ -571,7 +607,7 @@ suite('Agent Host Session Config Picker', () => {
 	for (const outcome of ['cancel', 'failure', 'sessionChanged'] as const) {
 		test(`does not select a new branch after ${outcome}`, async () => {
 			const services = setupServices(store, { createBranchSupported: true }, async () => { throw new Error('Git failed'); });
-			services.provider.config = makeDynamicBranchConfig('main');
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
 			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override async input() {
 					if (outcome === 'sessionChanged') {

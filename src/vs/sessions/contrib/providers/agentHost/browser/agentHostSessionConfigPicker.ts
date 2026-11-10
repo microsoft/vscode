@@ -1053,8 +1053,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected _getCreateBranchChangeset(provider: IAgentHostSessionsProvider, sessionId: string): ISessionChangeset | undefined {
 		const session = this._session.get();
 		const config = this._getSessionConfig(provider, sessionId);
-		const branch = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+		const workspace = config && getSessionWorkspaceProperties(config.schema);
+		const branch = workspace?.baseBranch;
+		const isolation = workspace && (config?.values[workspace.isolationKey] ?? workspace.isolation?.schema.default);
 		return session?.sessionId === sessionId && provider.getCreateSessionConfig(sessionId) !== undefined
+			&& isolation !== 'worktree'
 			&& branch?.schema.enumDynamic && isSessionConfigWritable(branch.schema, true)
 			&& session.workspace.get()?.folders[0]?.gitRepository
 			? session.activeChat.get().changesets.get()?.find(changeset =>
