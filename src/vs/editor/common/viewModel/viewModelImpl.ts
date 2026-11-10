@@ -300,7 +300,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
-		if (e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.effectiveAllowVariableFonts)) {
+		if (e.hasChanged(EditorOption.renderValidationDecorations)) {
 			this._decorations.reset();
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
