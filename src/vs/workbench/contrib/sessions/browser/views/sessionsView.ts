@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -67,6 +67,8 @@ import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsLi
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
+import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -78,11 +80,12 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
-export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean): CustomizationsPresentation {
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
 		return 'hidden';
 	}
-	return treatment ? 'treatment' : 'control';
+	const resolved = resolveChatCustomizationsLocation(location, true, treatment);
+	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
@@ -169,6 +172,8 @@ export class SessionsView extends ViewPane {
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
+	private navigationShortcutsVisible = false;
+	private readonly customizationsLocation: IObservable<ChatCustomizationsLocation>;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
@@ -214,6 +219,7 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
+		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
@@ -328,7 +334,8 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
-			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
+			showNavigationShortcuts: () => this.navigationShortcutsVisible,
+			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
 			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
@@ -473,11 +480,7 @@ export class SessionsView extends ViewPane {
 		const aiVisibilityChanged = observableSignalFromEvent(this, this.scopedContextKeyService.onDidChangeContext);
 		this._register(autorun(reader => {
 			aiVisibilityChanged.read(reader);
-			const treatment = this.separateNavigation.read(reader);
-			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
-			const aiEnabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
-			const presentation = getCustomizationsPresentation(isPhoneLayout(this.layoutService), aiEnabled, sentiment.hidden === true, treatment);
-			this.updateCustomizationsPresentation(presentation);
+			this.refreshCustomizationsPresentation(reader);
 		}));
 
 		const updateSplitViewStyles = () => {
@@ -534,20 +537,34 @@ export class SessionsView extends ViewPane {
 		});
 	}
 
-	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
-		if (this.customizationsPresentation === presentation) {
+	private refreshCustomizationsPresentation(reader?: IReader): void {
+		const phone = isPhoneLayout(this.layoutService);
+		const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
+		const navigation = this.separateNavigation.read(reader);
+		this.updateCustomizationsPresentation(
+			getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			navigation && !phone && enabled && !hidden,
+		);
+	}
+
+	private updateCustomizationsPresentation(presentation: CustomizationsPresentation, navigationShortcutsVisible = presentation === 'treatment'): void {
+		const compact = this.configurationService.getValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation) === 'sidebar';
+		if (this.customizationsPresentation === presentation && this.navigationShortcutsVisible === navigationShortcutsVisible && (presentation !== 'control' || this._customizationsWidget?.compact === compact)) {
 			return;
 		}
 
 		const customizationsFocused = this._customizationsWidget?.hasFocus() === true || this.sessionsControl?.isCustomizationsFocused() === true;
 		const automationsFocused = this.sessionsControl?.isAutomationsFocused() === true;
 		const wasTreatment = this.customizationsPresentation === 'treatment';
+		const navigationChanged = this.navigationShortcutsVisible !== navigationShortcutsVisible;
 		this.customizationsPresentation = presentation;
-		this.sessionsListRearrangeContext.set(presentation === 'treatment');
+		this.navigationShortcutsVisible = navigationShortcutsVisible;
+		this.sessionsListRearrangeContext.set(navigationShortcutsVisible);
 		this.customizationsNavigationVisible.set(presentation === 'treatment', undefined);
 		this.updateHeaderLayout();
 
-		if (wasTreatment !== (presentation === 'treatment')) {
+		if (wasTreatment !== (presentation === 'treatment') || navigationChanged) {
 			this.sessionsControl?.updateNavigationVisibility();
 		}
 
@@ -604,6 +621,7 @@ export class SessionsView extends ViewPane {
 		store.add(toDisposable(() => customizationsSection.remove()));
 		const customizationsSizeChange = store.add(new Emitter<void>());
 		const customizationsWidget = this._customizationsWidget = store.add(this.instantiationService.createInstance(AICustomizationShortcutsWidget, customizationsSection, {
+			compact: this.configurationService.getValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation) === 'sidebar',
 			onDidChangeLayout: () => {
 				customizationsSizeChange.fire();
 				this.layoutSidebarSplitView();
@@ -850,12 +868,7 @@ export class SessionsView extends ViewPane {
 		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
 		this.updateHeaderLayout();
-		this.updateCustomizationsPresentation(getCustomizationsPresentation(
-			isPhoneLayout(this.layoutService),
-			this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled),
-			this.chatEntitlementService.sentiment.hidden === true,
-			this.separateNavigation.get(),
-		));
+		this.refreshCustomizationsPresentation();
 		this.layoutSidebarSplitView();
 
 		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {

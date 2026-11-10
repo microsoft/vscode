@@ -17,9 +17,9 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
-import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
+import { SessionsLayoutContribution, SessionsSidePaneLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';
-import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 // Capture registration before configuration tests reset the shared registry.
 const registeredProperties = { ...Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties() };
@@ -36,7 +36,47 @@ suite('Sessions chat layout configuration', () => {
 	});
 
 	test('does not register the unreleased former settings', () => {
-		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => registeredProperties[key]), [undefined, undefined]);
+		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode', 'sessions.experimental.sidePanePosition'].map(key => registeredProperties[key]), [undefined, undefined, undefined]);
+	});
+
+	test('registers opt-in window-scoped side-pane layout settings', () => {
+		assert.deepStrictEqual([SESSIONS_DETAILS_POSITION_SETTING, SESSIONS_FLOATING_DETAILS_SETTING].map(key => {
+			const property = registeredProperties[key];
+			return { type: property.type, default: property.default, scope: property.scope, tags: property.tags };
+		}), [
+			{ type: 'string', default: 'right', scope: ConfigurationScope.WINDOW, tags: ['experimental'] },
+			{ type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental'] },
+		]);
+	});
+
+	test('applies side-pane settings at startup and on change only to the desktop workbench', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const calls: (string | boolean)[] = [];
+		const layout = upcastPartial<IAgentWorkbenchLayoutService>({
+			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+			setDetailsPosition: position => calls.push(position),
+			setAuxiliaryBarFloating: floating => calls.push(floating),
+		});
+		const contribution = store.add(new SessionsSidePaneLayoutContribution(configuration, layout));
+		await configuration.setUserConfiguration(SESSIONS_DETAILS_POSITION_SETTING, 'left');
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
+		await configuration.setUserConfiguration(SESSIONS_DETAILS_POSITION_SETTING, 'bottom');
+		await configuration.setUserConfiguration(SESSIONS_FLOATING_DETAILS_SETTING, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
+		contribution.dispose();
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
+		store.add(new SessionsSidePaneLayoutContribution(configuration, upcastPartial<IAgentWorkbenchLayoutService>({
+			...layout, agentWorkbenchLayout: AgentWorkbenchLayout.Mobile,
+		})));
+		assert.deepStrictEqual(calls, ['right', false, 'left', false, 'bottom', true]);
+	});
+
+	test('registers left, right, top, and bottom positions within the editor side panel', () => {
+		assert.deepStrictEqual({
+			options: registeredProperties[SESSIONS_DETAILS_POSITION_SETTING].enum,
+			descriptions: registeredProperties[SESSIONS_DETAILS_POSITION_SETTING].enumDescriptions?.length,
+		}, { options: ['right', 'left', 'top', 'bottom'], descriptions: 4 });
 	});
 
 	test('does not register a separate PR activity action opt-in setting', () => {
