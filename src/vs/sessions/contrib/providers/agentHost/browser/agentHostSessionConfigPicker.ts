@@ -1086,7 +1086,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				return;
 			}
 			const branchName = await this._quickInputService.input({
-				title: CREATE_BRANCH_LABEL,
 				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", startPoint),
 				placeHolder: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name"),
 				anchor: trigger,
