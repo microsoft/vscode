@@ -32,6 +32,11 @@ export class SessionsExplorerView extends ExplorerView {
 		super.renderBody(container);
 		this.setSizeToContent(this.isSizeToContent);
 		this._register(this.tree.onDidChangeContentHeight(() => this._onDidChangeOptimalHeight.fire()));
+		this._register(this.tree.onDidScroll(event => {
+			if (event.scrollHeightChanged) {
+				this._onDidChangeOptimalHeight.fire();
+			}
+		}));
 	}
 
 	override setSizeToContent(enabled: boolean): void {
@@ -40,7 +45,7 @@ export class SessionsExplorerView extends ExplorerView {
 	}
 
 	protected override getOptimalBodyHeight(): number | undefined {
-		return this.tree?.contentHeight;
+		return this.tree?.scrollHeight;
 	}
 
 	override async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {

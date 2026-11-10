@@ -70,25 +70,28 @@ suite('SessionsExplorerView folder reveal', () => {
 		});
 	});
 
-	test('content fitting removes Explorer scroll padding and restores it when docking', () => {
-		const view = createView(async () => { }, []);
-		view.headerVisible = false;
-		let paddingBottom = 22;
-		view.setTreeForTest({
-			contentHeight: 22,
-			updateOptions: options => {
-				if (options.paddingBottom !== undefined) {
-					paddingBottom = options.paddingBottom;
-				}
-			},
+	for (const horizontalScrolling of [false, true]) {
+		test(`content fitting includes scrollbar reservation and restores docked padding (horizontal=${horizontalScrolling})`, () => {
+			const view = createView(async () => { }, []);
+			view.headerVisible = false;
+			let paddingBottom = 22;
+			view.setTreeForTest({
+				contentHeight: 44,
+				get scrollHeight() { return 44 + (horizontalScrolling ? 10 : 0) + paddingBottom; },
+				updateOptions: options => {
+					if (options.paddingBottom !== undefined) {
+						paddingBottom = options.paddingBottom;
+					}
+				},
+			});
+			view.setSizeToContent(true);
+			const floating = { contentHeight: view.getOptimalHeight(), paddingBottom };
+			view.setSizeToContent(false);
+			assert.deepStrictEqual({ floating, dockedPadding: paddingBottom }, {
+				floating: { contentHeight: horizontalScrolling ? 54 : 44, paddingBottom: 0 }, dockedPadding: 22,
+			});
 		});
-		view.setSizeToContent(true);
-		const floating = { contentHeight: view.getOptimalHeight(), paddingBottom };
-		view.setSizeToContent(false);
-		assert.deepStrictEqual({ floating, dockedPadding: paddingBottom }, {
-			floating: { contentHeight: 22, paddingBottom: 0 }, dockedPadding: 22,
-		});
-	});
+	}
 
 	test('content fitting also applies when the tree is created after the mode was selected', () => {
 		const view = createView(async () => { }, []);
@@ -96,6 +99,7 @@ suite('SessionsExplorerView folder reveal', () => {
 		let paddingBottom = 22;
 		view.setTreeForTest({
 			contentHeight: 22,
+			scrollHeight: 22,
 			updateOptions: options => {
 				if (options.paddingBottom !== undefined) {
 					paddingBottom = options.paddingBottom;

@@ -1666,8 +1666,16 @@ suite('Sessions - Workbench', () => {
 						customViewGridPartView: getView(Parts.CUSTOM_VIEW_GRID_PART),
 					});
 					restoreSidePaneComposition.call(host, { editor: editorVisible, auxiliaryBar: true });
+					const initialWidth = grid.getViewSize(getView(Parts.EDITOR_PART)).width;
+					let reopenedWidth: number | undefined;
+					if (!editorVisible) {
+						grid.resizeView(getView(Parts.EDITOR_PART), { width: 560, height: grid.getViewSize(getView(Parts.EDITOR_PART)).height });
+						restoreSidePaneComposition.call(host, { editor: false, auxiliaryBar: false });
+						restoreSidePaneComposition.call(host, { editor: false, auxiliaryBar: true });
+						reopenedWidth = grid.getViewSize(getView(Parts.EDITOR_PART)).width;
+					}
 					results.push({
-						savedWidth, editorVisible, width: grid.getViewSize(getView(Parts.EDITOR_PART)).width,
+						savedWidth, editorVisible, width: initialWidth, reopenedWidth,
 						composition: captureSidePaneComposition.call(host),
 					});
 				}
@@ -1675,10 +1683,28 @@ suite('Sessions - Workbench', () => {
 			assert.deepStrictEqual(results, results.map(result => ({
 				...result,
 				width: result.savedWidth === 740 ? 740 : 900,
+				reopenedWidth: result.editorVisible ? undefined : 560,
 				composition: { editor: result.editorVisible, auxiliaryBar: true },
 			})));
 		});
 	}
+
+	test('persists visible stacked Details-only width without replacing horizontal editor-content preferences', () => {
+		const results = ['left', 'right', 'top', 'bottom'].map(position => {
+			let saved: { editor?: number } | undefined;
+			const host = Object.assign(createHost({
+				single: true, editorWidth: 900, partVisibility: { editor: false, auxiliaryBar: true },
+			}), {
+				_detailsPosition: position,
+				_savedPartSizes: { editor: 600 },
+				storageService: { store: (_key: string, value: string) => { saved = JSON.parse(value); } },
+			});
+			Object.assign(host.workbenchGrid, { getViewCachedVisibleSize: (view: object) => host.workbenchGrid.getViewSize(view).width });
+			savePartSizes.call(host as unknown as ISavePartSizesTestHarness);
+			return saved?.editor;
+		});
+		assert.deepStrictEqual(results, [600, 600, 900, 900]);
+	});
 
 	test('desktop container resize preserves the sessions/editor ratio', () => {
 		const sessionsPartView = { minimumWidth: 300 };

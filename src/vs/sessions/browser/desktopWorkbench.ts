@@ -414,13 +414,16 @@ export class DesktopWorkbench extends Workbench {
 		}
 	}
 
+	private _rememberEditorWidth(): void {
+		const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
+		if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
+			this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
+		}
+	}
+
 	protected override _applyEditorVisibility(hidden: boolean): void {
-		// Capture content width before the shared grid node is hidden or resized.
 		if (hidden) {
-			const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
-			if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
-				this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
-			}
+			this._rememberEditorWidth();
 		}
 		if (!this._isHorizontalDetailsPosition()) {
 			this._applyStackedEditorNodeVisibility();
@@ -508,6 +511,9 @@ export class DesktopWorkbench extends Workbench {
 		// event the grid path would otherwise raise (the layout controller listens
 		// for it to capture per-session state).
 		if (this.workbenchGrid) {
+			if (hidden && !this._isHorizontalDetailsPosition() && !this.partVisibility.editor && this.workbenchGrid.isViewVisible(this.editorPartView)) {
+				this._rememberEditorWidth();
+			}
 			if (this._isHorizontalDetailsPosition()) {
 				this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
 			} else {

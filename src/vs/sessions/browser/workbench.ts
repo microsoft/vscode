@@ -956,11 +956,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			? this._savedPartSizes.editor
 			: undefined;
 
-		// A hidden editor has no current user-chosen width. In desktop its cached
-		// grid size can be the 300px detail-only node even after the whole side pane
-		// closes, while a sub-minimum measurement can also come from a transient
-		// sessions-part squeeze. Preserve the last valid editor-content width instead.
-		if ((this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.editor) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
+		const detailsPosition = this.getDetailsPosition();
+		const visibleStackedDetails = editorNodeVisible && this.partVisibility.auxiliaryBar && (detailsPosition === 'top' || detailsPosition === 'bottom');
+		// Only visible stacked Details share a user-sized editor width while editor content is hidden.
+		if ((this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.editor && !visibleStackedDetails) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
 			editorWidth = savedEditorWidth;
 		} else {
 			// Track the latest good width so a later shutdown-time squeeze falls back to it.
