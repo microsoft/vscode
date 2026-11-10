@@ -144,14 +144,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 				htmlAccessibleSource: help.includes('original source is also available in the chat Accessible View'),
 				htmlExport: help.includes('Save HTML asks where to save a sanitized, self-contained HTML file'),
 				htmlExpansion: help.includes('Open Preview opens a larger editor'),
-				htmlScrolling: help.includes('Move the pointer outside the preview to scroll chat.'),
+				htmlScrolling: help.includes('Inline previews grow to fit their content and scroll with the chat transcript.'),
+				htmlFindSource: help.includes('Find in Chat searches the original HTML and shows source'),
 				htmlSetting: help.includes(ChatConfiguration.HtmlPreviewEnabled),
 				htmlDisabled: help.includes('Inline HTML previews are disabled'),
 				repoSkillAdvertised: help.includes('/html-preview'),
 			}, {
 				modes: visible, checked: visible, setting: visible, thinking: visible, noBackfill: visible,
 				htmlPreview: visible, htmlSourceToggle: rendersHtml, htmlAccessibleSource: rendersHtml, htmlExport: rendersHtml,
-				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
+				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlFindSource: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
 				repoSkillAdvertised: false,
 			});
 		});

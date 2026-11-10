@@ -20,6 +20,7 @@ The `chat.htmlPreview.enabled` setting controls inline rendering in the Agents w
 - Use headings, text labels, meaningful image descriptions, and readable contrast. Do not rely on color alone to convey findings or status.
 - For long reports, provide a table of contents with links such as `<a href="#risks">Risks</a>` and matching element IDs. Only links within the same document work. Put external citations and workspace source links in Markdown outside the preview.
 - Prefer fluid layouts and wrapping text. Keep wide tables and code samples scrollable rather than clipping them.
+- Inline previews expand to fit their content and scroll with the transcript. Prefer content-based heights over viewport-height layouts.
 - Use theme variables with standalone fallbacks, such as `var(--vscode-editor-foreground, CanvasText)` and `var(--vscode-editor-background, Canvas)`.
 - Scripts, JavaScript event handlers, forms, inputs, buttons, embedded frames, canvas applications, external links, remote images, stylesheets, fonts, and network requests are not supported. Do not promise sliders, draggable boards, live charts, or working export buttons.
 - For interaction, use native disclosures and section links instead of script-dependent tabs or controls. If the user needs a running application, explain that it requires a separate application workflow.

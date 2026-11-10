@@ -55,7 +55,7 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
-		disableScrollChaining?: boolean;
+		includeHorizontalScrollbarInContentHeight?: boolean;
 	};
 	state: any;
 	cspSource: string;

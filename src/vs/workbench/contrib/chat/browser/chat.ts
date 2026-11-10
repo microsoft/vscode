@@ -194,6 +194,8 @@ export interface IChatCodeBlockInfo {
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
 	readonly isFocused?: boolean;
+	/** Reveals hidden code without taking focus; returns whether its layout changed. */
+	reveal?(): boolean;
 	readonly languageId?: string | undefined;
 	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }

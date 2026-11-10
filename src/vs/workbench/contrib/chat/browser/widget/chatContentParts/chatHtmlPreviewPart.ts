@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
@@ -86,6 +86,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 		@IChatOutputPartStateCache stateCache: IChatOutputPartStateCache,
 	) {
 		super();
+		this.element.setAttribute('data-chat-find-ignore', '');
 		this.reuseKey = CodeBlockPart.poolKey(data.element.id, data.codeBlockIndex);
 		this.stateCacheKey = `htmlPreview/${data.chatSessionResource.toString()}/${data.element.id}/${data.codeBlockIndex}`;
 		this.partState = stateCache.get(this.stateCacheKey) ?? { height: 0 };
@@ -142,7 +143,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 			this.webviewDisposables.add(autorun(reader => {
 				const size = webview.intrinsicContentSize.read(reader);
 				if (size && Number.isFinite(size.height) && size.height > 0) {
-					const height = Math.max(100, Math.min(600, size.height));
+					const height = Math.max(100, size.height);
 					this.partState.height = height;
 					this.previewContainer.style.height = `${height}px`;
 					this.onDidChangeHeight();
@@ -163,9 +164,24 @@ export class ChatHtmlPreviewPart extends Disposable {
 			webview.setHtml(html);
 			webview.mountTo(this.previewContainer, dom.getWindow(context.container));
 		};
+		const connectionObserver = dom.append(this.element, dom.$<dom.ConnectionObserverElement>('connection-observer'));
+		connectionObserver.hidden = true;
+		this._register(toDisposable(() => {
+			connectionObserver.onDidConnect = undefined;
+			connectionObserver.onDidDisconnect = undefined;
+			connectionObserver.remove();
+		}));
+		connectionObserver.onDidDisconnect = () => this.clearWebview();
+		connectionObserver.onDidConnect = () => {
+			if (!this.webview) {
+				this.onDidRemount();
+			}
+		};
 		this._register(context.onDidChangeVisibility(visible => {
 			if (visible) {
 				this.onDidRemount();
+			} else {
+				this.clearWebview();
 			}
 		}));
 		if (!showingSource) {
@@ -196,8 +212,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 		const viewStateChanged = previousSource !== showingSource || previousHeight !== this.previewContainer.style.height;
 		this.source.object.onDidRemount();
 		// A detached iframe can retain an unpainted document even after reinitialization.
-		this.webviewDisposables.clear();
-		this.webview = undefined;
+		this.clearWebview();
 		if (!showingSource && !this._store.isDisposed) {
 			this.renderPreview?.();
 		}
@@ -206,12 +221,25 @@ export class ChatHtmlPreviewPart extends Disposable {
 		}
 	}
 
+	private clearWebview(): void {
+		this.webviewDisposables.clear();
+		this.webview = undefined;
+	}
+
 	focus(): void {
 		if (this.sourceContainer.hidden) {
 			this.toolbar.focus();
 		} else {
 			this.source.object.focus();
 		}
+	}
+
+	reveal(): boolean {
+		if (!this.sourceContainer.hidden) {
+			return false;
+		}
+		this.showSource(true);
+		return true;
 	}
 
 	private showSource(show: boolean): void {
@@ -231,7 +259,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 		this.previewContainer.hidden = showingSource;
 		this.sourceAction.checked = showingSource;
 		if (Number.isFinite(this.partState.height) && this.partState.height > 0) {
-			this.previewContainer.style.height = `${Math.max(100, Math.min(600, this.partState.height))}px`;
+			this.previewContainer.style.height = `${Math.max(100, this.partState.height)}px`;
 		}
 		return showingSource;
 	}

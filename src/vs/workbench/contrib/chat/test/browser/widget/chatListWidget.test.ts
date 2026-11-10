@@ -49,6 +49,7 @@ import { IChatAccessibilityService, IChatWidgetService, isChatContextMenuActionC
 import { IWebviewElement, IWebviewService } from '../../../../webview/browser/webview.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
+import { ChatFindWidget, IChatFindHost } from '../../../browser/widget/chatFind/chatFindWidget.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
@@ -626,6 +627,58 @@ suite('ChatListWidget', () => {
 		return webviews;
 	}
 
+	test('HTML preview Find reveals matching source and ignores preview controls', async () => {
+		const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		stubHtmlPreviewWebviews(instantiationService);
+		const text = 'Report';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<p>FindNeedle</p>\n```\n\nShow Source refers to the artifact.') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const host: IChatFindHost = {
+			transcriptDomNode: widget.domNode,
+			getItems: () => viewModel.getItems(),
+			onDidChangeContent: Event.None,
+			reveal: (item, relativeTop) => widget.reveal(item, relativeTop),
+			getTemplateDataForRequestId: id => widget.getTemplateDataForRequestId(id),
+			onDidRerenderRow: widget.onDidRerender,
+			editorsInUse: () => widget.editorsInUse(),
+			getCodeBlockInfoForEditor: uri => widget.getCodeBlockInfoForEditor(uri),
+			getScrollTop: () => widget.scrollTop,
+			setScrollTop: top => { widget.scrollTop = top; },
+			getRenderHeight: () => widget.renderHeight,
+			getViewportAnchorItemId: () => widget.lastVisibleItem?.id,
+		};
+		const find = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		find.show('Show Source');
+		await retry(async () => {
+			const current = mainWindow.CSS.highlights.get('chat-find-current-match');
+			assert.ok(current && current.size > 0);
+		}, 10, 50);
+		const ranges = [...mainWindow.CSS.highlights.get('chat-find-current-match')!];
+		const sourceStillHidden = container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden;
+		find.show('FindNeedle');
+		await retry(async () => {
+			assert.strictEqual(container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden, false);
+		}, 10, 50);
+		await waitForStableLayout(widget);
+		const findKeepsFocus = mainWindow.document.activeElement === find.getDomNode().querySelector('input');
+		const sourceVisible = container.querySelector<HTMLElement>('.chat-html-preview-source')!.getBoundingClientRect().height > 0;
+		assert.deepStrictEqual({
+			sourceStillHidden,
+			findKeepsFocus,
+			sourceVisible,
+			pressed: container.querySelector('.chat-html-preview [aria-label="Show Source"]')?.getAttribute('aria-pressed'),
+			matchParents: ranges.map(range => range.startContainer.parentElement?.tagName),
+		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, pressed: 'true', matchParents: ['P'] });
+		find.hide();
+	});
+
 	for (const supportsHtmlPreviews of [false, true]) {
 		test(`updates existing responses when HTML previews are enabled or disabled (supported: ${supportsHtmlPreviews})`, async () => {
 			const { instantiationService, configurationService, model, container, widget } = createWidget(
@@ -683,6 +736,7 @@ suite('ChatListWidget', () => {
 		const initialWebview = webviews.find(webview => webview.marker.isConnected)!;
 		const parent = container.parentElement!;
 		widget.setVisible(false);
+		const disposedWhenHidden = initialWebview.disposed;
 		container.remove();
 		parent.appendChild(container);
 		widget.setVisible(true);
@@ -698,12 +752,13 @@ suite('ChatListWidget', () => {
 		widget.reveal(response, 0);
 		await waitForStableLayout(widget);
 
-		const returnedPreviews: { replaced: boolean; oldDisposed: boolean }[] = [];
+		const returnedPreviews: { replaced: boolean; oldDisposed: boolean; disposedWhileOffscreen: boolean }[] = [];
 		for (let pass = 0; pass < 3; pass++) {
 			const previous = webviews.find(webview => webview.marker.isConnected)!;
 			widget.scrollToEnd();
 			await waitForStableLayout(widget);
 			assert.strictEqual(container.querySelector('.chat-html-preview'), null, 'The preview must actually leave the rendered viewport');
+			const disposedWhileOffscreen = previous.disposed;
 			const width = pass % 2 === 0 ? 360 : 500;
 			container.style.width = `${width}px`;
 			widget.layout(300, width);
@@ -712,7 +767,7 @@ suite('ChatListWidget', () => {
 			await waitForStableLayout(widget);
 			const visible = webviews.find(webview => webview.marker.isConnected);
 			assert.ok(visible);
-			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed });
+			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed, disposedWhileOffscreen });
 		}
 		const originalPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
 		originalPreview.querySelector<HTMLElement>('[aria-label="Show Source"]')!.click();
@@ -729,6 +784,7 @@ suite('ChatListWidget', () => {
 		await waitForStableLayout(widget);
 		const restoredPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
 		assert.deepStrictEqual({
+			disposedWhenHidden,
 			retainedViewReplaced,
 			returnedPreviews,
 			recycled: restoredPreview !== originalPreview,
@@ -736,8 +792,9 @@ suite('ChatListWidget', () => {
 			sourcePressed: restoredPreview.querySelector('[aria-label="Show Source"]')?.getAttribute('aria-pressed'),
 			reservedHeight: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
 		}, {
+			disposedWhenHidden: true,
 			retainedViewReplaced: true,
-			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true })),
+			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true, disposedWhileOffscreen: true })),
 			recycled: true, sourceHidden: false, sourcePressed: 'true', reservedHeight: '180px',
 		});
 	});

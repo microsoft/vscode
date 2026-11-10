@@ -102,8 +102,8 @@ export interface WebviewOptions {
 	 */
 	readonly disableServiceWorker?: boolean;
 
-	/** Suppress forwarding wheel gestures that belong to scrollable content, including at its edges. */
-	readonly disableScrollChaining?: boolean;
+	/** Round up intrinsic height and include native horizontal scrollbar space for auto-sized content. */
+	readonly includeHorizontalScrollbarInContentHeight?: boolean;
 
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;

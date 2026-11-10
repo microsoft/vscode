@@ -39,7 +39,6 @@
 
 .chat-html-preview-content {
 	height: 200px;
-	max-height: 80vh;
 	overflow: hidden;
 	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
 }

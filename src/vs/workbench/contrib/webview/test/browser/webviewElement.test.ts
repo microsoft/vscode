@@ -99,12 +99,16 @@ suite('WebviewElement', () => {
 			getWebviewThemeData: () => ({ styles: {}, activeTheme: 'vscode-dark', themeLabel: 'Dark', themeId: 'test' }),
 		})));
 		const container = document.createElement('div');
+		const addListener = sinon.spy(container, 'addEventListener');
+		const removeListener = sinon.spy(container, 'removeEventListener');
 		targetWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		assert.ok(webview.element);
 		const frame = webview.element;
+		const connectedWhenSourceAssigned: boolean[] = [];
 		// Capture the shell URL without navigating away from the test document.
 		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src', sinon.match.string);
+		setSource.callsFake(() => { connectedWhenSourceAssigned.push(frame.isConnected); });
 		webview.mountTo(container, targetWindow);
 		const origin = await initialized.p;
 
@@ -128,7 +132,8 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent, connectedWhenSourceAssigned,
+			activeMountListeners: () => addListener.callCount - removeListener.callCount,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -156,6 +161,31 @@ suite('WebviewElement', () => {
 	async function sendMouseMove(webview: WebviewElement, port: MessagePort, event = mouseMove): Promise<void> {
 		await sendWebviewMessage(webview, port, 'did-mouse-move', event);
 	}
+
+	test('assigns the isolated shell URL before attaching or remounting its iframe', async () => {
+		const { frame, container, connectedWhenSourceAssigned, remount } = await createWebview();
+		await remount();
+		assert.deepStrictEqual({
+			connectedWhenSourceAssigned,
+			parent: frame.parentElement === container,
+			sandbox: [...frame.sandbox],
+		}, {
+			connectedWhenSourceAssigned: [false, false],
+			parent: true,
+			sandbox: ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads'],
+		});
+	});
+
+	test('repeated remounts replace their DOM listeners and disposal releases them', async () => {
+		const { webview, remount, activeMountListeners } = await createWebview();
+		const counts = [activeMountListeners()];
+		for (let index = 0; index < 8; index++) {
+			await remount();
+			counts.push(activeMountListeners());
+		}
+		webview.dispose();
+		assert.deepStrictEqual({ counts, disposed: activeMountListeners() }, { counts: Array(9).fill(4), disposed: 0 });
+	});
 
 	test('reports webview activity without synthesizing mouse input', async () => {
 		const { webview, port } = await createWebview();

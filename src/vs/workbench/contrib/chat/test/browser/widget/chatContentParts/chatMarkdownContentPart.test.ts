@@ -1230,7 +1230,6 @@ suite('ChatMarkdownContentPart', () => {
 				previews: webviews.length,
 				contentOptions: webviews[0].init.contentOptions,
 				serviceWorkerDisabled: webviews[0].init.options.disableServiceWorker,
-				scrollContained: webviews[0].init.options.disableScrollChaining,
 				title: webviews[0].init.title,
 				heading: document.querySelector('h2')?.textContent,
 				style: document.querySelector('body style')?.textContent,
@@ -1242,7 +1241,6 @@ suite('ChatMarkdownContentPart', () => {
 				previews: 1,
 				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
 				serviceWorkerDisabled: true,
-				scrollContained: true,
 				title: 'HTML preview for code block 1',
 				heading: 'Quarterly report',
 				style: 'h2 { color: red }',
@@ -1346,12 +1344,16 @@ suite('ChatMarkdownContentPart', () => {
 			}, { updated: true, webviews: 1, disposed: false, sameButton: true, pressed: 'true', sourceHidden: false, previewHidden: true, sourceRenders: 1, remounts: 0 });
 		});
 
-		test('bounds preview height and replaces its detached webview on remount', () => {
+		test('uses the full content height and replaces its detached webview on remount', () => {
 			const visibility = disposables.add(new Emitter<boolean>());
 			const part = createMarkdownPart(fenced(), { ...createRenderContext(), onDidChangeVisibility: visibility.event }, false, false, options);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			mainWindow.document.body.appendChild(part.domNode);
 			const webview = webviews[0].webview;
 			webview.intrinsicContentSize.set({ width: 500, height: 100_000 }, undefined);
-			const height = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height;
+			const preview = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')!;
+			const height = preview.style.height;
+			const measuredHeight = preview.getBoundingClientRect().height;
 			part.onDidRemount();
 			const previousDisposed = webview.disposed;
 			webviews[1].webview.intrinsicContentSize.set({ width: 0, height: 0 }, undefined);
@@ -1360,12 +1362,13 @@ suite('ChatMarkdownContentPart', () => {
 			part.dispose();
 			assert.deepStrictEqual({
 				height,
+				measuredHeight,
 				loadingHeight,
 				previousDisposed,
 				created: webviews.length,
 				reusedDetachedFrame: webviews.some(view => view.webview.remounts > 0),
 				allDisposed: webviews.every(view => view.webview.disposed),
-			}, { height: '600px', loadingHeight: '600px', previousDisposed: true, created: 3, reusedDetachedFrame: false, allDisposed: true });
+			}, { height: '100000px', measuredHeight: 100000, loadingHeight: '100000px', previousDisposed: true, created: 3, reusedDetachedFrame: false, allDisposed: true });
 		});
 
 		test('keeps source mode on remount and creates a fresh webview when returning to preview', () => {
@@ -1695,6 +1698,22 @@ suite('ChatMarkdownContentPart', () => {
 				['#summary', '#code%20review', '#code%20review', '#', null, null, null, null, null, null]);
 		});
 
+		test('preserves common section targets and their ARIA and SVG references without DOM collisions', () => {
+			const ids = ['title', 'timeline', 'implementation', 'style', 'summary', 'vscode-html-preview-title'];
+			const document = new DOMParser().parseFromString(createHtmlPreviewDocument(
+				ids.map(id => `<a href="#${id}">${id}</a><h2 id="${id}">${id}</h2>`).join('')
+				+ '<section aria-labelledby="title summary"></section><svg><defs><marker id="target"></marker></defs><path marker-end="url(#%74arget)"></path></svg>'
+			), 'text/html');
+			const markerId = document.querySelector('path')?.getAttribute('marker-end')?.slice(5, -1);
+			assert.deepStrictEqual({
+				targets: [...document.querySelectorAll('a')].map(anchor => document.getElementById(decodeURIComponent(anchor.hash.slice(1)))?.textContent),
+				ariaTargets: document.querySelector('section')?.getAttribute('aria-labelledby')?.split(' ').map(id => document.getElementById(id)?.textContent),
+				svgTarget: !!markerId && document.getElementById(decodeURIComponent(markerId)) === document.querySelector('marker'),
+				noClobberingTitle: document.getElementById('title') === null,
+				distinctIds: new Set([...document.querySelectorAll('[id]')].map(element => element.id)).size,
+			}, { targets: ids, ariaTargets: ['title', 'summary'], svgTarget: true, noClobberingTitle: true, distinctIds: ids.length + 1 });
+		});
+
 		test('exports only referenced theme variables without introducing active markup', () => {
 			const document = new DOMParser().parseFromString(createHtmlPreviewDocument('<p style="color: var(--vscode-foreground)">Themed</p>', {
 				activeTheme: 'vscode-dark',
@@ -1727,7 +1746,7 @@ suite('ChatMarkdownContentPart', () => {
 			})));
 		});
 
-		test('includes the horizontal scrollbar in preview-local content height', async () => {
+		test('preserves native horizontal scrolling without a layout wrapper', async () => {
 			const frame = mainWindow.document.createElement('iframe');
 			frame.setAttribute('sandbox', 'allow-same-origin');
 			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 440px; height: 300px; border: 0;';
@@ -1738,15 +1757,65 @@ suite('ChatMarkdownContentPart', () => {
 			mainWindow.document.body.appendChild(frame);
 			await loaded.p;
 			const document = frame.contentDocument!;
-			frame.style.height = `${Math.max(100, Math.min(600, document.documentElement.offsetHeight))}px`;
-			const content = document.querySelector<HTMLElement>('.chat-html-preview-document')!;
+			frame.style.height = `${Math.ceil(document.documentElement.getBoundingClientRect().height + frame.contentWindow!.innerHeight - document.documentElement.clientHeight)}px`;
 			assert.deepStrictEqual({
 				rootFitsVertically: document.documentElement.scrollHeight === document.documentElement.clientHeight,
-				rootFitsHorizontally: document.documentElement.scrollWidth === document.documentElement.clientWidth,
-				contentOverflows: content.scrollWidth > content.clientWidth,
-				scrollbarHeight: content.offsetHeight - content.clientHeight,
-				containment: frame.contentWindow!.getComputedStyle(document.documentElement).overscrollBehavior,
-			}, { rootFitsVertically: true, rootFitsHorizontally: true, contentOverflows: true, scrollbarHeight: 16, containment: 'contain' });
+				contentOverflows: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+				scrollbarHeight: frame.contentWindow!.innerHeight - document.documentElement.clientHeight,
+				unwrapped: document.querySelector('pre')?.parentElement === document.body,
+			}, { rootFitsVertically: true, contentOverflows: true, scrollbarHeight: 16, unwrapped: true });
+		});
+
+		test('keeps a viewport-height body minimum stable while auto-sizing', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 440px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>body{min-height:100vh}</style><p>Viewport-height document</p>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const heights: number[] = [];
+			for (let index = 0; index < 3; index++) {
+				const root = frame.contentDocument!.documentElement;
+				const height = Math.ceil(root.getBoundingClientRect().height + frame.contentWindow!.innerHeight - root.clientHeight);
+				heights.push(height);
+				frame.style.height = `${height}px`;
+				await new Promise<void>(resolve => frame.contentWindow!.requestAnimationFrame(() => resolve()));
+			}
+			assert.deepStrictEqual(heights, [300, 300, 300]);
+		});
+
+		test('preserves body grid layout, ID selectors and sticky navigation', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>body{display:grid;grid-template-columns:160px 1fr;gap:12px}nav{position:sticky;top:0;align-self:start}main{min-height:1200px}#\\74 itle{color:rgb(255,0,0)}[id="timeline" i]{font-weight:600}a[href="#title"]{color:rgb(0,128,0)}#title\u00e9{font-style:italic}.literal::after{content:"#title"}</style><nav><a href="#title">Contents</a></nav><main><h1 id="title">Report</h1><p id="timeline">Timeline</p><p id="Timeline">Case variant</p><p id="title\u00e9">Unicode ID</p><p class="literal"></p></main>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const document = frame.contentDocument!;
+			const nav = document.querySelector('nav')!;
+			const main = document.querySelector('main')!;
+			const before = { sameRow: nav.getBoundingClientRect().top === main.getBoundingClientRect().top, separateColumns: main.getBoundingClientRect().left > nav.getBoundingClientRect().right };
+			frame.contentWindow!.scrollTo(0, 200);
+			await new Promise<void>(resolve => frame.contentWindow!.requestAnimationFrame(() => resolve()));
+			assert.deepStrictEqual({
+				before,
+				stickyTop: nav.getBoundingClientRect().top,
+				titleColor: frame.contentWindow!.getComputedStyle(document.querySelector('h1')!).color,
+				linkColor: frame.contentWindow!.getComputedStyle(document.querySelector('a')!).color,
+				timelineWeight: frame.contentWindow!.getComputedStyle(document.querySelector('p')!).fontWeight,
+				variantWeight: frame.contentWindow!.getComputedStyle(document.getElementById('Timeline')!).fontWeight,
+				unicodeStyle: frame.contentWindow!.getComputedStyle(document.getElementById('title\u00e9')!).fontStyle,
+				literal: frame.contentWindow!.getComputedStyle(document.querySelector('.literal')!, '::after').content,
+				children: [...document.body.children].filter(element => element.tagName !== 'STYLE').map(element => element.tagName),
+			}, {
+				before: { sameRow: true, separateColumns: true }, stickyTop: 0, titleColor: 'rgb(255, 0, 0)', linkColor: 'rgb(0, 128, 0)', timelineWeight: '600', variantWeight: '600', unicodeStyle: 'italic', literal: '"#title"', children: ['NAV', 'MAIN'],
+			});
 		});
 
 		test('removes active markup, navigations, resource URLs, and webview context while preserving static visuals', () => {

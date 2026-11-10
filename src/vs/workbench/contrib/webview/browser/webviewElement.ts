@@ -95,6 +95,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private _encodedWebviewOriginPromise?: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
+	private readonly _mountDisposables = this._register(new DisposableStore());
 
 	protected get platform(): string { return 'browser'; }
 
@@ -430,7 +431,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 
-		const allowRules = ['cross-origin-isolated', 'autoplay', 'local-network-access'];
+		const allowRules = ['cross-origin-isolated', 'autoplay'];
+		const supportedFeatures = (element as HTMLIFrameElement & { featurePolicy?: { features(): string[] } }).featurePolicy?.features();
+		if (supportedFeatures?.includes('local-network-access')) {
+			allowRules.push('local-network-access');
+		}
 		if (!isFirefox) {
 			allowRules.push('clipboard-read', 'clipboard-write');
 		}
@@ -487,12 +492,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			return;
 		}
 
+		this._mountDisposables.clear();
+		this.element.remove();
 		this._windowId = targetWindow.vscodeWindowId;
-		this._mountId = generateUuid();
-		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		const mountId = this._mountId = generateUuid();
+		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
-			if (!this._disposed) {
+			if (!this._disposed && this._mountId === mountId) {
+				this._encodedWebviewOrigin = encodedWebviewOrigin;
 				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
+				this.perfMark('mounted');
+				element.appendChild(this.element!);
 			}
 		});
 		this._registerMessageHandler(targetWindow);
@@ -502,21 +512,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
-			this._register(addDisposableListener(element, eventName, () => {
+			this._mountDisposables.add(addDisposableListener(element, eventName, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
 		for (const node of [element, targetWindow]) {
-			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
+			this._mountDisposables.add(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
 		element.id = this.id; // This is used by aria-flow for accessibility order
-
-		this.perfMark('mounted');
-		element.appendChild(this.element);
 	}
 
 	private resetHostChannel(): void {
@@ -717,7 +724,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
-				disableScrollChaining: this._options.disableScrollChaining,
+				includeHorizontalScrollbarInContentHeight: this._options.includeHorizontalScrollbarInContentHeight,
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

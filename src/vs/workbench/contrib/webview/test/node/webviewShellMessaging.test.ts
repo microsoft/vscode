@@ -15,19 +15,6 @@ import { WebviewMouseActivity } from '../../common/webview.js';
 suite('Webview shell messaging', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWheelHandler(messages: Pick<WheelEvent, 'deltaX' | 'deltaY'>[], platform = 'MacIntel'): (event: WheelEvent, contain?: boolean) => void {
-		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
-		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
-		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
-		const startMarker = '// #region Wheel forwarding';
-		const start = html.indexOf(startMarker);
-		const end = html.indexOf('// #endregion Wheel forwarding', start);
-		assert.ok(start !== -1 && end > start);
-		return new Function('hostMessaging', 'navigator', `${html.slice(start + startMarker.length, end)}\nreturn handleWheel;`)({
-			postMessage: (_channel: string, data: Pick<WheelEvent, 'deltaX' | 'deltaY'>) => messages.push({ deltaX: data.deltaX, deltaY: data.deltaY }),
-		}, { platform });
-	}
-
 	test('sends host messages through startup-captured primitives', () => {
 		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
 		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
@@ -152,109 +139,53 @@ suite('Webview shell messaging', () => {
 		});
 	});
 
-	test('contains scrolling documents and nested panes without trapping short previews or changing other webviews', () => {
-		const messages: { deltaX: number; deltaY: number }[] = [];
-		const handleWheel = createWheelHandler(messages);
-		const styles = new Map<Element, Pick<CSSStyleDeclaration, 'overflowX' | 'overflowY'>>();
-		const view = upcastPartial<NonNullable<Document['defaultView']>>({
-			getComputedStyle: element => upcastPartial<CSSStyleDeclaration>(styles.get(element)!),
-		});
-		let scrollingElement: Element;
-		const document: Document = upcastPartial<Document>({
-			defaultView: view,
-			get scrollingElement() { return scrollingElement; },
-			get body(): HTMLElement { return body; },
-		});
-		const element = (width = 100, height = 100, overflowX = 'visible', overflowY = 'visible'): HTMLElement => {
-			const node = upcastPartial<HTMLElement>({
-				nodeType: 1, ownerDocument: document,
-				clientWidth: 100, clientHeight: 100, scrollWidth: width, scrollHeight: height, scrollTop: 0,
-			});
-			styles.set(node, { overflowX, overflowY });
-			return node;
-		};
-		scrollingElement = element();
-		const body = element();
-		const forwards = (target: Element, deltaX: number, deltaY: number, contain = true, defaultPrevented = false) => {
-			const before = messages.length;
-			handleWheel(upcastPartial<WheelEvent>({
-				deltaX, deltaY, deltaMode: 0, deltaZ: 0, detail: 0, type: 'wheel', defaultPrevented,
-				composedPath: () => [target, body, scrollingElement, document, view],
-				preventDefault: () => { },
-			}), contain);
-			return messages.length > before;
-		};
-
-		const shortPreview = forwards(body, 0, 40);
-		scrollingElement = element(100, 500);
-		const documentAtEdges = [0, 200, 400].map(scrollTop => {
-			scrollingElement.scrollTop = scrollTop;
-			return [forwards(body, 0, -40), forwards(body, 0, 40)];
-		});
-		const ordinaryWebview = forwards(body, 0, 40, false);
-		scrollingElement = element();
-		const verticalPane = element(100, 500, 'hidden', 'auto');
-		const horizontalPane = element(500, 100, 'auto', 'hidden');
-		const nestedVertical = forwards(verticalPane, 0, 40);
-		verticalPane.scrollTop = 400;
-		const nestedAtBoundary = forwards(verticalPane, 0, 40);
-		const nestedHorizontal = forwards(horizontalPane, 40, 0);
-		const orthogonalGesture = forwards(horizontalPane, 0, 40);
-		const hiddenOverflow = forwards(element(500, 500, 'hidden', 'clip'), 40, 40);
-		const alreadyHandled = forwards(body, 0, 40, true, true);
-		scrollingElement = element(100, 500);
-		styles.set(body, { overflowX: 'visible', overflowY: 'hidden' });
-		const rootWithHiddenBody = forwards(body, 0, 40);
-
-		assert.deepStrictEqual({
-			shortPreview, documentAtEdges, ordinaryWebview, nestedVertical, nestedAtBoundary,
-			nestedHorizontal, orthogonalGesture, hiddenOverflow, alreadyHandled, rootWithHiddenBody,
-		}, {
-			shortPreview: true, documentAtEdges: [[false, false], [false, false], [false, false]], ordinaryWebview: true,
-			nestedVertical: false, nestedAtBoundary: false, nestedHorizontal: false, orthogonalGesture: true,
-			hiddenOverflow: true, alreadyHandled: false, rootWithHiddenBody: true,
-		});
+	test('opted-in intrinsic height fits fractional content and native scrollbars without changing other webviews', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const reporter = html.match(/const postSize = \(\) => \{[\s\S]*?\r?\n\t+\};/)?.[0];
+		assert.ok(reporter);
+		const sizes: { width: number; height: number }[] = [];
+		for (const [includeHorizontalScrollbarInContentHeight, clientHeight] of [[false, 184], [true, 184], [false, 200], [true, 200]] as const) {
+			new Function('docEl', 'contentWindow', 'options', 'hostMessaging', `${reporter}\npostSize();`)(
+				{ offsetWidth: 440, offsetHeight: 200, clientHeight, getBoundingClientRect: () => ({ height: 200.45 }) },
+				{ innerHeight: 200 },
+				{ includeHorizontalScrollbarInContentHeight },
+				{ postMessage: (_channel: string, data: typeof sizes[number]) => sizes.push(data) },
+			);
+		}
+		assert.deepStrictEqual(sizes, [200, 217, 200, 201].map(height => ({ width: 440, height })));
 	});
 
-	test('normalizes contained wheel axes and cancels native drift only when delegating', () => {
+	test('only delegates recognized network permissions while preserving script and browser restrictions', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const allow = html.match(/const allowRules = \[[\s\S]*?newFrame\.setAttribute\('allow',[\s\S]*?\);/)?.[0];
+		assert.ok(allow);
 		const cases = [
-			{ platform: 'MacIntel', deltaX: 1, deltaY: 40, shiftKey: false, contain: true },
-			{ platform: 'MacIntel', deltaX: -1, deltaY: -40, shiftKey: false, contain: true },
-			{ platform: 'MacIntel', deltaX: 40, deltaY: 1, shiftKey: false, contain: true },
-			{ platform: 'Win32', deltaX: 0, deltaY: 40, shiftKey: true, contain: true },
-			{ platform: 'Linux x86_64', deltaX: 0, deltaY: -40, shiftKey: true, contain: true },
-			{ platform: 'MacIntel', deltaX: 0, deltaY: 40, shiftKey: true, contain: true },
-			{ platform: 'Win32', deltaX: 1, deltaY: 40, shiftKey: true, contain: true },
-			{ platform: 'MacIntel', deltaX: 1, deltaY: 40, shiftKey: false, contain: false },
+			{ features: [], allowScripts: false, isFirefox: false },
+			{ features: ['local-network-access'], allowScripts: false, isFirefox: false },
+			{ features: [], allowScripts: true, isFirefox: false },
+			{ features: undefined, allowScripts: true, isFirefox: true },
 		];
-		const results = cases.map(testCase => {
-			const messages: Pick<WheelEvent, 'deltaX' | 'deltaY'>[] = [];
-			let prevented = false;
-			const document = upcastPartial<Document>({
-				defaultView: upcastPartial<NonNullable<Document['defaultView']>>({
-					getComputedStyle: () => upcastPartial<CSSStyleDeclaration>({ overflowX: 'auto', overflowY: 'auto' }),
-				}),
-			});
-			const pane = upcastPartial<HTMLElement>({
-				nodeType: 1, ownerDocument: document,
-				clientWidth: 100, scrollWidth: 500, clientHeight: 100, scrollHeight: 100,
-			});
-			createWheelHandler(messages, testCase.platform)(upcastPartial<WheelEvent>({
-				...testCase,
-				composedPath: () => [pane, document],
-				preventDefault: () => { prevented = true; },
-			}), testCase.contain);
-			return { messages, prevented };
+		const policies = cases.map(testCase => {
+			let policy: string | undefined;
+			new Function('newFrame', 'isFirefox', 'options', allow)(
+				{
+					featurePolicy: testCase.features ? { features: () => testCase.features } : undefined,
+					setAttribute: (_name: string, value: string) => { policy = value; },
+				},
+				testCase.isFirefox,
+				{ allowScripts: testCase.allowScripts },
+			);
+			return policy;
 		});
-		assert.deepStrictEqual(results, [
-			{ messages: [{ deltaX: 0, deltaY: 40 }], prevented: true },
-			{ messages: [{ deltaX: 0, deltaY: -40 }], prevented: true },
-			{ messages: [], prevented: false },
-			{ messages: [], prevented: false },
-			{ messages: [], prevented: false },
-			{ messages: [{ deltaX: 0, deltaY: 40 }], prevented: true },
-			{ messages: [{ deltaX: 0, deltaY: 40 }], prevented: true },
-			{ messages: [{ deltaX: 1, deltaY: 40 }], prevented: false },
+		assert.deepStrictEqual(policies, [
+			'cross-origin-isolated; autoplay;',
+			'cross-origin-isolated; autoplay; local-network-access;',
+			'cross-origin-isolated; autoplay; clipboard-read; clipboard-write;',
+			'cross-origin-isolated; autoplay;',
 		]);
 	});
 
