@@ -89,7 +89,7 @@ suite('workspace images', () => {
 	});
 
 	// The cache task saves its folder at the end of every job that didn't restore its key exactly, and
-	// only the Workspace Image job of Azure Pipelines may save images. So a test job changes the key
+	// only the image job of Azure Pipelines may save images. So a test job changes the key
 	// files that the cache task hashes to a key that no image has, and empties the folder it saves.
 	test('Azure Pipelines test jobs save no image under the key of one', () => {
 		const { steps } = load(readRepositoryFile('build/azure-pipelines/common/workspace-image.yml').toString(), { schema: FAILSAFE_SCHEMA }) as { steps: { task?: string; inputs?: Record<string, unknown> }[] };

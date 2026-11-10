@@ -9,7 +9,7 @@ parameters:
     default: false
   # Workspace images (see build/azure-pipelines/common/workspaceImage.ts): use, for the CI test jobs,
   # which mount an image over their checkout when the cache has one, and install on top of it; build,
-  # for the Workspace Image job, which installs into an image when the cache has no current one.
+  # for the image job, which installs into an image when the cache has no current one.
   - name: VSCODE_WORKSPACE_IMAGE
     type: string
     default: none
@@ -45,7 +45,7 @@ steps:
       parameters:
         os: linux
 
-  # An image holds neither the private repositories nor their credentials: the Workspace Image job
+  # An image holds neither the private repositories nor their credentials: the image job
   # installs without the distro, whose install roots the test jobs install on top of the image
   - ${{ if ne(parameters.VSCODE_WORKSPACE_IMAGE, 'build') }}:
     - template: ../../distro/download-distro.yml@self
@@ -84,7 +84,7 @@ steps:
 
   - template: ../../common/apply-sdk-canary.yml@self
 
-  # An image holds its own pnpm store, which the Workspace Image job installs into without the cache
+  # An image holds its own pnpm store, which the image job installs into without the cache
   - ${{ if ne(parameters.VSCODE_WORKSPACE_IMAGE, 'build') }}:
     - template: ../../common/restore-pnpm-store.yml@self
       parameters:

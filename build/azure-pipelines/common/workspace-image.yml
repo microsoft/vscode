@@ -1,6 +1,6 @@
 parameters:
   # use: a test job, which mounts the newest image of its native build inputs over its checkout, or
-  # installs everything without one, as before. build: the Workspace Image job of the stage, which
+  # installs everything without one, as before. build: the image job of the stage, which
   # builds an image when the cache has none of the current inputs and day.
   - name: mode
     type: string
@@ -14,7 +14,7 @@ parameters:
 # Workspace images (see workspaceImage.ts). Include it right after the checkout and the Node.js setup:
 # the image is mounted over the sources directory, so it hides what the steps before it wrote there.
 #
-# The cache has no restore-only mode, so the test jobs make sure that only the Workspace Image job
+# The cache has no restore-only mode, so the test jobs make sure that only the image job
 # saves images: a test job that doesn't restore the key exactly changes its key files to a key that no
 # image has before the end of the job, when the cache saves (see `restore` in workspaceImage.ts).
 steps:

@@ -12,7 +12,7 @@ parameters:
 # test jobs install everything without an image, so a failure of this job doesn't fail the build.
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}_WorkspaceImage
-    displayName: Workspace Image
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Image
     timeoutInMinutes: 30
     continueOnError: true
     variables:

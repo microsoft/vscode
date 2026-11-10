@@ -15,9 +15,9 @@
 //     Test jobs: mounts the image that the cache restored over the checkout, at the commit of the
 //     checkout, or leaves the checkout as it is. Never fails the job.
 //   node workspaceImage.ts create
-//     Workspace Image job: mounts an empty volume over the checkout, at the commit of the checkout.
+//     Image job: mounts an empty volume over the checkout, at the commit of the checkout.
 //   node workspaceImage.ts pack
-//     Workspace Image job: packs the volume into the cache folder, after the install steps.
+//     Image job: packs the volume into the cache folder, after the install steps.
 
 import { spawnSync, type SpawnSyncOptions } from 'child_process';
 import crypto from 'crypto';
@@ -33,7 +33,7 @@ const DISCARDED_KEY = 'discarded';
 const METADATA_FILE = '.build/workspace-image.json';
 /** The pnpm store, on the volume of the image, so that pnpm hard links its packages */
 const STORE_FOLDER = '.build/pnpm-store';
-/** The checkouts of private repositories, which the test jobs check out themselves: an image holds neither their sources nor their credentials, so the Workspace Image job doesn't check them out */
+/** The checkouts of private repositories, which the test jobs check out themselves: an image holds neither their sources nor their credentials, so the image job doesn't check them out */
 const PRIVATE_FOLDERS = ['.build/distro', '.build/vscode-encrypt', '.build/vsda', '.build/vscode-regexp-languagedetection', '.build/.gitconfig-distro'];
 const RESTORE_TIMEOUT_SECONDS = 240;
 
@@ -117,7 +117,7 @@ function readKey(name: 'base' | 'image'): string {
  * The cache key has two parts. `base` is the key of the native build inputs, which a job needs to
  * install on top of an image, as installing doesn't build the native modules of an image again: the
  * test jobs restore the newest image of the same `base`. `image` also holds the lockfiles and the day
- * of the pipeline run, so the Workspace Image job builds a new image after a dependency change and on
+ * of the pipeline run, so the image job builds a new image after a dependency change and on
  * the first run of a day. The steps run it before the distro is checked out, so the distro roots don't
  * count (see `distroRoots`), as the images leave the distro out.
  */
@@ -232,7 +232,7 @@ async function mountImage(ws: string, base: string): Promise<void> {
 /**
  * The cache task has no restore-only mode: at the end of a job that succeeded, it saves its folder
  * under its key unless it restored that key exactly, or another job saved it first. Only the
- * Workspace Image job saves images, so the key of a test job that didn't restore it exactly becomes a
+ * image job saves images, so the key of a test job that didn't restore it exactly becomes a
  * key that no image has, and its folder is emptied: the job saves an empty entry under that key, once.
  */
 async function restore(): Promise<void> {
