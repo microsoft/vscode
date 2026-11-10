@@ -12201,16 +12201,23 @@ class SessionPluginController extends Disposable {
 		const result: Customization[] = [
 			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
-			...this._runtimePlugins.map(plugin => {
-				const native = discovered.find(customization => customization.type === CustomizationType.Plugin && isEqual(URI.parse(customization.uri), URI.parse(plugin.uri)));
-				return native?.type === CustomizationType.Plugin ? { ...plugin, children: native.children ?? plugin.children } : plugin;
-			}),
 		];
 		const workspaceDefinitions = anchor?.mcpDiscoveryEntry()?.definitions ?? [];
 		const declaredMcpNames = new Set(getMcpServerCustomizations([
 			...result,
 			...workspaceDefinitions.map(definition => definition.customization),
 		]).map(server => server.name));
+		for (const plugin of this._runtimePlugins) {
+			const native = discovered.find(customization => customization.type === CustomizationType.Plugin && isEqual(URI.parse(customization.uri), URI.parse(plugin.uri)));
+			const children = (native?.type === CustomizationType.Plugin ? native.children ?? plugin.children : plugin.children)
+				?.filter(child => child.type !== CustomizationType.McpServer || !declaredMcpNames.has(child.name));
+			result.push({ ...plugin, children });
+			for (const child of children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					declaredMcpNames.add(child.name);
+				}
+			}
+		}
 		for (const customization of discovered) {
 			if (this._runtimePlugin(customization)) {
 				continue;

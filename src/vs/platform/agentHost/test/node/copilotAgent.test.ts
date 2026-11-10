@@ -3938,7 +3938,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					servers: customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item.uri] : item.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.uri) ?? []),
 					plugins: customizations.filter(item => item.type === CustomizationType.Plugin).map(item => item.children?.map(child => child.type)),
-				}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [] });
+				}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [[]] });
 			});
 		}
 
@@ -4056,7 +4056,7 @@ suite('CopilotAgent', () => {
 					installed = false;
 				});
 				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
-					plugins: [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+					plugins: installed || operation === 'enablement' ? [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }] : [],
 				}));
 				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
 				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
@@ -4091,7 +4091,7 @@ suite('CopilotAgent', () => {
 						results.push({ published: sessions.map(session => published.get(session.toString())), peer: peerNames() });
 					}
 					assert.deepStrictEqual(results, [
-						{ published: [[], []], peer: [] },
+						{ published: operation === 'enablement' ? [['session-timeline'], ['session-timeline']] : [[], []], peer: [] },
 						{ published: [['session-timeline'], ['session-timeline']], peer: ['session-timeline'] },
 					]);
 				} finally {
@@ -4132,6 +4132,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
 			const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async () => {
 				installed = false;
+				client.pluginInstallations = [];
 				return undefined;
 			});
 			const published: string[][] = [];
@@ -20925,7 +20926,7 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(syncCalls, 1);
 		});
 
-		test('client plugin states shadow matching discovered plugins without hiding different same-named plugins', async () => {
+		test('client plugin states shadow matching runtime-only discovered plugins without hiding different same-named plugins', async () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
@@ -20987,6 +20988,8 @@ suite('CopilotAgent', () => {
 				pluginManager: new PluginManager(),
 				useRealCustomizationEnablementService: true,
 			});
+			const inventory = stub(agent, 'listPluginInstallations').resolves([]);
+			disposables.add(toDisposable(() => inventory.restore()));
 			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidChatProgress(progress => {
 				if (progress.kind === 'action') {
