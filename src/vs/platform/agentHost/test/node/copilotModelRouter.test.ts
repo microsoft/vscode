@@ -147,23 +147,34 @@ suite('CopilotModelRouter', () => {
 		const route = (previousTurns: Turn[], picker?: IModelRouterPicker) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'plan the migration', models: withWindows, previousTurns, picker });
 		const picked = await route([], new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } }));
 		const unavailable = await route([]);
-		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long' })]);
+		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long', longContext: true })]);
 		// The long window is the chat's, so it holds across another router's pick, a turn on a model with one size, and until the user picks a model by hand.
+		// It also holds when no route asked for it and the earlier model ran on its larger window by default.
 		const handPicked = { ...routedTurn({ router: 'x', chosenModel: 'x' }), usage: { inputTokens: 10, outputTokens: 1 }, message: { text: 'earlier', origin: { kind: MessageKind.User }, model: { id: 'haiku' } } } as Turn;
 		const stickyLong = await Promise.all([
-			route([routedTurn({ router: 'other', chosenModel: 'haiku', contextSize: 'long' })]),
-			route([routedTurn({ router: 'daily', chosenModel: 'opus', contextSize: 'long' }), routedTurn({ router: 'daily', chosenModel: 'haiku' })]),
-			route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long' }), handPicked]),
+			route([routedTurn({ router: 'other', chosenModel: 'haiku', contextSize: 'long', longContext: true })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'opus', contextSize: 'long', longContext: true }), routedTurn({ router: 'daily', chosenModel: 'haiku' })]),
+			route([routedTurn({ router: 'other', chosenModel: 'opus', longContext: true })]),
+			route([routedTurn({ router: 'daily', chosenModel: 'haiku', contextSize: 'long', longContext: true }), handPicked]),
 		]);
 		assert.deepStrictEqual(stickyLong.map(result => result.selection), [
 			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
 			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
+			{ id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } },
 			{ id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } },
+		]);
+		// A model that defaults to its larger window is on a long window without the router sending a size.
+		const longByDefault = withWindows.map((candidate): IAgentModelInfo => ({ ...candidate, configSchema: { type: 'object', properties: { ...candidate.configSchema?.properties, [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000, 1_000_000)! } } }));
+		const implicit = (previousTurns: Turn[]) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('effort: off\n'), text: 'plan the migration', models: longByDefault, previousTurns, picker: undefined });
+		const implicitLong = [await implicit([]), await implicit([routedTurn({ router: 'daily', chosenModel: 'haiku', longContext: true })])];
+		assert.deepStrictEqual(implicitLong.map(result => [result.selection, result.routed?.longContext, result.routed?.contextSize]), [
+			[{ id: 'haiku' }, true, undefined],
+			[{ id: 'haiku' }, true, undefined],
 		]);
 		assert.deepStrictEqual({ picked, unavailable: { selection: unavailable.selection, notices: unavailable.notices }, kept: { selection: kept.selection, contextSize: kept.routed?.contextSize, contextTokens: kept.routed?.contextTokens } }, {
 			picked: {
 				selection: { id: 'opus', config: { [ContextSizeConfigKey]: 1_000_000 } },
-				routed: { router: 'daily', routerLabel: 'Daily Driver', chosenModel: 'opus', preference: 'Planning.', contextSize: 'long', contextTokens: 1_000_000, firstTurnOnly: true },
+				routed: { router: 'daily', routerLabel: 'Daily Driver', chosenModel: 'opus', preference: 'Planning.', contextSize: 'long', contextTokens: 1_000_000, longContext: true, firstTurnOnly: true },
 				notices: [],
 			},
 			unavailable: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } }, notices: ['The model router Daily Driver used HAIKU, its first model, because routing was unavailable.'] },

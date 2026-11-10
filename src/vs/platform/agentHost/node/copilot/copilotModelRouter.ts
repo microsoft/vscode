@@ -8,7 +8,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelContextSizes, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -304,8 +304,13 @@ export class CopilotModelRouter {
 
 function decision({ router, keepLongContext }: IRouteContext, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {
 	const contextSizes = modelContextSizes(route.model);
-	const contextSize = keepLongContext && contextSizes.length > 1 ? 'long' : route.contextSize;
-	const contextTokens = contextSize ? contextSizes[contextSize === 'long' ? contextSizes.length - 1 : 0] : undefined;
+	const largest = contextSizes.length > 1 ? contextSizes[contextSizes.length - 1] : undefined;
+	// With no size from the router the model runs on its own default, which for some models is the larger window.
+	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : size === 'long' ? largest : contextSizes[0];
+	// A chat on a long window keeps it, so a route that would run on a smaller one is moved up.
+	const contextSize = keepLongContext && largest !== undefined && tokensFor(route.contextSize) !== largest ? 'long' : route.contextSize;
+	const contextTokens = contextSize ? tokensFor(contextSize) : undefined;
+	const longContext = largest !== undefined && tokensFor(contextSize) === largest;
 	const config = {
 		...(effort ? { [ReasoningEffortConfigKey]: effort } : {}),
 		...(contextTokens ? { [ContextSizeConfigKey]: contextTokens } : {}),
@@ -320,6 +325,7 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 			...routed,
 			...(effort ? { effort } : {}),
 			...(contextSize && contextTokens ? { contextSize, contextTokens } : {}),
+			...(longContext ? { longContext: true } : {}),
 			...(router.switching === 'first-turn' ? { firstTurnOnly: true } : {}),
 		},
 		notices,
@@ -381,15 +387,19 @@ function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; read
 }
 
 /**
- * Whether a router has put the chat on a long context window. It is read from the latest routed
- * turn that set a context size, whichever router made that pick, looking past turns on a model
- * with only one size. A model the user picked by hand ends the search: its window is their choice.
+ * Whether the chat is on a long context window. It is read from the latest routed turn that ran
+ * on one or was told to use the default, whichever router made that pick, looking past turns on
+ * a model with only one size. A model the user picked by hand ends the search: its window is
+ * their choice.
  */
 function isOnLongContext(turns: readonly Turn[]): boolean {
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed?.longContext) {
+			return true;
+		}
 		if (routed?.contextSize) {
-			return routed.contextSize === 'long';
+			return false;
 		}
 		const requested = turns[i].message.model;
 		if (!routed && requested && !modelRouterNameFromModelId(requested.id)) {

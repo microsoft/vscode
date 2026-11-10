@@ -152,10 +152,16 @@ function describeModels(models: readonly IAgentModelInfo[]) {
 	});
 }
 
-/** Long-context prices are published only when they differ from the default ones. */
+/** Whether any long-context price is higher than its standard one. Long-context prices are published only when they differ, in either direction. */
 function longContextCostsMore(model: IAgentModelInfo): boolean {
 	const pricing = readAgentModelPricingMeta(model);
-	return [pricing.longContextInputCost, pricing.longContextOutputCost, pricing.longContextCacheCost, pricing.longContextCacheWriteCost].some(cost => cost !== undefined);
+	const prices: readonly (readonly [number | undefined, number | undefined])[] = [
+		[pricing.longContextInputCost, pricing.inputCost],
+		[pricing.longContextOutputCost, pricing.outputCost],
+		[pricing.longContextCacheCost, pricing.cacheCost],
+		[pricing.longContextCacheWriteCost, pricing.cacheWriteCost],
+	];
+	return prices.some(([long, standard]) => long !== undefined && standard !== undefined && long > standard);
 }
 
 function lineOf(content: string, offset: number): number {

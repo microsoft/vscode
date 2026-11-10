@@ -274,6 +274,8 @@ export interface IModelRoutedInfo {
 	readonly contextSize?: 'default' | 'long';
 	/** That context window in tokens. */
 	readonly contextTokens?: number;
+	/** The turn ran on the model's larger context window, whether the router asked for it or the model defaults to it. */
+	readonly longContext?: boolean;
 	/** The model the router moved off on this turn. */
 	readonly switchedFrom?: string;
 	/** The router had no confident pick and used the user's first model. */

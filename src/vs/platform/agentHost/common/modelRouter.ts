@@ -633,6 +633,12 @@ export function modelContextSizes(model: IAgentModelInfo | undefined): readonly 
 	return values.filter((value): value is number => typeof value === 'number' && value > 0).sort((a, b) => a - b);
 }
 
+/** The context window, in tokens, a model runs on when nothing selects one. For some models that is the larger window. */
+export function modelDefaultContextSize(model: IAgentModelInfo | undefined): number | undefined {
+	const value = model?.configSchema?.properties[ContextSizeConfigKey]?.default;
+	return typeof value === 'number' ? value : undefined;
+}
+
 /** The name a router is shown by: its `display-name`, else its file name. */
 export function modelRouterLabel(router: Pick<IModelRouter, 'name' | 'displayName'>): string {
 	return router.displayName ?? router.name;

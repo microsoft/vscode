@@ -304,6 +304,7 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
 		...(raw.contextSize === 'default' || raw.contextSize === 'long' ? { contextSize: raw.contextSize } : {}),
 		...(typeof raw.contextTokens === 'number' && raw.contextTokens > 0 ? { contextTokens: raw.contextTokens } : {}),
+		...(raw.longContext === true ? { longContext: true } : {}),
 		...(typeof raw.switchedFrom === 'string' ? { switchedFrom: raw.switchedFrom } : {}),
 		...(raw.defaulted === true ? { defaulted: true } : {}),
 		...(raw.kept === true ? { kept: true } : {}),
