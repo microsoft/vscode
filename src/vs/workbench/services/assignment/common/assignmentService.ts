@@ -303,6 +303,16 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.tasClient = this.setupTASClient();
 
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfAccountChanged()));
+			this.defaultAccountService.getDefaultAccount().then(() => {
+				if (!this._store.isDisposed) {
+					this.accountInitialized = true;
+					this.recreateTasClientIfAccountChanged();
+				}
+			}, error => {
+				if (!this._store.isDisposed) {
+					this.logService.error('WorkbenchAssignmentService: Failed to initialize account routing', error);
+				}
+			});
 
 			// Revoke the final client's wrappers before disposing it.
 			this._register(toDisposable(() => {
@@ -389,6 +399,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	/** Signed-out requests discover a reachable endpoint; signed-in routing remains account-specific. */
 	private getAssignmentsEndpoint(): string | undefined {
+		if (!this.accountInitialized) {
+			return undefined;
+		}
 		const account = this.defaultAccountService.currentDefaultAccount;
 		if (!account) {
 			return SIGNED_OUT_ASSIGNMENTS_ENDPOINTS[0];
@@ -530,13 +543,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		let revoked = false;
 		this.revokeCurrentSetup = () => { revoked = true; };
 
-		// Do not bucket startup settings against the signed-out endpoint while account discovery is pending.
-		await this.defaultAccountService.getDefaultAccount();
-		if (revoked || this._store.isDisposed) {
-			throw new CancellationError();
-		}
-		this.accountInitialized = true;
-
 		// Reference the shared memento/telemetry/fetch lazily (at call time): they are assigned in
 		// the constructor body after the initial setupTASClient() call has already started.
 		const service = this;
@@ -588,8 +594,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const signedOut = !this.defaultAccountService.currentDefaultAccount;
 		this.assignmentsEndpoint = assignmentsEndpoint;
 		this.assignmentsAccount = this.defaultAccountService.currentDefaultAccount;
-		if (!assignmentsEndpoint) {
-			this.logService.warn('WorkbenchAssignmentService: Waiting for an account-provided TAS endpoint; discovery will retry on refresh.');
+		if (this.accountInitialized && !assignmentsEndpoint) {
+			this.logService.warn('WorkbenchAssignmentService: Waiting for an account-provided TAS endpoint from account updates.');
 		}
 		const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
 			this.productService.version,
@@ -695,10 +701,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		try {
 			const tasClient = await client;
 			await tasClient.initialFetch;
-			if (!this.assignmentsEndpoint && this.defaultAccountService.currentDefaultAccount && !this._store.isDisposed && client === this.tasClient) {
-				await this.defaultAccountService.refresh({ refreshEntitlements: true });
-				this.recreateTasClientIfAccountChanged();
-			}
 			if (this._store.isDisposed || client !== this.tasClient) {
 				return;
 			}

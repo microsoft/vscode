@@ -229,6 +229,37 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		]);
 	});
 
+	for (const state of ['unknown', 'signedIn'] as const) {
+		it(`refreshes legacy targeting without a new endpoint when auth is ${state}`, async () => {
+			const info = createTestExtendedTokenInfo({ token: 'tid=user', sku: 'business', copilot_plan: 'business', individual: false, endpoints: undefined });
+			const { service, tokens } = createService(new CopilotToken(info), state, AuthProviderId.GitHubEnterprise);
+			await service.hasTreatments();
+			const snapshots = () => vi.mocked(getExperimentationServiceFromConfig).mock.calls.map(([config]) => ({
+				endpoint: config.assignmentsEndpoint,
+				legacy: Object.fromEntries(config.filterProviders![0].getFilters()),
+			}));
+			const before = snapshots()[0];
+			tokens.copilotToken = new CopilotToken({ ...info, sku: 'enterprise', organization_list: ['vscode'] });
+			await service.hasTreatments();
+			const after = snapshots().at(-1)!;
+			tokens.copilotToken = new CopilotToken({ ...info, sku: 'enterprise', organization_list: ['vscode'] });
+			await service.hasTreatments();
+			expect({
+				endpoints: [before.endpoint, after.endpoint],
+				skus: [before.legacy['X-GitHub-Copilot-SKU'], after.legacy['X-GitHub-Copilot-SKU']],
+				orgs: [before.legacy['X-GitHub-Copilot-OrganizationList'], after.legacy['X-GitHub-Copilot-OrganizationList']],
+				delegates: clients.length,
+				refreshes: clients.map(client => client.getTreatmentVariableAsync.mock.calls.length),
+			}).toEqual({
+				endpoints: [undefined, undefined],
+				skus: ['business', 'enterprise'],
+				orgs: ['', 'vscode'],
+				delegates: 2,
+				refreshes: [0, 0],
+			});
+		});
+	}
+
 	for (const failure of ['network', 'http', 'json', 'schema', 'timeout'] as const) {
 		it(`discovers and reuses an empty assignment after ${failure} failure even with enterprise auth configured`, async () => {
 			const staleToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=previous-user' }));

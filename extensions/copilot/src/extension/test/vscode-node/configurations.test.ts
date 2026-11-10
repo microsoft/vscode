@@ -24,6 +24,7 @@ suite('Configuration Defaults', () => {
 			_serviceBrand: undefined,
 			copilotToken: undefined,
 			onDidStoreUpdate: Event.None,
+			onDidChangeTokenData: Event.None,
 			githubEnterpriseUri: undefined,
 			onDidChangeGitHubEnterpriseUri: Event.None,
 			authenticationState: 'unknown',

@@ -15,7 +15,7 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { ASSIGNMENT_REFETCH_INTERVAL } from '../../../../../platform/assignment/common/assignment.js';
+import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY } from '../../../../../platform/assignment/common/assignment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -23,18 +23,21 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { WorkbenchAssignmentService } from '../../common/assignmentService.js';
+import { Memento } from '../../../../common/memento.js';
 
 // The real TAS client loads through the workbench's browser URL resolver, so these tests need a browser loader.
 suite('WorkbenchAssignmentService polling', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const treatmentName = 'config.test.polling';
+	setup(() => Memento.clear(StorageScope.APPLICATION));
+	teardown(() => Memento.clear(StorageScope.APPLICATION));
 	const signedOutEndpoints = [
 		'https://exp.enterprise.githubcopilot.com/api/v1/assignments',
 		'https://exp.business.githubcopilot.com/api/v1/assignments',
@@ -46,12 +49,19 @@ suite('WorkbenchAssignmentService polling', () => {
 	}
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Await client readiness and exercise refresh races without public test-only APIs. */
-	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn', options: { endpoint?: string; plan?: string; enterprise?: boolean; accountReady?: DeferredPromise<void> } = {}) {
+	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn', options: { endpoint?: string; plan?: string; enterprise?: boolean; accountReady?: DeferredPromise<void>; cached?: Record<string, string | number | boolean>; aiDisabled?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': 'all' });
+		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': 'all', 'chat.disableAIFeatures': options.aiDisabled ?? false });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		const storage = store.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storage);
+		if (options.cached) {
+			const memento = new Memento<Record<string, unknown>>('experiment.service.memento', storage);
+			memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE)[ASSIGNMENT_STORAGE_KEY] = {
+				features: [], assignmentContext: 'cached-context', configs: [{ Id: 'vscode', Parameters: options.cached }],
+			};
+		}
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IProductService, {
 			version: '1.100.0', nameLong: 'Test', quality: 'insider',
@@ -138,6 +148,7 @@ suite('WorkbenchAssignmentService polling', () => {
 		}());
 		const service = store.add(instantiationService.createInstance(WorkbenchAssignmentService));
 		const ready = async () => {
+			await defaultAccountService.getDefaultAccount();
 			const client = await service['tasClient'];
 			await client?.initialFetch;
 			await service['refetchPromise'];
@@ -179,29 +190,37 @@ suite('WorkbenchAssignmentService polling', () => {
 		};
 	}
 
-	test('waits for account discovery before the first treatment or assignments request', () => runWithFakedTimers({}, async () => {
+	test('serves cached treatments before account discovery without calling a new endpoint', () => runWithFakedTimers({}, async () => {
 		const accountReady = new DeferredPromise<void>();
-		const { service, ready, requestedUrls, requestedFilters, changeAccount } = createService(true, 'signedOut', { accountReady });
+		const { service, ready, requestedUrls, requestedFilters, changeAccount } = createService(true, 'signedOut', {
+			accountReady,
+			cached: { [`/vscode/${treatmentName}`]: false, '/vscode/config.test.zero': 0 },
+		});
 		try {
-			let resolved = false;
-			const treatment = service.getTreatment(treatmentName).then(value => {
-				resolved = true;
-				return value;
-			});
-			await timeout(1);
-			const pending = { requests: requestedUrls.length, resolved };
+			const value = await service.getTreatment(treatmentName);
+			const assignment = await service.getTreatmentWithAssignment('config.test.zero');
+			const pending = { requests: requestedUrls.length, value, assignedValue: assignment.value, hasAssignment: await assignment.hasAssignment };
 			changeAccount('https://exp.business.githubcopilot.com');
 			await accountReady.complete();
 			await ready();
-			assert.deepStrictEqual({ pending, value: await treatment, urls: requestedUrls, trackingIds: requestedFilters.map(filters => filters.copilottrackingid) }, {
-				pending: { requests: 0, resolved: false },
-				value: 'initial',
+			assert.deepStrictEqual({ pending, urls: requestedUrls, trackingIds: requestedFilters.map(filters => filters.copilottrackingid) }, {
+				pending: { requests: 0, value: false, assignedValue: 0, hasAssignment: true },
 				urls: ['https://exp.business.githubcopilot.com/api/v1/assignments'],
 				trackingIds: ['account-user'],
 			});
 		} finally {
 			service.dispose();
 			await accountReady.complete();
+		}
+	}));
+
+	test('keeps new TAS discovery enabled with AI disabled under the experiment controls', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls } = createService(true, 'signedOut', { aiDisabled: true });
+		try {
+			await ready();
+			assert.deepStrictEqual(requestedUrls, [signedOutEndpoints[0]]);
+		} finally {
+			service.dispose();
 		}
 	}));
 
@@ -243,19 +262,23 @@ suite('WorkbenchAssignmentService polling', () => {
 		}));
 	}
 
-	test('retries account discovery when a managed account has no explicit endpoint', () => runWithFakedTimers({}, async () => {
-		const { service, ready, requestedUrls, changeAccount, setRefreshAccount } = createService(true, 'missingEndpoint', { plan: 'enterprise' });
+	test('uses account updates without forcing entitlements on hourly or filter-driven refresh', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, changeAccount, changeFilters, setRefreshAccount } = createService(true, 'missingEndpoint', { plan: 'enterprise' });
 		try {
 			await ready();
 			let discoveries = 0;
 			setRefreshAccount(() => {
 				discoveries++;
-				changeAccount('https://exp.enterprise.githubcopilot.com');
 			});
 			await timeout(ASSIGNMENT_REFETCH_INTERVAL);
 			await ready();
+			changeFilters('sku', true);
+			await timeout(1);
+			await ready();
+			changeAccount('https://exp.enterprise.githubcopilot.com');
+			await ready();
 			assert.deepStrictEqual({ discoveries, urls: requestedUrls }, {
-				discoveries: 1,
+				discoveries: 0,
 				urls: ['https://exp.enterprise.githubcopilot.com/api/v1/assignments'],
 			});
 		} finally {

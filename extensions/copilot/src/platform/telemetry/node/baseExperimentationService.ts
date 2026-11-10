@@ -55,9 +55,9 @@ export class UserInfoStore extends Disposable {
 				return undefined;
 			};
 
-			copilotTokenStore.onDidStoreUpdate(() => {
+			this._register(copilotTokenStore.onDidChangeTokenData(() => {
 				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList);
-			});
+			}));
 
 			if (copilotTokenStore.copilotToken) {
 				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList);
@@ -197,7 +197,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	) {
 		super();
 
-		this._userInfoStore = new UserInfoStore(context, copilotTokenStore);
+		this._userInfoStore = this._register(new UserInfoStore(context, copilotTokenStore));
 
 		// Refresh treatments when user info changes
 		this._register(this._userInfoStore.onDidChangeUserInfo(async () => {

@@ -348,14 +348,19 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
+		const legacyAccountFilterProvider = new GithubAccountFilterProvider(this._userInfoStore, logService);
+		let legacyAccountFilters = legacyAccountFilterProvider.getFilters();
 		const updateAssignments = () => {
 			const next = getAssignments();
-			if (next.endpoint !== assignments.endpoint || next.signedOut !== assignments.signedOut || !mapsStrictEqualIgnoreOrder(next.filters, assignments.filters)) {
+			const nextLegacyAccountFilters = legacyAccountFilterProvider.getFilters();
+			if (next.endpoint !== assignments.endpoint || next.signedOut !== assignments.signedOut || !mapsStrictEqualIgnoreOrder(next.filters, assignments.filters)
+				|| !mapsStrictEqualIgnoreOrder(nextLegacyAccountFilters, legacyAccountFilters)) {
 				assignments = next;
+				legacyAccountFilters = nextLegacyAccountFilters;
 				this.recreateDelegate();
 			}
 		};
-		this._register(copilotTokenStore.onDidStoreUpdate(updateAssignments));
+		this._register(copilotTokenStore.onDidChangeTokenData(updateAssignments));
 		this._register(copilotTokenStore.onDidChangeAuthenticationState(updateAssignments));
 		this._register(copilotTokenStore.onDidChangeGitHubEnterpriseUri(updateAssignments));
 		this._register(runOnChange(configurationService.getConfigObservable(ConfigKey.Shared.AuthProvider), updateAssignments));

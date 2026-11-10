@@ -21,6 +21,8 @@ export interface ICopilotTokenStore {
 	readonly _serviceBrand: undefined;
 	copilotToken: CopilotToken | undefined;
 	onDidStoreUpdate: Event<void>;
+	/** Token envelope replacement, including metadata updates with an unchanged bearer token. */
+	readonly onDidChangeTokenData: Event<void>;
 	githubEnterpriseUri: URI | undefined;
 	readonly onDidChangeGitHubEnterpriseUri: Event<void>;
 	/** Unknown until session discovery completes; token absence alone does not establish sign-out. */
@@ -33,6 +35,8 @@ export class CopilotTokenStore extends Disposable implements ICopilotTokenStore 
 	private _copilotToken: CopilotToken | undefined;
 	private readonly _onDidStoreUpdate = this._register(new Emitter<void>());
 	onDidStoreUpdate: Event<void> = this._onDidStoreUpdate.event;
+	private readonly _onDidChangeTokenData = this._register(new Emitter<void>());
+	readonly onDidChangeTokenData = this._onDidChangeTokenData.event;
 	private _githubEnterpriseUri: URI | undefined;
 	private readonly _onDidChangeGitHubEnterpriseUri = this._register(new Emitter<void>());
 	readonly onDidChangeGitHubEnterpriseUri = this._onDidChangeGitHubEnterpriseUri.event;
@@ -67,6 +71,9 @@ export class CopilotTokenStore extends Disposable implements ICopilotTokenStore 
 		const oldToken = this._copilotToken;
 		this._copilotToken = token;
 		if (oldToken !== token) {
+			this._onDidChangeTokenData.fire();
+		}
+		if (oldToken?.token !== token?.token) {
 			this._onDidStoreUpdate.fire();
 		}
 	}
