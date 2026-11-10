@@ -5,6 +5,7 @@
 
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { registerAgentPickerSpotlight } from '../../../../chat/browser/onboarding/agentPickerSpotlight.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -31,7 +33,8 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
-import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -215,6 +218,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		@IChatContextPickService chatContextPickService: IChatContextPickService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		let settingAgentInternally = false;
@@ -227,6 +231,28 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		};
 		const shouldHidePicker = (chat: IChat | undefined, reader: IReader): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
 			&& !isCustomAgentSelected(chat, reader);
+
+		if (environmentService.isSessionsWindow) {
+			const widgetsChanged = observableSignalFromEvent(this, Event.any(
+				chatWidgetService.onDidAddWidget,
+				chatWidgetService.onDidRemoveWidget,
+				chatWidgetService.onDidChangeWidgetVisibility,
+				chatWidgetService.onDidChangeFocusedSession,
+				Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(new Set([IsPhoneLayoutContext.key]))),
+			));
+			this._register(registerAgentPickerSpotlight(derived(this, reader => {
+				widgetsChanged.read(reader);
+				configurationChanged.read(reader);
+				const host = focusedSessionHostService.focusedHost.read(reader);
+				const session = host.session.read(reader);
+				const chat = host.chat.read(reader);
+				if (!shouldHidePicker(chat, reader) || host.kind === SessionHostKind.AutomationDialog || !isEligible(session, chat)) {
+					return [];
+				}
+				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource);
+				return widget?.visible ? [widget] : [];
+			})));
+		}
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();
 		openActiveAgentPicker = anchor => {
