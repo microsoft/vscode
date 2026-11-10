@@ -438,6 +438,16 @@ export class RemoteEnvironmentDetails extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		return this.domNode.textContent ?? '';
+		const content = this.domNode.textContent ?? '';
+		if (this.mode !== 'runBehavior') {
+			return content;
+		}
+		const current = this.model.getPreferredAgentLocation(this.remote.id);
+		const noChoice = localize('remotes.noRunChoice', "None");
+		return [
+			content,
+			localize('remotes.savedRunChoice', "Saved choice: {0}", this.currentChoices.find(choice => choice.value === current)?.label ?? noChoice),
+			localize('remotes.selectedRunChoice', "Selected choice: {0}", this.currentChoices.find(choice => choice.value === this.selectedPreference)?.label ?? noChoice),
+		].join('\n');
 	}
 }

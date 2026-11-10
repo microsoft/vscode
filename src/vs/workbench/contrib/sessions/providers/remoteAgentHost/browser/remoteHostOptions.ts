@@ -502,6 +502,10 @@ export async function applyRemoteAgentHostLocationPreference(
 		return 'saved';
 	}
 	await reconnectRemoteHost(options.provider, options.remoteAgentHostService);
+	if (!options.provider.remoteAddress) {
+		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
+	}
+	await options.remoteAgentHostService.waitForConnection(options.provider.remoteAddress);
 	return 'reconnected';
 }
 

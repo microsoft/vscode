@@ -369,15 +369,15 @@ export class AgentsWindow {
 		const deadline = Date.now() + 60_000;
 		while (await cloudEnvironment.isVisible()) {
 			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
+			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This computer', { exact: true }) });
 			if (await localEnvironment.isVisible()) {
 				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
+				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This computer' }).waitFor();
 				return;
 			}
 			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error('Timed out waiting for This computer in the Environment picker');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}

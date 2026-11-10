@@ -1285,7 +1285,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('run behavior distinguishes the saved choice from a pending selection and updates it after saving', async () => {
-		const { parent, model } = createWidget();
+		const { parent, model, widget } = createWidget();
 		model.preferences.set('ssh:build', 'dedicated');
 		runMenuAction(parent, 'ssh:build', 'locationPreference');
 		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
@@ -1296,26 +1296,33 @@ suite('RemotesWidget', () => {
 			current: choice.querySelector('.remotes-choice-current')?.textContent,
 		}));
 		const pending = read();
+		const pendingAccessible = widget.getAccessibilityContent().split('\n').slice(-2);
 		details.querySelector<HTMLElement>('.remotes-details-actions .monaco-button:not(.secondary)')!.click();
 		await timeout(0);
-		assert.deepStrictEqual({ pending, saved: read(), preference: model.preferences.get('ssh:build') }, {
+		assert.deepStrictEqual({ pending, pendingAccessible, saved: read(), savedAccessible: widget.getAccessibilityContent().split('\n').slice(-2), preference: model.preferences.get('ssh:build') }, {
 			pending: [{ selected: 'false', current: 'Current' }, { selected: 'true', current: '' }],
+			pendingAccessible: ['Saved choice: Keep working after VS Code closes', 'Selected choice: Use the remote VS Code window'],
 			saved: [{ selected: 'false', current: '' }, { selected: 'true', current: 'Current' }],
+			savedAccessible: ['Saved choice: Use the remote VS Code window', 'Selected choice: Use the remote VS Code window'],
 			preference: 'editor',
 		});
 	});
 
 	test('run behavior explains both choices before one is selected', () => {
-		const { parent } = createWidget();
+		const { parent, widget } = createWidget();
 		runMenuAction(parent, 'ssh:build', 'locationPreference');
 		const choices = [...parent.querySelectorAll<HTMLElement>('.remotes-run-choices [role="radio"]')];
-		assert.deepStrictEqual(choices.map(choice => ({
-			selected: choice.getAttribute('aria-checked'),
-			description: choice.querySelector('.remotes-choice-description')?.textContent,
-		})), [
-			{ selected: 'false', description: 'Run agents separately from the remote editor. Keep the computer awake and online while they work.' },
-			{ selected: 'false', description: 'Use agents in an open VS Code window on the remote computer. They aren\'t available after that window closes.' },
-		]);
+		assert.deepStrictEqual({
+			choices: choices.map(choice => ({
+				selected: choice.getAttribute('aria-checked'),
+				description: choice.querySelector('.remotes-choice-description')?.textContent,
+			})), accessible: widget.getAccessibilityContent().split('\n').slice(-2)
+		}, {
+			choices: [
+				{ selected: 'false', description: 'Run agents separately from the remote editor. Keep the computer awake and online while they work.' },
+				{ selected: 'false', description: 'Use agents in an open VS Code window on the remote computer. They aren\'t available after that window closes.' },
+			], accessible: ['Saved choice: None', 'Selected choice: None']
+		});
 	});
 
 	for (const kind of ['environment', 'tunnel'] as const) {

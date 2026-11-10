@@ -2330,7 +2330,7 @@ suite('NewChatWidget', () => {
 				selections: [],
 			}
 			: {
-				labels: ['This Computer', 'Test Remote'],
+				labels: ['This computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -2501,10 +2501,10 @@ suite('NewChatWidget', () => {
 		visibility.set(false, undefined);
 		states.push(snapshot());
 
-		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		const offline = { hosts: ['This computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
 		assert.deepStrictEqual(states, isWeb
 			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
-			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+			: [offline, { ...offline, hosts: ['This computer', 'Test Remote', 'Old Environment'] }, offline]);
 	});
 
 	for (const hasLocalProvider of [false, true]) {
@@ -2630,7 +2630,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {

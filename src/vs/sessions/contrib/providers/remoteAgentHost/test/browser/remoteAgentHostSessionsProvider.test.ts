@@ -2589,6 +2589,30 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	for (const address of ['ssh:build', 'wsl:Ubuntu', 'tunnel:desktop']) {
+		test(`disconnect invalidates session list readiness before unpublishing ${address}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.addSession(createSession('working', { status: ProtocolSessionStatus.InProgress }));
+			const provider = createProvider(disposables, connection, { address }, {
+				disconnectOnDemand: async () => { provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected); },
+			});
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			await timeout(0);
+			const before = { ready: provider.sessionListVersion.get() > 0, sessions: provider.getSessions().length };
+			const changes: { ready: boolean; sessions: number; connected: boolean }[] = [];
+			disposables.add(provider.onDidChangeSessions(() => changes.push({
+				ready: provider.sessionListVersion.get() > 0,
+				sessions: provider.getSessions().length,
+				connected: RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get()),
+			})));
+			await provider.disconnect();
+			assert.deepStrictEqual({ before, changes, ready: provider.sessionListVersion.get() > 0 }, {
+				before: { ready: true, sessions: 1 },
+				changes: [{ ready: false, sessions: 0, connected: true }],
+				ready: false,
+			});
+		}));
+	}
+
 	test('getSessions populates from connection.listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('list-1', { summary: 'First' }));
 		connection.addSession(createSession('list-2', { summary: 'Second' }));

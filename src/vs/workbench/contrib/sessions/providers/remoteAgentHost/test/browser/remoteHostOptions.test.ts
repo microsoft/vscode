@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -25,6 +26,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import {
 	buildRemoteHostOptionItems,
+	applyRemoteAgentHostLocationPreference,
 	changeRemoteAgentHostLocationPreference,
 	getStatusHover,
 	getStatusLabel,
@@ -397,6 +399,7 @@ suite('remoteHostOptions', () => {
 			const reconnectCalls: string[] = [];
 			const service: Partial<IRemoteAgentHostService> = {
 				reconnect: (address: string) => { reconnectCalls.push(address); },
+				waitForConnection: async address => ({ address, name: address, status: RemoteAgentHostConnectionStatus.connected }),
 			};
 			return { service: service as IRemoteAgentHostService, reconnectCalls };
 		}
@@ -567,6 +570,54 @@ suite('remoteHostOptions', () => {
 			assert.strictEqual(errorMessages.length, 1);
 			assert.ok(errorMessages[0].includes('my-host-alias'));
 			assert.ok(errorMessages[0].includes('boom'));
+		});
+
+		test('a resolved connect callback cannot report success when the authoritative connection failed', async () => {
+			const { service: locationPreferenceService, getStored } = createLocationPreferenceService();
+			const { service: notificationService, infoMessages, errorMessages } = createNotificationService();
+			const { service: progressService } = createProgressService();
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override async waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { throw new Error('Authentication denied'); }
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remoteAddress = 'ssh:build';
+				override async connect() { }
+			}();
+			await changeRemoteAgentHostLocationPreference({
+				preferenceKey: 'ssh:build', hostLabel: 'Build', productName: 'Code - OSS', provider,
+				dialogService: acceptDialogService('dedicated'), locationPreferenceService,
+				notificationService, remoteAgentHostService, progressService,
+			});
+			assert.deepStrictEqual({ preference: getStored(), infoMessages, errorMessages }, {
+				preference: 'dedicated', infoMessages: [],
+				errorMessages: ['Preference saved for Build, but reconnection failed: Authentication denied'],
+			});
+		});
+
+		test('waits for the authoritative connection before reporting a saved choice as reconnected', async () => {
+			const { service: locationPreferenceService, getStored } = createLocationPreferenceService();
+			const connected = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			const waiting = new DeferredPromise<void>();
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override waitForConnection(address: string) {
+					void waiting.complete();
+					assert.strictEqual(address, 'ssh:build');
+					return connected.p;
+				}
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remoteAddress = 'ssh:build';
+				override async connect() { }
+			}();
+			let result: 'saved' | 'reconnected' | undefined;
+			const applying = applyRemoteAgentHostLocationPreference({
+				preferenceKey: 'ssh:build', hostLabel: 'Build', provider, locationPreferenceService, remoteAgentHostService,
+			}, 'editor').then(value => { result = value; });
+			await waiting.p;
+			const pending = { preference: getStored(), result };
+			await connected.complete({ address: 'ssh:build', name: 'Build', status: RemoteAgentHostConnectionStatus.connected });
+			await applying;
+			assert.deepStrictEqual({ pending, result }, { pending: { preference: 'editor', result: undefined }, result: 'reconnected' });
 		});
 
 		test('no-provider fallback: persists the preference, shows a warning, and never reconnects', async () => {

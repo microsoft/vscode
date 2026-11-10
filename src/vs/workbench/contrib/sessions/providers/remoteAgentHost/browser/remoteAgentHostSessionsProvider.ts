@@ -1263,6 +1263,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
+		// Invalidate readiness before observers can sample the hidden list as an authoritative empty result.
+		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;
 		}
