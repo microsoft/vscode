@@ -41,15 +41,17 @@ suite('Agent Host GitHub clients', () => {
 		const signal = new AbortController().signal;
 		const client = store.add(service.acquireRepositoryClient(signal)).object;
 		const first = await client.credentials.getCredential(signal);
+		const invalidations: string[] = [];
+		store.add(client.credentials.onDidInvalidate(event => invalidations.push(event.reason)));
 		await authentication.authenticate(params, [provider]);
 		const second = await client.credentials.getCredential(signal);
 		assert.deepStrictEqual({
 			sameClient: store.add(service.acquireRepositoryClient(signal)).object === client,
-			sameAccount: first.account.accountId === second.account.accountId,
+			sameCredential: first === second,
 			aborted: first.signal.aborted,
-			generation: second.generation,
+			invalidations,
 			requests,
-		}, { sameClient: true, sameAccount: true, aborted: true, generation: 2, requests: 2 });
+		}, { sameClient: true, sameCredential: true, aborted: false, invalidations: ['reauthorization'], requests: 1 });
 	});
 
 	test('expiring a shared token preserves the host repository account and client selection', () => runWithFakedTimers({}, async () => {

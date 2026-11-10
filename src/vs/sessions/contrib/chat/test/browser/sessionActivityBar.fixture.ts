@@ -74,6 +74,8 @@ interface IFixtureOptions {
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
 	readonly githubChecked?: boolean;
+	/** Drags the floating strip down by this many pixels by its grip. */
+	readonly dragBy?: number;
 }
 
 // The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
@@ -113,6 +115,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
 	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
 	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
+	Moved: activityBarFixture({ dragBy: 60 }),
+	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	// A chat window: the strip in a column of its own beside the chat's card, as the main window's, at the compact size unless the normal one is chosen.
 	ChatWindowColumn: activityBarFixture({ chatWindowColumn: 'default' }, highContrastThemes),
 	ChatWindowColumnCompact: activityBarFixture({ chatWindowColumn: 'compact' }, highContrastThemes),
@@ -231,7 +235,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		checked: options.githubChecked,
 		run: () => { },
 	}))));
-	activityBar.layout(HEADER_HEIGHT);
+	activityBar.layout(HEADER_HEIGHT, areaHeight);
 	// As the chat group lays it out: to the left of the strip's column.
 	const chatWidth = Math.max(0, chatSize.width - activityBar.reservedWidth.get());
 
@@ -294,6 +298,14 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}
 	activityBar.setActive(true);
 	const element = activityBar.element!;
+
+	if (options.dragBy) {
+		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 0 };
+		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: options.dragBy }));
+		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: options.dragBy }));
+	}
 
 	if (options.openSubmenu) {
 		const submenuEntry = element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]');

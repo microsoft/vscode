@@ -30,6 +30,7 @@ import { ExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExtHostSearch } from '../../common/extHostSearch.js';
 import { URITransformerService } from '../../common/extHostUriTransformerService.js';
+import { TestMainThreadNotebookKernels } from './TestMainThreadNotebookKernels.js';
 
 suite('NotebookKernel', function () {
 	let rpcProtocol: TestRPCProtocol;
@@ -197,6 +198,30 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(first.label, 'Far');
 	});
+
+	for (const supportedLanguages of [undefined, []]) {
+		test(`reset supported languages with ${supportedLanguages === undefined ? 'undefined' : 'an empty array'}`, async function () {
+			const mainThreadKernels = disposables.add(new TestMainThreadNotebookKernels(rpcProtocol));
+			rpcProtocol.set(MainContext.MainThreadNotebookKernels, mainThreadKernels.instance);
+			const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
+			kernel.supportedLanguages = ['javascript'];
+			await rpcProtocol.sync();
+
+			const registeredKernel = mainThreadKernels.getKernel('nullExtensionDescription/foo')!;
+			assert.deepStrictEqual(registeredKernel.supportedLanguages, ['javascript']);
+
+			kernel.supportedLanguages = supportedLanguages;
+			await rpcProtocol.sync();
+
+			assert.deepStrictEqual({
+				apiLanguages: kernel.supportedLanguages,
+				mainThreadLanguages: registeredKernel.supportedLanguages
+			}, {
+				apiLanguages: supportedLanguages,
+				mainThreadLanguages: ['typescript', 'javascript', 'python']
+			});
+		});
+	}
 
 	test('execute - simple createNotebookCellExecution', function () {
 		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));

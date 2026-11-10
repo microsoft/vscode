@@ -10,7 +10,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -21,7 +21,7 @@ import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isMacintosh, OS } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -63,7 +63,6 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatInboxEnabledContext, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -115,8 +114,9 @@ import { buildTestSession } from '../../../../../workbench/contrib/sessions/test
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -587,11 +587,11 @@ suite('Sessions - SessionsList', () => {
 				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
-			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			let hoverOptions: Parameters<IHoverService['setupManagedHover']>[2] | undefined;
 			const hoverService = new class extends mock<IHoverService>() {
-				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
-					hoverOptions = args[1];
-					return NullHoverService.setupDelayedHover(...args);
+				override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>): ReturnType<IHoverService['setupManagedHover']> {
+					hoverOptions = args[2];
+					return NullHoverService.setupManagedHover(...args);
 				}
 			};
 			const customizationMigrationsAvailable = observableValue(disposables, true);
@@ -623,28 +623,19 @@ suite('Sessions - SessionsList', () => {
 				collapsible: false,
 				collapsed: false,
 			}), 0, template);
-			const readHoverOptions = () => typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+			const readHoverOptions = () => {
+				const content = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				return isManagedHoverTooltipMarkdownString(content) ? content.markdownNotSupportedFallback : undefined;
+			};
 			const hoverWithMigration = readHoverOptions();
 			customizationMigrationsAvailable.set(false, undefined);
 
 			assert.deepStrictEqual({
-				contentWithMigration: hoverWithMigration?.content,
-				contentWithoutMigration: readHoverOptions()?.content,
-				presentation: hoverWithMigration && {
-					additionalClasses: hoverWithMigration.additionalClasses,
-					appearance: hoverWithMigration.appearance,
-					position: hoverWithMigration.position,
-					persistence: hoverWithMigration.persistence,
-				},
+				contentWithMigration: hoverWithMigration,
+				contentWithoutMigration: readHoverOptions(),
 			}, {
 				contentWithMigration: 'Some customizations need an update to keep working.',
-				contentWithoutMigration: 'Customizations',
-				presentation: {
-					additionalClasses: ['sessions-list-hover'],
-					appearance: { showPointer: true },
-					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-					persistence: { hideOnHover: false },
-				},
+				contentWithoutMigration: 'Session Customizations',
 			});
 		});
 
@@ -659,11 +650,11 @@ suite('Sessions - SessionsList', () => {
 				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
-			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			let hoverOptions: Parameters<IHoverService['setupManagedHover']>[2] | undefined;
 			const hoverService = new class extends mock<IHoverService>() {
-				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
-					hoverOptions = args[1];
-					return NullHoverService.setupDelayedHover(...args);
+				override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>): ReturnType<IHoverService['setupManagedHover']> {
+					hoverOptions = args[2];
+					return NullHoverService.setupManagedHover(...args);
 				}
 			};
 			const customizationMigrationsAvailable = observableValue(disposables, false);
@@ -702,7 +693,10 @@ suite('Sessions - SessionsList', () => {
 				collapsed: false,
 			}), 0, template);
 			const readState = () => ({
-				hover: (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions)?.content,
+				hover: (() => {
+					const content = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+					return isManagedHoverTooltipMarkdownString(content) ? content.markdownNotSupportedFallback : undefined;
+				})(),
 				hasDot: template.icon.classList.contains('codicon-circle-filled'),
 				iconColor: template.icon.style.color,
 			});
@@ -724,7 +718,7 @@ suite('Sessions - SessionsList', () => {
 					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				withoutSignals: {
-					hover: 'Customizations',
+					hover: 'Session Customizations',
 					hasDot: false,
 					iconColor: '',
 				},
@@ -797,103 +791,45 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('renders inbox notification count as a badge and updates reactively', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
+		test('moves Customizations without moving other navigation shortcuts', () => {
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			let showCustomizations = true;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				showCustomizations: () => showCustomizations,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const snapshot = () => ({
+				customizations: navigationContainer.querySelectorAll('.session-section-customizations').length,
+				newSession: navigationContainer.querySelectorAll('.session-section-new-session').length,
 			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const inboxNotificationCount = observableValue<number>(disposables, 0);
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				NullHoverService,
-				contextKeyService,
-				new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
-					override readonly runs = constObservable<readonly IAutomationRun[]>([]);
-				},
-				constObservable([]),
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-				constObservable(false),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				inboxNotificationCount,
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'inboxNotifications', label: 'Inbox', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const initial = {
-				isInbox: container.classList.contains('session-section-inbox'),
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			inboxNotificationCount.set(7, undefined);
-			const withNotifications = {
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Workspace', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-			const recycled = {
-				isInbox: container.classList.contains('session-section-inbox'),
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			assert.deepStrictEqual({ initial, withNotifications, recycled }, {
-				initial: {
-					isInbox: true,
-					countText: '',
-					countDisplay: 'none',
-				},
-				withNotifications: {
-					countText: '7',
-					countDisplay: '',
-				},
-				recycled: {
-					isInbox: false,
-					countText: '',
-					countDisplay: 'none',
-				},
+			const shown = snapshot();
+			showCustomizations = false;
+			list.updateNavigationVisibility();
+			const hidden = snapshot();
+			showCustomizations = true;
+			list.updateNavigationVisibility();
+			assert.deepStrictEqual({ shown, hidden, restored: snapshot() }, {
+				shown: { customizations: 1, newSession: 1 },
+				hidden: { customizations: 0, newSession: 1 },
+				restored: { customizations: 1, newSession: 1 },
 			});
 		});
 
-		test('opens Inbox from the navigation list and hides it when disabled', async () => {
+		test('does not expose the retired Inbox canvas with a stale enablement context', () => {
 			const harness = createListHarness(disposables, [], instantiationService => {
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 				instantiationService.stub(IContextKeyService, contextKeyService);
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-				ChatInboxEnabledContext.bindTo(contextKeyService).set(true);
+				contextKeyService.createKey('chatInboxEnabled', true);
 			});
 			const container = harness.createContainer();
 			const navigationContainer = mainWindow.document.createElement('div');
@@ -907,23 +843,10 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			const inboxRow = navigationContainer.querySelector<HTMLElement>('.session-section-inbox')!;
-			const ariaLabel = inboxRow.closest('.monaco-list-row')?.getAttribute('aria-label');
-			inboxRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-			await timeout(0);
-
-			ChatInboxEnabledContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(false);
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				ariaLabel,
-				commands: harness.commandService.calls,
-				inboxVisible: !!navigationContainer.querySelector('.session-section-inbox'),
-			}, {
-				ariaLabel: 'Inbox, open inbox notifications',
-				commands: [{ commandId: SHOW_INBOX_NOTIFICATIONS_COMMAND_ID, args: [] }],
-				inboxVisible: false,
-			});
+			assert.deepStrictEqual(
+				[...navigationContainer.querySelectorAll('.session-section-label')].map(element => element.textContent),
+				['New Session', 'Customizations'],
+			);
 		});
 
 		for (const navigationShortcuts of [false, true]) {
@@ -1155,7 +1078,15 @@ suite('Sessions - SessionsList', () => {
 
 		test('opens migrations from Customizations only while migration attention is active', async () => {
 			const customizationMigrationsAvailable = observableValue(disposables, true);
-			const harness = createListHarness(disposables, []);
+			const events: { name?: string; data?: unknown }[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+					override readonly isSessionsWindow = true;
+				}());
+				instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void { events.push({ name, data }); }
+				}());
+			});
 			const container = harness.createContainer();
 			const navigationContainer = mainWindow.document.createElement('div');
 			const listContainer = mainWindow.document.createElement('div');
@@ -1178,13 +1109,19 @@ suite('Sessions - SessionsList', () => {
 			clickRow(customizationsRow);
 			await Promise.resolve();
 
-			assert.deepStrictEqual(harness.commandService.calls, [{
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [{ migration: true }],
-			}, {
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [],
-			}]);
+			assert.deepStrictEqual({ commands: harness.commandService.calls, events }, {
+				commands: [{
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [{ migration: true }],
+				}, {
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [],
+				}],
+				events: Array(2).fill({
+					name: 'chatCustomizationEntryPoint.interaction',
+					data: { action: 'buttonClicked', location: 'sessionsHeader', configuredLocation: 'unknown', windowKind: 'agents', target: 'none' },
+				}),
+			});
 		});
 
 		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
@@ -2214,8 +2151,6 @@ suite('Sessions - SessionsList', () => {
 				undefined,
 				undefined,
 				undefined,
-				undefined,
-				undefined,
 				(session, reader) => listed.read(reader).has(session.sessionId),
 			);
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -2742,7 +2677,7 @@ suite('Sessions - SessionsList', () => {
 					hiddenNeedsInput: true,
 					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
 					preservesReportQuestionIcon: true,
-					color: 'var(--vscode-list-warningForeground)',
+					color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 					needsInputAria: `${label}, 6, session needs attention`,
 					unreadAria: `${label}, 6, contains unread sessions`,
 					expandedPulse: false,
@@ -2890,7 +2825,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				hasSpinner: false,
 				hasReportQuestionIcon: true,
-				color: 'var(--vscode-list-warningForeground)',
+				color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 				ariaLabel: 'Workspace, 1, session needs attention',
 			});
 		});
@@ -4473,13 +4408,13 @@ suite('Sessions - SessionsList', () => {
 					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude'],
 					showMore: ['Show less', '+1 more workspace'],
 					excludeArchived: true,
-					stored: { filters: undefined, excludeArchived: true, sessionGroupExpansionState: undefined },
+					stored: { filters: undefined, excludeArchived: undefined, sessionGroupExpansionState: undefined },
 				},
 				undone: before,
 			});
 		});
 
-		test('undoing a reset restores Show All and an archived filter that follows its default setting', () => {
+		test('a reset leaves the archived filter following its default setting, and undoing it restores Show All', () => {
 			const { list, stored } = createList([createTestSession('session').session], {}, true);
 			list.setWorkspaceGroupCapped(false);
 			const state = () => ({ capped: list.isWorkspaceGroupCapped(), excludeArchived: list.isExcludeArchived(), storedExcludeArchived: stored('excludeArchived') });
@@ -4491,7 +4426,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, reset, undone: state() }, {
 				before: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
-				reset: { capped: true, excludeArchived: true, storedExcludeArchived: true },
+				reset: { capped: true, excludeArchived: false, storedExcludeArchived: undefined },
 				undone: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
 			});
 		});
@@ -5193,9 +5128,8 @@ suite('Sessions - SessionsList', () => {
 				['grouped', { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true }],
 			]));
 			let tracking = 0;
-			harness.instantiationService.stub(IInboxNotificationsService, {
+			harness.instantiationService.stub(ISessionAttentionService, {
 				sessionAttention: attention,
-				attentionCount: constObservable(0),
 				acquireSessionAttention: () => {
 					tracking++;
 					return toDisposable(() => tracking--);
@@ -5252,11 +5186,10 @@ suite('Sessions - SessionsList', () => {
 			const held = createTestSession('held').session;
 			const done = createTestSession('done').session;
 			const harness = createListHarness(disposables, [pinned, ready, working, merge, held, done]);
-			harness.instantiationService.stub(IInboxNotificationsService, {
+			harness.instantiationService.stub(ISessionAttentionService, {
 				sessionAttention: constObservable(new Map<string, IInboxSessionAttention>([[merge.sessionId, {
 					tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next, notificationIds: ['passingCI'], isHistoricalCompletion: false,
 				}]])),
-				attentionCount: constObservable(0),
 				acquireSessionAttention: () => toDisposable(() => { }),
 			});
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -7389,6 +7322,11 @@ suite('Sessions - SessionsList', () => {
 
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
+		const comparisonConfiguration = [
+			'Original comparison settings', `Repository: ${isWindows ? '\\workspace' : '~/workspace'}`, 'Isolation: Separate worktrees',
+			'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Copilot · Balance',
+			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
+		].join('\n');
 
 		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
@@ -7535,6 +7473,30 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ waiting, completed: order(), archiveButton: !!container.querySelector('.session-comparison-group .action-label[aria-label="Mark All as Done"]'), archived: harness.managementService.archived }, {
 				waiting: ['group:comparison-group', 'recent'], completed: ['recent', 'group:comparison-group'], archiveButton: false, archived: [],
 			});
+		});
+
+		test('comparison parent exposes saved model configurations in its hover and accessible label', () => {
+			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+			const { container, harness } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+				harness.instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (target, options) => {
+						hovers.set(target, typeof options === 'function' ? options : () => options);
+						return toDisposable(() => hovers.delete(target));
+					},
+				});
+			}, true);
+			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+			const content = hovers.get(parent)?.().content;
+			const ariaLabel = parent.closest('.monaco-list-row')?.getAttribute('aria-label');
+			assert.deepStrictEqual({
+				content,
+				accessible: typeof content === 'string' && ariaLabel?.includes(content),
+			}, {
+				content: comparisonConfiguration.replace('Attempt 2: Copilot', 'Attempt 2: Claude'),
+				accessible: true,
+			});
+			harness.store.dispose();
 		});
 
 		test('inbox groups retain comparison groups in their highest-attention category', () => {
@@ -7747,7 +7709,7 @@ suite('Sessions - SessionsList', () => {
 					title: 'Improve the picker',
 					summary: 'Comparison · 2 attempts working',
 					layersIcon: true,
-					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
+					ariaLabel: `Improve the picker, Comparison · 2 attempts working, ${comparisonConfiguration}`,
 					connector: null,
 					childOrder: [
 						'session-section-chevron collapsible codicon codicon-chevron-down',
@@ -8558,7 +8520,7 @@ suite('Sessions - SessionsList', () => {
 				ariaLabel: parent?.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				summary: 'Comparison · Review ready',
-				ariaLabel: 'Improve the picker, Comparison · Review ready',
+				ariaLabel: `Improve the picker, Comparison · Review ready, ${comparisonConfiguration}`,
 			});
 		});
 	});
@@ -9222,7 +9184,7 @@ suite('Sessions - SessionsList', () => {
 					solidTitle: true,
 					inProgress: false,
 					warningIcon: true,
-					color: 'var(--vscode-list-warningForeground)',
+					color: 'var(--vscode-agentSessionNeedsInput-foreground)',
 					ariaLabel: 'Waiting, updated now, State: Attention Needed',
 				});
 			});
@@ -11777,7 +11739,8 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			const container = renderSessionChats(session, undefined, true);
-			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
+			container.style.setProperty('--vscode-list-warningForeground', 'rgb(0, 0, 255)');
+			container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 0, 0)');
 			const parent = container.querySelector<HTMLElement>('.session-item')!;
 			const child = container.querySelector<HTMLElement>('.session-chat-item')!;
 			assert.deepStrictEqual([parent, child].map(item => {
@@ -11796,6 +11759,74 @@ suite('Sessions - SessionsList', () => {
 				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
 			]);
 		});
+
+		for (const themeClass of ['hc-black', 'hc-light']) {
+			test(`needs-input rows use left-edge markers instead of tint in ${themeClass}`, () => {
+				const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const session: ISession = {
+					...createTestSession('Session', { status: SessionStatus.NeedsInput }).session,
+					chats: constObservable([main, waiting]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const container = renderSessionChats(session);
+				container.classList.add(themeClass);
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 211, 112)');
+				const parent = container.querySelector<HTMLElement>('.session-item')!;
+				const child = container.querySelector<HTMLElement>('.session-chat-item')!;
+
+				assert.deepStrictEqual([parent, child].map(item => {
+					const row = item.closest<HTMLElement>('.monaco-list-row')!;
+					const background = item === parent ? row : item;
+					const style = mainWindow.getComputedStyle(background);
+					const indicator = item.querySelector<HTMLElement>('.session-attention-indicator')!;
+					const indicatorStyle = mainWindow.getComputedStyle(indicator);
+					const initial = {
+						background: style.backgroundColor,
+						borderWidth: style.borderLeftWidth,
+						marker: {
+							ariaHidden: indicator.getAttribute('aria-hidden'),
+							display: indicatorStyle.display,
+							width: indicatorStyle.width,
+							top: indicatorStyle.top,
+							bottom: indicatorStyle.bottom,
+							cornerRadius: indicatorStyle.borderRadius,
+							color: indicatorStyle.backgroundColor,
+							pointerEvents: indicatorStyle.pointerEvents,
+						},
+					};
+					const height = row.getBoundingClientRect().height;
+					const title = item.querySelector<HTMLElement>('.session-title, .session-chat-title')!;
+					const titleLeft = title.getBoundingClientRect().left;
+					row.classList.add('selected');
+					const selected = {
+						markerDisplay: mainWindow.getComputedStyle(indicator).display,
+						sameHeight: row.getBoundingClientRect().height === height,
+						sameTitlePosition: title.getBoundingClientRect().left === titleLeft,
+					};
+					row.classList.remove('selected');
+					return { initial, selected };
+				}), [
+					{
+						initial: {
+							background: 'rgba(0, 0, 0, 0)', borderWidth: '0px',
+							marker: { ariaHidden: 'true', display: 'block', width: '2px', top: '4px', bottom: '4px', cornerRadius: '0px', color: 'rgb(255, 211, 112)', pointerEvents: 'none' },
+						},
+						selected: { markerDisplay: 'none', sameHeight: true, sameTitlePosition: true },
+					},
+					{
+						initial: {
+							background: 'rgba(0, 0, 0, 0)', borderWidth: '0px',
+							marker: { ariaHidden: 'true', display: 'block', width: '2px', top: '4px', bottom: '4px', cornerRadius: '0px', color: 'rgb(255, 211, 112)', pointerEvents: 'none' },
+						},
+						selected: { markerDisplay: 'none', sameHeight: true, sameTitlePosition: true },
+					},
+				]);
+			});
+		}
 
 		test('needs-input chat row keeps its attention indicator without looping animations', () => {
 			const main = createChat('Main chat');
@@ -12318,6 +12349,57 @@ suite('Sessions - SessionsList', () => {
 				{ title: 'Pinned', sticky: true },
 			]);
 		});
+
+		for (const themeClass of ['hc-black', 'hc-light']) {
+			test(`keeps grid-pin and attention markers separate in ${themeClass}`, () => {
+				const session = createTestSession('Pinned needs input', { status: SessionStatus.NeedsInput }).session;
+				const sticky = observableValue('sticky', true);
+				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
+				const harness = createListHarness(disposables, [session], instantiationService => {
+					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						readonly activeSession = constObservable(undefined);
+						readonly gridShown = constObservable([gridSession]);
+						override readonly slotPanes = testGridPanes(this.gridShown);
+					});
+				});
+				const container = harness.createContainer();
+				container.classList.add(themeClass);
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				container.style.setProperty('--vscode-spacing-size80', '8px');
+				container.style.setProperty('--vscode-focusBorder', 'rgb(0, 128, 255)');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 211, 112)');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const item = container.querySelector<HTMLElement>('.session-item.needs-input')!;
+				const indicator = item.querySelector<HTMLElement>('.session-attention-indicator')!;
+				const snapshot = () => {
+					const pin = mainWindow.getComputedStyle(item, '::before');
+					const attention = mainWindow.getComputedStyle(indicator);
+					const pinRight = Number.parseFloat(pin.left) + Number.parseFloat(pin.width);
+					const attentionLeft = indicator.getBoundingClientRect().left - item.getBoundingClientRect().left;
+					return {
+						pinned: item.classList.contains('sticky'),
+						idle: !item.closest('.monaco-list-row')!.matches('.selected, .focused, :hover'),
+						attentionVisible: attention.display === 'block',
+						attentionColor: attention.backgroundColor,
+						separateFromPin: pin.content === 'none' || pinRight <= attentionLeft,
+						pinColor: pin.content === 'none' ? undefined : pin.backgroundColor,
+					};
+				};
+				const pinned = snapshot();
+				sticky.set(false, undefined);
+
+				assert.deepStrictEqual({ pinned, unpinned: snapshot() }, {
+					pinned: { pinned: true, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: 'rgb(0, 128, 255)' },
+					unpinned: { pinned: false, idle: true, attentionVisible: true, attentionColor: 'rgb(255, 211, 112)', separateFromPin: true, pinColor: undefined },
+				});
+			});
+		}
 
 		test('coalesces restored active chat selection without flashing the parent session', async () => {
 			const main = createChat('Main chat');
@@ -13226,37 +13308,54 @@ suite('Sessions - SessionsList', () => {
 			}
 		}
 
-		test('keeps the static warning tint on a sticky needs-input session row', async () => {
-			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
-			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
-			const session: ISession = {
-				...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
-				chats: constObservable([main, ...peers]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session]);
-			const container = harness.createContainer(400, 600);
-			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				compact: () => true,
-				onSessionOpen: () => { },
-			}));
-			list.layout(600, 400);
-			setSessionChatsExpanded(container, true);
-			await timeout(0);
-			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
-			let stickyImage: string | undefined;
-			for (let position = 0; position < 900 && !stickyImage; position += 75) {
-				tree.scrollTop = position;
+		for (const themeClass of ['', 'hc-black', 'hc-light']) {
+			test(`keeps the attention ${themeClass ? 'marker' : 'tint'} on a sticky needs-input session row${themeClass ? ` in ${themeClass}` : ''}`, async () => {
+				const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
+				const session: ISession = {
+					...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
+					chats: constObservable([main, ...peers]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer(400, 600);
+				if (themeClass) {
+					container.classList.add(themeClass);
+				}
+				container.style.setProperty('--vscode-spacing-size20', '2px');
+				container.style.setProperty('--vscode-list-warningForeground', 'rgb(0, 0, 255)');
+				container.style.setProperty('--vscode-agentSessionNeedsInput-foreground', 'rgb(255, 0, 0)');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					compact: () => true,
+					onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				setSessionChatsExpanded(container, true);
 				await timeout(0);
-				const sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
-				stickyImage = sticky ? mainWindow.getComputedStyle(sticky).backgroundImage : undefined;
-			}
-			assert.ok(stickyImage && stickyImage !== 'none');
-		});
+				const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+				let sticky: HTMLElement | undefined;
+				for (let position = 0; position < 900 && !sticky; position += 75) {
+					tree.scrollTop = position;
+					await timeout(0);
+					sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
+				}
+				assert.ok(sticky);
+				const style = mainWindow.getComputedStyle(sticky);
+				const indicator = sticky.querySelector<HTMLElement>('.session-attention-indicator')!;
+				assert.deepStrictEqual({
+					hasTint: style.backgroundImage !== 'none',
+					borderWidth: style.borderLeftWidth,
+					hasAttentionMarker: mainWindow.getComputedStyle(indicator).display === 'block',
+				}, {
+					hasTint: !themeClass,
+					borderWidth: '0px',
+					hasAttentionMarker: !!themeClass,
+				});
+			});
+		}
 
 		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
 			const main = createChat('Main chat');
@@ -13929,6 +14028,57 @@ suite('Sessions - SessionsList', () => {
 				approvalLabel: 'git push origin main',
 				hasAllowButton: true,
 			});
+		});
+
+		test('names the folder an approval\'s command runs in, so the same command in two folders looks different', () => {
+			const approvals = new Map<string, IAgentSessionApprovalInfo>();
+			const sessions = ([
+				['Test web', './test.sh', '/work/web'],
+				['Test api', './test.sh', '/work/api\u202e'],
+				['Push', 'git push origin main', undefined],
+			] as const).map(([title, label, workingDirectory], index) => {
+				const { session } = createTestSession(title, { workspaceLabel: 'vscode', status: SessionStatus.NeedsInput, createdAt: new Date(Date.now() - index * 1000) });
+				const resource = session.mainChat.get().resource.toString();
+				approvals.set(resource, {
+					approvalId: resource,
+					kind: AgentSessionApprovalKind.Terminal,
+					label,
+					languageId: 'shellscript',
+					executionTarget: workingDirectory ? { workingDirectory } : undefined,
+					since: new Date(),
+					confirm: () => { },
+				});
+				return session;
+			});
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(approvals.get(resource.toString()));
+				}
+			}();
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(500, 400);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const approvalRow = row.querySelector('.session-approval-row.visible:not(.session-input-needed-row)');
+				return approvalRow ? [{
+					command: approvalRow.querySelector('.session-approval-label > .code')?.textContent,
+					directory: approvalRow.querySelector('.session-approval-working-directory-path')?.textContent,
+					allowAriaLabel: approvalRow.querySelector('.session-approval-button .monaco-button')?.getAttribute('aria-label'),
+					height: row.style.height,
+				}] : [];
+			}), [
+				{ command: './test.sh', directory: '/work/web', allowAriaLabel: 'Allow once: ./test.sh (Working directory: /work/web)', height: '80px' },
+				{ command: './test.sh', directory: '/work/api\\u{202e}', allowAriaLabel: 'Allow once: ./test.sh (Working directory: /work/api\\u{202e})', height: '80px' },
+				{ command: 'git push origin main', directory: undefined, allowAriaLabel: 'Allow once: git push origin main', height: '62px' },
+			]);
 		});
 
 		test('refreshes compact presentation across phone layout transitions', () => {

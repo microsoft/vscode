@@ -14,7 +14,7 @@ import { ISignService } from '../common/sign.js';
 declare namespace vsdaWeb {
 	export function sign(salted_message: string): string;
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class validator {
 		free(): void;
 		constructor();

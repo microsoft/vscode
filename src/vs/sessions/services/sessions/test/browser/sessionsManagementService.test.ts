@@ -9437,6 +9437,62 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		for (const origin of [ChatOriginKind.SideChat, ChatOriginKind.Fork, ChatOriginKind.Tool]) {
+			for (const toSide of [false, true]) {
+				test(`a ${origin} chat opened ${toSide ? 'to the side ' : ''}with a reference chat that a chat window shows opens beside it in that window, not in the grid`, async () => {
+					const sessionB = multiChatSession('B', [chat('mainB'), chat('newB', SessionStatus.Completed, origin)]);
+					const [mainB, newB] = sessionB.chats.get();
+					const { view } = setup([sessionB]);
+					await view.openSession(sessionB.resource);
+					const beside: string[] = [];
+					disposables.add(chatHostOpeners.get(view)!.register({
+						showsChat: shown => shown.toString() === mainB.resource.toString(),
+						reveal: async () => { },
+						openBeside: async (opened, reference) => { beside.push(`${opened.path} beside ${reference.path}`); },
+						close: async () => ({ restore: async () => { } }),
+					}));
+					const gridBefore = { active: activeChatOf(view)?.title.get(), closed: closedTitles(view) };
+
+					if (toSide) {
+						await view.openChatToSide(sessionB, newB.resource, { referenceChatResource: mainB.resource });
+					} else {
+						await view.openChat(sessionB, newB.resource, { referenceChatResource: mainB.resource });
+					}
+
+					assert.deepStrictEqual({ beside, grid: { active: activeChatOf(view)?.title.get(), closed: closedTitles(view) } }, {
+						beside: ['/chat/newB beside /chat/mainB'],
+						grid: gridBefore,
+					});
+				});
+			}
+		}
+
+		test('a chat opened with a reference chat that no opener shows any more opens in the grid, whatever other openers show', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('newB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [mainB, newB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			const beside: string[] = [];
+			let windowShowsReference = true;
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => windowShowsReference && shown.toString() === mainB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async opened => { beside.push(`closing window ${opened.path}`); },
+				close: async () => ({ restore: async () => { } }),
+			}));
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === 'test:///other',
+				reveal: async () => { },
+				openBeside: async opened => { beside.push(`other window ${opened.path}`); },
+				close: async () => ({ restore: async () => { } }),
+			}));
+			windowShowsReference = false;
+
+			await view.openChat(sessionB, newB.resource, { referenceChatResource: mainB.resource });
+
+			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'newB' });
+		});
+
 		test('a session-list open selects the main chat instead of the previously active chat', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('sideA', SessionStatus.Completed, ChatOriginKind.SideChat)]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);

@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.146.0",
+  "version": "1.147.0",
   "packageManager": "pnpm@12.16.0",
   "distro": "d915b90d880d6ec3c76cd109247ccded03003672",
   "nativeBuild": {
@@ -110,7 +110,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.30-preview.0",
+    "@github/copilot-sdk": "1.0.31-preview.1",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -206,7 +206,7 @@
     "@types/ws": "^8.18.1",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261105.1",
     "@vscode/component-explorer": "^0.2.1-161",
     "@vscode/component-explorer-cli": "^0.2.1-163",
     "@vscode/gulp-electron": "^1.43.0",
@@ -228,7 +228,6 @@
     "eslint": "10.8.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
-    "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsdoc": "^63.3.3",
     "event-stream": "3.3.4",
     "events": "^3.3.0",
@@ -259,6 +258,7 @@
     "npm-run-all2": "^8.0.4",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
+    "playwright": "^1.61.1",
     "rcedit": "^1.1.0",
     "readable-stream": "^3.6.0",
     "rimraf": "^2.2.8",
@@ -284,5 +284,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.108-0"
+  "copilotRuntimeVersion": "1.0.109-1"
 }

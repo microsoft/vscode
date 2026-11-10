@@ -127,7 +127,7 @@ suite('Chat window contribution', () => {
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'startup' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {
@@ -383,6 +383,37 @@ suite('Chat window contribution', () => {
 			takesEditors: { suppressedWhileOpening: true, afterwards: 0 },
 			leavesEditors: { suppressedWhileOpening: false, afterwards: 0 },
 		});
+	});
+
+	test('a chat opened in a window opens exactly that chat, also its session\'s main chat, which is named by the session, while a session opens the chat it shows', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		stubSessionsHostLayout(instantiationService);
+		const shown = { resource: URI.parse('test:/chat/nested') };
+		const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', activeChat: constObservable(shown) as ITestSessionWithChat['activeChat'] });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			gridShown: constObservable([pane]),
+			slotPanes: testGridPanes(constObservable([pane])),
+			mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+		const opened: { resource: string; exactChat: boolean | undefined }[] = [];
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			open: async (resource: URI, options?: { exactChat?: boolean }) => {
+				opened.push({ resource: resource.toString(), exactChat: options?.exactChat });
+				return undefined;
+			},
+		}));
+		const session = upcastPartial<ISession>({ sessionId: 'alpha', resource: URI.parse('test:/alpha') });
+
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session, session.resource));
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session));
+
+		assert.deepStrictEqual(opened, [
+			{ resource: 'test:/alpha', exactChat: true },
+			{ resource: 'test:/chat/nested', exactChat: false },
+		]);
 	});
 
 	test('the keys of the Agents window\'s Add Tab commands and Run work in a chat window, Toggle Side Bar\'s does not; their menu entries stay in the main window', () => {

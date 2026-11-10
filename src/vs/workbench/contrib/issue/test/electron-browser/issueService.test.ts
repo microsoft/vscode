@@ -100,6 +100,22 @@ suite('NativeIssueService additional repositories', () => {
 		});
 	}
 
+	test('classic reporter captures the exact grant for an explicit caller token', async () => {
+		const { service, opened, authenticationSessions } = createService(false, []);
+		const authorizationServer = URI.parse('https://github.com');
+		authenticationSessions.push(
+			{ id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'other-token' },
+			{ id: 'selected', account: { id: 'selected', label: 'Selected' }, scopes: ['public_repo'], accessToken: 'selected-token', authorizationServer },
+		);
+		await service.openReporter({ githubAccessToken: 'selected-token' });
+		assert.deepStrictEqual({ token: opened[0].githubAccessToken, authorization: opened[0].githubAuthorization }, {
+			token: 'selected-token',
+			authorization: {
+				providerId: 'github', sessionId: 'selected', accountId: 'selected', scopes: ['public_repo'], authorizationServer: authorizationServer.toString(),
+			},
+		});
+	});
+
 	test('repository schema is application-scoped, empty by default and experiment-enabled without an authorization policy', () => {
 		const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[issueReporterAdditionalRepositoriesSettingId];
 		assert.deepStrictEqual({

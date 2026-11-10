@@ -976,6 +976,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item:hover .item-right,
 .ai-customization-list-item:focus-within .item-right,
+.ai-customization-list-item.menu-open .item-right,
 .monaco-list-row.focused .ai-customization-list-item .item-right {
 	opacity: 1;
 }

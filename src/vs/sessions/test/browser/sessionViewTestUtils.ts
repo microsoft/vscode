@@ -164,6 +164,7 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
 		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
+		override getPanelSpacing() { return mobile || this.isModernUICompact() ? 0 : 4; }
 	}();
 	services.instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
 	services.instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);

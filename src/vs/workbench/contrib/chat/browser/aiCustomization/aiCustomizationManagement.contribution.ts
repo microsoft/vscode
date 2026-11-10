@@ -72,6 +72,7 @@ import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } fro
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import './chatCustomizations.contribution.js';
 import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry

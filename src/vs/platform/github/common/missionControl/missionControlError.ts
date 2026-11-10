@@ -36,6 +36,21 @@ export function parseMissionControlErrorCode(value: unknown): string | undefined
 		&& !/^(?:gh[pousr]_|github_pat_)/.test(value) ? value : undefined;
 }
 
+/** Reads only a bounded task identifier from a create response, without retaining its body. */
+export function parseCreatedTaskId(value: unknown): string | undefined {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return undefined;
+	}
+	const record = value as { readonly id?: unknown; readonly task_id?: unknown };
+	for (const candidate of [record.id, record.task_id]) {
+		if (typeof candidate === 'string' && candidate.length <= 256 && candidate.trim().length > 0
+			&& candidate !== '.' && candidate !== '..' && !/[\u0000-\u001f\u007f]/.test(candidate)) {
+			return candidate;
+		}
+	}
+	return undefined;
+}
+
 const permanentCodes = new Set([
 	'bad_request', 'validation_failed', 'missing_body', 'malformed_body', 'invalid_request', 'invalid_scope', 'invalid_target', 'too_large',
 	'narrowing_violation', 'permission_set_unsupported', 'scoped_token_unsupported',
