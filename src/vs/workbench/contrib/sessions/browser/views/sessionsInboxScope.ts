@@ -6,7 +6,6 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
@@ -114,7 +113,6 @@ export class SessionsInboxScope extends Disposable {
 		const environmentIcon = dom.append(environment.trigger, dom.$('span', { 'aria-hidden': 'true' }));
 		const environmentLabelElement = dom.append(environment.trigger, dom.$('span.scope-label'));
 		for (const [picker, show] of [[workspace, () => pickWorkspace()], [environment, () => pickEnvironment()]] as const) {
-			dom.append(picker.trigger, renderIcon(Codicon.chevronDownCompact)).setAttribute('aria-hidden', 'true');
 			picker.trigger.setAttribute('aria-haspopup', 'listbox');
 			picker.trigger.setAttribute('aria-expanded', 'false');
 			this._register(dom.addDisposableListener(picker.trigger, dom.EventType.KEY_DOWN, event => {
