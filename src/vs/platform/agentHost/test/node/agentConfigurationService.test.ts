@@ -22,6 +22,7 @@ import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, ge
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../common/agentHostChatProviders.js';
 import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '../../common/agentService.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 
 suite('AgentConfigurationService', () => {
 
@@ -469,6 +470,52 @@ suite('AgentConfigurationService', () => {
 			]);
 		});
 	});
+
+	test('advertises and reads the requested Copilot M365 rollout value', () => {
+		const property = manager.rootState.config?.schema.properties[CopilotCliConfigKey.M365Enabled];
+		const unset = service.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled);
+		const values = [true, false].map(value => {
+			service.updateRootConfig(copilotCliConfigSchema.values({ [CopilotCliConfigKey.M365Enabled]: value }));
+			return service.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled);
+		});
+		assert.deepStrictEqual({
+			type: property?.type,
+			default: property?.default,
+			unset,
+			values,
+		}, {
+			type: 'boolean',
+			default: false,
+			unset: undefined,
+			values: [true, false],
+		});
+	});
+
+	for (const initial of [undefined, false, true]) {
+		test(`freezes Copilot M365 at host startup (${initial}) until a new host reads persisted configuration`, async () => {
+			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-m365-config-'));
+			disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+			const resource = URI.file(join(directory, 'agent-host-config.json'));
+			fs.writeFileSync(resource.fsPath, JSON.stringify({ [CopilotCliConfigKey.M365Enabled]: initial }));
+			const state = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const config = disposables.add(new AgentConfigurationService(state, new NullLogService(), resource));
+			const observations = [];
+			for (const requested of [true, false, true]) {
+				config.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: requested });
+				observations.push({
+					requested: config.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled),
+					effective: config.copilotM365EnabledAtStartup,
+				});
+			}
+			await config.whenIdle();
+			const restartedState = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restarted = disposables.add(new AgentConfigurationService(restartedState, new NullLogService(), resource));
+			assert.deepStrictEqual({ observations, restarted: restarted.copilotM365EnabledAtStartup }, {
+				observations: [true, false, true].map(requested => ({ requested, effective: initial === true })),
+				restarted: true,
+			});
+		});
+	}
 
 	test('does not persist provider-backed root settings in agent-host config', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));

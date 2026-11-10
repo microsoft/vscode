@@ -8,7 +8,8 @@
 	opacity: 0;
 	transition: opacity 100ms linear;
 }
-.monaco-editor .minimap.slider-mouseover:hover .minimap-slider {
+.monaco-editor .minimap.slider-mouseover:hover .minimap-slider,
+.monaco-editor .minimap.slider-mouseover.slider-scrolling .minimap-slider {
 	opacity: 1;
 }
 .monaco-editor .minimap.slider-mouseover .minimap-slider.active {

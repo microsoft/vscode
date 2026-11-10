@@ -277,9 +277,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Only accessible from this machine.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: 'Don\'t allow connections from other devices through this app.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', badge: undefined, role: 'menuitemcheckbox' },
 		]);
 	});
 
@@ -673,7 +673,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
 		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
-			errors: [[error]], checked: [true, false, false],
+			errors: [['Failed to enable GitHub environment sharing: Unable to enable sharing']], checked: [true, false, false],
 			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
 		});
 	});
@@ -917,7 +917,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
@@ -1096,7 +1096,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				const remoteTunnel = store.add(new TestRemoteTunnelService());
 				const commands = new TestCommandService();
 				const sharing = new TestMissionControlSharingService();
-				const error = operation === 'cancel sign-in' ? new CancellationError() : new Error('Sharing failed');
+				const error = operation === 'cancel sign-in' ? new CancellationError() : new TypeError('fetch failed');
 				if (operation === 'disable') {
 					sharing.state.set('enabled', undefined);
 				}
@@ -1115,7 +1115,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 					logs: log.args,
 					commands: commands.commands,
 				}, {
-					notifications: operation === 'cancel sign-in' ? [] : [[error]],
+					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
+						? 'Failed to disable GitHub environment sharing: fetch failed'
+						: 'Failed to enable GitHub environment sharing: fetch failed']],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});

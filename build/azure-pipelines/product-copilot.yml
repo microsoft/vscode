@@ -8,12 +8,6 @@ parameters:
   - name: VSCODE_UPLOAD_SOURCEMAPS
     type: boolean
     default: true
-  # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
-  - name: VSCODE_PRIVILEGED_CONNECTIONS
-    type: boolean
-    default: true
 
 jobs:
   - job: Copilot
@@ -25,14 +19,9 @@ jobs:
       - name: Codeql.SkipTaskAutoInjection
         value: true
     templateContext:
-      # Defender for Linux can fold the 1ES PT antimalware scan before "Publish Copilot VSIX" into a
-      # scan of system folders (/opt, /usr/lib) that started before the job, which blocks it for
-      # 45-55 min, so the job times out before publishing the VSIX. A scan that times out completes
-      # the step with issues and the VSIX is published. Until that's fixed the cap is 2 min, which
-      # also stops some scans that aren't blocked (up to 6 min).
       sdl:
         antimalwareScan:
-          scanTimeoutInMinutes: '2'
+          scanTimeoutInMinutes: '10'
     steps:
       - checkout: self
         path: s
@@ -46,22 +35,24 @@ jobs:
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
 
-      - ${{ if or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true)) }}:
-        # NOTICE generation needs a snapshot before packaging; the parallel Quality scan can finish later.
-        - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-          displayName: Component Detection (Copilot)
-          inputs:
-            sourceScanPath: $(Build.SourcesDirectory)/extensions/copilot
-            alertWarningLevel: Medium
-          continueOnError: true
-
-        - task: notice@0
-          inputs:
-            outputfile: $(Build.SourcesDirectory)/extensions/copilot/ThirdPartyNotices.txt
-            outputformat: text
-          continueOnError: true
-          retryCountOnTaskFailure: 5
-          displayName: Generate NOTICE file
+      # The NOTICE generation is disabled: it scanned extensions/copilot, whose dependencies are now in
+      # the root pnpm-lock.yaml with those of the rest of the repository.
+      # - ${{ if or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true)) }}:
+      #   # NOTICE generation needs a snapshot before packaging; the parallel Quality scan can finish later.
+      #   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+      #     displayName: Component Detection (Copilot)
+      #     inputs:
+      #       sourceScanPath: $(Build.SourcesDirectory)/extensions/copilot
+      #       alertWarningLevel: Medium
+      #     continueOnError: true
+      #
+      #   - task: notice@0
+      #     inputs:
+      #       outputfile: $(Build.SourcesDirectory)/extensions/copilot/ThirdPartyNotices.txt
+      #       outputformat: text
+      #     continueOnError: true
+      #     retryCountOnTaskFailure: 5
+      #     displayName: Generate NOTICE file
 
       - script: |
           set -e
@@ -99,7 +90,7 @@ jobs:
 
       - script: |
           set -e
-          pnpm exec vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
+          pnpm run package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -116,12 +107,15 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      # The test setup needs the VS Code Development WIF connection, which the
-      # SDK validation pipeline (sdk-validation-build.yml) must not reference.
-      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
-        - template: copilot/test-steps.yml
-          parameters:
-            runIntegrationTests: false
+      # The Copilot tests run in the Copilot Tests job of each platform stage
+      # (see copilot/product-test-steps.yml).
+      - script: pnpm run typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Typecheck
+
+      - script: pnpm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Lint
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:
