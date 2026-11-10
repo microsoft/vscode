@@ -28,11 +28,12 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionRefreshReason, ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus as AgentSessionStatus, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { dedupeMigratedCopilotCliSessions, legacyCopilotCliResource } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 //#region Interfaces, Types
 
@@ -749,12 +750,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
-		// Providers that register their session items dynamically (notably the
-		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
-		// are neither built-in nor static contributions, so they are preserved
-		// via the live registration signal — otherwise a sibling provider's
-		// partial refresh would drop their rows (sessions vanishing mid-migration).
-		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
@@ -832,10 +827,19 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
 		// so concurrent updateItems calls for other providers don't lose data)
 
+		// Providers that register their session items dynamically (notably the
+		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
+		// are neither built-in nor static contributions, so they are preserved
+		// via the live registration signal — otherwise a sibling provider's
+		// partial refresh would drop their rows (sessions vanishing mid-migration).
+		// Read registrations and contributions after Phase 1: it can wait for this
+		// provider's extension to activate, while other providers register and add rows.
+		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
+		const contributedProviders = new Set(this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type));
 		let preservedViaRegistration = 0;
 		for (const [, session] of this._sessions) {
 			if (session.providerType !== provider && !sessions.has(session.resource)) {
-				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType);
+				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || contributedProviders.has(session.providerType);
 				if (knownProvider || registeredProviders.has(session.providerType)) {
 					sessions.set(session.resource, session);
 					// Count rows kept only because their provider is live-registered
@@ -938,12 +942,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			});
 			return this.sessionStates.get(session.resource);
 		}
-		const legacy = session.legacyResource;
+		const previous = this.chatSessionsService.getPreviousChatSessionResource?.(session.resource);
+		const legacy = previous ?? session.legacyResource;
 		if (!legacy) {
 			return undefined;
 		}
-		// Cross-scheme and self-referential mappings are rejected defensively.
-		if (legacy.scheme !== session.resource.scheme || legacy.toString() === session.resource.toString()) {
+		if ((!previous && legacy.scheme !== session.resource.scheme) || legacy.toString() === session.resource.toString()) {
 			return undefined;
 		}
 		const prev = this.sessionStates.get(legacy);

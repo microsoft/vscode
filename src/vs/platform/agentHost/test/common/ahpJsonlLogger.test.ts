@@ -580,31 +580,41 @@ suite('AhpJsonlLogger', () => {
 		// A message carrying a multi-MB string (e.g. a base64 resourceRead) is trimmed.
 		const huge = 'x'.repeat(4 * 1024 * 1024);
 		logger.log({ jsonrpc: '2.0', id: 2, result: { data: huge } }, 's2c');
+		let readsWithByteLength = 0;
+		logger.log({ jsonrpc: '2.0', id: 3, result: { get data() { readsWithByteLength++; return huge; } } }, 's2c', huge.length);
 		await logger.flush();
 
 		const content = (await fileService.readFile(logger.resource)).value.toString();
 		const lines = content.split('\n').filter(Boolean);
-		// Both lines must be valid JSON (the trimmed line stays well-formed JSONL).
+		// All lines must be valid JSON (the trimmed lines stay well-formed JSONL).
 		const parsed = lines.map(line => JSON.parse(line));
 
 		assert.strictEqual(parsed[0]._ahpLog.truncated, undefined);
 		assert.strictEqual(parsed[1]._ahpLog.truncated, true);
+		assert.strictEqual(parsed[2]._ahpLog.truncated, true);
+		assert.strictEqual(readsWithByteLength, 1);
 		// The huge string was elided rather than written in full.
 		assert.ok(parsed[1].result.data.length < huge.length);
 		assert.ok(parsed[1].result.data.includes('chars elided'));
+		assert.ok(parsed[2].result.data.includes('chars elided'));
 		// The whole serialized line stays modest in size.
 		assert.ok(lines[1].length < 1024 * 1024);
+		assert.ok(lines[2].length < 1024 * 1024);
 	});
 
 	suite('stringifyAhpLogEntry', () => {
 		test('redacts proxy authorization results without changing the live value', () => {
 			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			const credentials = { jsonrpc: '2.0', id: 2, result: { username: 'user', password: 'private-password' } };
 			assert.deepStrictEqual({
-				logged: JSON.parse(stringifyAhpLogEntry(result)),
-				live: result.result.authorization,
+				logged: [JSON.parse(stringifyAhpLogEntry(result)), JSON.parse(stringifyAhpLogEntry(credentials))],
+				live: [result.result.authorization, credentials.result.password],
 			}, {
-				logged: { jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
-				live: 'Negotiate private-ticket',
+				logged: [
+					{ jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+					{ jsonrpc: '2.0', id: 2, result: { username: 'user', password: '<redacted>' } },
+				],
+				live: ['Negotiate private-ticket', 'private-password'],
 			});
 		});
 

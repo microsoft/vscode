@@ -40,12 +40,15 @@ import { getRemoteTunnelAccessState } from '../../electron-browser/remoteConnect
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY, TunnelHostContribution } from '../../electron-browser/tunnelHost.contribution.js';
 import { IRemoteTunnelStartOptions, promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionListItemKind, ActionListWidget, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingValue } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	stops = 0;
@@ -214,10 +217,21 @@ suite('RemoteConnectionsActionViewItem', () => {
 		instantiation.stub(IActionWidgetService, actionWidget);
 		instantiation.stub(IKeybindingService, new MockKeybindingService());
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
-		instantiation.stub(ITelemetryService, NullTelemetryService);
+		const telemetry = new TestTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(INotificationService, notifications);
 		instantiation.stub(IActionViewItemService, new NullActionViewItemService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
+		const managedSettings: Record<string, ManagedSettingValue> = {};
+		const managedSettingsChange = store.add(new Emitter<void>());
+		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+			override getManagedSettingValue(key: string) { return managedSettings[key]; }
+		}());
+		const opened: { target: string; openExternal: boolean | undefined }[] = [];
+		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(target: string | URI, options?: OpenOptions) { opened.push({ target: target.toString(), openExternal: options?.openExternal }); return true; }
+		}());
 		const commands = new TestCommandService();
 		const executeCommand = stub(commands, 'executeCommand').callsFake(async id => {
 			if (id === RemoteTunnelCommandIds.turnOn) {
@@ -231,7 +245,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		store.add(instantiation.createInstance(TunnelHostContribution));
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
-		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
+		// Unlike `Action`, which discards its callback's result, menu actions return the command's toggle result.
+		const action = store.add(new class extends Action {
+			override run(): Promise<void> {
+				return run();
+			}
+		}('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true));
 		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, { getManagementAction: () => options.managementAction }));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -249,16 +268,18 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings };
+		const selectMethodEvents = () => telemetry.events.filter(event => event.name === 'remoteConnections.selectMethod').map(event => event.data);
+
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu, selectMethodEvents };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Only accessible from this machine.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: 'Don\'t allow connections from other devices through this app.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', badge: undefined, role: 'menuitemcheckbox' },
 		]);
 	});
 
@@ -346,6 +367,41 @@ suite('RemoteConnectionsActionViewItem', () => {
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
+	});
+
+	test('the policy explanation offers the organization support page instead of the setting when one is configured', async () => {
+		const { configuration, openMenu, listOptions, managedSettings, opened, openSettings, sharing } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		managedSettings[COPILOT_COMMUNICATION_SUPPORT_URL_KEY] = 'https://example.com/copilot-help';
+		openMenu();
+		const options = listOptions();
+		await options?.footerAction?.run();
+		assert.deepStrictEqual({
+			footer: options?.footerText,
+			action: { id: options?.footerAction?.id, tooltip: options?.footerAction?.tooltip },
+			opened,
+			openSettings: openSettings.callCount,
+			sharing: sharing.calls,
+		}, {
+			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
+			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
+			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
+			openSettings: 0,
+			sharing: [],
+		});
+	});
+
+	test('closes the open policy menu when the organization support URL changes, but not for other managed settings', async () => {
+		const { configuration, openMenu, managedSettings, fireManagedSettingsChange, isMenuOpen } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		openMenu();
+		fireManagedSettingsChange();
+		const afterUnrelatedChange = isMenuOpen();
+		managedSettings[COPILOT_COMMUNICATION_SUPPORT_URL_KEY] = 'https://example.com/copilot-help';
+		fireManagedSettingsChange();
+		assert.deepStrictEqual({ afterUnrelatedChange, afterUrlChange: isMenuOpen() }, { afterUnrelatedChange: true, afterUrlChange: false });
 	});
 
 	test('hard experiment disablement hides GitHub Environments despite user enablement', () => {
@@ -610,14 +666,15 @@ suite('RemoteConnectionsActionViewItem', () => {
 	});
 
 	test('reports an enable failure and leaves Off selected', async () => {
-		const { openMenu, closeMenu, sharing, notifications } = fixture('githubEnvironment');
+		const { openMenu, closeMenu, sharing, notifications, selectMethodEvents } = fixture('githubEnvironment');
 		const error = new Error('Unable to enable sharing');
 		stub(sharing, 'setEnabled').rejects(error);
 		const notify = stub(notifications, 'error');
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
-		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked) }, {
-			errors: [[error]], checked: [true, false, false],
+		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
+			errors: [['Failed to enable GitHub environment sharing: Unable to enable sharing']], checked: [true, false, false],
+			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
 		});
 	});
 
@@ -631,6 +688,63 @@ suite('RemoteConnectionsActionViewItem', () => {
 			preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, { checked: [true, false, false], preference: 'devTunnel' });
 	});
+
+	test('logs each connection method choice with its outcome and the resulting method', async () => {
+		const { openMenu, closeMenu, selectMethodEvents } = fixture();
+		await timeout(0);
+		for (const id of ['remoteConnections.devTunnel', 'remoteConnections.devTunnel', 'remoteConnections.off', 'remoteConnections.off']) {
+			await openMenu().find(action => action.id === id)!.run();
+			closeMenu();
+		}
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ source: 'titleBar', method: 'devTunnel', previousMethod: 'off', activeMethod: 'devTunnel', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'devTunnel', previousMethod: 'devTunnel', activeMethod: 'devTunnel', result: 'unchanged', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'off', previousMethod: 'devTunnel', activeMethod: 'off', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'titleBar', method: 'off', previousMethod: 'off', activeMethod: 'off', result: 'unchanged', gitHubEnvironments: 'enabled' },
+		]);
+	});
+
+	test('logs canceled, failed, and unavailable connection method choices from the chat input', async () => {
+		const { openMenu, closeMenu, executeCommand, update, notifications, availability, selectMethodEvents } = fixture('githubEnvironment', { isChatInput: true });
+		stub(notifications, 'error');
+		executeCommand.resolves(undefined);
+		await openMenu().find(action => action.id === 'remoteConnections.devTunnel')!.run();
+		closeMenu();
+		update.rejects(new Error('Unable to save connection method'));
+		const staleAction = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
+		await staleAction.run();
+		closeMenu();
+		availability.set(false, undefined);
+		await staleAction.run();
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ source: 'chatInput', method: 'devTunnel', previousMethod: 'off', activeMethod: 'off', result: 'applied', gitHubEnvironments: 'enabled' },
+			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' },
+			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'unavailable', gitHubEnvironments: 'unavailable' },
+		]);
+	});
+
+	for (const method of ['devTunnel', 'off'] as const) {
+		test(`logs the resulting method when the toolbar replaces the view item while ${method === 'off' ? 'disabling' : 'enabling'} sharing`, async () => {
+			const { openMenu, viewItem, executeCommand, remoteTunnel, selectMethodEvents } = fixture();
+			const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false };
+			await timeout(0);
+			if (method === 'off') {
+				remoteTunnel.fireStatus(connected);
+			}
+			executeCommand.callsFake(async () => {
+				viewItem.dispose();
+				if (method === 'off') {
+					await remoteTunnel.stopTunnel();
+				} else {
+					remoteTunnel.fireStatus(connected);
+				}
+			});
+			await openMenu().find(action => action.id === `remoteConnections.${method}`)!.run();
+			assert.deepStrictEqual(selectMethodEvents(), [
+				{ source: 'titleBar', method, previousMethod: method === 'off' ? 'devTunnel' : 'off', activeMethod: method, result: 'applied', gitHubEnvironments: 'enabled' },
+			]);
+		});
+	}
 
 	test('clicking the single button opens the picker without changing sharing', async () => {
 		const { primary, openMenu, run, update } = fixture();
@@ -826,7 +940,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
@@ -1005,7 +1119,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				const remoteTunnel = store.add(new TestRemoteTunnelService());
 				const commands = new TestCommandService();
 				const sharing = new TestMissionControlSharingService();
-				const error = operation === 'cancel sign-in' ? new CancellationError() : new Error('Sharing failed');
+				const error = operation === 'cancel sign-in' ? new CancellationError() : new TypeError('fetch failed');
 				if (operation === 'disable') {
 					sharing.state.set('enabled', undefined);
 				}
@@ -1024,7 +1138,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 					logs: log.args,
 					commands: commands.commands,
 				}, {
-					notifications: operation === 'cancel sign-in' ? [] : [[error]],
+					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
+						? 'Failed to disable GitHub environment sharing: fetch failed'
+						: 'Failed to enable GitHub environment sharing: fetch failed']],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});

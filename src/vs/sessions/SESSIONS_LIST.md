@@ -80,6 +80,20 @@ User-created groups and the date sections share a user-managed order below the f
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
 
+### Inbox grouping
+
+Inbox is an opt-in presentation of the same catalog, classified into Ready for you, Working, Ready to merge, On hold, and Done. On desktop, Pinned and the always-expanded primary Inbox occupy one scrolling region; the remaining categories and optional archived inventory occupy a bottom-anchored, independently scrolling region. Both regions share one list owner, classification, filters, triage, and attention lease. Selection, explicit reveal, search, and programmatic snapshots cover both regions; passive selection restoration must not expand a user-collapsed category. Category expansion is persisted by its existing identity. Phone retains a single grouped tree.
+
+`sessions.list.inboxEnabled` gates entry through menus, commands, and agent tools. Disabling it suspends a saved Inbox selection in favor of workspace grouping without clearing triage or presentation state; reenabling restores the selection unless the user chose another grouping. Pins remain visible above the categories; archived sessions remain separate. Custom memberships, automatic-section placement, and manual ordering are retained but do not determine Inbox placement. Comparison groups remain intact and follow their highest-attention participant. Switching out of Inbox restores ordinary organization.
+
+The setting also enables Cmd/Ctrl+Enter for Send in Background and adds focus preservation and an Open Session confirmation to explicit background sends from the new-session composer. Existing Alt+Enter behavior and always-background composers remain available with the setting disabled.
+
+`ISessionsListModelService` owns profile-local triage state. Completed history from before the sidebar Inbox's first activation starts in Done unless it has an outstanding question or actionable notification. Return to Inbox and expired snoozes override that initial placement, including after reload. Subsequent Done decisions are explicit, reversible acknowledgements, not archiving, stopping, or deleting sessions. New activity or newly observed notification identities return acknowledged sessions to the inbox. Put on Hold persists until explicit resumption, regardless of new activity or reloads. Timed and until-activity snoozes share the On hold section but expire automatically; none of these states pauses execution. Pinning keeps even held sessions visible. New completions are never marked Done merely because time passes or a pull request merges.
+
+`IInboxNotificationsService.sessionAttention` shares the original Inbox's notification-based classification and priority without importing its workflow decisions. A visible Inbox-mode list acquires attention tracking and releases it on hiding, leaving the mode, or disposal. Its first activation establishes a persisted, profile-local completion cutoff, independent of the canvas's cutoff, so late-arriving history does not appear as new work. That demand respects disabled AI and does not enable the Inbox canvas, generate previews, record canvas lifecycle telemetry, or establish the canvas's completion cutoff.
+
+Inbox categories have fixed order; ordinary rows prioritize the shared notification priority and then recent activity. Placement drag and drop is unavailable in this mode rather than changing the saved project organization. Provider-owned nested chat moves are unchanged.
+
 ### Nested custom groups
 
 User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
@@ -100,6 +114,8 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
+Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
+
 ## Durable user intent
 
 Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
@@ -111,6 +127,8 @@ List-owned state is removed only when:
 - the user explicitly changes or removes the state.
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
+
+A new session joins the custom group its draft's owner chose. The main window's New Session composer keeps one pending group, such as from New Session on a group. A composer with a draft slot of its own, such as a chat window's, keeps the group of the session it was opened from for its slot (`ISessionGroupsService.setDraftSlotGroup`), and never takes the main composer's pending group. A slot's intent belongs to its owner, not to one draft: it applies to every send of the slot until its registration (the disposable `setDraftSlotGroup` returns) is disposed. Each accepted request copies it into an association of its own with the accepted session, which becomes membership once that session starts and is dropped when the request ends without starting it; the slot's intent stays as it is either way.
 
 ## Sorting and filtering
 

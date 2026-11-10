@@ -6,16 +6,18 @@
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { findOverlayAnchorAt, findOverlayAnchorOf, findOverlayAnchorUnderPointer } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, GridBranchNode, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { GridLocation, GridView } from '../../../../base/browser/ui/grid/gridview.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../editor/editor.js';
-import { PART_GRID_CLASS } from '../editor/partGridClass.js';
+import { PART_GRID_CLASS, PART_GRID_TOP_STRIP_CLASS } from '../editor/partGridClass.js';
 import { EditorPartInPartGridContext } from '../../../common/contextkeys.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,16 +29,17 @@ import { PartGridMotion } from './partGridMotion.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
 /**
- * The class of a cell at the top edge of its grid, with no visible cell above it, for what its owner shows there, such
- * as the top row of a window, which moves the window.
- */
-export const PART_GRID_TOP_EDGE_CLASS = 'part-grid-cell-top-edge';
-
-/**
  * The class of the card of the part the pointer is over, also over what draws over the part, such as a webview, for its
  * grabber to show.
  */
 const PART_GRID_POINTER_OVER_CLASS = 'part-grid-pointer-over';
+
+/**
+ * The classes of the card of the part the pointer is over, while it is over the part's top strip ({@link PART_GRID_TOP_STRIP_CLASS}),
+ * or over the card's grabber: what shares the top edge of the card with the grabber can make way for it, and it for that.
+ */
+const PART_GRID_POINTER_OVER_TOP_STRIP_CLASS = 'part-grid-pointer-over-top-strip';
+const PART_GRID_POINTER_OVER_GRABBER_CLASS = 'part-grid-pointer-over-grabber';
 
 /**
  * How far, in pixels, from where the pointer heads as it leaves the window's elements, what draws over an element, such
@@ -49,24 +52,6 @@ const PART_GRID_OVERLAY_POINTER_QUIET = 100;
 
 /** How often, in milliseconds, the grid looks again while the pointer is over a webview, where the window has no events. */
 const PART_GRID_OVERLAY_POINTER_POLL = 250;
-
-/**
- * The class of an editor group whose title is at the top edge of its grid: a group at the top of a part in a cell at the
- * top edge.
- */
-export const PART_GRID_TOP_EDGE_GROUP_CLASS = 'part-grid-top-edge-group';
-
-/**
- * The class of a cell at the right edge of its grid, with no visible cell to the right of it, for what its owner shows
- * there, such as what the window shows at its right edge.
- */
-export const PART_GRID_RIGHT_EDGE_CLASS = 'part-grid-cell-right-edge';
-
-/**
- * The class of an editor group whose title is at the top right corner of its grid: a group at the top right of a part
- * in a cell at the top and right edges, such as below the window controls at the top right of a window.
- */
-export const PART_GRID_TOP_RIGHT_GROUP_CLASS = 'part-grid-top-right-group';
 
 /**
  * What a cell of a {@link PartGrid} shows that is not an editor part, such as
@@ -87,7 +72,10 @@ export interface IPartGridView {
 }
 
 /**
- * Where a cell goes: beside another cell, or at an edge of the window.
+ * Where a cell goes: beside another cell, or at an edge of the window. At an
+ * edge, the chrome along the sides of that edge, such as a strip at the right
+ * of the window, keeps spanning the window beside the parts and the cell (see
+ * {@link IPartGridViewOptions.edgeChrome}).
  */
 export type PartGridLocation =
 	{ readonly reference: string; readonly direction: Direction } |
@@ -132,6 +120,13 @@ export interface IPartGridViewOptions {
 	 * it, such as a title row of the window above the cards.
 	 */
 	readonly keepsNoGap?: boolean;
+
+	/**
+	 * The edge of the window the cell is chrome along, such as a strip at its
+	 * right: it keeps spanning the window along that edge as cells go to the
+	 * edges beside it.
+	 */
+	readonly edgeChrome?: Direction;
 }
 
 /**
@@ -143,6 +138,39 @@ export interface IPartGridPartOptions {
 	 * of a window. By default it hides then.
 	 */
 	readonly showWhileEmpty?: boolean;
+
+	/**
+	 * Whether the part keeps its size as the grid is resized, such as
+	 * terminals below the other parts. By default parts keep their shares of
+	 * the grid.
+	 */
+	readonly keepsSize?: boolean;
+}
+
+/**
+ * The grid of the cells, which also resizes a row or column in a row or
+ * column by where it is, such as one of rows only, which no view of it
+ * resizes along its parent.
+ */
+class PartGridLayout extends SerializableGrid<PartGridCell> {
+
+	static fromState(state: ISerializedGrid, deserializer: { fromJSON(data: { id: string }): PartGridCell }, options: { proportionalLayout: boolean }): PartGridLayout {
+		return new PartGridLayout(GridView.deserialize(state, deserializer, options), options);
+	}
+
+	/**
+	 * The size a restored grid was arranged at, which it is laid out at first: until then, the sizes of its rows and
+	 * columns, which the sizes kept as it is laid out are read from, are not known.
+	 */
+	restoredSize: IViewSize | undefined;
+
+	/**
+	 * Resizes the node at `location` along the row or column it is in, of
+	 * `orientation`.
+	 */
+	resizeNode(location: GridLocation, orientation: Orientation, size: number): void {
+		this.gridview.resizeView(location, orientation === Orientation.VERTICAL ? { height: size } : { width: size });
+	}
 }
 
 interface ICardFrame {
@@ -162,6 +190,15 @@ class PartGridCell implements ISerializableView {
 
 	private insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+
+	/**
+	 * Whether the cell keeps its size as the grid is resized: views that are
+	 * not parts, such as a title row, and parts that say so. Every cell is
+	 * laid out in proportion, and these get their sizes back once the grid
+	 * is laid out (see `PartGrid.keepSizes`): opting out of the proportional
+	 * layout would keep the size of the row or column around them too.
+	 */
+	get keepsSize(): boolean { return !this.part || !!this.options.keepsSize; }
 
 	get minimumWidth(): number { return this.view.minimumWidth + this.horizontalFrame; }
 	get maximumWidth(): number { return this.view.maximumWidth + this.horizontalFrame; }
@@ -383,7 +420,7 @@ const PART_GRID_GAPLESS_CLASS = 'part-grid-gapless';
 export class PartGrid extends Disposable {
 
 	private readonly gridDisposables = this._register(new MutableDisposable<DisposableStore>());
-	private grid: SerializableGrid<PartGridCell> | undefined;
+	private grid: PartGridLayout | undefined;
 
 	private readonly cells = new Map<string, PartGridCell>();
 	private readonly cellDisposables = this._register(new DisposableMap<string>());
@@ -481,7 +518,9 @@ export class PartGrid extends Disposable {
 		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => {
 			this.pointerInOverlay = false;
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
-			this.setPointerOverCellOrChrome(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined);
+			const target = isHTMLElement(e.target) ? e.target : undefined;
+			this.setPointerOverCellOrChrome(target ? this.findCellAt(target) : undefined);
+			this.markPointerTarget(target);
 		}, true));
 		// Into the frame of a webview the window may have no event at all: once its events stop, the grid looks for what
 		// draws over a part that the pointer is over
@@ -493,6 +532,7 @@ export class PartGrid extends Disposable {
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
 			if (isHTMLElement(e.relatedTarget)) {
 				this.setPointerOverCellOrChrome(this.findCellAt(e.relatedTarget));
+				this.markPointerTarget(e.relatedTarget);
 				return;
 			}
 			this.setPointerOverCellAt(e.clientX + e.movementX, e.clientY + e.movementY);
@@ -537,6 +577,7 @@ export class PartGrid extends Disposable {
 			return rect.width > 0 && rect.height > 0 && x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 		});
 		this.setPointerOverCellOrChrome(cell);
+		this.markPointerTarget(undefined);
 	}
 
 	/** Whether the pointer is over what draws over a part, as {@link checkOverlayPointer} found, rather than over the window's elements. */
@@ -552,6 +593,7 @@ export class PartGrid extends Disposable {
 		if (anchor) {
 			this.pointerInOverlay = true;
 			this.setPointerOverCell(this.findCellAt(anchor));
+			this.markPointerTarget(undefined);
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_POLL);
 		} else if (this.pointerInOverlay) {
 			this.pointerInOverlay = false;
@@ -565,9 +607,26 @@ export class PartGrid extends Disposable {
 			return;
 		}
 
-		this.pointerOverCard?.classList.remove(PART_GRID_POINTER_OVER_CLASS);
+		this.pointerOverCard?.classList.remove(PART_GRID_POINTER_OVER_CLASS, PART_GRID_POINTER_OVER_TOP_STRIP_CLASS, PART_GRID_POINTER_OVER_GRABBER_CLASS);
 		this.pointerOverCard = card;
+		this.pointerOverDragHandle = cell?.part ? cell.dragHandle : undefined;
 		card?.classList.add(PART_GRID_POINTER_OVER_CLASS);
+	}
+
+	private pointerOverDragHandle: HTMLElement | undefined;
+
+	/**
+	 * Marks the card the pointer is over while `target`, what the pointer is over, is the top strip of its part or its
+	 * grabber; changing the classes only as the pointer moves between them.
+	 */
+	private markPointerTarget(target: HTMLElement | undefined): void {
+		const card = this.pointerOverCard;
+		if (!card) {
+			return;
+		}
+		const topStrip = target?.closest(`.${PART_GRID_TOP_STRIP_CLASS}`);
+		card.classList.toggle(PART_GRID_POINTER_OVER_TOP_STRIP_CLASS, !!topStrip && card.contains(topStrip));
+		card.classList.toggle(PART_GRID_POINTER_OVER_GRABBER_CLASS, !!target && !!this.pointerOverDragHandle?.contains(target));
 	}
 
 	/**
@@ -649,6 +708,7 @@ export class PartGrid extends Disposable {
 	}
 
 	private mergeAllowed: (id: string, targetId: string) => boolean = () => true;
+	private splitAllowed: (targetId: string, direction: Direction) => boolean = () => true;
 	private previewLayoutAllowed: (id: string, part: IContentPart) => boolean = () => true;
 
 	private movable: (id: string) => boolean = () => true;
@@ -710,6 +770,24 @@ export class PartGrid extends Disposable {
 	 */
 	setMergeAllowed(allowed: boolean | ((id: string, targetId: string) => boolean)): void {
 		this.mergeAllowed = typeof allowed === 'boolean' ? () => allowed : allowed;
+	}
+
+	/**
+	 * Whether a part dropped beside another part, on a side of it, splits the
+	 * cell of that part there. By default it does; a window can say where it
+	 * does not, such as beside a part that shows only a little of itself
+	 * across the row it is in, which the row would hold the dropped part to:
+	 * there, with no other part beyond that side, the dropped part goes to
+	 * that edge of the window, as a drop at that edge does. Moves by command,
+	 * such as Move Part, are not drops.
+	 */
+	setSplitAllowed(allowed: (targetId: string, direction: Direction) => boolean): void {
+		this.splitAllowed = allowed;
+	}
+
+	private keepsSize(id: string): boolean {
+		const cell = this.cells.get(id);
+		return !!cell?.part && !!cell.options.keepsSize;
 	}
 
 	private canMergeCell(id: string, targetId: string): boolean {
@@ -816,7 +894,7 @@ export class PartGrid extends Disposable {
 		const cellOf = (stub: PreviewView) => stub.id === added?.id ? added.like : this.getCell(stub.id);
 		// Laid out as the grid is, before the change, which changes the cells as the grid would
 		const deserialize = (serialized: ISerializedGrid) => {
-			const deserialized = SerializableGrid.deserialize<PreviewView>(serialized, { fromJSON: (data: { id: string }) => stubOf(data.id) }, { proportionalLayout: false });
+			const deserialized = SerializableGrid.deserialize<PreviewView>(serialized, { fromJSON: (data: { id: string }) => stubOf(data.id) }, { proportionalLayout: true });
 			deserialized.layout(state.width, state.height);
 			return deserialized;
 		};
@@ -826,6 +904,9 @@ export class PartGrid extends Disposable {
 			const arrangement: IArrangement<PreviewView> = {
 				get grid() { return grid; },
 				isPart: cellId => cellId === added?.id || !!this.cells.get(cellId)?.part,
+				edgeChromeOf: cellId => this.cells.get(cellId)?.options.edgeChrome,
+				keepsSize: cellId => cellId !== added?.id && this.keepsSize(cellId),
+				splits: (cellId, direction) => this.splitAllowed(cellId, direction),
 				replace: serialized => {
 					const next = deserialize(serialized);
 					grid.dispose();
@@ -833,11 +914,10 @@ export class PartGrid extends Disposable {
 				}
 			};
 			change(arrangement, stubOf);
-			this.previewAdjuster?.({
-				leads: cellId => leads(grid, cellId, stub => !!stub.part && grid.isViewVisible(stub)),
-				isCellVisible: cellId => stubs.has(cellId) || this.cells.has(cellId) ? grid.isViewVisible(stubOf(cellId)) : false,
-				setCellVisible: (cellId, visible) => grid.setViewVisible(stubOf(cellId), visible)
-			});
+			// As the move will be: the pinned view spans the top of the grid
+			if (this.pinnedTopView && stubs.has(this.pinnedTopView)) {
+				pinViewToTop(arrangement, this.pinnedTopView);
+			}
 			grid.layout(state.width, state.height);
 
 			const origin = current.element.getBoundingClientRect();
@@ -998,9 +1078,9 @@ export class PartGrid extends Disposable {
 
 		if (cell.part && cell.dragHandle) {
 			disposables.add(addDisposableListener(cell.dragHandle, EventType.POINTER_DOWN, e => this.startPartDrag(id, e)));
-			// The empty space of the title of a group that is not at the top edge of the window, which moves the window, drags the part too
+			// The empty space of the title of a group drags the part too
 			disposables.add(addDisposableListener(cell.element, EventType.POINTER_DOWN, e => {
-				if (getPartTitleDragSource(e.target, cell.element, group => !group.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS))) {
+				if (getPartTitleDragSource(e.target, cell.element)) {
 					this.startPartDrag(id, e);
 				}
 			}, true));
@@ -1021,7 +1101,7 @@ export class PartGrid extends Disposable {
 	 */
 	private addCell(cell: PartGridCell, location: PartGridLocation, size: number | undefined, donorId?: string): void {
 		if (!this.grid) {
-			this.setGrid(new SerializableGrid<PartGridCell>(cell, { proportionalLayout: false }));
+			this.setGrid(new PartGridLayout(cell, { proportionalLayout: true }));
 		} else if (hasKey(location, { reference: true })) {
 			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
 		} else {
@@ -1040,35 +1120,10 @@ export class PartGrid extends Disposable {
 		disposables.add(part.onDidAddGroup(group => { trackGroup(group); update(); this.updateSplit(id, part); }));
 		disposables.add(part.onDidRemoveGroup(group => { groupListeners.deleteAndDispose(group); update(); this.updateSplit(id, part); }));
 		this.updateSplit(id, part);
-		// Which of its groups are at its top changes with its groups.
-		const markTopEdgeGroups = () => this.markTopEdgeGroups(this.getCell(id));
-		disposables.add(Event.any(part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(markTopEdgeGroups));
 		disposables.add(part.onWillClose(() => this.removeCell(id)));
 
 		if (!hasEditors(part)) {
 			this.empty.add(id);
-		}
-	}
-
-	/**
-	 * Marks the groups of the part of `cell` at its top, while the cell is at the top edge of the grid, and of those the
-	 * one at its right, while the cell is at the right edge too.
-	 */
-	private markTopEdgeGroups(cell: PartGridCell): void {
-		const part = cell.part;
-		if (!part) {
-			return;
-		}
-		const atTopEdge = cell.element.classList.contains(PART_GRID_TOP_EDGE_CLASS);
-		const atRightEdge = cell.element.classList.contains(PART_GRID_RIGHT_EDGE_CLASS);
-		for (const group of part.groups) {
-			const element = (group as Partial<IEditorGroupView>).element;
-			if (!element) {
-				continue;
-			}
-			const atTop = atTopEdge && !part.findGroup({ direction: GroupDirection.UP }, group);
-			element.classList.toggle(PART_GRID_TOP_EDGE_GROUP_CLASS, atTop);
-			element.classList.toggle(PART_GRID_TOP_RIGHT_GROUP_CLASS, atTop && atRightEdge && !part.findGroup({ direction: GroupDirection.RIGHT }, group));
 		}
 	}
 
@@ -1162,6 +1217,9 @@ export class PartGrid extends Disposable {
 			// The grid as it is now: a change can replace it
 			get grid() { return partGrid.grid!; },
 			isPart: id => !!this.cells.get(id)?.part,
+			edgeChromeOf: id => this.cells.get(id)?.options.edgeChrome,
+			keepsSize: id => this.keepsSize(id),
+			splits: (id, direction) => this.splitAllowed(id, direction),
 			replace: state => this.setGrid(this.deserialize(state))
 		};
 	}
@@ -1185,11 +1243,12 @@ export class PartGrid extends Disposable {
 		return cell;
 	}
 
-	private deserialize(state: ISerializedGrid): SerializableGrid<PartGridCell> {
-		return SerializableGrid.deserialize<PartGridCell>(state, { fromJSON: (data: { id: string }) => this.getCell(data.id) }, { proportionalLayout: false });
+	private deserialize(state: ISerializedGrid): PartGridLayout {
+		// The parts keep their shares of the grid as it is resized
+		return PartGridLayout.fromState(state, { fromJSON: (data: { id: string }) => this.getCell(data.id) }, { proportionalLayout: true });
 	}
 
-	private setGrid(grid: SerializableGrid<PartGridCell>): void {
+	private setGrid(grid: PartGridLayout): void {
 		this.laidOut = false; // a new grid knows its neighbors once laid out
 		const disposables = new DisposableStore();
 		disposables.add(grid);
@@ -1343,6 +1402,8 @@ export class PartGrid extends Disposable {
 	}
 
 	private updateAllVisibility(): void {
+		// Every change of the arrangement ends here: the view pinned to the top goes back there before the cells show
+		this.keepPinnedViewOnTop();
 		for (const id of this.cells.keys()) {
 			this.updateVisibility(id);
 		}
@@ -1351,40 +1412,41 @@ export class PartGrid extends Disposable {
 		this._onDidChangeArrangement.fire();
 	}
 
-	/**
-	 * Whether a part leads the window: it shows, and no other part shows
-	 * before it, to its left or above it. Views that are not parts, such as
-	 * a title row, do not count.
-	 */
-	leadsWindow(id: string): boolean {
-		if (!this.grid || !this.isCellVisible(id)) {
-			return false;
-		}
+	/** The view that spans the top of the grid, whatever moves; see {@link setPinnedTopView}. */
+	private pinnedTopView: string | undefined;
 
-		return leads(this.grid, id, cell => !!cell.part && this.isCellVisible(cell.id));
+	/**
+	 * Keeps the view `id`, such as the title row of a window, spanning the top of the grid: the first row of the grid,
+	 * across all of it, with the rest of the grid below it. Every change of the arrangement keeps it there, such as a part
+	 * moved or dropped at an edge of the grid, beside it, or a grid restored with it elsewhere, and so does the preview of
+	 * a move. Without one, the arrangement is as the changes make it.
+	 */
+	setPinnedTopView(id: string | undefined): void {
+		this.pinnedTopView = id;
+		this.updateAllVisibility();
 	}
 
-	private previewAdjuster: ((preview: IPartGridMovePreview) => void) | undefined;
-
-	/**
-	 * Sets what adjusts the preview of a move to what its owner does after
-	 * a move, such as showing a row it shows once another part leads.
-	 */
-	setMovePreviewAdjuster(adjuster: (preview: IPartGridMovePreview) => void): IDisposable {
-		this.previewAdjuster = adjuster;
-
-		return toDisposable(() => {
-			if (this.previewAdjuster === adjuster) {
-				this.previewAdjuster = undefined;
-			}
-		});
+	/** Moves the pinned view back to the top of the grid, unless it is there. */
+	private keepPinnedViewOnTop(): void {
+		if (!this.grid || !this.pinnedTopView) {
+			return;
+		}
+		// Most changes leave it there, such as a cell that shows or hides: nothing to look at then
+		const first = this.grid.getViews().children[0];
+		if (this.grid.orientation === Orientation.VERTICAL && first && !isGridBranchNode(first) && first.view.id === this.pinnedTopView) {
+			return;
+		}
+		pinViewToTop(this.arrangement(), this.pinnedTopView);
 	}
 
 	getCellSize(id: string): IViewSize {
 		return this.grid ? this.grid.getViewSize(this.getCell(id)) : { width: 0, height: 0 };
 	}
 
-	resizeCell(id: string, size: IViewSize): void {
+	/**
+	 * Resizes a cell; a dimension left out keeps its size.
+	 */
+	resizeCell(id: string, size: Partial<IViewSize>): void {
 		this.grid?.resizeView(this.getCell(id), size);
 	}
 
@@ -1452,7 +1514,12 @@ export class PartGrid extends Disposable {
 		grid.element.style.width = `${width}px`;
 		grid.element.style.height = `${height}px`;
 
-		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once
+		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once. A restored grid
+		// knows the sizes of its rows and columns once laid out: first at the size it was arranged at, for the sizes kept below.
+		if (!this.laidOut && grid.restoredSize) {
+			grid.layout(grid.restoredSize.width, grid.restoredSize.height);
+		}
+		const kept = this.keptSizes(grid);
 		if (this.laidOut) {
 			this.applyLook(false);
 			grid.layout(width, height);
@@ -1460,6 +1527,100 @@ export class PartGrid extends Disposable {
 			grid.layout(width, height);
 			this.laidOut = true;
 			this.applyLook();
+		}
+		this.keepSizes(grid, kept);
+	}
+
+	/**
+	 * Of each part that keeps its size, the shares that the others in its
+	 * row or column had of what it left them, unrounded, and the sizes they
+	 * got from them: as long as nothing else resized them since, such as
+	 * the user dragging a sash or the grid arranged again, they keep these
+	 * shares, so that resizing the grid back and forth gives the sizes back.
+	 */
+	private readonly keptShares = new WeakMap<PartGridCell, { readonly views: readonly (PartGridCell | undefined)[]; readonly sizes: readonly number[]; readonly shares: readonly number[] }>();
+
+	/**
+	 * The sizes of the cells that keep their sizes (see
+	 * {@link PartGridCell.keepsSize}) along their rows or columns,
+	 * and the shares the others in them have.
+	 */
+	private keptSizes(grid: PartGridLayout): Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }> {
+		const kept = new Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }>();
+		for (const cell of this.cells.values()) {
+			const line = cell.keepsSize ? findLineOf(grid, cell) : undefined;
+			if (!line || !grid.isViewVisible(cell)) {
+				continue;
+			}
+			const others = othersInLine(line);
+			const sizes = others.map(node => sizeAlong(node, line.orientation));
+			const total = sizes.reduce((sum, size) => sum + size, 0);
+			const remembered = this.keptShares.get(cell);
+			const views = others.map(firstViewOf);
+			const unchanged = remembered && equals(remembered.views, views) && equals(remembered.sizes, sizes);
+			kept.set(cell, { size: sizeAlong(line.branch.children[line.index], line.orientation), shares: unchanged ? remembered.shares : sizes.map(size => total > 0 ? size / total : 1 / sizes.length) });
+		}
+
+		return kept;
+	}
+
+	/**
+	 * Gives the parts that keep their sizes the sizes they had before the
+	 * grid was laid out, the other parts in their rows or columns taking
+	 * their shares of the rest, as they do as the grid is resized.
+	 */
+	private keepSizes(grid: PartGridLayout, kept: ReadonlyMap<PartGridCell, { readonly size: number; readonly shares: readonly number[] }>): void {
+		for (const [cell, { size, shares }] of kept) {
+			const line = findLineOf(grid, cell);
+			if (!line) {
+				continue;
+			}
+			// By index in the line, read again for each resize, as each resize changes the sizes of others in it
+			const resize = (index: number, value: number) => {
+				const current = findLineOf(grid, cell);
+				const node = current?.branch.children[index];
+				if (current && node && sizeAlong(node, line.orientation) !== value) {
+					grid.resizeNode([...current.location, index], line.orientation, value);
+				}
+			};
+			const others = othersInLine(line);
+			const indexes = others.map(node => line.branch.children.indexOf(node));
+			const keptSize = sizeAlong(line.branch.children[line.index], line.orientation);
+			const total = others.reduce((sum, node) => sum + sizeAlong(node, line.orientation), 0) + keptSize - size;
+			if (others.length < 2 || total <= 0 || shares.length !== others.length) {
+				resize(line.index, size);
+				continue;
+			}
+
+			// Rounded by where they end, so that the sizes add up to the total and each depends only on it and the shares
+			let end = 0;
+			const targets = shares.map(share => {
+				const start = Math.round(end * total);
+				end += share;
+				return Math.round(end * total) - start;
+			});
+
+			// The last of the others takes what the rest leaves: each resize goes to the last flexible view of the line
+			// that is not resized. The order keeps that view from going below the size it ends with: it grows first.
+			const steps = others.slice(0, -1).map((node, index) => () => {
+				const target = isGridBranchNode(node) ? targets[index] : Math.min(Math.max(targets[index], minimumAlong(node.view, line.orientation)), maximumAlong(node.view, line.orientation));
+				resize(indexes[index], target);
+			});
+			const keep = () => resize(line.index, size);
+			if (keptSize > size && line.index < indexes[indexes.length - 1]) {
+				steps.unshift(keep);
+			} else {
+				steps.push(keep);
+			}
+			for (const step of steps) {
+				step();
+			}
+
+			const after = findLineOf(grid, cell);
+			if (after) {
+				const othersAfter = othersInLine(after);
+				this.keptShares.set(cell, { views: othersAfter.map(firstViewOf), sizes: othersAfter.map(node => sizeAlong(node, after.orientation)), shares });
+			}
 		}
 	}
 
@@ -1483,15 +1644,7 @@ export class PartGrid extends Disposable {
 			return; // the grid knows its neighbors once laid out
 		}
 
-		const allCells = this.getCellsInGrid(grid.getViews());
-		const cells = allCells.filter((cell, _index, all) => all.length === 1 || grid.isViewVisible(cell));
-		for (const cell of allCells) {
-			if (!cells.includes(cell)) {
-				// Hidden, it is at no edge.
-				cell.element.classList.remove(PART_GRID_TOP_EDGE_CLASS, PART_GRID_RIGHT_EDGE_CLASS);
-				this.markTopEdgeGroups(cell);
-			}
-		}
+		const cells = this.getCellsInGrid(grid.getViews()).filter((cell, _index, all) => all.length === 1 || grid.isViewVisible(cell));
 
 		// Read all frames before writing to any card
 		const frames = cells.map(cell => cell.readFrame());
@@ -1500,13 +1653,9 @@ export class PartGrid extends Disposable {
 		cells.forEach((cell, index) => {
 			const insets = cell.options.keepsNoGap ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.options.keepsNoGap);
 			changed = cell.setLook(insets, frames[index]) || changed;
-			// At the top edge of the grid: no visible cell above it, such as a row of the window's chrome.
-			cell.element.classList.toggle(PART_GRID_TOP_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Up, false).some(neighbor => grid.isViewVisible(neighbor)));
-			cell.element.classList.toggle(PART_GRID_RIGHT_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Right, false).some(neighbor => grid.isViewVisible(neighbor)));
-			this.markTopEdgeGroups(cell);
 		});
 
-		updateGridGapSashes(grid, true);
+		updateGridGapSashes(grid, true, this.gap);
 
 		// Insets change the size constraints of the cells
 		if (changed && relayout) {
@@ -1556,7 +1705,9 @@ export class PartGrid extends Disposable {
 			}
 		}
 
-		partGrid.setGrid(partGrid.deserialize(state.grid));
+		const grid = partGrid.deserialize(state.grid);
+		grid.restoredSize = { width: state.grid.width, height: state.grid.height };
+		partGrid.setGrid(grid);
 		partGrid.updateAllVisibility();
 
 		return partGrid;
@@ -1585,13 +1736,104 @@ interface IArrangedView extends ISerializableView {
 interface IArrangement<T extends IArrangedView> {
 	readonly grid: SerializableGrid<T>;
 	isPart(id: string): boolean;
+	/** The edge of the window the view is chrome along, if it is; see {@link IPartGridViewOptions.edgeChrome}. */
+	edgeChromeOf(id: string): Direction | undefined;
+	/** Whether the view keeps its size; see {@link IPartGridPartOptions.keepsSize}. */
+	keepsSize(id: string): boolean;
+	/** Whether a part dropped beside the view `id` on the side `direction` splits its cell; see {@link PartGrid.setSplitAllowed}. */
+	splits(id: string, direction: Direction): boolean;
 	replace(state: ISerializedGrid): void;
+}
+
+/** Moves the view `id` of an arrangement back to the top of its grid, unless it is there; see {@link pinViewToTop}. */
+function pinViewToTop<T extends IArrangedView>(arrangement: IArrangement<T>, id: string): void {
+	const pinned = getGridWithViewOnTop(arrangement.grid.serialize(), id);
+	if (pinned) {
+		arrangement.replace(pinned);
+	}
+}
+
+/**
+ * The grid with the view `id` spanning its top: the first row of a column across the grid, with the rest of the grid
+ * below it, as it was arranged, its rows taking the room the view leaves them in proportion. Undefined while the view
+ * is there already, or not in the grid.
+ */
+export function getGridWithViewOnTop(state: ISerializedGrid, id: string): ISerializedGrid | undefined {
+	const isPinned = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
+	if (state.root.type !== 'branch' || (state.orientation === Orientation.VERTICAL && isPinned(state.root.data[0]))) {
+		return undefined;
+	}
+
+	// Takes the view out of where it is: the node beside it takes its room, and a row or column left with one node is
+	// that node, in its parent, as the grid has it
+	let pinned: ISerializedNode | undefined;
+	const without = (children: readonly ISerializedNode[]): ISerializedNode[] => {
+		const result: ISerializedNode[] = [];
+		let removedAt: number | undefined;
+		for (const child of children) {
+			if (isPinned(child)) {
+				pinned = child;
+				removedAt = result.length;
+			} else if (child.type === 'branch') {
+				const inner = without(child.data);
+				if (inner.length !== 1) {
+					// A branch with nothing visible left is hidden, as the grid serializes it
+					const visible = inner.some(node => node.visible !== false);
+					result.push(visible ? { ...child, data: inner } : { ...child, data: inner, visible: false });
+				} else if (inner[0].type === 'branch') {
+					// Its row or column across this one: its nodes go into this one, as they are along it
+					result.push(...inner[0].data);
+				} else {
+					result.push({ ...inner[0], size: child.size });
+				}
+			} else {
+				result.push(child);
+			}
+		}
+		if (removedAt !== undefined && pinned && pinned.visible !== false && result.length) {
+			const neighbor = Math.min(removedAt, result.length - 1);
+			result[neighbor] = scaleAlong(result[neighbor], result[neighbor].size + pinned.size);
+		}
+		return result;
+	};
+	let rest = without(state.root.data);
+	if (!pinned) {
+		return undefined;
+	}
+	let orientation = state.orientation;
+	if (rest.length === 1 && rest[0].type === 'leaf') {
+		// One cell left: right below the view
+		orientation = Orientation.VERTICAL;
+	} else if (rest.length === 1 && rest[0].type === 'branch') {
+		// The root holds one row or column: that one is the root, across the other way
+		orientation = orthogonal(orientation);
+		rest = rest[0].data;
+	}
+
+	// The view at the top, with its height; what is below it takes the rest, in proportion to how it was arranged
+	const height = Math.max(0, state.height - (pinned.visible === false ? 0 : Math.min(pinned.size, state.height)));
+	let below: ISerializedNode[];
+	if (orientation === Orientation.VERTICAL) {
+		const total = rest.reduce((sum, node) => sum + (node.visible === false ? 0 : node.size), 0) || 1;
+		below = rest.map(node => node.visible === false ? node : scaleAlong(node, Math.round(node.size * height / total)));
+		const lastVisible = below.map(node => node.visible !== false).lastIndexOf(true);
+		if (lastVisible >= 0) {
+			const sum = below.reduce((value, node) => value + (node.visible === false ? 0 : node.size), 0);
+			below[lastVisible] = scaleAlong(below[lastVisible], below[lastVisible].size + height - sum);
+		}
+	} else {
+		below = [scaleAlong({ type: 'branch', data: rest, size: state.height }, height)];
+	}
+	return { root: { type: 'branch', data: [pinned, ...below], size: state.width }, orientation: Orientation.VERTICAL, width: state.width, height: state.height };
 }
 
 function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string): void {
 	const grid = arrangement.grid;
 	const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 	const atEnd = edge === Direction.Right || edge === Direction.Down;
+	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size)) {
+		return;
+	}
 	if (addAtEdgeOfParts(arrangement, cell, orientation, atEnd, size, donorId)) {
 		return;
 	}
@@ -1623,6 +1865,82 @@ function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: 
 		newRoot = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: orientation === Orientation.VERTICAL ? state.width : state.height };
 	}
 	arrangement.replace({ root: newRoot, orientation, width: state.width, height: state.height });
+}
+
+/**
+ * Adds a cell at an edge of the window beside the parts, but not beside the
+ * chrome along the edges beside it, such as a strip at the right of the
+ * window, at the ends of the row or column across that edge: the chrome keeps
+ * spanning past the cell. Returns whether it added the cell: not without such
+ * chrome there.
+ */
+function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined): boolean {
+	const state = arrangement.grid.serialize();
+	// Chrome along the left or right edge spans the window from top to bottom, beside cells at its top or bottom edge
+	const spansAlongEdge = (id: string) => {
+		const edge = arrangement.edgeChromeOf(id);
+		return edge !== undefined && (edge === Direction.Left || edge === Direction.Right) === (orientation === Orientation.VERTICAL);
+	};
+	const isSpanning = (node: ISerializedNode | undefined) => node?.type === 'leaf' && spansAlongEdge((node.data as { id: string }).id);
+	const path: number[] = [];
+	let node = state.root;
+	let nodeOrientation = state.orientation;
+	let extent = orientation === Orientation.VERTICAL ? state.height : state.width;
+	// Along the edge's orientation, to what is at that edge: the row or column across the edge. Views that are not parts
+	// there, such as a title row pinned at the top of the window, also while it hides, stay where they are, past the cell.
+	const isView = (child: ISerializedNode) => child.type === 'leaf' && !arrangement.isPart((child.data as { id: string }).id);
+	while (node.type === 'branch' && nodeOrientation === orientation && node.data.length) {
+		let index = atEnd ? node.data.length - 1 : 0;
+		while (isView(node.data[index]) && (atEnd ? index > 0 : index < node.data.length - 1)) {
+			index += atEnd ? -1 : 1;
+		}
+		path.push(index);
+		node = node.data[index];
+		extent = node.size ?? extent;
+		nodeOrientation = orthogonal(nodeOrientation);
+	}
+	if (node.type !== 'branch') {
+		return false;
+	}
+
+	let start = 0;
+	while (start < node.data.length && isSpanning(node.data[start])) {
+		start++;
+	}
+	let end = node.data.length;
+	while (end > start && isSpanning(node.data[end - 1])) {
+		end--;
+	}
+	const parts = node.data.slice(start, end);
+	if (!parts.length || (start === 0 && end === node.data.length)) {
+		return false;
+	}
+
+	const cellSize = Math.min(size ?? Math.round(extent / 2), extent);
+	const rest = Math.max(0, extent - cellSize);
+	const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
+	let beside: ISerializedNode;
+	const [only] = parts;
+	if (parts.length === 1 && only.type === 'branch') {
+		// A column (or row) along the edge already: the cell joins it at that end, and what shows in it makes room. Hidden
+		// children take no room: they keep the size they had, to show at again.
+		const shows = (child: ISerializedNode) => child.type !== 'leaf' || child.visible !== false;
+		const total = only.data.reduce((sum, child) => sum + (shows(child) ? child.size ?? 0 : 0), 0);
+		const factor = total ? rest / total : 1;
+		const data = only.data.map(child => shows(child) ? { ...child, size: Math.round((child.size ?? 0) * factor) } : child);
+		beside = { ...only, data: atEnd ? [...data, added] : [added, ...data] };
+	} else {
+		const inner: ISerializedNode = parts.length === 1 ? { ...only, size: rest } : { type: 'branch', data: parts, size: rest };
+		beside = { type: 'branch', data: atEnd ? [inner, added] : [added, inner], size: parts.reduce((sum, child) => sum + (child.size ?? 0), 0) };
+	}
+	const replacement: ISerializedNode = { ...node, data: [...node.data.slice(0, start), beside, ...node.data.slice(end)] };
+
+	const replace = (current: ISerializedNode, depth: number): ISerializedNode => depth === path.length || current.type !== 'branch'
+		? replacement
+		: { ...current, data: current.data.map((child, childIndex) => childIndex === path[depth] ? replace(child, depth + 1) : child) };
+	arrangement.replace({ ...state, root: replace(state.root, 0) });
+
+	return true;
 }
 
 /**
@@ -1687,6 +2005,55 @@ function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>,
  * in it along that orientation, such as the cells of a row in a row in it,
  * takes its share in proportion too, rather than the last of them all of it.
  */
+/**
+ * The row or column that a cell is in, where it is in the grid, the index
+ * of the cell in it, and whether it is a row or a column.
+ */
+function findLineOf(grid: Grid<PartGridCell>, cell: PartGridCell): { readonly branch: GridBranchNode<PartGridCell>; readonly location: GridLocation; readonly index: number; readonly orientation: Orientation } | undefined {
+	const find = (branch: GridBranchNode<PartGridCell>, location: GridLocation, orientation: Orientation): ReturnType<typeof findLineOf> => {
+		for (let index = 0; index < branch.children.length; index++) {
+			const child = branch.children[index];
+			const found = isGridBranchNode(child) ? find(child, [...location, index], orthogonal(orientation)) : child.view === cell ? { branch, location, index, orientation } : undefined;
+			if (found) {
+				return found;
+			}
+		}
+
+		return undefined;
+	};
+
+	return find(grid.getViews(), [], grid.orientation);
+}
+
+/**
+ * The others in the row or column of a cell that keeps its size, which
+ * make room for it: rows or columns across it, and parts that show, can be
+ * resized and do not keep their sizes either.
+ */
+function othersInLine(line: { readonly branch: GridBranchNode<PartGridCell>; readonly index: number; readonly orientation: Orientation }): GridNode<PartGridCell>[] {
+	return line.branch.children.filter((node, index) => index !== line.index && (isGridBranchNode(node) || (!node.view.keepsSize && node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
+}
+
+/**
+ * The first view in a node, which tells it from others: a row or column
+ * across it by the first view in it, at any depth.
+ */
+function firstViewOf(node: GridNode<PartGridCell>): PartGridCell | undefined {
+	return isGridBranchNode(node) ? (node.children.length ? firstViewOf(node.children[0]) : undefined) : node.view;
+}
+
+function sizeAlong(node: GridNode<PartGridCell>, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? node.box.height : node.box.width;
+}
+
+function minimumAlong(view: IView, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? view.minimumHeight : view.minimumWidth;
+}
+
+function maximumAlong(view: IView, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? view.maximumHeight : view.maximumWidth;
+}
+
 function scaleAlong(node: ISerializedNode, size: number): ISerializedNode {
 	const factor = node.size ? size / node.size : 1;
 	const scale = (inner: ISerializedNode): ISerializedNode => {
@@ -1744,14 +2111,18 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
  * Puts a part where the user puts it, beside another view or at an edge of
  * the window, moved there (`adding` false) or added: the same way for every
  * gesture, a drop or a command, so that the same place gives the same size.
- * Dropped beside a part with no part beyond it on that side, it goes to
- * that edge of the window, as a drop there does. It then takes an even
- * share of the row or column it joins (see {@link giveEvenShare}).
+ * Dropped beside a part, it splits the cell of that part, unless the part
+ * takes no part beside it on that side (see {@link IArrangement.splits}):
+ * then, with no part beyond it on that side, it goes to that edge of the
+ * window, as a drop there does. It then takes an even share of the row or
+ * column it joins (see {@link giveEvenShare}), or, for a part that keeps its
+ * size dropped into a row or column as the one it was in, that size.
  */
 function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation, adding: boolean, dropped: boolean): void {
-	const resolved = dropped ? toEdgeIfAtEdge(arrangement, view, getView, location) : location;
+	const resolved = dropped ? toEdgeIfNotSplit(arrangement, view, getView, location) : location;
 	// The sizes before, which the other parts make room in proportion to
 	const before = getViewSizes(arrangement.grid);
+	const keptAlong = dropped && !adding && arrangement.keepsSize(view.id) ? findLineOfView(arrangement.grid.serialize(), view.id)?.orientation : undefined;
 	if (hasKey(resolved, { reference: true })) {
 		if (adding) {
 			arrangement.grid.addView(view, Sizing.Split, getView(resolved.reference), resolved.direction);
@@ -1765,7 +2136,7 @@ function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T
 		addAtEdge(arrangement, view, resolved.edge, undefined);
 	}
 
-	giveEvenShare(arrangement, view, before, getView);
+	giveEvenShare(arrangement, view, before, getView, keptAlong);
 }
 
 function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<string, IViewSize> {
@@ -1782,11 +2153,11 @@ function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<s
 }
 
 /**
- * Beside a part with no other part beyond it on that side, the edge of the
- * window on that side.
+ * Beside a part that takes no part beside it on that side, with no other
+ * part beyond it on that side, the edge of the window on that side.
  */
-function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation): PartGridLocation {
-	if (!hasKey(location, { reference: true })) {
+function toEdgeIfNotSplit<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation): PartGridLocation {
+	if (!hasKey(location, { reference: true }) || arrangement.splits(location.reference, location.direction)) {
 		return location;
 	}
 
@@ -1797,21 +2168,16 @@ function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, v
 }
 
 /**
- * Gives a part an even share of the row or column it is in, of the parts
- * that show there: the other parts make room in proportion to their sizes,
- * and views that are not parts, such as a title row, keep theirs. Its least
- * and most sizes hold.
+ * The row or column the view `id` is in, in a serialized grid: the path of
+ * its branch and its orientation.
  */
-function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>, getView: (id: string) => T): void {
-	const state = arrangement.grid.serialize();
-	const id = view.id;
+function findLineOfView(state: ISerializedGrid, id: string): { readonly path: number[]; readonly orientation: Orientation } | undefined {
 	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
 	const findLine = (node: ISerializedNode, orientation: Orientation, path: number[]): { readonly path: number[]; readonly orientation: Orientation } | undefined => {
 		if (node.type !== 'branch') {
 			return undefined;
 		}
-		const index = node.data.findIndex(isView);
-		if (index >= 0) {
+		if (node.data.some(isView)) {
 			return { path, orientation };
 		}
 		for (let i = 0; i < node.data.length; i++) {
@@ -1822,7 +2188,22 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 		}
 		return undefined;
 	};
-	const line = findLine(state.root, state.orientation, []);
+	return findLine(state.root, state.orientation, []);
+}
+
+/**
+ * Gives a part an even share of the row or column it is in, of the parts
+ * that show there: the other parts make room in proportion to their sizes,
+ * and views that are not parts, such as a title row, keep theirs. A part that
+ * keeps its size, in a row or column along `keptAlong`, the orientation of
+ * the one it was in, keeps the size it had along it instead. Its least and
+ * most sizes hold.
+ */
+function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>, getView: (id: string) => T, keptAlong?: Orientation): void {
+	const state = arrangement.grid.serialize();
+	const id = view.id;
+	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
+	const line = findLineOfView(state, id);
 	if (!line) {
 		return;
 	}
@@ -1869,8 +2250,10 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 		return;
 	}
 
-	// The share leaves the others room for their least sizes
-	const share = Math.round(Math.max(Math.min(total / shown.length, maximum, total - minimums.reduce((sum, value) => sum + value, 0)), minimum));
+	// The share leaves the others room for their least sizes; a part that keeps its size along the line keeps it instead
+	const kept = keptAlong === line.orientation ? before.get(id) : undefined;
+	const requested = kept ? (horizontal ? kept.width : kept.height) : total / shown.length;
+	const share = Math.round(Math.max(Math.min(requested, maximum, total - minimums.reduce((sum, value) => sum + value, 0)), minimum));
 
 	// The others make room in proportion to their sizes, those that would get less than their least size keeping that,
 	// the last taking what rounding leaves, and so do the parts in them
@@ -1954,33 +2337,4 @@ class PreviewView implements IArrangedView {
 	toJSON(): object {
 		return { id: this.id };
 	}
-}
-
-/**
- * The preview of a move, which its owner adjusts to what it does after a
- * move (see {@link PartGrid.setMovePreviewAdjuster}).
- */
-export interface IPartGridMovePreview {
-	/** Whether a part leads the window after the move (see {@link PartGrid.leadsWindow}). */
-	leads(id: string): boolean;
-	isCellVisible(id: string): boolean;
-	setCellVisible(id: string, visible: boolean): void;
-}
-
-/**
- * Whether a cell leads a grid: no cell that counts shows before it, to its
- * left or above it.
- */
-function leads<T extends { readonly id: string } & IView>(grid: Grid<T>, id: string, counts: (view: T) => boolean): boolean {
-	const showsCounted = (node: GridNode<T>): boolean => isGridBranchNode(node) ? node.children.some(showsCounted) : counts(node.view);
-	let node: GridNode<T> = grid.getViews();
-	while (isGridBranchNode(node)) {
-		const first: GridNode<T> | undefined = node.children.find(showsCounted);
-		if (!first) {
-			return false;
-		}
-		node = first;
-	}
-
-	return node.view.id === id;
 }

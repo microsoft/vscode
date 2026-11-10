@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { escapeModelIdForTelemetry, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { escapeModelIdForTelemetry, ITelemetryService, normalizeModelRouterTelemetryId } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from '../participants/chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
@@ -475,7 +475,7 @@ export class ChatRequestTelemetry {
 	}
 
 	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
-		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
+		return normalizeModelRouterTelemetryId(userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id);
 	}
 }
 

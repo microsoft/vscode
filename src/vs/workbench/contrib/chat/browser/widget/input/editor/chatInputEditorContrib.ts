@@ -5,7 +5,7 @@
 
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
@@ -34,6 +34,7 @@ import { isCancellationError } from '../../../../../../../base/common/errors.js'
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { getSandboxPlaceholder } from './chatInputSandboxContribution.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -145,8 +146,10 @@ class InputEditorDecorations extends Disposable {
 				this.triggerInputEditorDecorationsUpdate();
 			}
 		}));
+		const activeInputChanged = observableSignalFromEvent(this, this.widget.onDidChangeActiveInputEditor);
 		this._register(autorun(reader => {
-			// Watch for changes to the current mode and its properties
+			activeInputChanged.read(reader);
+			this.widget.input.sandboxToggleChecked.read(reader);
 			const currentMode = this.widget.input.currentModeObs.read(reader);
 			if (currentMode) {
 				// Also watch the mode's description to react to any changes
@@ -225,14 +228,14 @@ class InputEditorDecorations extends Disposable {
 			// the decoration placeholder so the two don't render on top of each
 			// other.
 			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
-				this.updateAriaPlaceholder(undefined);
+				this.updateAriaPlaceholder(this.widget.inputEditor.getOption(EditorOption.placeholder));
 				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
 				return;
 			}
 
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
-			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;
+			const displayPlaceholder = getSandboxPlaceholder(viewModel.inputPlaceholder || placeholder, this.widget.input.sandboxToggleChecked.get());
 
 			const decoration: IDecorationOptions[] = [
 				{

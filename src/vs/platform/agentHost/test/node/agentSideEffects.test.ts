@@ -24,7 +24,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentPermissionResponseContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentPermissionResponseContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -38,7 +38,7 @@ import type { RootConfigChangedAction } from '../../common/state/protocol/action
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, type CustomizationEnablement, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -1729,7 +1729,13 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			assert.strictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, undefined);
+			assert.deepStrictEqual({
+				hostInstructions: !URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined,
+				originalMessageText: !URI.isUri(sendContext) ? sendContext?.originalMessageText : undefined,
+			}, {
+				hostInstructions: undefined,
+				originalMessageText: 'hello world',
+			});
 		});
 
 		test('marks Agent Merge turns on the provider send context', async () => {
@@ -3144,6 +3150,25 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(terminalManager.created.length, 0);
 		});
 
+		test('reports an error part instead of running a ! command in a virtual workspace', async () => {
+			setupSession('vscode-vfs://github/microsoft/vscode');
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createBangSideEffects(terminalManager);
+			const action: ChatAction = chatTurnStarted('turn-1', '!echo hi', '2025-01-01T00:00:00.000Z');
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			const turn = stateManager.getSessionState(sessionUri.toString())?.turns.at(-1);
+			assert.deepStrictEqual({
+				state: turn?.state,
+				parts: turn?.responseParts.map(part => part.kind === ResponsePartKind.Error ? part.error.errorType : part.kind),
+				terminals: terminalManager.created.length,
+				agentCalls: agent.sendMessageCalls.length,
+			}, { state: TurnState.Error, parts: ['terminalUnavailable'], terminals: 0, agentCalls: 0 });
+		});
+
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
 			setupSession('file:///work');
 			const db = new TestSessionDatabase();
@@ -3882,6 +3907,83 @@ suite('AgentSideEffects', () => {
 			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 			return { codexAgent, defaultChat, effects, session };
 		}
+
+		suite('model routers', () => {
+			function startRoutedTurn(): void {
+				const action: ChatAction = {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-1',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+				};
+				// As on the server: the client's action reaches state before its side effects run.
+				stateManager.dispatchServerAction(defaultChatUri, action);
+				sideEffects.handleAction(defaultChatUri, action, 'client-1');
+			}
+
+			function routeWith(resolve: (request: IAgentTurnModelRequest) => Promise<IAgentTurnModelResolution>): string[] {
+				const requests: string[] = [];
+				Object.assign(agent, {
+					resolveTurnModel: (_chat: URI, request: IAgentTurnModelRequest) => {
+						requests.push(request.selection.id);
+						return resolve(request);
+					},
+				});
+				return requests;
+			}
+
+			test('uses the model the agent resolves, and keeps the choice on every usage report', async () => {
+				setupSession();
+				const actions: StateAction[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => actions.push(envelope.action)));
+				const requests = routeWith(async () => ({ selection: { id: 'model-b' }, routed: { router: 'daily', chosenModel: 'model-b' }, notices: ['A notice.'] }));
+				disposables.add(sideEffects.registerProgressListener(agent));
+
+				startRoutedTurn();
+				await new Promise(r => setTimeout(r, 10));
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 5, outputTokens: 1, model: 'model-b' } } });
+
+				assert.deepStrictEqual({
+					requests,
+					models: agent.changeModelCalls.map(call => call.model),
+					routedOnUsage: actions.flatMap(action => action.type === ActionType.ChatUsage ? [readUsageInfoMeta(action.usage).modelRouted?.chosenModel] : []),
+					notices: actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification ? [action.part.content] : []),
+					turnUsage: readUsageInfoMeta(stateManager.getChatState(defaultChatUri)?.activeTurn?.usage).modelRouted,
+				}, {
+					requests: ['model-router:daily'],
+					models: [{ id: 'model-b' }],
+					routedOnUsage: ['model-b', 'model-b'],
+					notices: ['A notice.'],
+					turnUsage: { router: 'daily', chosenModel: 'model-b' },
+				});
+			});
+
+			test('never passes a router id to changeModel', async () => {
+				setupSession();
+				startRoutedTurn();
+				await new Promise(r => setTimeout(r, 10));
+				assert.deepStrictEqual(agent.changeModelCalls, [], 'an agent that cannot route keeps its model');
+
+				routeWith(async request => ({ selection: request.selection, notices: [] }));
+				sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } as ChatAction, 'client-1');
+				sideEffects.handleAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-2',
+					startedAt: '2025-01-01T00:00:01.000Z',
+					message: { text: 'again', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+				}, 'client-1');
+				await new Promise(r => setTimeout(r, 10));
+				assert.deepStrictEqual(agent.changeModelCalls, [], 'a resolution that returns the router id is ignored');
+			});
+
+			test('a failed resolution keeps the chat\'s model and still sends the turn', async () => {
+				setupSession();
+				routeWith(() => Promise.reject(new Error('boom')));
+				startRoutedTurn();
+				await new Promise(r => setTimeout(r, 10));
+				assert.deepStrictEqual({ models: agent.changeModelCalls, sent: agent.sendMessageCalls.length }, { models: [], sent: 1 });
+			});
+		});
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
@@ -5844,6 +5946,65 @@ suite('AgentSideEffects', () => {
 				status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
 				permissions: agent.respondToPermissionCalls,
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
+		});
+
+		for (const approved of [false, true]) {
+			test(`Assisted confirmation requirements override workspace edit auto-approval (${approved})`, async () => {
+				const workingDirectory = URI.file(resolve('/workspace'));
+				setupSession(workingDirectory.toString());
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: chatToolCallStart('turn-1', 'tc-assisted-edit', 'write', 'Write'),
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), requiresUserConfirmation: true,
+					state: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-assisted-edit', toolName: 'write', displayName: 'Write',
+						invocationMessage: 'Delete README.md', confirmationTitle: 'Delete file?',
+					},
+					permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'README.md').fsPath,
+				});
+				const toolCall = await waitForState(stateManager, () => {
+					const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+					return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status !== ToolCallStatus.Streaming ? part.toolCall : undefined;
+				});
+				assert.deepStrictEqual({ status: toolCall.status, responses: agent.respondToPermissionCalls }, {
+					status: ToolCallStatus.PendingConfirmation, responses: [],
+				});
+
+				const confirmation: ChatAction = approved
+					? { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-assisted-edit', approved: true, confirmed: ToolCallConfirmationReason.UserAction }
+					: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-assisted-edit', approved: false, reason: ToolCallCancellationReason.Denied };
+				stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, confirmation);
+				assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'tc-assisted-edit', approved }]);
+			});
+		}
+
+		test('Assisted confirmation requirements prevent unattended workspace edit auto-approval', async () => {
+			const workingDirectory = URI.file(resolve('/workspace'));
+			setupSession(workingDirectory.toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const response = new DeferredPromise<{ approved: boolean; context: IAgentPermissionResponseContext | undefined }>();
+			agent.respondToPermissionRequest = (_requestId, approved, context) => { void response.complete({ approved, context }); };
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), requiresUserConfirmation: true, unattended: true,
+				state: {
+					status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-assisted-unattended', toolName: 'write', displayName: 'Write',
+					invocationMessage: 'Delete README.md', confirmationTitle: 'Delete file?',
+				},
+				permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'README.md').fsPath,
+			});
+			assert.deepStrictEqual({
+				response: await response.p,
+				pendingConfirmations: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation).length,
+			}, {
+				response: { approved: false, context: { decisionSource: 'unattended_fallback', userNotAvailable: true } },
+				pendingConfirmations: 0,
+			});
 		});
 
 		for (const autoApproved of [false, true]) {

@@ -280,6 +280,13 @@ class TestConfigurationService {
 		});
 	}
 
+	setAutoConnect(autoConnect: boolean): void {
+		this._autoConnect = autoConnect;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostAutoConnectSettingId,
+		});
+	}
+
 	setWorkspaceEntries(entries: IRawRemoteAgentHostEntry[]): void {
 		this._workspaceEntries = entries;
 		this._onDidChangeConfiguration.fire({
@@ -916,6 +923,60 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		for (const autoConnect of [false, true]) {
+			for (const { name, error, retryable } of [
+				{ name: 'cancellation', error: new CancellationError(), retryable: false },
+				{ name: 'host key denial', error: new NonReconnectableTransportError('Host key denied'), retryable: false },
+				{ name: 'network failure', error: new Error('connect ETIMEDOUT'), retryable: true },
+			]) {
+				test(`SSH ${name} follows the service retry policy (auto-connect ${autoConnect})`, () => runWithFakedTimers({}, async () => {
+					configService.setAutoConnect(autoConnect);
+					const attempts: (boolean | undefined)[] = [];
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override createConnection(entry: IRemoteAgentHostEntry, options?: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+							attempts.push(options?.userInitiated);
+							return super.createConnection(entry);
+						}
+					}(RemoteAgentHostEntryType.SSH));
+					disposables.add(service.registerConnectionFactory(factory));
+					const entry: IRemoteAgentHostEntry = {
+						name: 'Machine',
+						connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:machine', sshConfigHost: 'machine', hostName: 'machine.example' },
+					};
+					const address = getEntryAddress(entry);
+					factory.stageFailure(entry, error);
+					if (!autoConnect) {
+						service.reconnect(address, true);
+					}
+					await assert.rejects(service.waitForConnection(address), err => err === error);
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+
+					const replacement = disposables.add(new MockProtocolClient(address));
+					factory.stage(entry, replacement);
+					await replacement.connectDeferred.complete();
+					await timeout(60_000);
+					const beforeExplicitReconnect = attempts.slice();
+					const recoveredAutomatically = retryable && autoConnect;
+					if (!recoveredAutomatically) {
+						service.reconnect(address, true);
+					}
+					const connected = await service.waitForConnection(address);
+
+					assert.deepStrictEqual({
+						beforeExplicitReconnect,
+						attempts,
+						status: connected.status,
+					}, {
+						beforeExplicitReconnect: recoveredAutomatically ? [false, false] : [!autoConnect],
+						attempts: recoveredAutomatically ? [false, false] : [!autoConnect, true],
+						status: RemoteAgentHostConnectionStatus.connected,
+					});
+				}));
+			}
+		}
+
 		function connectionState(address: string) {
 			const connection = service.connections.find(connection => connection.address === address);
 			return { status: connection?.status, lastConnectionError: connection?.lastConnectionError };
@@ -2397,6 +2458,21 @@ suite('RemoteAgentHostService', () => {
 			const formatter = formatterFor('host1:8080');
 			assert.ok(formatter, 'formatter is registered');
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('retains formatters across unchanged large inventory reconciliations', () => {
+			const entries: IRemoteAgentHostEntry[] = Array.from({ length: 150 }, (_, index) => ({
+				name: `Host ${index}`,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: `ws://host${index}:8080` },
+			}));
+			configService.setEntries(entries);
+			const original = [...registeredFormatters];
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			assert.deepStrictEqual({
+				count: registeredFormatters.length,
+				unchanged: registeredFormatters.every((formatter, index) => formatter === original[index]),
+			}, { count: 150, unchanged: true });
 		});
 
 		test('updates formatter with native Windows path formatting after connecting', async () => {

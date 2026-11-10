@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -14,8 +14,12 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { copilotPolicyHelperConfigurationProperties } from '../../browser/copilotPolicyHelperConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -24,6 +28,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
 const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
+const copilotM365Setting = configurationProperties[AgentHostCopilotM365EnabledSettingId];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -36,6 +41,42 @@ suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('defines a hidden machine-local policy helper with serializable removal', () => {
+		const setting = copilotPolicyHelperConfigurationProperties[AgentHostCopilotPolicyHelperSettingId];
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			ignoreSync: setting.ignoreSync,
+			tags: setting.tags,
+			doNotSuggest: setting.doNotSuggest,
+			included: setting.included,
+			additionalProperties: setting.additionalProperties,
+			required: setting.required,
+			key: setting.agentHost?.key,
+			hostScope: setting.agentHost?.scope,
+			transformed: [null, undefined, { path: '' }, { path: '   ' }, { path: 42 }, { path: 'helper', args: [42] },
+				{ path: 'helper' }, { path: 'helper', args: ['--mode'] }]
+				.map(value => JSON.parse(JSON.stringify(setting.agentHost?.transform?.(value)))),
+		}, {
+			type: ['object', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
+			tags: ['experimental', 'advanced'],
+			doNotSuggest: true,
+			included: undefined,
+			additionalProperties: false,
+			required: ['path'],
+			key: CopilotCliConfigKey.PolicyHelper,
+			hostScope: AgentHostConfigurationSyncScope.Local,
+			transformed: [
+				{ path: '' }, { path: '' }, { path: '' }, { path: '' }, { path: '' }, { path: '' },
+				{ path: 'helper', args: [] }, { path: 'helper', args: ['--mode'] },
+			],
+		});
+	});
+
 	test('defaults to sticky progress instead of the input progress border', () => {
 		const setting = chatProgressConfigurationProperties[ChatConfiguration.ProgressBorder];
 		assert.deepStrictEqual({ key: ChatConfiguration.ProgressBorder, type: setting.type, default: setting.default }, {
@@ -47,6 +88,49 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
+	});
+
+	test('registers one default-off, restart-required Copilot M365 rollout setting', () => {
+		assert.deepStrictEqual({
+			keys: Object.keys(configurationProperties).filter(key => key.startsWith('chat.agentHost.copilot.m365.')),
+			type: copilotM365Setting.type,
+			default: copilotM365Setting.default,
+			scope: copilotM365Setting.scope,
+			tags: copilotM365Setting.tags?.filter(tag => tag !== 'onExP'),
+			experiment: copilotM365Setting.experiment,
+			treatment: getConfigurationExperimentName(AgentHostCopilotM365EnabledSettingId, copilotM365Setting.experiment!),
+			restartRequired: copilotM365Setting.markdownDescription?.includes('requires restarting VS Code'),
+			agentHost: copilotM365Setting.agentHost,
+			policy: copilotM365Setting.policy,
+		}, {
+			keys: ['chat.agentHost.copilot.m365.enabled'],
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			treatment: 'config.chat.agentHost.copilot.m365.enabled',
+			restartRequired: true,
+			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+			policy: undefined,
+		});
+	});
+
+	test('mirrors the configured Copilot M365 flag to Agent Host root configuration', () => {
+		const targets = [
+			AgentHostConfigurationSyncTarget.Local,
+			AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+			AgentHostConfigurationSyncTarget.Remote,
+		];
+		assert.deepStrictEqual([undefined, true, false, 'invalid'].map(value => {
+			const configurationService = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: value });
+			return targets.map(target => resolveAgentHostConfigurationSyncPatch(configurationService, target)[CopilotCliConfigKey.M365Enabled]);
+		}), [
+			[false, false, false],
+			[true, true, true],
+			[false, false, false],
+			[false, false, false],
+		]);
 	});
 
 	test('registers the existing Agent picker setting for both editor and Agents windows', () => {
@@ -173,7 +257,7 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
-			tags: persistentProgressSetting.tags,
+			tags: persistentProgressSetting.tags.filter(tag => tag !== 'onExP'),
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
@@ -208,7 +292,7 @@ suite('Chat configuration', () => {
 			ChatConfiguration.PersistentProgressVerbosity,
 		] as const).map(key => {
 			const setting = chatProgressConfigurationProperties[key];
-			return { key, tags: setting.tags, mode: setting.experiment.mode, treatment: getConfigurationExperimentName(key, setting.experiment) };
+			return { key, tags: setting.tags.filter(tag => tag !== 'onExP'), mode: setting.experiment.mode, treatment: getConfigurationExperimentName(key, setting.experiment) };
 		}), [
 			{ key: 'chat.persistentProgress', tags: ['experimental'], mode: 'auto', treatment: 'config.chat.experimental.persistentProgress' },
 			{ key: 'chat.persistentProgressVerbosity', tags: ['experimental'], mode: 'auto', treatment: 'config.chat.experimental.persistentProgressVerbosity' },
@@ -300,7 +384,7 @@ suite('Chat configuration', () => {
 			values: setting.enum,
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
-			tags: setting.tags,
+			tags: setting.tags.filter(tag => tag !== 'onExP'),
 		}, {
 			type: 'string',
 			default: 'compact',

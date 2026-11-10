@@ -16,12 +16,12 @@ import { ArtifactIntegrationsSettingId } from '../../../../../../platform/artifa
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
-import { ISessionChangeset } from '../../../../../services/sessions/common/session.js';
-import { GitHubPullRequestCIModel } from '../../../../github/browser/models/githubPullRequestCIModel.js';
-import { ActiveSessionState } from '../../../../changes/common/changesViewService.js';
-import { bindSessionActionContextKeys } from '../../../../changes/browser/sessionActionContextKeys.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionChangeset } from '../../../../../../workbench/services/sessions/common/session.js';
+import { GitHubPullRequestCIModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { ActiveSessionState } from '../../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { bindSessionActionContextKeys } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {
@@ -186,6 +186,7 @@ suite('Agent Merge Actions', () => {
 		};
 		disposables.add(bindSessionActionContextKeys(instantiationService, {
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: {
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),

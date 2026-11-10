@@ -25,24 +25,25 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { INewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
-import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
-import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
-import '../../browser/agentHostSessionConfigPicker.js';
-import '../../browser/mobile/mobileChatInputConfigPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
+import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
+import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,12 +73,13 @@ suite('agentHostAgentPicker', () => {
 
 	test('offers the Agent picker in Add Context only in the treatment, logging the trigger in both arms', async () => {
 		const chat = URI.parse('agent-host-copilot:/chat');
-		const session = upcastPartial<IActiveSession>({ activeChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
+		const session = upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
 		const opened: string[] = [];
 		const evaluate = async (treatment: boolean, options: { eligible?: boolean; widgetChat?: URI } = {}) => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const pick = createAgentContextPick({
 				getActiveSession: () => session,
+				getActiveChat: () => session?.activeChat.get(),
 				isEligible: () => options.eligible ?? true,
 				openPicker: anchor => opened.push(anchor?.className ?? ''),
 			}, new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: treatment }), telemetryService);
@@ -221,19 +223,21 @@ suite('agentHostAgentPicker', () => {
 				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
 					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: kind.toClient(URI.parse(agent.uri)).toString(), kind: 'agent' } : undefined);
-					const session = upcastPartial<IActiveSession>({
+					const session = upcastPartial<ITestSessionWithChat>({
 						sessionId: id,
 						resource: URI.from({ scheme, path: `/${id}` }),
 						providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 						status: constObservable(status),
 						mode,
+						// The picker reads the agent of the chat the host shows.
+						activeChat: constObservable(upcastPartial<IChat>({ mode })),
 					});
 					return { session, mode };
 				};
 				const running = createSession('running', alpha, SessionStatus.Completed);
 				const draft = createSession('draft', undefined, SessionStatus.Untitled);
 				const sessions = new Map([['running', running], ['draft', draft]]);
-				const activeSession = observableValue<IActiveSession | undefined>('activeSession', running.session);
+				const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', running.session);
 				const agentsChanged = disposables.add(new Emitter<void>());
 				let availableAgents: readonly AgentCustomization[] = [beta];
 				const provider = upcastPartial<IAgentHostSessionsProvider>({
@@ -251,9 +255,11 @@ suite('agentHostAgentPicker', () => {
 				disposables.add(configuration.onDidChangeConfigurationEmitter);
 				const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
 				disposables.add(providers.registerProvider(provider));
-				disposables.add(new AgentHostAgentPickerContribution(
+				// What it reports as the user's choice of agent.
+				const userSelections: string[] = [];
+				const contribution = disposables.add(new AgentHostAgentPickerContribution(
 					new NullActionViewItemService(),
-					upcastPartial<ISessionsService>({ activeSession }),
+					focusedSessionHostServiceOf(activeSession),
 					providers,
 					upcastPartial<IChatService>({ getSession: () => undefined }),
 					upcastPartial<IChatWidgetService>({
@@ -267,6 +273,7 @@ suite('agentHostAgentPicker', () => {
 					disposables.add(new ContextKeyService(configuration)),
 					upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
 					new TestExperimentTriggerTelemetryService(),
+					upcastPartial<INewSessionComposerService>({ notifyUserAgentSelection: ({ sessionId, agent }) => userSelections.push(`${sessionId} ${agent?.uri ?? 'default'}`) }),
 				));
 				const snapshot = () => ({
 					mode: activeSession.get()?.mode.get()?.id,
@@ -277,11 +284,19 @@ suite('agentHostAgentPicker', () => {
 				const beforeDiscovery = snapshot();
 				availableAgents = [alpha, beta];
 				agentsChanged.fire();
+				const afterDiscovery = snapshot();
+				// Selecting the remembered agent on its own is not the user's choice; the user's pick and clear are.
+				const internal = [...userSelections];
+				const selectMode = Reflect.get(contribution, '_selectMode') as (mode: IChatMode, session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService) => void;
+				selectMode.call(contribution, upcastPartial<IChatMode>({ id: beta.uri, name: constObservable('Beta') }), draft.session, providers);
+				selectMode.call(contribution, upcastPartial<IChatMode>({ id: ChatMode.Agent.id }), draft.session, providers);
 
-				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
+				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery, internal, userSelections }, {
 					afterFallback: { mode: undefined, remembered: rememberedUri },
 					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
 					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
+					internal: [],
+					userSelections: [`draft ${beta.uri}`, 'draft default'],
 				});
 			});
 		}

@@ -1159,6 +1159,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
 		const { config, workingDirectory, sessionId, prompt, githubToken, onProgress } = request;
+		if (workingDirectory && workingDirectory.scheme !== Schemas.file) {
+			return workingDirectory;
+		}
 
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
