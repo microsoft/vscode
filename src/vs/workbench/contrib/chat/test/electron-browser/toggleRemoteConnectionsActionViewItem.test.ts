@@ -723,6 +723,29 @@ suite('RemoteConnectionsActionViewItem', () => {
 		]);
 	});
 
+	for (const method of ['devTunnel', 'off'] as const) {
+		test(`logs the resulting method when the toolbar replaces the view item while ${method === 'off' ? 'disabling' : 'enabling'} sharing`, async () => {
+			const { openMenu, viewItem, executeCommand, remoteTunnel, selectMethodEvents } = fixture();
+			const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false };
+			await timeout(0);
+			if (method === 'off') {
+				remoteTunnel.fireStatus(connected);
+			}
+			executeCommand.callsFake(async () => {
+				viewItem.dispose();
+				if (method === 'off') {
+					await remoteTunnel.stopTunnel();
+				} else {
+					remoteTunnel.fireStatus(connected);
+				}
+			});
+			await openMenu().find(action => action.id === `remoteConnections.${method}`)!.run();
+			assert.deepStrictEqual(selectMethodEvents(), [
+				{ source: 'titleBar', method, previousMethod: method === 'off' ? 'devTunnel' : 'off', activeMethod: method, result: 'applied', gitHubEnvironments: 'enabled' },
+			]);
+		});
+	}
+
 	test('clicking the single button opens the picker without changing sharing', async () => {
 		const { primary, openMenu, run, update } = fixture();
 		primary.click();
