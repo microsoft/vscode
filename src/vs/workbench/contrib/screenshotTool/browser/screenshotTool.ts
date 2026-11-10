@@ -17,8 +17,8 @@ import { IAnnotationEditorState } from './screenshotAnnotation.js';
 /** Experiment-controlled setting that routes the screenshot entry points through the screenshot tool. */
 export const SCREENSHOT_TOOL_ENABLED_SETTING_ID = 'workbench.screenshotTool.enabled';
 
-/** True while the screenshot tool lets the user select or annotate a capture. */
-export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or annotating a screenshot"));
+/** True while the screenshot tool lets the user select a capture or edit a screenshot. */
+export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or editing a screenshot"));
 
 export const IScreenshotToolService = createDecorator<IScreenshotToolService>('screenshotToolService');
 
@@ -36,6 +36,12 @@ export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'none
 
 export type ScreenshotToolOutcome = 'attached' | 'cancelled' | 'failed';
 
+/** Where an attached screenshot was edited, as reported in telemetry. */
+export const enum ScreenshotToolSurface {
+	Chat = 'chat',
+	IssueReporter = 'issueReporter',
+}
+
 export interface IScreenshotToolImage {
 	/** A `data:` URL of a PNG or JPEG image. */
 	readonly dataUrl: string;
@@ -43,22 +49,31 @@ export interface IScreenshotToolImage {
 	readonly height: number;
 }
 
-/** A capture that the user chose to attach. */
+/** A capture, which entry points attach right away. */
 export interface IScreenshotToolCapture {
-	readonly kind: 'attach';
+	readonly kind: 'captured';
 	readonly mode: ScreenshotToolMode;
-	/** The image to attach, including annotations. */
 	readonly image: IScreenshotToolImage;
-	/** The capture before it was annotated. */
-	readonly original: IScreenshotToolImage;
-	/** Annotations that can be edited again later. */
-	readonly annotationState: IAnnotationEditorState | undefined;
-	readonly annotated: boolean;
 	/** Whether the capture includes content of a layer, such as a browser page. */
 	readonly includesLayerContent: boolean;
 }
 
 export type ScreenshotToolResult = IScreenshotToolCapture | { readonly kind: 'cancelled' | 'failed'; readonly mode: ScreenshotToolMode };
+
+/** An attached screenshot that can be edited. */
+export interface IScreenshotToolEditable {
+	/** The capture without annotations. */
+	readonly original: IScreenshotToolImage;
+	/** The annotations of earlier edits, which the edit dialog restores with their undo history. */
+	readonly annotationState: IAnnotationEditorState | undefined;
+}
+
+/** An attached screenshot after an edit. */
+export interface IScreenshotToolEdit extends IScreenshotToolEditable {
+	/** The screenshot to attach: the original with its annotations, or the original alone when it has none. */
+	readonly image: IScreenshotToolImage;
+	readonly annotated: boolean;
+}
 
 /** Native content, such as a browser page, that window captures do not include. */
 export interface IScreenshotToolLayer {
@@ -73,7 +88,7 @@ export interface IScreenshotToolLayer {
 export interface IScreenshotToolService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when the tool starts or stops covering a window to let the user capture or annotate. */
+	/** Fires when the tool starts or stops covering a window to let the user capture or edit. */
 	readonly onDidChangeActive: Event<{ readonly targetWindow: CodeWindow; readonly active: boolean }>;
 
 	/**
@@ -82,17 +97,23 @@ export interface IScreenshotToolService {
 	 */
 	shouldUseTool(): boolean;
 
-	/**
-	 * Lets the user click to capture the window or a browser page, or drag to capture an area,
-	 * and then annotate the capture before it is attached.
-	 */
-	captureAndAnnotate(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
+	/** Lets the user click to capture the window or a browser page, or drag to capture an area. */
+	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
 
 	/** Captures the whole window, including its layers, without letting the user select. */
 	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
 
-	/** Opens an existing capture in the annotation editor before it is attached. */
-	annotate(targetWindow: CodeWindow, image: IScreenshotToolImage, mode: ScreenshotToolMode, token?: CancellationToken): Promise<ScreenshotToolResult>;
+	/**
+	 * Opens an attached screenshot in a dialog above the window, where changes apply as they are made.
+	 * Resolves with the edited screenshot when the dialog closes, or `undefined` when nothing changed.
+	 */
+	edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, token?: CancellationToken): Promise<IScreenshotToolEdit | undefined>;
+
+	/** Remembers a screenshot attached to chat, so that it can be edited while it is attached. */
+	registerEditableAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): void;
+
+	/** Returns a screenshot attached to chat that can be edited. */
+	getEditableAttachment(attachmentId: string): IScreenshotToolEditable | undefined;
 
 	/** Moves focus back to the screenshot tool while it is active. */
 	focus(): void;
@@ -125,7 +146,6 @@ export interface IScreenshotToolCaptureEvent {
 	readonly entryPoint: ScreenshotToolEntryPoint;
 	readonly outcome: ScreenshotToolOutcome;
 	readonly mode: ScreenshotToolMode;
-	readonly annotated: boolean;
 	readonly durationMs: number;
 	/** Whether the entry point used the screenshot tool, which is the experiment's treatment. */
 	readonly usedTool: boolean;

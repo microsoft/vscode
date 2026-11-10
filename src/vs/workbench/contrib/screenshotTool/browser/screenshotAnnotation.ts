@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow, prepend } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DisposableResizeObserver, EventType, getWindow, prepend } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -49,6 +49,8 @@ const MIN_TEXT_BOX_WIDTH = 48;
 const TEXT_DRAG_THRESHOLD = 4;
 /** Padding on each side of the displayed image inside the canvas container at fit-to-window scale. */
 const CANVAS_BREATHING_ROOM = 64;
+/** The dialog already has a margin around it, so its image needs less padding. */
+const DIALOG_CANVAS_BREATHING_ROOM = 24;
 const FILL_COLORS = ['transparent', ...COLORS];
 const STROKE_WIDTHS = [2, 4, 8, 12];
 const TEXT_SIZES = [14, 18, 24, 32, 48];
@@ -115,8 +117,11 @@ export interface IAnnotationSaveResult {
 export const enum ScreenshotAnnotationEditorMode {
 	/** Edits an attached screenshot inside its parent, with Save and Discard. */
 	Edit = 'edit',
-	/** Annotates a new capture above the whole window before it is attached, with Attach and Cancel. */
-	Attach = 'attach',
+	/**
+	 * Edits an attached screenshot in a dialog above the whole window. There is no Save: closing the
+	 * dialog fires `onDidSave` when something changed, and `onDidCancel` when nothing did.
+	 */
+	Dialog = 'dialog',
 }
 
 function cloneDrawAction(action: IAnnotationDrawAction, identityMap: Map<IAnnotationDrawAction, IAnnotationDrawAction> = new Map()): IAnnotationDrawAction {
@@ -203,6 +208,8 @@ export class ScreenshotAnnotationEditor {
 	private readonly _onDidCancel = new Emitter<void>();
 	readonly onDidCancel: Event<void> = this._onDidCancel.event;
 
+	/** The element added to the parent: the dialog's backdrop, or else the editor itself. */
+	private root!: HTMLElement;
 	private container!: HTMLElement;
 	private canvas!: HTMLCanvasElement;
 	private ctx!: CanvasRenderingContext2D;
@@ -214,6 +221,9 @@ export class ScreenshotAnnotationEditor {
 	private activeOpacity = 1;
 	private readonly actions: DrawAction[] = [];
 	private readonly undoneActions: DrawAction[] = [];
+	/** Counts changes to the actions, so the dialog knows whether closing it changed the screenshot. */
+	private revision = 0;
+	private savedRevision = 0;
 	private currentAction: DrawAction | null = null;
 	private isDrawing = false;
 	private isErasing = false;
@@ -295,7 +305,6 @@ export class ScreenshotAnnotationEditor {
 	private undoBtn: HTMLButtonElement | null = null;
 	private redoBtn: HTMLButtonElement | null = null;
 	private toolOptionsPopover: HTMLElement | null = null;
-	private primaryButton: Button | undefined;
 
 
 	constructor(
@@ -305,35 +314,57 @@ export class ScreenshotAnnotationEditor {
 		private readonly mode = ScreenshotAnnotationEditorMode.Edit,
 	) {
 		this.createUI();
+		this.savedRevision = this.revision;
 		this.loadImage();
 	}
 
 	get element(): HTMLElement {
-		return this.container;
+		return this.root;
 	}
 
-	/** Moves focus into the editor, to its primary action when it attaches a new capture. */
 	focus(): void {
-		if (this.mode === ScreenshotAnnotationEditorMode.Attach && this.primaryButton?.enabled) {
-			this.primaryButton.focus();
-		} else {
-			this.container.focus();
-		}
+		this.container.focus();
+	}
+
+	private get isDialog(): boolean {
+		return this.mode === ScreenshotAnnotationEditorMode.Dialog;
+	}
+
+	private get canvasBreathingRoom(): number {
+		return this.isDialog ? DIALOG_CANVAS_BREATHING_ROOM : CANVAS_BREATHING_ROOM;
 	}
 
 	private createUI(): void {
-		const attaching = this.mode === ScreenshotAnnotationEditorMode.Attach;
-		this.container = append(this.parentElement, $('div.screenshot-annotation-editor'));
+		const isDialog = this.isDialog;
+		if (isDialog) {
+			this.root = append(this.parentElement, $('div.screenshot-annotation-backdrop'));
+			this.container = append(this.root, $('div.screenshot-annotation-editor.dialog-mode'));
+			this.disposables.add(addDisposableListener(this.root, EventType.CLICK, e => {
+				if (e.target === this.root) {
+					this.close();
+				}
+			}));
+		} else {
+			this.container = this.root = append(this.parentElement, $('div.screenshot-annotation-editor'));
+		}
 		this.container.tabIndex = -1;
 		this.container.setAttribute('role', 'dialog');
 		this.container.setAttribute('aria-modal', 'true');
-		this.container.setAttribute('aria-label', attaching ? localize('annotateScreenshot', "Annotate Screenshot") : localize('editScreenshot', "Edit Screenshot"));
-		if (attaching) {
-			this.container.classList.add('attach-mode');
+
+		// In a dialog, the title, the tools and the Close button share a header row.
+		let toolbarParent = this.container;
+		if (isDialog) {
+			toolbarParent = append(this.container, $('div.annotation-dialog-header'));
+			const title = append(toolbarParent, $('div.annotation-dialog-title'));
+			title.textContent = localize('editScreenshot', "Edit Screenshot");
+			title.id = `screenshot-annotation-title-${ScreenshotAnnotationEditor.hintIds}`;
+			this.container.setAttribute('aria-labelledby', title.id);
+		} else {
+			this.container.setAttribute('aria-label', localize('editScreenshot', "Edit Screenshot"));
 		}
 
 		// Main toolbar (hidden during crop mode)
-		const toolbar = append(this.container, $('div.annotation-toolbar'));
+		const toolbar = append(toolbarParent, $('div.annotation-toolbar'));
 		this.mainToolbar = toolbar;
 
 		// 1. Drawing tools: Select, Pan, Crop, Draw, Rectangle, Ellipse, Arrow
@@ -403,32 +434,34 @@ export class ScreenshotAnnotationEditor {
 		this.redoBtn = redoBtn;
 		this.updateUndoRedoState();
 
-		// 8. Separator
-		append(toolbar, $('div.toolbar-separator'));
+		let saveButton: HTMLElement | undefined;
+		if (!isDialog) {
+			// 8. Separator
+			append(toolbar, $('div.toolbar-separator'));
 
-		// 9. Discard button
-		const discardBtn = this.disposables.add(new Button(toolbar, { ...defaultButtonStyles, secondary: true }));
-		discardBtn.label = attaching ? localize('cancelAttach', "Cancel") : localize('discard', "Discard");
-		this.disposables.add(discardBtn.onDidClick(() => {
-			this.cancelTextEdit();
-			this._onDidCancel.fire();
-			this.dispose();
-		}));
+			// 9. Discard button
+			const discardBtn = this.disposables.add(new Button(toolbar, { ...defaultButtonStyles, secondary: true }));
+			discardBtn.label = localize('discard', "Discard");
+			this.disposables.add(discardBtn.onDidClick(() => {
+				this.cancelTextEdit();
+				this._onDidCancel.fire();
+				this.dispose();
+			}));
 
-		// 10. Save button
-		const saveBtn = this.disposables.add(new Button(toolbar, defaultButtonStyles));
-		saveBtn.label = attaching ? localize('attach', "Attach") : localize('save', "Save");
-		this.primaryButton = saveBtn;
-		this.disposables.add(saveBtn.onDidClick(() => {
-			this.commitTextEdit();
-			const annotated = this.actions.length > 0 || this.currentCrop !== null;
-			const dataUrl = attaching && !annotated ? this.screenshot.dataUrl : this.compositeToDataUrl();
-			this._onDidSave.fire({ dataUrl, width: this.imageWidth, height: this.imageHeight, state: this.captureState(), annotated });
-			this.dispose();
-		}));
+			// 10. Save button
+			const saveBtn = this.disposables.add(new Button(toolbar, defaultButtonStyles));
+			saveBtn.label = localize('save', "Save");
+			this.disposables.add(saveBtn.onDidClick(() => {
+				this.commitTextEdit();
+				const annotated = this.actions.length > 0 || this.currentCrop !== null;
+				this._onDidSave.fire({ dataUrl: this.compositeToDataUrl(), width: this.imageWidth, height: this.imageHeight, state: this.captureState(), annotated });
+				this.dispose();
+			}));
+			saveButton = saveBtn.element;
+		}
 
 		// Crop toolbar (shown only during crop mode, hidden by default)
-		const cropToolbar = append(this.container, $('div.annotation-toolbar.annotation-crop-toolbar'));
+		const cropToolbar = append(toolbarParent, $('div.annotation-toolbar.annotation-crop-toolbar'));
 		cropToolbar.style.display = 'none';
 		this.cropToolbar = cropToolbar;
 
@@ -444,10 +477,19 @@ export class ScreenshotAnnotationEditor {
 			this.commitCrop();
 		}));
 
+		let closeButton: HTMLElement | undefined;
+		if (isDialog) {
+			closeButton = append(toolbarParent, $('button.tool-btn.annotation-close-btn'));
+			closeButton.appendChild(renderIcon(Codicon.close));
+			closeButton.title = localize('closeEditor', "Close");
+			closeButton.setAttribute('aria-label', localize('closeEditor', "Close"));
+			this.disposables.add(addDisposableListener(closeButton, EventType.CLICK, () => this.close()));
+		}
+
 		// Hint label
 		const hint = append(this.container, $('div.annotation-hint'));
-		hint.textContent = attaching
-			? localize('attachAnnotationHint', "Optionally annotate the screenshot, then attach it. Press Escape to cancel.")
+		hint.textContent = isDialog
+			? localize('dialogAnnotationHint', "Highlight the problem on the screenshot. Your changes are kept when you close.")
 			: localize('annotationHint', "Edit screenshot to highlight the problem");
 		hint.id = `screenshot-annotation-hint-${ScreenshotAnnotationEditor.hintIds++}`;
 		this.container.setAttribute('aria-describedby', hint.id);
@@ -533,8 +575,12 @@ export class ScreenshotAnnotationEditor {
 				}
 				e.preventDefault();
 				e.stopPropagation();
-				this._onDidCancel.fire();
-				this.dispose();
+				if (isDialog) {
+					this.close();
+				} else {
+					this._onDidCancel.fire();
+					this.dispose();
+				}
 			} else if (e.key === 'Enter' && this.cropMode) {
 				e.preventDefault();
 				this.commitCrop();
@@ -559,8 +605,8 @@ export class ScreenshotAnnotationEditor {
 			}
 		}));
 
-		// Re-fit canvas when container resizes
-		const resizeObserver = new ResizeObserver(() => {
+		// Re-fit canvas when container resizes. The dialog can open in any window, so observe with that window's observer.
+		const resizeObserver = this.disposables.add(new DisposableResizeObserver('screenshotAnnotationEditor', () => {
 			if (this.imageElement) {
 				// On resize, ensure the user's current zoom is still at least the new fit-to-window
 				// scale. Without this, growing the window after zooming out could leave the image
@@ -576,13 +622,12 @@ export class ScreenshotAnnotationEditor {
 				this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
 				this.redraw();
 			}
-		});
-		resizeObserver.observe(canvasContainer);
-		this.disposables.add({ dispose: () => resizeObserver.disconnect() });
+		}, getWindow(this.parentElement)));
+		this.disposables.add(resizeObserver.observe(canvasContainer));
 
 		this.trapFocus(
 			() => this.cropMode ? cropCancelBtn.element : this.toolButtons[0].element,
-			() => this.cropMode ? cropApplyBtn.element : saveBtn.element,
+			() => closeButton ?? (this.cropMode ? cropApplyBtn.element : saveButton!),
 		);
 	}
 
@@ -919,6 +964,7 @@ export class ScreenshotAnnotationEditor {
 
 			// Restore prior crop, if any.
 			this.applyDisplayedCrop(this.initialState?.crop ?? null);
+			this.savedRevision = this.revision;
 		};
 		// Use original screenshot (not annotated) so we can re-crop from full original
 		img.src = this.screenshot.dataUrl;
@@ -984,8 +1030,8 @@ export class ScreenshotAnnotationEditor {
 
 		const targetWindow = getWindow(this.canvas);
 		const dpr = targetWindow.devicePixelRatio || 1;
-		const maxWidth = container.clientWidth - CANVAS_BREATHING_ROOM * 2;
-		const maxHeight = container.clientHeight - CANVAS_BREATHING_ROOM * 2;
+		const maxWidth = container.clientWidth - this.canvasBreathingRoom * 2;
+		const maxHeight = container.clientHeight - this.canvasBreathingRoom * 2;
 
 		// Only auto-fit on initial load; respect user zoom after that
 		if (!this.hasUserZoomed) {
@@ -1382,6 +1428,7 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private updateUndoRedoState(): void {
+		this.revision++;
 		if (this.undoBtn) {
 			this.undoBtn.disabled = this.actions.length === 0;
 		}
@@ -2409,8 +2456,8 @@ export class ScreenshotAnnotationEditor {
 		if (!container || !this.imageWidth || !this.imageHeight) {
 			return 1;
 		}
-		const maxWidth = Math.max(1, container.clientWidth - CANVAS_BREATHING_ROOM * 2);
-		const maxHeight = Math.max(1, container.clientHeight - CANVAS_BREATHING_ROOM * 2);
+		const maxWidth = Math.max(1, container.clientWidth - this.canvasBreathingRoom * 2);
+		const maxHeight = Math.max(1, container.clientHeight - this.canvasBreathingRoom * 2);
 		return Math.min(maxWidth / this.imageWidth, maxHeight / this.imageHeight, 1);
 	}
 
@@ -2468,6 +2515,28 @@ export class ScreenshotAnnotationEditor {
 		return finalCanvas.toDataURL('image/png');
 	}
 
+	/** Closes the dialog, which keeps what changed. */
+	private close(): void {
+		this.cancelTextPlacement();
+		this.commitTextEdit();
+		if (this.cropMode) {
+			this.cancelCrop();
+		}
+		if (this.revision === this.savedRevision) {
+			this._onDidCancel.fire();
+		} else {
+			const annotated = this.actions.length > 0 || this.currentCrop !== null;
+			this._onDidSave.fire({
+				dataUrl: annotated ? this.compositeToDataUrl() : this.screenshot.dataUrl,
+				width: this.imageWidth,
+				height: this.imageHeight,
+				state: this.captureState(),
+				annotated,
+			});
+		}
+		this.dispose();
+	}
+
 	dispose(): void {
 		if (this.pendingZoomRaf) {
 			getWindow(this.canvas).cancelAnimationFrame(this.pendingZoomRaf);
@@ -2477,7 +2546,7 @@ export class ScreenshotAnnotationEditor {
 		this.cancelTextPlacement();
 		// Whoever opened the editor restores focus, so closing it must not move focus itself.
 		this.cleanupTextEditor(false);
-		this.container.remove();
+		this.root.remove();
 		this.toolOptionsDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidSave.dispose();

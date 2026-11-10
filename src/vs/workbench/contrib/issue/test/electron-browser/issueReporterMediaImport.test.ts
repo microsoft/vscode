@@ -674,7 +674,7 @@ suite('Issue reporter media import lifecycle', () => {
 			captures: telemetry.captures,
 		}, {
 			screenshots: 1, annotation: true, pending: false, tool: [], triggers: ['config.workbench.screenshotTool.enabled'],
-			captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', annotated: false, usedTool: false }],
+			captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', usedTool: false }],
 		});
 	});
 
@@ -695,40 +695,53 @@ suite('Issue reporter media import lifecycle', () => {
 			await logged;
 			const screenshot = input.savedAttachments?.find(attachment => attachment.kind === 'screenshot');
 			return {
-				screenshot: screenshot?.kind === 'screenshot' ? screenshot.screenshot : undefined,
-				annotationEditor: !!container.querySelector('.screenshot-annotation-editor'),
-				pending: wizard['screenshotCapturePending'],
-				tool: service.requests,
+				summary: {
+					screenshot: screenshot?.kind === 'screenshot' ? screenshot.screenshot : undefined,
+					annotationEditor: !!container.querySelector('.screenshot-annotation-editor'),
+					pending: wizard['screenshotCapturePending'],
+					tool: service.requests,
+				},
+				container,
+				input,
 			};
 		}
 
-		test('attaches the annotated capture of the source window without annotating it again', async () => {
+		test('attaches the capture of the source window without another step, and edits it from its thumbnail', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store, true);
-			service.result = { kind: 'attach', mode: 'area', image: annotated, original, annotationState, annotated: true, includesLayerContent: false };
-			assert.deepStrictEqual({ ...await capture(service, telemetry, false), triggers: telemetry.triggers, captures: telemetry.captures }, {
-				screenshot: { ...original, annotatedDataUrl: annotated.dataUrl, annotationState },
-				annotationEditor: false, pending: false, tool: ['captureAndAnnotate'], triggers: ['config.workbench.screenshotTool.enabled'],
-				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'area', annotated: true, usedTool: true }],
+			service.result = { kind: 'captured', mode: 'area', image: original, includesLayerContent: false };
+			const { summary, container, input } = await capture(service, telemetry, false);
+			const captured = { ...summary, tool: [...summary.tool] };
+			service.editResult = { original, annotationState, image: annotated, annotated: true };
+			container.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
+			await timeout(0);
+			const edited = input.savedAttachments?.find(attachment => attachment.kind === 'screenshot');
+			assert.deepStrictEqual({ captured, edited: edited?.kind === 'screenshot' ? edited.screenshot : undefined, tool: service.requests, triggers: telemetry.triggers, captures: telemetry.captures }, {
+				captured: { screenshot: original, annotationEditor: false, pending: false, tool: ['capture'] },
+				edited: { ...original, annotatedDataUrl: annotated.dataUrl, annotationState },
+				tool: ['capture', 'edit 48x32'],
+				triggers: ['config.workbench.screenshotTool.enabled'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'area', usedTool: true }],
 			});
 		});
 
-		test('captures the whole window after the countdown and opens it in the screenshot tool', async () => {
+		test('captures the whole window after the countdown and attaches it', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store, true);
 			service.windowImage = original;
-			service.result = { kind: 'attach', mode: 'window', image: original, original, annotationState: undefined, annotated: false, includesLayerContent: false };
-			assert.deepStrictEqual({ ...await capture(service, telemetry, true), captures: telemetry.captures }, {
-				screenshot: { ...original, annotatedDataUrl: undefined, annotationState: undefined },
-				annotationEditor: false, pending: false, tool: ['captureWindow', 'annotate window 48x32'],
-				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', annotated: false, usedTool: true }],
+			const { summary } = await capture(service, telemetry, true);
+			assert.deepStrictEqual({ ...summary, captures: telemetry.captures }, {
+				screenshot: original,
+				annotationEditor: false, pending: false, tool: ['captureWindow'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', usedTool: true }],
 			});
 		});
 
 		test('releases the capture slot without attaching when the screenshot is cancelled', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store, true);
 			service.result = { kind: 'cancelled', mode: 'none' };
-			assert.deepStrictEqual({ ...await capture(service, telemetry, false), captures: telemetry.captures }, {
-				screenshot: undefined, annotationEditor: false, pending: false, tool: ['captureAndAnnotate'],
-				captures: [{ entryPoint: 'issueReporter', outcome: 'cancelled', mode: 'none', annotated: false, usedTool: true }],
+			const { summary } = await capture(service, telemetry, false);
+			assert.deepStrictEqual({ ...summary, captures: telemetry.captures }, {
+				screenshot: undefined, annotationEditor: false, pending: false, tool: ['capture'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'cancelled', mode: 'none', usedTool: true }],
 			});
 		});
 

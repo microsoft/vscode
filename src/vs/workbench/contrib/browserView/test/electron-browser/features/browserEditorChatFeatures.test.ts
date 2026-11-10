@@ -80,38 +80,36 @@ suite('Browser screenshot actions', () => {
 			tool: [],
 			triggers: ['config.workbench.screenshotTool.enabled'],
 			captures: [
-				{ entryPoint: 'browserScreenshot', outcome: 'attached', mode: 'page', annotated: false, usedTool: false },
-				{ entryPoint: 'browserAreaScreenshot', outcome: 'attached', mode: 'area', annotated: false, usedTool: false },
-				{ entryPoint: 'browserFullPageScreenshot', outcome: 'attached', mode: 'fullPage', annotated: false, usedTool: false },
+				{ entryPoint: 'browserScreenshot', outcome: 'attached', mode: 'page', usedTool: false },
+				{ entryPoint: 'browserAreaScreenshot', outcome: 'attached', mode: 'area', usedTool: false },
+				{ entryPoint: 'browserFullPageScreenshot', outcome: 'attached', mode: 'fullPage', usedTool: false },
 			],
 		});
 	});
 
-	test('with the screenshot tool, each action opens the tool and attaches what the user keeps', async () => {
+	test('with the screenshot tool, each action attaches its capture right away, where it can be edited', async () => {
 		const { feature, service, telemetry, attached, pageCaptures } = create(true);
 		const page = { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 };
-		const annotated = { dataUrl: 'data:image/png;base64,iVBORw0K', width: 4, height: 2 };
-		service.result = { kind: 'attach', mode: 'page', image: page, original: page, annotationState: undefined, annotated: false, includesLayerContent: true };
+		service.result = { kind: 'captured', mode: 'page', image: page, includesLayerContent: true };
 		await feature.addScreenshotToChat();
-		service.result = { kind: 'attach', mode: 'area', image: annotated, original: page, annotationState: { actions: [], undoneActions: [], crop: null }, annotated: true, includesLayerContent: true };
+		service.result = { kind: 'cancelled', mode: 'none' };
 		await feature.addAreaScreenshotToChat();
-		service.result = { kind: 'cancelled', mode: 'fullPage' };
 		await feature.addFullPageScreenshotToChat();
 		assert.deepStrictEqual({
 			pageCaptures,
-			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined })),
+			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, editable: service.getEditableAttachment(entry.id)?.original.width })),
 			tool: service.requests,
 			triggers: telemetry.triggers,
 			captures: telemetry.captures,
 		}, {
 			pageCaptures: [{ fullPage: true, format: 'png' }],
-			attached: [{ name: 'Browser Screenshot', mimeType: 'image/jpeg' }, { name: 'Browser Area Screenshot', mimeType: 'image/png' }],
-			tool: ['captureAndAnnotate', 'captureAndAnnotate', 'annotate fullPage 4x2'],
+			attached: [{ name: 'Browser Screenshot', mimeType: 'image/jpeg', editable: 4 }, { name: 'Browser Full Page Screenshot', mimeType: 'image/png', editable: 4 }],
+			tool: ['capture', 'capture'],
 			triggers: ['config.workbench.screenshotTool.enabled'],
 			captures: [
-				{ entryPoint: 'browserScreenshot', outcome: 'attached', mode: 'page', annotated: false, usedTool: true },
-				{ entryPoint: 'browserAreaScreenshot', outcome: 'attached', mode: 'area', annotated: true, usedTool: true },
-				{ entryPoint: 'browserFullPageScreenshot', outcome: 'cancelled', mode: 'fullPage', annotated: false, usedTool: true },
+				{ entryPoint: 'browserScreenshot', outcome: 'attached', mode: 'page', usedTool: true },
+				{ entryPoint: 'browserAreaScreenshot', outcome: 'cancelled', mode: 'none', usedTool: true },
+				{ entryPoint: 'browserFullPageScreenshot', outcome: 'attached', mode: 'fullPage', usedTool: true },
 			],
 		});
 	});

@@ -43,6 +43,7 @@ import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
 import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from '../../screenshotTool/browser/screenshotAnnotation.js';
+import { IScreenshotToolService, ScreenshotToolSurface } from '../../screenshotTool/browser/screenshotTool.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -132,6 +133,7 @@ export class IssueReporterOverlay {
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
 
 	private screenshotContainer!: HTMLElement;
+	private screenshotEditHint!: HTMLElement;
 	private screenshotAddCard: HTMLElement | undefined;
 	private addFilesButton!: Button;
 	private attachmentStatus!: HTMLElement;
@@ -195,6 +197,7 @@ export class IssueReporterOverlay {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -299,6 +302,8 @@ export class IssueReporterOverlay {
 		this.screenshotContainer.tabIndex = 0;
 		this.screenshotContainer.setAttribute('role', 'group');
 		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
+		this.screenshotEditHint = append(page, $('p.wizard-subtitle.wizard-screenshot-edit-hint'));
+		this.screenshotEditHint.textContent = localize('screenshotEditHint', "Click a screenshot to edit it.");
 		this.attachmentStatus = append(page, $('p.wizard-subtitle.wizard-attachment-status'));
 		this.attachmentStatus.setAttribute('role', 'status');
 		this.attachmentStatus.setAttribute('aria-live', 'polite');
@@ -2017,6 +2022,7 @@ export class IssueReporterOverlay {
 		this.screenshotContainer.textContent = '';
 		this.screenshotAddCard = undefined;
 		this.attachmentCards.clear();
+		this.screenshotEditHint.hidden = !this.getAttachments().some(attachment => attachment.kind === 'screenshot');
 		let screenshotNumber = 0;
 		for (const attachment of this.getAttachments()) {
 			let card: HTMLElement;
@@ -2074,6 +2080,10 @@ export class IssueReporterOverlay {
 		if (attachment?.kind !== 'screenshot') {
 			return;
 		}
+		if (this.screenshotToolService.shouldUseTool()) {
+			void this.editScreenshot(id, attachment.screenshot);
+			return;
+		}
 
 		// Per-editor lifecycle: each call creates a new editor that mounts an
 		// absolutely-positioned overlay on top of any previously-open editor and
@@ -2113,6 +2123,29 @@ export class IssueReporterOverlay {
 
 		editorDisposables.add(editor.onDidCancel(() => close()));
 		editor.focus();
+	}
+
+	/**
+	 * Edits a screenshot in the screenshot tool's dialog. It opens over the window that screenshots
+	 * capture, which keeps it large even when the reporter has a narrow window of its own.
+	 */
+	private async editScreenshot(id: string, screenshot: IScreenshot): Promise<void> {
+		const edit = await this.screenshotToolService.edit(getWindow(this.captureContainer), {
+			original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
+			annotationState: screenshot.annotationState,
+		}, ScreenshotToolSurface.IssueReporter);
+		const index = this.attachments.findIndex(item => item.id === id && item.kind === 'screenshot');
+		if (!edit || this.disposed || index === -1) {
+			return;
+		}
+		this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: edit.annotated ? edit.image.dataUrl : undefined, annotationState: edit.annotationState } };
+		// The cards are replaced, so focus moves to the new card of the edited screenshot when it was on the old one.
+		const activeElement = getWindow(this.screenshotContainer).document.activeElement;
+		const refocus = isHTMLElement(activeElement) && this.screenshotContainer.contains(activeElement);
+		this.attachmentsChanged();
+		if (refocus) {
+			this.attachmentCards.get(id)?.focus();
+		}
 	}
 
 	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {

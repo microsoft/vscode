@@ -569,26 +569,28 @@ export class ScreenshotContextValuePick implements IChatContextValueItem {
 		try {
 			blob = await this._hostService.getScreenshot();
 		} finally {
-			this._logCapture(blob ? 'attached' : 'failed', 'window', false, stopWatch, false);
+			this._logCapture(blob ? 'attached' : 'failed', 'window', stopWatch, false);
 		}
 		return blob && convertBufferToScreenshotVariable(blob);
 	}
 
 	private async _attachWithScreenshotTool(widget: IChatWidget, stopWatch: StopWatch): Promise<IChatRequestVariableEntry | undefined> {
-		const result = await this._screenshotToolService.captureAndAnnotate(getWindow(widget.domNode));
+		const result = await this._screenshotToolService.capture(getWindow(widget.domNode));
 		widget.focusInput();
-		if (result.kind !== 'attach') {
-			this._logCapture(result.kind, result.mode, false, stopWatch, true);
+		if (result.kind !== 'captured') {
+			this._logCapture(result.kind, result.mode, stopWatch, true);
 			return undefined;
 		}
 		const { data, mimeType } = getScreenshotToolImageData(result.image);
-		this._logCapture('attached', result.mode, result.annotated, stopWatch, true);
-		// Each capture is one the user chose to attach, so it must not be dropped as a duplicate of an earlier screenshot.
-		return { ...convertBufferToScreenshotVariable(data, mimeType), id: generateUuid() };
+		this._logCapture('attached', result.mode, stopWatch, true);
+		// Each capture gets its own id, so a second screenshot is not dropped as a duplicate of the first, and can be edited on its own.
+		const entry = { ...convertBufferToScreenshotVariable(data, mimeType), id: generateUuid() };
+		this._screenshotToolService.registerEditableAttachment(entry.id, { original: result.image, annotationState: undefined });
+		return entry;
 	}
 
-	private _logCapture(outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, annotated: boolean, stopWatch: StopWatch, usedTool: boolean): void {
-		this._screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAddContext, outcome, mode, annotated, durationMs: stopWatch.elapsed(), usedTool });
+	private _logCapture(outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, stopWatch: StopWatch, usedTool: boolean): void {
+		this._screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAddContext, outcome, mode, durationMs: stopWatch.elapsed(), usedTool });
 	}
 }
 

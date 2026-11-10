@@ -171,7 +171,7 @@ suite('ChatContext', () => {
 
 	suite('Screenshot', () => {
 		const windowScreenshot = VSBuffer.wrap(new Uint8Array([255, 216, 255]));
-		const annotatedImage = { dataUrl: 'data:image/png;base64,iVBORw0K', width: 2, height: 1 };
+		const capturedImage = { dataUrl: 'data:image/png;base64,iVBORw0K', width: 2, height: 1 };
 
 		function createScreenshotPick(enabled: boolean) {
 			const { service, telemetry } = createTestScreenshotToolService(disposables, enabled);
@@ -186,28 +186,31 @@ suite('ChatContext', () => {
 		test('captures the window instantly without the screenshot tool', async () => {
 			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick(false);
 			const attachment = await pick.asAttachment(widget);
-			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures }, {
+			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures, editable: !!attachment && !!service.getEditableAttachment(attachment.id) }, {
 				attachment: { id: 'screenshot-focused-window', name: 'Screenshot', value: windowScreenshot.buffer, kind: 'image' },
 				tool: [], focused: 0, triggers: ['config.workbench.screenshotTool.enabled'],
-				captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', annotated: false, usedTool: false }],
+				captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', usedTool: false }],
+				editable: false,
 			});
 		});
 
-		test('attaches each annotated capture of the screenshot tool to the chat input', async () => {
+		test('attaches each capture of the screenshot tool to the chat input, where it can be edited', async () => {
 			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick(true);
-			service.result = { kind: 'attach', mode: 'area', image: annotatedImage, original: { ...annotatedImage, dataUrl: 'data:image/jpeg;base64,/9j/' }, annotationState: undefined, annotated: true, includesLayerContent: false };
+			service.result = { kind: 'captured', mode: 'area', image: capturedImage, includesLayerContent: false };
 			const attachment = await pick.asAttachment(widget);
 			const next = await pick.asAttachment(widget);
-			const capture = { entryPoint: 'chatAddContext', outcome: 'attached', mode: 'area', annotated: true, usedTool: true };
+			const capture = { entryPoint: 'chatAddContext', outcome: 'attached', mode: 'area', usedTool: true };
 			assert.deepStrictEqual({
 				attachment: attachment && { ...attachment, id: 'unique', value: [...attachment.value as Uint8Array] },
 				// Neither capture is dropped as a duplicate of the other or of a screenshot without the tool.
 				distinctIds: new Set([attachment?.id, next?.id, 'screenshot-focused-window']).size,
+				editable: attachment && service.getEditableAttachment(attachment.id),
 				tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures,
 			}, {
 				attachment: { id: 'unique', name: 'Screenshot', value: [137, 80, 78, 71, 13, 10], kind: 'image', mimeType: 'image/png' },
 				distinctIds: 3,
-				tool: ['captureAndAnnotate', 'captureAndAnnotate'], focused: 2, triggers: ['config.workbench.screenshotTool.enabled'],
+				editable: { original: capturedImage, annotationState: undefined },
+				tool: ['capture', 'capture'], focused: 2, triggers: ['config.workbench.screenshotTool.enabled'],
 				captures: [capture, capture],
 			});
 		});
@@ -217,7 +220,7 @@ suite('ChatContext', () => {
 			service.result = { kind: 'cancelled', mode: 'none' };
 			assert.deepStrictEqual({ attachment: await pick.asAttachment(widget), focused: focusCount(), captures: telemetry.captures }, {
 				attachment: undefined, focused: 1,
-				captures: [{ entryPoint: 'chatAddContext', outcome: 'cancelled', mode: 'none', annotated: false, usedTool: true }],
+				captures: [{ entryPoint: 'chatAddContext', outcome: 'cancelled', mode: 'none', usedTool: true }],
 			});
 		});
 	});

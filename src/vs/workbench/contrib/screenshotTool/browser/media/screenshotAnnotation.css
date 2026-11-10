@@ -34,11 +34,59 @@
 	box-shadow: none !important;
 }
 
-/* Covers the window like the selection overlay, so it stays out of the capture's way and above notifications. */
-.screenshot-annotation-editor.attach-mode {
+/* A dialog above the whole window, like the modal editor, which leaves room around it so it reads as a dialog rather than a new screen. */
+.screenshot-annotation-backdrop {
 	position: fixed;
+	inset: 0;
+	/* Above notifications and quick input, like the screenshot tool's selection overlay. */
 	z-index: 2560;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.5);
 	-webkit-app-region: no-drag;
+}
+
+.screenshot-annotation-backdrop .screenshot-annotation-editor.dialog-mode {
+	position: relative;
+	inset: auto;
+	z-index: auto;
+	box-sizing: border-box;
+	width: calc(100% - 2 * var(--vscode-spacing-size400));
+	height: calc(100% - 2 * var(--vscode-spacing-size400));
+	max-width: 1600px;
+	max-height: 1200px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-xl);
+	overflow: hidden;
+}
+
+.screenshot-annotation-editor .annotation-dialog-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	background: var(--vscode-titleBar-activeBackground);
+	color: var(--vscode-titleBar-activeForeground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-titleBar-border, var(--vscode-panel-border));
+}
+
+.screenshot-annotation-editor .annotation-dialog-title {
+	flex: none;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
+/* In the dialog, the header carries the toolbar's background and border. */
+.screenshot-annotation-editor .annotation-dialog-header .annotation-toolbar {
+	flex: 1;
+	min-width: 0;
+	min-height: auto;
+	padding: var(--vscode-spacing-sizeNone);
+	background: none;
+	border-bottom: none;
 }
 
 .screenshot-annotation-editor .annotation-toolbar {
@@ -57,7 +105,7 @@
 	gap: var(--vscode-spacing-size80);
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn {
+.screenshot-annotation-editor .tool-btn {
 	width: 28px;
 	height: 28px;
 	min-width: 28px;
@@ -74,26 +122,26 @@
 	flex-shrink: 0;
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn:hover {
+.screenshot-annotation-editor .tool-btn:hover {
 	background: rgba(255, 255, 255, .1);
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn:focus {
+.screenshot-annotation-editor .tool-btn:focus {
 	outline: none;
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn:focus-visible {
+.screenshot-annotation-editor .tool-btn:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder, #007acc);
 	outline-offset: -1px;
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn:disabled {
+.screenshot-annotation-editor .tool-btn:disabled {
 	opacity: 0.4;
 	cursor: default;
 	pointer-events: none;
 }
 
-.screenshot-annotation-editor .annotation-toolbar .tool-btn:disabled:hover {
+.screenshot-annotation-editor .tool-btn:disabled:hover {
 	background: transparent;
 }
 

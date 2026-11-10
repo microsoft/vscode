@@ -11,7 +11,9 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import { isNative } from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -27,10 +29,13 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { ScreenshotAnnotationEditor, ScreenshotAnnotationEditorMode } from './screenshotAnnotation.js';
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
-import { createScreenshotToolImage, IScreenshotToolCaptureEvent, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolService, ScreenshotToolActiveContext, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult } from './screenshotTool.js';
+import { createScreenshotToolImage, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolService, ScreenshotToolActiveContext, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface } from './screenshotTool.js';
 
 /** How long the window gets to repaint without the overlay before it is captured. */
 const OVERLAY_REMOVAL_DELAY = 100;
+
+/** How many screenshots attached to chat stay editable, which bounds the memory their originals take. */
+const MAX_EDITABLE_ATTACHMENTS = 10;
 
 interface ICapture {
 	readonly mode: ScreenshotToolMode;
@@ -53,9 +58,24 @@ type ScreenshotToolCaptureClassification = {
 	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The entry point that started the screenshot: chat Add Context, the issue reporter, or an Integrated Browser screenshot action.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the screenshot was attached, cancelled, or failed.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What was captured: the window, an area, a browser page, or a full browser page, or none when nothing was captured.' };
-	annotated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot was annotated in the screenshot tool before it was attached. Entry points without the tool never annotate before attaching.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from running the entry point to its outcome, including the time the user spent selecting and annotating.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from running the entry point to its outcome, including the time the user spent selecting.' };
 	usedTool: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the entry point used the screenshot tool instead of its previous behavior.' };
+};
+
+type ScreenshotToolEditEvent = {
+	surface: ScreenshotToolSurface;
+	changed: boolean;
+	annotated: boolean;
+	durationMs: number;
+};
+
+type ScreenshotToolEditClassification = {
+	owner: 'Giuspepe';
+	comment: 'Reports how editing an attached screenshot in the screenshot tool ended.';
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the edited screenshot was attached: chat or the issue reporter.' };
+	changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot changed while the edit dialog was open.' };
+	annotated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot has annotations or a crop when the edit dialog closes.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds the edit dialog was open.' };
 };
 
 export class ScreenshotToolService extends Disposable implements IScreenshotToolService {
@@ -64,6 +84,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 
 	private readonly layers = new Set<IScreenshotToolLayer>();
 	private readonly sessions = new Map<CodeWindow, ISession>();
+	private readonly editableAttachments = new LRUCache<string, IScreenshotToolEditable>(MAX_EDITABLE_ATTACHMENTS);
 	private readonly activeContext: IContextKey<boolean>;
 
 	private readonly _onDidChangeActive = this._register(new Emitter<{ readonly targetWindow: CodeWindow; readonly active: boolean }>());
@@ -109,10 +130,17 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			entryPoint: event.entryPoint,
 			outcome: event.outcome,
 			mode: event.mode,
-			annotated: event.annotated,
 			durationMs: Math.round(event.durationMs),
 			usedTool: event.usedTool,
 		});
+	}
+
+	registerEditableAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): void {
+		this.editableAttachments.set(attachmentId, screenshot);
+	}
+
+	getEditableAttachment(attachmentId: string): IScreenshotToolEditable | undefined {
+		return this.editableAttachments.get(attachmentId);
 	}
 
 	focus(): void {
@@ -121,7 +149,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		session?.surface?.focus();
 	}
 
-	async captureAndAnnotate(targetWindow: CodeWindow, token = CancellationToken.None): Promise<ScreenshotToolResult> {
+	async capture(targetWindow: CodeWindow, token = CancellationToken.None): Promise<ScreenshotToolResult> {
 		const session = this.startSession(targetWindow);
 		if (!session) {
 			return { kind: 'cancelled', mode: 'none' };
@@ -148,7 +176,8 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			if (token.isCancellationRequested) {
 				return { kind: 'cancelled', mode };
 			}
-			return await this.openAnnotationEditor(targetWindow, session, { ...capture, mode }, token);
+			this.accessibilityService.status(localize('screenshotCaptured', "Screenshot captured."));
+			return { kind: 'captured', mode, ...capture };
 		} catch (error) {
 			this.logService.error('[ScreenshotTool] Capturing a screenshot failed:', error);
 			this.accessibilityService.alert(localize('screenshotFailed', "The screenshot could not be captured."));
@@ -167,18 +196,27 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async annotate(targetWindow: CodeWindow, image: IScreenshotToolImage, mode: ScreenshotToolMode, token = CancellationToken.None): Promise<ScreenshotToolResult> {
+	async edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, token = CancellationToken.None): Promise<IScreenshotToolEdit | undefined> {
 		const session = this.startSession(targetWindow);
 		if (!session) {
-			return { kind: 'cancelled', mode };
+			return undefined;
 		}
+		const stopWatch = StopWatch.create(false);
+		let edit: IScreenshotToolEdit | undefined;
 		try {
-			return await this.openAnnotationEditor(targetWindow, session, { mode, image, includesLayerContent: false }, token);
+			edit = await this.openEditDialog(targetWindow, session, screenshot, token);
+			return edit;
 		} catch (error) {
-			this.logService.error('[ScreenshotTool] Annotating a screenshot failed:', error);
-			return { kind: 'failed', mode };
+			this.logService.error('[ScreenshotTool] Editing a screenshot failed:', error);
+			return undefined;
 		} finally {
 			session.dispose();
+			this.telemetryService.publicLog2<ScreenshotToolEditEvent, ScreenshotToolEditClassification>('screenshotTool.edit', {
+				surface,
+				changed: !!edit,
+				annotated: edit ? edit.annotated : !!screenshot.annotationState?.actions.length || !!screenshot.annotationState?.crop,
+				durationMs: Math.round(stopWatch.elapsed()),
+			});
 		}
 	}
 
@@ -251,13 +289,13 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			: message;
 	}
 
-	private async openAnnotationEditor(targetWindow: CodeWindow, session: ISession, capture: ICapture, token: CancellationToken): Promise<ScreenshotToolResult> {
+	private async openEditDialog(targetWindow: CodeWindow, session: ISession, screenshot: IScreenshotToolEditable, token: CancellationToken): Promise<IScreenshotToolEdit | undefined> {
 		const store = new DisposableStore();
-		const result = new DeferredPromise<ScreenshotToolResult>();
-		const editor = new ScreenshotAnnotationEditor(capture.image, this.layoutService.getContainer(targetWindow), undefined, ScreenshotAnnotationEditorMode.Attach);
+		const result = new DeferredPromise<IScreenshotToolEdit | undefined>();
+		const editor = new ScreenshotAnnotationEditor(screenshot.original, this.layoutService.getContainer(targetWindow), screenshot.annotationState, ScreenshotAnnotationEditorMode.Dialog);
 		store.add(toDisposable(() => editor.dispose()));
 		for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-			// Workbench shortcuts would open UI underneath the editor and take focus from it.
+			// Workbench shortcuts would open UI underneath the dialog and take focus from it.
 			store.add(addDisposableListener(editor.element, type, (e: KeyboardEvent) => {
 				if (!this.isAccessibilityHelpKey(new StandardKeyboardEvent(e))) {
 					e.stopPropagation();
@@ -265,23 +303,16 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			}));
 		}
 		store.add(editor.onDidSave(saved => void result.complete({
-			kind: 'attach',
-			mode: capture.mode,
-			image: saved.annotated ? { dataUrl: saved.dataUrl, width: saved.width, height: saved.height } : capture.image,
-			original: capture.image,
-			annotationState: saved.annotated ? saved.state : undefined,
+			original: screenshot.original,
+			annotationState: saved.state,
+			image: saved.annotated ? { dataUrl: saved.dataUrl, width: saved.width, height: saved.height } : screenshot.original,
 			annotated: saved.annotated,
-			includesLayerContent: capture.includesLayerContent,
 		})));
-		store.add(editor.onDidCancel(() => {
-			this.accessibilityService.status(localize('screenshotCancelled', "Screenshot cancelled."));
-			void result.complete({ kind: 'cancelled', mode: capture.mode });
-		}));
-		store.add(token.onCancellationRequested(() => void result.complete({ kind: 'cancelled', mode: capture.mode })));
+		store.add(editor.onDidCancel(() => void result.complete(undefined)));
+		store.add(token.onCancellationRequested(() => void result.complete(undefined)));
 		session.surface = editor;
 		try {
 			editor.focus();
-			this.accessibilityService.status(localize('screenshotCaptured', "Screenshot captured."));
 			return await result.p;
 		} finally {
 			session.surface = undefined;

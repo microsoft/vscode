@@ -46,6 +46,8 @@ import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput
 import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
 import { ScreenshotAnnotationEditor } from '../../../screenshotTool/browser/screenshotAnnotation.js';
+import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
@@ -84,6 +86,7 @@ suite('IssueReporterOverlay', () => {
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
+		instantiation.stub(IScreenshotToolService, createTestScreenshotToolService(store, false).service);
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
 		const telemetry = new TestTelemetryService();
@@ -1213,6 +1216,16 @@ suite('IssueReporterOverlay', () => {
 			focusedCardAfterSave: true,
 			open: 0,
 		});
+	});
+
+	test('explains that a screenshot can be edited once one is attached', () => {
+		const { overlay, container } = createReporter();
+		const hint = container.querySelector<HTMLElement>('.wizard-screenshot-edit-hint')!;
+		const empty = hint.hidden;
+		overlay.restoreAttachments([attachedFile('file')]);
+		const withFile = hint.hidden;
+		overlay.restoreAttachments([capturedScreenshot('capture')]);
+		assert.deepStrictEqual({ empty, withFile, withScreenshot: hint.hidden, text: hint.textContent }, { empty: true, withFile: true, withScreenshot: false, text: 'Click a screenshot to edit it.' });
 	});
 
 	test('removes handlers from replaced screenshot cards', () => {

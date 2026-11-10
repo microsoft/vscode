@@ -82,6 +82,7 @@ import { bindContextKey, observableConfigValue } from '../../../../../../platfor
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { getScreenshotToolImageData, IScreenshotToolEditable, IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -1199,6 +1200,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -4977,7 +4979,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (attachment.kind === 'terminalCommand') {
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
-			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+			// Screenshots from the screenshot tool open for editing instead of a preview.
+			const screenshot = this.screenshotToolService.getEditableAttachment(attachment.id);
+			const imageOptions = screenshot ? { ...widgetOptions, edit: () => this.editScreenshotAttachment(attachment.id, screenshot) } : widgetOptions;
+			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
 		} else if (isElementVariableEntry(attachment)) {
 			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isPasteVariableEntry(attachment)) {
@@ -4995,6 +5000,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// The inline request-edit input part has no bound input model and falls back to the widget's session.
 		return this._chatAttachmentWidgetRegistry.createWidget(attachment, widgetOptions, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 			?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
+	}
+
+	/**
+	 * Edits a screenshot from the screenshot tool in its dialog, and keeps it attached with the changes.
+	 */
+	private async editScreenshotAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): Promise<void> {
+		const edit = await this.screenshotToolService.edit(dom.getWindow(this.container), screenshot, ScreenshotToolSurface.Chat);
+		const attachment = this._attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
+		if (!edit || !attachment || !isImageVariableEntry(attachment)) {
+			return;
+		}
+		this.screenshotToolService.registerEditableAttachment(attachmentId, { original: edit.original, annotationState: edit.annotationState });
+		const { data, mimeType } = getScreenshotToolImageData(edit.image);
+		this._attachmentModel.updateContext([], [{ ...attachment, value: data.buffer, mimeType }]);
 	}
 
 	/**

@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,7 +17,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolEntryPoint, ScreenshotToolResult } from '../../browser/screenshotTool.js';
+import { createScreenshotToolImage, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolEntryPoint, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
 import { resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 import { TestScreenshotToolTelemetryService } from './screenshotToolTestUtils.js';
@@ -44,14 +44,8 @@ suite('ScreenshotTool', () => {
 
 		class TestAccessibility extends TestAccessibilityService {
 			readonly messages: string[] = [];
-			private readonly _onDidAnnounce = store.add(new Emitter<string>());
-			readonly onDidAnnounce = this._onDidAnnounce.event;
-			override status(message: string): void { this.announce(message); }
-			override alert(message: string): void { this.announce(message); }
-			private announce(message: string): void {
-				this.messages.push(message);
-				this._onDidAnnounce.fire(message);
-			}
+			override status(message: string): void { this.messages.push(message); }
+			override alert(message: string): void { this.messages.push(message); }
 		}
 
 		function createImage(width: number, height: number, color: string): VSBuffer {
@@ -110,97 +104,105 @@ suite('ScreenshotTool', () => {
 			element.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, keyCode, bubbles: true, cancelable: true }));
 		}
 
-		/** Waits for the capture to open in the annotation editor, which the tool announces, and closes it. */
-		async function finishInEditor(accessibility: TestAccessibility, container: HTMLElement, button: 'Attach' | 'Cancel'): Promise<void> {
-			await Event.toPromise(Event.filter(accessibility.onDidAnnounce, message => message === 'Screenshot captured.'));
-			const editor = container.querySelector<HTMLElement>('.screenshot-annotation-editor')!;
-			[...editor.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === button)!.click();
+		function summarize(result: ScreenshotToolResult) {
+			return result.kind === 'captured'
+				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}`, includesLayerContent: result.includesLayerContent }
+				: result;
 		}
 
-		function summarize(result: ScreenshotToolResult) {
-			return result.kind === 'attach'
-				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}`, annotated: result.annotated, includesLayerContent: result.includesLayerContent, sameAsOriginal: result.image === result.original }
-				: result;
+		/** Waits until the edit dialog has loaded its screenshot, which sizes its canvas. */
+		async function waitForDialog(container: HTMLElement): Promise<HTMLElement> {
+			const dialog = container.querySelector<HTMLElement>('.screenshot-annotation-editor')!;
+			const canvas = dialog.querySelector('canvas')!;
+			if (!canvas.style.width) {
+				const sized = new DeferredPromise<void>();
+				const observer = new MutationObserver(() => {
+					if (canvas.style.width) {
+						void sized.complete();
+					}
+				});
+				observer.observe(canvas, { attributes: true, attributeFilter: ['style'] });
+				await sized.p;
+				observer.disconnect();
+			}
+			return dialog;
 		}
 
 		test('logs the experiment trigger in both arms before reading the setting, and nothing where unsupported', () => {
 			const arms = [{ enabled: false }, { enabled: true }, { enabled: true, supported: false }].map(options => {
 				const { service, telemetry } = createService(options);
 				const usesTool = service.shouldUseTool();
-				service.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAddContext, outcome: 'attached', mode: 'window', annotated: false, durationMs: 5, usedTool: usesTool });
+				service.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAddContext, outcome: 'attached', mode: 'window', durationMs: 5, usedTool: usesTool });
 				return { usesTool, triggers: telemetry.triggers, captures: telemetry.captures };
 			});
 			assert.deepStrictEqual(arms, [
-				{ usesTool: false, triggers: ['config.workbench.screenshotTool.enabled'], captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', annotated: false, usedTool: false }] },
-				{ usesTool: true, triggers: ['config.workbench.screenshotTool.enabled'], captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', annotated: false, usedTool: true }] },
+				{ usesTool: false, triggers: ['config.workbench.screenshotTool.enabled'], captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', usedTool: false }] },
+				{ usesTool: true, triggers: ['config.workbench.screenshotTool.enabled'], captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', usedTool: true }] },
 				{ usesTool: false, triggers: [], captures: [] },
 			]);
 		});
 
-		test('a click captures the target window and attaches it unchanged', async () => {
+		test('a click captures the target window, which is attached without another step', async () => {
 			const { service, container, captures, accessibility } = createService();
-			const result = service.captureAndAnnotate(mainWindow);
+			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 20, 20);
 			pointer(overlay, 'pointerup', 22, 21);
-			await finishInEditor(accessibility, container, 'Attach');
-			assert.deepStrictEqual({ result: summarize(await result), captures, overlay: overlay.isConnected }, {
-				result: { kind: 'attach', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, annotated: false, includesLayerContent: false, sameAsOriginal: true },
+			assert.deepStrictEqual({ result: summarize(await result), captures, overlay: overlay.isConnected, editors: container.querySelectorAll('.screenshot-annotation-editor').length, announced: accessibility.messages.at(-1) }, {
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, includesLayerContent: false },
 				captures: [mainWindow],
 				overlay: false,
+				editors: 0,
+				announced: 'Screenshot captured.',
 			});
 		});
 
 		test('a drag captures an area with the part of a page layer that it covers', async () => {
-			const { service, container, accessibility } = createService();
+			const { service, container } = createService();
 			const page = $('div');
 			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
 			container.appendChild(page);
 			store.add(service.registerLayer({ element: page, capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
-			const result = service.captureAndAnnotate(mainWindow);
+			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 50, 50);
 			pointer(overlay, 'pointermove', 150, 120);
 			pointer(overlay, 'pointerup', 150, 120);
-			await finishInEditor(accessibility, container, 'Attach');
-			assert.deepStrictEqual(summarize(await result), { kind: 'attach', mode: 'area', size: '100x70', annotated: false, includesLayerContent: true, sameAsOriginal: true });
+			assert.deepStrictEqual(summarize(await result), { kind: 'captured', mode: 'area', size: '100x70', includesLayerContent: true });
 		});
 
 		test('a click on a page layer captures only the page', async () => {
-			const { service, container, captures, accessibility } = createService();
+			const { service, container, captures } = createService();
 			const page = $('div');
 			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
 			container.appendChild(page);
 			store.add(service.registerLayer({ element: page, capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
-			const result = service.captureAndAnnotate(mainWindow);
+			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 150, 150);
 			pointer(overlay, 'pointerup', 150, 150);
-			await finishInEditor(accessibility, container, 'Attach');
 			assert.deepStrictEqual({ result: summarize(await result), captures }, {
-				result: { kind: 'attach', mode: 'page', size: '200x100', annotated: false, includesLayerContent: true, sameAsOriginal: true },
+				result: { kind: 'captured', mode: 'page', size: '200x100', includesLayerContent: true },
 				captures: [],
 			});
 		});
 
-		test('Enter captures the window, Cancel in the editor cancels, and focus returns', async () => {
-			const { service, container, accessibility } = createService();
+		test('Enter captures the window and focus returns', async () => {
+			const { service, container } = createService();
 			const button = $('button');
 			container.appendChild(button);
 			button.focus();
-			const result = service.captureAndAnnotate(mainWindow);
+			const result = service.capture(mainWindow);
 			key(getOverlay(container), 'Enter', 13);
-			await finishInEditor(accessibility, container, 'Cancel');
-			assert.deepStrictEqual({ result: summarize(await result), messages: accessibility.messages.slice(1), focused: mainWindow.document.activeElement === button }, {
-				result: { kind: 'cancelled', mode: 'window' },
-				messages: ['Screenshot captured.', 'Screenshot cancelled.'],
+			assert.deepStrictEqual({ result: summarize(await result), focused: mainWindow.document.activeElement === button }, {
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, includesLayerContent: false },
 				focused: true,
 			});
 		});
 
 		test('Escape cancels before capturing and announces it', async () => {
 			const { service, container, accessibility, captures } = createService();
-			const result = service.captureAndAnnotate(mainWindow);
+			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			const focusedOverlay = mainWindow.document.activeElement === overlay;
 			key(overlay, 'Escape', 27);
@@ -219,7 +221,7 @@ suite('ScreenshotTool', () => {
 			container.appendChild(button);
 			button.focus();
 			const targetWindow = upcastPartial<CodeWindow>({ document: mainWindow.document.implementation.createHTMLDocument() });
-			const result = service.captureAndAnnotate(targetWindow);
+			const result = service.capture(targetWindow);
 			const focusedDuringSession = [...focusedWindows];
 			key(getOverlay(container), 'Escape', 27);
 			assert.deepStrictEqual({ result: await result, focusedDuringSession, focusedWindows, focused: mainWindow.document.activeElement === button }, {
@@ -227,6 +229,46 @@ suite('ScreenshotTool', () => {
 				focusedDuringSession: [targetWindow],
 				focusedWindows: [targetWindow, mainWindow],
 				focused: true,
+			});
+		});
+
+		test('editing keeps changes when the dialog closes, without a Save button', async () => {
+			const { service, container, telemetry } = createService();
+			const button = $('button');
+			container.appendChild(button);
+			button.focus();
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+			const edited = service.edit(mainWindow, { original, annotationState: undefined }, ScreenshotToolSurface.Chat);
+			const dialog = await waitForDialog(container);
+			const title = mainWindow.document.getElementById(dialog.getAttribute('aria-labelledby')!)?.textContent;
+			const labels = [...dialog.querySelectorAll<HTMLElement>('.tool-btn, .monaco-button')].map(element => element.getAttribute('aria-label') ?? element.textContent);
+			dialog.querySelector<HTMLElement>('.crop-btn')!.click();
+			[...dialog.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
+			key(dialog, 'Escape', 27);
+			const edit = await edited;
+
+			// Reopening restores the annotations, and closing without changes keeps the screenshot as it is.
+			const reopened = service.edit(mainWindow, edit!, ScreenshotToolSurface.Chat);
+			key(await waitForDialog(container), 'Escape', 27);
+			assert.deepStrictEqual({
+				title,
+				labels,
+				edit: edit && { annotated: edit.annotated, size: `${edit.image.width}x${edit.image.height}`, actions: edit.annotationState?.actions.length, original: edit.original === original },
+				reopened: await reopened,
+				open: container.querySelectorAll('.screenshot-annotation-backdrop').length,
+				focused: mainWindow.document.activeElement === button,
+				edits: telemetry.edits,
+			}, {
+				title: 'Edit Screenshot',
+				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Close'],
+				edit: { annotated: true, size: '40x30', actions: 1, original: true },
+				reopened: undefined,
+				open: 0,
+				focused: true,
+				edits: [
+					{ surface: 'chat', changed: true, annotated: true },
+					{ surface: 'chat', changed: false, annotated: true },
+				],
 			});
 		});
 	});

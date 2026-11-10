@@ -289,7 +289,7 @@ export class IssueReporterController extends Disposable {
 				}
 			} finally {
 				wizard.completeScreenshotCapture(id);
-				this.screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.IssueReporter, outcome, mode: 'window', annotated: false, durationMs: stopWatch.elapsed(), usedTool: false });
+				this.screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.IssueReporter, outcome, mode: 'window', durationMs: stopWatch.elapsed(), usedTool: false });
 			}
 		}));
 
@@ -408,7 +408,7 @@ export class IssueReporterController extends Disposable {
 		return readIssueReporterImage(dataUrl, token);
 	}
 
-	/** Captures the window the report is about, never the reporter's own window, and lets the user annotate it before attaching. */
+	/** Captures the window the report is about, never the reporter's own window, and attaches it. */
 	private async captureWithScreenshotTool(wizard: IssueReporterOverlay, id: string, delayed: boolean, stopWatch: StopWatch, token: CancellationToken): Promise<void> {
 		const isCurrent = () => this.wizard === wizard && !token.isCancellationRequested;
 		// The tool hides the bar while it is active, but the delayed capture happens before that.
@@ -422,27 +422,21 @@ export class IssueReporterController extends Disposable {
 					await timeout(100, token);
 				}
 				const image = await this.screenshotToolService.captureWindow(mainWindow);
-				if (image && isCurrent()) {
-					result = await this.screenshotToolService.annotate(mainWindow, image, 'window', token);
+				if (image) {
+					result = { kind: 'captured', mode: 'window', image, includesLayerContent: false };
 				}
 			} else {
-				result = await this.screenshotToolService.captureAndAnnotate(mainWindow, token);
+				result = await this.screenshotToolService.capture(mainWindow, token);
 			}
 			if (!isCurrent()) {
 				outcome = 'cancelled';
 				return;
 			}
-			if (result.kind !== 'attach') {
+			if (result.kind !== 'captured') {
 				outcome = result.kind;
 				return;
 			}
-			wizard.addScreenshot({
-				dataUrl: result.original.dataUrl,
-				width: result.original.width,
-				height: result.original.height,
-				annotatedDataUrl: result.annotated ? result.image.dataUrl : undefined,
-				annotationState: result.annotationState,
-			}, id, false);
+			wizard.addScreenshot({ dataUrl: result.image.dataUrl, width: result.image.width, height: result.image.height }, id, false);
 			outcome = 'attached';
 			await this.revealAndActivate();
 		} catch (err) {
@@ -460,7 +454,6 @@ export class IssueReporterController extends Disposable {
 				entryPoint: ScreenshotToolEntryPoint.IssueReporter,
 				outcome,
 				mode: result.mode,
-				annotated: outcome === 'attached' && result.kind === 'attach' && result.annotated,
 				durationMs: stopWatch.elapsed(),
 				usedTool: true,
 			});

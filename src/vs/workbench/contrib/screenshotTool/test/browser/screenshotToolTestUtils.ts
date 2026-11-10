@@ -14,12 +14,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IScreenshotToolCaptureEvent, IScreenshotToolImage, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult } from '../../browser/screenshotTool.js';
+import { IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolResult } from '../../browser/screenshotTool.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 
 /** Records experiment triggers and screenshot tool events. */
 export class TestScreenshotToolTelemetryService extends TestExperimentTriggerTelemetryService {
 	readonly captures: Omit<IScreenshotToolCaptureEvent, 'durationMs'>[] = [];
+	readonly edits: object[] = [];
 	private readonly _onDidLogCapture = new Emitter<void>();
 	/** Fires after an entry point reported its outcome, which is the last thing it does. */
 	readonly onDidLogCapture = this._onDidLogCapture.event;
@@ -32,16 +33,22 @@ export class TestScreenshotToolTelemetryService extends TestExperimentTriggerTel
 				this.captures.push(capture);
 			}
 			this._onDidLogCapture.fire();
+		} else if (eventName === 'screenshotTool.edit' && data) {
+			const { durationMs, ...edit } = data as { durationMs: number };
+			if (typeof durationMs === 'number' && durationMs >= 0) {
+				this.edits.push(edit);
+			}
 		}
 	}
 }
 
-/** Keeps the experiment and telemetry logic of the screenshot tool, and returns scripted captures. */
+/** Keeps the experiment and telemetry logic of the screenshot tool, and returns scripted captures and edits. */
 export class TestScreenshotToolService extends ScreenshotToolService {
 	readonly requests: string[] = [];
 	result: ScreenshotToolResult = { kind: 'cancelled', mode: 'none' };
 	windowImage: IScreenshotToolImage | undefined;
-	/** Runs while a scripted capture is active, as a selection or an annotation would. */
+	editResult: IScreenshotToolEdit | undefined;
+	/** Runs while a scripted capture or edit is active. */
 	duringSession: (() => void) | undefined;
 
 	private readonly _onDidChangeScriptedActive = this._register(new Emitter<{ readonly targetWindow: CodeWindow; readonly active: boolean }>());
@@ -51,8 +58,8 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 		return true;
 	}
 
-	override async captureAndAnnotate(targetWindow: CodeWindow): Promise<ScreenshotToolResult> {
-		this.requests.push('captureAndAnnotate');
+	override async capture(targetWindow: CodeWindow): Promise<ScreenshotToolResult> {
+		this.requests.push('capture');
 		this.runSession(targetWindow);
 		return this.result;
 	}
@@ -62,10 +69,10 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 		return this.windowImage;
 	}
 
-	override async annotate(targetWindow: CodeWindow, image: IScreenshotToolImage, mode: ScreenshotToolMode): Promise<ScreenshotToolResult> {
-		this.requests.push(`annotate ${mode} ${image.width}x${image.height}`);
+	override async edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable): Promise<IScreenshotToolEdit | undefined> {
+		this.requests.push(`edit ${screenshot.original.width}x${screenshot.original.height}${screenshot.annotationState ? ' with annotations' : ''}`);
 		this.runSession(targetWindow);
-		return this.result;
+		return this.editResult;
 	}
 
 	private runSession(targetWindow: CodeWindow): void {

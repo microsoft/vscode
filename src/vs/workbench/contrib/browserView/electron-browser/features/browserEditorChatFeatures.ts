@@ -50,6 +50,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCapture, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
 
 // Register tools
@@ -762,7 +763,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 		const stopWatch = StopWatch.create(false);
 		if (this.screenshotToolService.shouldUseTool()) {
-			const result = await this.screenshotToolService.captureAndAnnotate(this.editor.window);
+			const result = await this.screenshotToolService.capture(this.editor.window);
 			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, model.url, stopWatch);
 		}
 
@@ -799,7 +800,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
 		} finally {
-			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserScreenshot, outcome, 'page', false, stopWatch, false);
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserScreenshot, outcome, 'page', stopWatch, false);
 		}
 	}
 
@@ -821,7 +822,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 		const stopWatch = StopWatch.create(false);
 		if (this.screenshotToolService.shouldUseTool()) {
-			const result = await this.screenshotToolService.captureAndAnnotate(this.editor.window);
+			const result = await this.screenshotToolService.capture(this.editor.window);
 			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, model.url, stopWatch);
 		}
 
@@ -835,7 +836,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const rect = await pickPromise;
 
 		if (!rect) {
-			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, 'cancelled', 'none', false, stopWatch, false);
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, 'cancelled', 'none', stopWatch, false);
 			return;
 		}
 
@@ -870,7 +871,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
 		} finally {
-			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, outcome, 'area', false, stopWatch, false);
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, outcome, 'area', stopWatch, false);
 		}
 	}
 
@@ -888,7 +889,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 			try {
 				const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
-				result = await this.screenshotToolService.annotate(this.editor.window, image, 'fullPage');
+				result = { kind: 'captured', mode: 'fullPage', image, includesLayerContent: true };
 			} catch (error) {
 				this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 			}
@@ -924,18 +925,18 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		} finally {
-			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, outcome, 'fullPage', false, stopWatch, false);
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, outcome, 'fullPage', stopWatch, false);
 		}
 	}
 
 	/**
-	 * Attaches what the user captured and annotated with the screenshot tool, after confirming
-	 * the risk of page content as the actions without the tool do.
+	 * Attaches what the user captured with the screenshot tool, after confirming the risk of page
+	 * content as the actions without the tool do. The attached screenshot can be edited from chat.
 	 */
 	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
-		let outcome: ScreenshotToolOutcome = result.kind === 'attach' ? 'failed' : result.kind;
+		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
 		try {
-			if (result.kind !== 'attach') {
+			if (result.kind !== 'captured') {
 				return;
 			}
 			const showsPage = result.mode === 'page' || result.mode === 'fullPage' || result.includesLayerContent;
@@ -945,7 +946,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			}
 			const name = getScreenshotToolAttachmentName(result);
 			const { data, mimeType } = getScreenshotToolImageData(result.image);
-			if (!await this._attachToChat([{ id: `browser-screenshot-${Date.now()}`, name, fullName: name, kind: 'image', value: data.buffer, mimeType }])) {
+			const id = `browser-screenshot-${generateUuid()}`;
+			this.screenshotToolService.registerEditableAttachment(id, { original: result.image, annotationState: undefined });
+			if (!await this._attachToChat([{ id, name, fullName: name, kind: 'image', value: data.buffer, mimeType }])) {
 				return;
 			}
 			outcome = 'attached';
@@ -956,12 +959,12 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor: Failed to attach a screenshot from the screenshot tool', error);
 		} finally {
-			this._logScreenshotCapture(entryPoint, outcome, result.mode, outcome === 'attached' && result.kind === 'attach' && result.annotated, stopWatch, true);
+			this._logScreenshotCapture(entryPoint, outcome, result.mode, stopWatch, true);
 		}
 	}
 
-	private _logScreenshotCapture(entryPoint: ScreenshotToolEntryPoint, outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, annotated: boolean, stopWatch: StopWatch, usedTool: boolean): void {
-		this.screenshotToolService.logCapture({ entryPoint, outcome, mode, annotated, durationMs: stopWatch.elapsed(), usedTool });
+	private _logScreenshotCapture(entryPoint: ScreenshotToolEntryPoint, outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, stopWatch: StopWatch, usedTool: boolean): void {
+		this.screenshotToolService.logCapture({ entryPoint, outcome, mode, durationMs: stopWatch.elapsed(), usedTool });
 	}
 }
 
