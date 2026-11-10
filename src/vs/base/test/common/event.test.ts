@@ -583,14 +583,21 @@ suite('Event', function () {
 				delay: 50
 			});
 			const listener = emitter.event(() => { fired = true; });
+			const resume = stub(emitter, 'resume').callThrough();
 
-			emitter.fire(1);
-			emitter.fire(2);
-			emitter.dispose();
-			listener.dispose();
+			try {
+				emitter.fire(1);
+				emitter.fire(2);
+				emitter.dispose();
+				listener.dispose();
 
-			await timeout(100);
-			assert.strictEqual(fired, false);
+				await timeout(100);
+				assert.deepStrictEqual({ fired, resumed: resume.called }, { fired: false, resumed: false });
+			} finally {
+				resume.restore();
+				emitter.dispose();
+				listener.dispose();
+			}
 		});
 	});
 
@@ -769,7 +776,10 @@ suite('Event', function () {
 
 	test('MicrotaskEmitter - dispose does not fire queued events', async function () {
 		let fired = false;
-		const emitter = new MicrotaskEmitter<void>();
+		let merged = false;
+		const emitter = new MicrotaskEmitter<void>({
+			merge: () => { merged = true; }
+		});
 		const listener = emitter.event(() => { fired = true; });
 
 		emitter.fire();
@@ -777,7 +787,7 @@ suite('Event', function () {
 		listener.dispose();
 
 		await Promise.resolve();
-		assert.strictEqual(fired, false);
+		assert.deepStrictEqual({ fired, merged }, { fired: false, merged: false });
 	});
 
 	test('Emitter - In Order Delivery', function () {
@@ -1082,8 +1092,14 @@ suite('PausableEmitter', function () {
 	});
 
 	test('pause/resume and dispose', function () {
+		class TestEmitter extends PauseableEmitter<number> {
+			get queuedEventCount(): number {
+				return this._eventQueue.size;
+			}
+		}
+
 		let fired = false;
-		const emitter = new PauseableEmitter<number>();
+		const emitter = new TestEmitter();
 		const listener = emitter.event(() => { fired = true; });
 
 		emitter.pause();
@@ -1092,8 +1108,9 @@ suite('PausableEmitter', function () {
 		emitter.dispose();
 		listener.dispose();
 
+		const queuedEventsAfterDispose = emitter.queuedEventCount;
 		emitter.resume();
-		assert.strictEqual(fired, false);
+		assert.deepStrictEqual({ fired, queuedEventsAfterDispose }, { fired: false, queuedEventsAfterDispose: 0 });
 	});
 
 });
