@@ -969,7 +969,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				: [];
 		});
 		// Artifacts and references with a resource are chat resources, whether the agent host or a chat
-		// tool recorded them: the agent or the user can give them a pill of their own or show them in the chat.
+		// tool recorded them: the user can give them a pill of their own or show them in the chat.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
@@ -980,7 +980,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					return [];
 				}
 				// The agent's label describes the resource for people; lists show files by their name.
-				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, defaultMode: artifact?.mode ?? 'none' }];
+				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, defaultMode: 'none' }];
 			}));
 		});
 		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);

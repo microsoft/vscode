@@ -75,25 +75,6 @@ suite('Session Artifacts', () => {
 
 	});
 
-	test('records how the chat shows an entry, and changes it when the entry is recorded again with another mode', () => {
-		const first = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'embedded' }, TOOL), createId);
-		const again = new SessionArtifactCollection(first.artifacts).add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'pinned' }, TOOL), createId);
-		const unchanged = new SessionArtifactCollection(again.artifacts).add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false }, TOOL), createId);
-
-		assert.deepStrictEqual({
-			first: first.artifacts,
-			again: again.artifacts,
-			unchanged: unchanged.artifacts,
-			roundTrip: parseSessionArtifacts(stringifySessionArtifacts(again.artifacts)).artifacts,
-		}, {
-			first: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'embedded' }],
-			again: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
-			unchanged: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
-			roundTrip: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
-		});
-		assert.throws(() => parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'sideways' }, TOOL), /mode must be one of/);
-	});
-
 	test('stamps trusted origin, ignores agent-supplied origin, and preserves provenance on promotion', () => {
 		const input = { type: 'website', label: 'Example', link: 'https://example.com', isArtifact: false, origin: { chat: 'forged' } };
 		const first = new SessionArtifactCollection().add(parseSessionArtifactInput(input, TOOL), createId, { chat: 'original-chat', turnId: 'original-turn' });

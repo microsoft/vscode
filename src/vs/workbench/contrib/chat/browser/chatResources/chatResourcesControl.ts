@@ -35,7 +35,7 @@ export interface IChatResource extends IChatResourceTarget {
 	/** Identifies the resource within its chat. */
 	readonly id: string;
 	readonly icon: ThemeIcon | undefined;
-	/** The mode unless the user configured another: from whoever recorded it. */
+	/** The mode unless the user configured another. */
 	readonly defaultMode: ChatResourceMode;
 }
 
@@ -46,7 +46,7 @@ const SHOWN_RESOURCE_CHROME_HEIGHT = 36;
 const MODE_OVERRIDES_STORAGE_KEY = 'chat.resources.modeOverrides';
 
 /**
- * Shows a chat's resources as the user and agents chose (see {@link ChatResourceMode}): it supplies the pills of
+ * Shows a chat's resources as the user chose (see {@link ChatResourceMode}): it supplies the pills of
  * resources that have one, and shows the selected resource above the chat input. The pills of the resources shown there
  * act as tabs: one of them is shown at a time, and clicking the shown one hides it.
  */
