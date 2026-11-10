@@ -181,6 +181,8 @@ The MCP side-channel scenarios use the `channel` advertised by a real ready serv
 
 The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
 
+The root stdio MCP environment scenario exercises the addressed chat's normal first-turn server loading, then checks its `Ready` notification and actual tool result. Registering an OAuth listener does not start MCP servers ([github/copilot-agent-runtime#36782](https://github.com/github/copilot-agent-runtime/pull/36782)).
+
 Copilot's `runtime MCP: identical plugin republished under a different URI does not restart servers` scenario copies a client's plugin without changing its content nonce, republishes it at a new URI, and checks that the next turn retains a single MCP process start without stopped/starting transitions. Two replayed no-tool turns exercise the live-session restart check; an unclaimed early launch would bypass that check for a host-only MCP start. Cache eviction of older materialized roots and duplicate-name plugin ownership are outside this scenario.
 
 Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
