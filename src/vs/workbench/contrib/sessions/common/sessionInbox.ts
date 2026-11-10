@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
-import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from './inboxNotificationsService.js';
+import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from './sessionAttentionService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 
 export type SessionInboxState =

@@ -21,7 +21,7 @@ import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETT
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionInboxActivity, isSessionInboxStateCurrent, SessionInboxAction, SessionInboxState } from '../common/sessionInbox.js';
-import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
+import { ISessionAttentionService } from '../common/sessionAttentionService.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Sort = 'sort',
@@ -179,7 +179,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
+		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,
 	) {
 		super();
 
@@ -194,7 +194,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._register(autorun(reader => {
 			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
 			const state = this._inboxState.read(reader);
-			const attention = this.inboxNotificationsService.sessionAttention.read(reader);
+			const attention = this.sessionAttentionService.sessionAttention.read(reader);
 			const expired = [...state].filter(([id, value]) => value.kind !== 'resumed' && !isSessionInboxStateCurrent(value, sessions.get(id), Date.now(), reader, attention.get(id)));
 			if (expired.length) {
 				const next = new Map(state);
@@ -344,7 +344,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined {
 		const state = this._inboxState.read(reader).get(session.sessionId);
-		const attention = this.inboxNotificationsService.sessionAttention.read(reader).get(session.sessionId);
+		const attention = this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId);
 		if (state) {
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
@@ -366,7 +366,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			const state: StoredSessionInboxState = action === undefined ? { kind: 'resumed' }
 				: typeof action === 'number' ? { kind: 'snoozed', until: action }
 					: action === 'hold' ? { kind: 'hold' }
-						: { kind: action, activity: getSessionInboxActivity(session), notificationIds: this.inboxNotificationsService.sessionAttention.get().get(session.sessionId)?.notificationIds };
+						: { kind: action, activity: getSessionInboxActivity(session), notificationIds: this.sessionAttentionService.sessionAttention.get().get(session.sessionId)?.notificationIds };
 			applied.set(session.sessionId, state);
 			next.set(session.sessionId, state);
 		}
