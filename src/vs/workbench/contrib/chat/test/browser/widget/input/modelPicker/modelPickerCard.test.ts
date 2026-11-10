@@ -1406,34 +1406,46 @@ suite('ModelCard', () => {
 		});
 	}
 
-	test('a refresh after the scope changes its choices during selection motion rebuilds the controls right away', async () => {
-		let effort: IModelConfigPropertySchema = { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' };
-		const values: IStringDictionary<unknown> = {};
-		const result = await createAnimatedCard({
-			configurationAccess: {
-				getModelConfiguration: () => values,
-				getModelConfigurationSchema: () => ({ properties: { effort } }),
-				setModelConfiguration: async (_modelId, next) => { Object.assign(values, next); },
-				getModelConfigurationActions: () => [],
-			},
-		});
-		const group = element(result.card.element, '[role="radiogroup"]');
-		group.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
-		const animations = element(group, '.monaco-radio-selection').getAnimations();
-		animations.forEach(animation => animation.pause());
-		effort = { ...effort, enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'] };
-		result.card.refresh();
-		const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
-		animations.forEach(animation => animation.finish());
-		await timeout(0);
+	for (const change of ['adds', 'disables'] as const) {
+		test(`a refresh after the scope ${change} a choice during selection motion rebuilds the controls right away`, async () => {
+			let effort: IModelConfigPropertySchema = { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' };
+			const values: IStringDictionary<unknown> = {};
+			const result = await createAnimatedCard({
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					getModelConfigurationSchema: () => ({ properties: { effort } }),
+					setModelConfiguration: async (_modelId, next) => { Object.assign(values, next); },
+					getModelConfigurationActions: () => [],
+				},
+			});
+			const group = element(result.card.element, '[role="radiogroup"]');
+			group.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+			const animations = element(group, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			effort = change === 'adds'
+				? { ...effort, enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'] }
+				: { ...effort, enumItemDisabled: [true, false] };
+			result.card.refresh();
+			const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+			const options = Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll('[role="radio"]'));
 
-		assert.deepStrictEqual({
-			rebuilt,
-			values,
-			choices: Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll('[role="radio"]'), option => option.textContent),
-			selected: selectedOptions(result.card),
-		}, { rebuilt: true, values: { effort: 'high' }, choices: ['Low', 'Medium', 'High'], selected: ['High'] });
-	});
+			assert.deepStrictEqual({
+				rebuilt,
+				values,
+				choices: options.map(option => option.textContent),
+				disabled: options.filter(option => option.getAttribute('aria-disabled') === 'true').map(option => option.textContent),
+				selected: selectedOptions(result.card),
+			}, {
+				rebuilt: true,
+				values: { effort: 'high' },
+				choices: change === 'adds' ? ['Low', 'Medium', 'High'] : ['Low', 'High'],
+				disabled: change === 'adds' ? [] : ['Low'],
+				selected: ['High'],
+			});
+		});
+	}
 
 	test('turning on reduced motion releases a refresh waiting for selection motion', async () => {
 		const result = await createAnimatedCard();

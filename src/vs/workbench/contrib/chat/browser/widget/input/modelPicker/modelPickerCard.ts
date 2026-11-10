@@ -160,11 +160,11 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
-/** The effort and context settings the card's controls save to, each with its choices, to tell when rendered controls no longer fit. */
+/** The effort and context settings the card's controls save to, with each choice and whether it can be chosen, to tell when rendered controls no longer fit. */
 function getConfigurationBindings(options: IModelCardOptions): readonly (readonly unknown[])[] {
 	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].map(group => {
 		const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
-		return property ? [property.key, ...property.schema.enum ?? []] : [];
+		return property ? [property.key, ...getModelConfigChoices(property).flatMap(choice => [choice.value, choice.readOnly])] : [];
 	});
 }
 
