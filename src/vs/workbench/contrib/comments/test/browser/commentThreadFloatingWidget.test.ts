@@ -241,18 +241,22 @@ suite('Comment thread floating widget', () => {
 			return model;
 		}
 
-		test('is as wide as its content needs and fills, unless something is being edited', () => {
+		test('can be as wide as the editor, and is shown as wide as its content fills, unless something is being written', () => {
 			const model = createModel();
 			assert.deepStrictEqual({
-				narrowContent: model.getWidthRange({ minimum: 100, natural: 180 }, false),
-				wideContent: model.getWidthRange({ minimum: 300, natural: 700 }, false),
-				widerThanEditor: model.getWidthRange({ minimum: 300, natural: 1400 }, false),
-				editing: model.getWidthRange({ minimum: 300, natural: 400 }, true),
+				narrowContent: model.getWidthRange({ minimum: 100, natural: 180 }),
+				wideContent: model.getWidthRange({ minimum: 300, natural: 700 }),
+				defaultForNarrowContent: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, false),
+				defaultForWideContent: model.getDefaultWidth({ minimum: 300, natural: 700 }, 400, false),
+				defaultWhileEditing: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, true),
+				defaultWiderThanEditor: model.getDefaultWidth({ minimum: 300, natural: 1400 }, 1200, false),
 			}, {
-				narrowContent: { min: 240, max: 240 },
-				wideContent: { min: 300, max: 700 },
-				widerThanEditor: { min: 300, max: 1000 },
-				editing: { min: 300, max: 1000 },
+				narrowContent: { min: 240, max: 1000 },
+				wideContent: { min: 300, max: 1000 },
+				defaultForNarrowContent: 240,
+				defaultForWideContent: 400,
+				defaultWhileEditing: 400,
+				defaultWiderThanEditor: 1000,
 			});
 		});
 
@@ -360,7 +364,7 @@ suite('Comment thread floating widget', () => {
 
 		test('is limited by the editor size it captured, rather than the current one', () => {
 			const model = createModel();
-			const maxSize = () => ({ width: model.getWidthRange({ minimum: 300, natural: 1400 }, false).max, height: model.getHeightRange(collapsedReply).max });
+			const maxSize = () => ({ width: model.getWidthRange({ minimum: 300, natural: 1400 }).max, height: model.getHeightRange(collapsedReply).max });
 			const captured = maxSize();
 			model.growEditorSize({ width: 800, height: 900 });
 			const grown = maxSize();
