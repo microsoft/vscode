@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
-import { registerOnboardingTargetProvider } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { isVisibleOnboardingTarget, registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export const AGENT_PICKER_SPOTLIGHT_ID = 'chat.onboarding.agentPickerInAttachContext';
 
@@ -38,58 +38,85 @@ export class AgentPickerSpotlight extends Disposable {
 			chatWidgetService.onDidChangeWidgetVisibility,
 			chatWidgetService.onDidChangeFocusedWidget,
 		));
-		const eligibleChat = derived(this, reader => {
+		const inputChanged = derived(this, reader => {
+			widgetsChanged.read(reader);
+			return observableSignalFromEvent(this, Event.any(...chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
+				.map(widget => widget.inputPart.onDidChangeAttachContextButton)));
+		});
+		const eligibleChats = derived(this, reader => {
 			widgetsChanged.read(reader);
 			if (!enabled.read(reader)) {
-				return undefined;
+				return [];
 			}
-			return chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(widget => {
+			inputChanged.read(reader).read(reader);
+			return chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).filter(widget => {
 				widget.inputPart.currentModeObs.read(reader);
-				return widget.visible && widget.inputPart.isAgentPickerInAttachContextMenu;
+				return widget.domNode.ownerDocument === mainWindow.document && widget.visible && widget.inputPart.isAgentPickerInAttachContextMenu;
 			});
 		});
-		const targetReady = observableValue(this, false);
-		this._register(autorun(reader => {
-			const widget = eligibleChat.read(reader);
-			targetReady.set(false, undefined);
-			if (widget) {
-				reader.store.add(scheduleAtNextAnimationFrame(getWindow(widget.domNode), () => {
-					targetReady.set(!!widget.inputPart.attachContextButtonElement, undefined);
-				}));
-			}
-		}));
-		this._register(registerOnboardingTargetProvider(AGENT_PICKER_SPOTLIGHT_ID, scope => {
-			const element = eligibleChat.get()?.inputPart.attachContextButtonElement;
-			return scope === undefined && element && targetReady.get() ? { element } : undefined;
-		}));
-		const scenario: IOnboardingScenario<ISpotlightPayload> = {
-			id: AGENT_PICKER_SPOTLIGHT_ID,
-			when: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.AgentsPickerInAttachContextMenu}`, true),
-				EditorPartModalVisibleContext.toNegated(),
-			),
-			trigger: { kind: 'observable', signal: derived(this, reader => !!eligibleChat.read(reader) && targetReady.read(reader)) },
-			presentation: {
-				kind: SPOTLIGHT_PRESENTATION_KIND,
-				payload: {
-					steps: [{
-						id: 'agentPicker',
-						targetId: AGENT_PICKER_SPOTLIGHT_ID,
-						title: localize('agentPickerSpotlight.title', "Find your custom agents"),
-						description: localize('agentPickerSpotlight.description', "We default to Agent, find your custom agents in the + menu"),
-						nextButtonLabel: localize('agentPickerSpotlight.understood', "Understood"),
-						placement: 'above',
-						allowTargetInteraction: true,
-						advanceOnTargetClick: true,
-						hideNext: false,
-						missingTarget: { kind: 'abort' },
-					}],
-				},
-			},
-		};
-		this._register(onboardingScenarioRegistry.register(scenario));
+		this._register(registerAgentPickerSpotlight(eligibleChats));
 	}
 }
 
-registerWorkbenchContribution2(AgentPickerSpotlight.ID, AgentPickerSpotlight, WorkbenchPhase.AfterRestored);
+/** Shares the tip and shown-once state between the editor and Agents-window picker owners. */
+export function registerAgentPickerSpotlight(eligibleChats: IObservable<readonly IChatWidget[]>): IDisposable {
+	const store = new DisposableStore();
+	const targetReady = observableValue(store, false);
+	store.add(registerOnboardingTargetProvider(AGENT_PICKER_SPOTLIGHT_ID, scope => {
+		const widget = eligibleChats.get().find(widget => {
+			const element = widget.inputPart.attachContextButtonElement;
+			return widget.visible && element && isVisibleOnboardingTarget(mainWindow, element);
+		});
+		const element = widget?.inputPart.attachContextButtonElement;
+		return scope === undefined && widget?.visible && element ? { element, onDidActivate: widget.inputPart.onDidActivateAttachContext } : undefined;
+	}));
+	store.add(autorun(reader => {
+		targetReady.set(false, undefined);
+		const scheduler = reader.store.add(new AnimationFrameScheduler(mainWindow.document.body, () => {
+			targetReady.set(!!resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID), undefined);
+		}));
+		const observer = reader.store.add(new DisposableResizeObserver('AgentPickerSpotlight.target', () => scheduler.schedule()));
+		for (const widget of eligibleChats.read(reader)) {
+			if (widget.domNode.ownerDocument !== mainWindow.document) {
+				continue;
+			}
+			const observation = reader.store.add(new MutableDisposable<IDisposable>());
+			const updateTarget = () => {
+				targetReady.set(false, undefined);
+				const element = widget.inputPart.attachContextButtonElement;
+				observation.value = element ? observer.observe(element) : undefined;
+				scheduler.schedule();
+			};
+			reader.store.add(widget.inputPart.onDidChangeAttachContextButton(updateTarget));
+			updateTarget();
+		}
+	}));
+	const scenario: IOnboardingScenario<ISpotlightPayload> = {
+		id: AGENT_PICKER_SPOTLIGHT_ID,
+		when: ContextKeyExpr.and(
+			ChatContextKeys.enabled,
+			ContextKeyExpr.equals(`config.${ChatConfiguration.AgentsPickerInAttachContextMenu}`, true),
+			EditorPartModalVisibleContext.toNegated(),
+		),
+		trigger: { kind: 'observable', signal: targetReady },
+		presentation: {
+			kind: SPOTLIGHT_PRESENTATION_KIND,
+			payload: {
+				steps: [{
+					id: 'agentPicker',
+					targetId: AGENT_PICKER_SPOTLIGHT_ID,
+					title: localize('agentPickerSpotlight.title', "Find your custom agents"),
+					description: localize('agentPickerSpotlight.description', "We default to Agent, find your custom agents in the + menu"),
+					nextButtonLabel: localize('agentPickerSpotlight.understood', "Understood"),
+					placement: 'above',
+					allowTargetInteraction: true,
+					advanceOnTargetClick: true,
+					hideNext: false,
+					missingTarget: { kind: 'wait', timeoutMs: 1000 },
+				}],
+			},
+		},
+	};
+	store.add(onboardingScenarioRegistry.register(scenario));
+	return store;
+}

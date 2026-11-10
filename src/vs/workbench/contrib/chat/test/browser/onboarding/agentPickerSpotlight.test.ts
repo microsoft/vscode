@@ -6,15 +6,20 @@
 import assert from 'assert';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextMenuProvider } from '../../../../../../base/browser/contextmenu.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -25,6 +30,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { TestHostService, TestLayoutService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../onboarding/browser/onboardingService.js';
+import { runWithOnboardingPresentation } from '../../../../onboarding/browser/onboardingPresentationQueue.js';
 import { resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightPresentation } from '../../../../onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -37,7 +43,7 @@ import { AgentPickerSpotlight, AGENT_PICKER_SPOTLIGHT_ID } from '../../../browse
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatMode } from '../../../common/chatModes.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatConfiguration } from '../../../common/constants.js';
 
 suite('AgentPickerSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,22 +53,39 @@ suite('AgentPickerSpotlight', () => {
 	function createHarness(enabled = true) {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentsPickerInAttachContextMenu]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		let button = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
-		button.textContent = '+';
-		button.style.cssText = 'width: 28px; height: 28px;';
-		store.add(toDisposable(() => button.remove()));
+		const root = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => root.remove()));
+		let button: HTMLElement;
+		let activations = 0;
+		const action = store.add(new Action(CHAT_ATTACH_CONTEXT_ACTION_ID, 'Add Context', undefined, true, async () => { activations++; }));
+		const toolbar = store.add(new ToolBar(root, upcastPartial<IContextMenuProvider>({}), {
+			actionViewItemProvider: action => new class extends ActionViewItem {
+				override render(container: HTMLElement) {
+					super.render(container);
+					button = container;
+					button.style.cssText = 'width: 28px; height: 28px;';
+				}
+			}(undefined, action, { label: true }),
+		}));
+		const executeToolbar = store.add(new ToolBar(root, upcastPartial<IContextMenuProvider>({})));
+		toolbar.setActions([action]);
 		const mode = observableValue('mode', ChatMode.Agent);
 		let visible = true;
 		let supported = true;
 		const changed = store.add(new Emitter<IChatWidget>());
+		const buttonChanged = store.add(new Emitter<void>());
+		const inputPart: ChatInputPart = Object.create(ChatInputPart.prototype, {
+			inputActionsToolbar: { value: toolbar },
+			executeToolbar: { value: executeToolbar },
+			currentModeObs: { get: () => mode },
+			isAgentPickerInAttachContextMenu: { get: () => supported && mode.get() === ChatMode.Agent },
+			attachContextButtonElement: { get: () => button.isConnected ? button : undefined },
+			onDidChangeAttachContextButton: { value: buttonChanged.event },
+		});
 		const widget = new class extends mock<IChatWidget>() {
-			override readonly domNode = mainWindow.document.body;
+			override readonly domNode = root;
 			override get visible() { return visible; }
-			override readonly inputPart = new class extends mock<ChatInputPart>() {
-				override get currentModeObs() { return mode; }
-				override get isAgentPickerInAttachContextMenu() { return supported && mode.get() === ChatMode.Agent; }
-				override get attachContextButtonElement() { return button.isConnected ? button : undefined; }
-			}();
+			override readonly inputPart = inputPart;
 		}();
 		const widgets = [widget];
 		const widgetService = new class extends mock<IChatWidgetService>() {
@@ -86,17 +109,15 @@ suite('AgentPickerSpotlight', () => {
 			});
 		};
 		return {
-			configuration, button, mode, scenario, signal, frame, setEnabled, spotlight,
+			configuration, button: button!, mode, scenario, signal, frame, setEnabled, spotlight, root, toolbar,
+			activations: () => activations,
 			setVisible: (value: boolean) => { visible = value; changed.fire(widget); },
-			setSupported: (value: boolean) => { supported = value; changed.fire(widget); },
+			setSupported: (value: boolean) => { supported = value; buttonChanged.fire(); },
 			removeWidget: () => { widgets.length = 0; changed.fire(widget); },
 			replaceButton: () => {
-				const replacement = mainWindow.document.createElement('button');
-				replacement.textContent = '+';
-				replacement.style.cssText = button.style.cssText;
-				button.replaceWith(replacement);
-				button = replacement;
-				return replacement;
+				toolbar.setActions([action]);
+				buttonChanged.fire();
+				return button;
 			},
 		};
 	}
@@ -139,23 +160,52 @@ suite('AgentPickerSpotlight', () => {
 		const { frame, replaceButton, signal } = createHarness();
 		await frame();
 		const replacement = replaceButton();
+		await frame();
 		assert.deepStrictEqual({
 			ready: signal?.get(),
 			currentTarget: resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID)?.element === replacement,
 		}, { ready: true, currentTarget: true });
 	});
 
+	test('waits for a hidden composer to become visibly resolvable', async () => {
+		const { root, signal, frame } = createHarness();
+		root.style.display = 'none';
+		await frame();
+		const hidden = { ready: signal?.get(), resolved: !!resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID) };
+		root.style.display = '';
+		await retry(async () => assert.strictEqual(signal?.get(), true), 20, 10);
+		assert.deepStrictEqual({ hidden, visible: !!resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID) }, {
+			hidden: { ready: false, resolved: false }, visible: true,
+		});
+	});
+
+	test('does not consume readiness for a composer in another document', async () => {
+		const { root, signal, frame, setEnabled } = createHarness(false);
+		const auxiliaryDocument = mainWindow.document.implementation.createHTMLDocument();
+		auxiliaryDocument.body.appendChild(root);
+		await setEnabled(true);
+		await frame();
+		const auxiliary = signal?.get();
+		mainWindow.document.body.appendChild(root);
+		await setEnabled(false);
+		await setEnabled(true);
+		await frame();
+		assert.deepStrictEqual({ auxiliary, main: signal?.get() }, { auxiliary: false, main: true });
+	});
+
 	test('honors AI and onboarding gates and persists once-only state across engine recreation', async () => {
-		const { configuration, frame, setEnabled } = createHarness();
+		const { configuration, frame, setEnabled, replaceButton } = createHarness();
 		const context = store.add(new ContextKeyService(configuration));
 		const aiEnabled = context.createKey<boolean>(ChatContextKeys.enabled.key, false);
 		context.createKey(`config.${ChatConfiguration.AgentsPickerInAttachContextMenu}`, true);
 		const storage = store.add(new InMemoryStorageService());
 		const runs: string[] = [];
+		let resolvedTarget: HTMLElement | undefined;
 		store.add(onboardingPresentationRegistry.register({
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			run: async (scenario, runContext) => {
 				runs.push(scenario.id);
+				resolvedTarget = resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID)?.element;
 				runContext.onDidShow?.();
 				return { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 1 };
 			},
@@ -165,6 +215,9 @@ suite('AgentPickerSpotlight', () => {
 			new NullWorkbenchAssignmentService(), NullTelemetryService,
 			store.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService())),
 		));
+		const finish = new DeferredPromise<void>();
+		store.add(toDisposable(() => { void finish.complete(); }));
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
 		const first = createEngine();
 		first.start();
 		await frame();
@@ -182,6 +235,12 @@ suite('AgentPickerSpotlight', () => {
 			affectsConfiguration: key => key === ONBOARDING_ENABLED_CONFIG,
 		});
 		await timeout(0);
+		const queued = { runs: runs.length, shown: first.hasBeenShown(AGENT_PICKER_SPOTLIGHT_ID) };
+		const replacement = replaceButton();
+		await frame();
+		await finish.complete();
+		await occupant;
+		await timeout(0);
 		first.dispose();
 		Memento.clear(StorageScope.APPLICATION);
 		const second = createEngine();
@@ -190,17 +249,18 @@ suite('AgentPickerSpotlight', () => {
 		await setEnabled(true);
 		await frame();
 		await timeout(0);
-		assert.deepStrictEqual({ whileAIHidden, whileOnboardingDisabled, runs, persisted: second.hasBeenShown(AGENT_PICKER_SPOTLIGHT_ID) }, {
-			whileAIHidden: 0, whileOnboardingDisabled: 0, runs: [AGENT_PICKER_SPOTLIGHT_ID], persisted: true,
+		assert.deepStrictEqual({ whileAIHidden, whileOnboardingDisabled, queued, runs, replacedWhileQueued: resolvedTarget === replacement, persisted: second.hasBeenShown(AGENT_PICKER_SPOTLIGHT_ID) }, {
+			whileAIHidden: 0, whileOnboardingDisabled: 0, queued: { runs: 0, shown: false }, runs: [AGENT_PICKER_SPOTLIGHT_ID], replacedWhileQueued: true, persisted: true,
 		});
 	});
 
-	for (const dismiss of ['understood', 'escape', 'target'] as const) {
+	for (const dismiss of ['understood', 'escape', 'target', 'enter', 'space', 'rerender'] as const) {
 		test(`shows the accessible tip after toolbar replacement and dismisses via ${dismiss}`, async () => {
-			const { scenario, frame, replaceButton } = createHarness();
+			const { scenario, frame, replaceButton, toolbar, activations } = createHarness();
 			await frame();
-			const button = replaceButton();
-			button.focus();
+			let button = replaceButton();
+			await frame();
+			toolbar.focus();
 			const context = store.add(new ContextKeyService(new TestConfigurationService()));
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
@@ -209,22 +269,34 @@ suite('AgentPickerSpotlight', () => {
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(scenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
 			await shown.p;
+			if (dismiss === 'rerender') {
+				button = replaceButton();
+				await retry(async () => assert.notStrictEqual(button.id, ''), 20, 10);
+			}
 			const callout = mainWindow.document.querySelector<HTMLElement>('.spotlight-callout')!;
 			const description = mainWindow.document.getElementById(callout.getAttribute('aria-describedby')!);
 			const next = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(element => element.textContent === 'Understood')!;
 			const before = { role: callout.getAttribute('role'), description: description?.textContent, focused: mainWindow.document.activeElement === next };
 			if (dismiss === 'target') {
-				button.click();
+				button.querySelector<HTMLElement>('.action-label')!.click();
+			} else if (dismiss === 'enter' || dismiss === 'space' || dismiss === 'rerender') {
+				toolbar.focus();
+				const key = dismiss === 'space' ? ' ' : 'Enter';
+				const keyCode = dismiss === 'space' ? 32 : 13;
+				for (const type of ['keydown', 'keyup']) {
+					mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true }));
+				}
 			} else if (dismiss === 'understood') {
 				next.click();
 			} else {
 				next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 			}
 			const outcome = (await result).outcome;
-			assert.deepStrictEqual({ before, outcome, restored: mainWindow.document.activeElement === button }, {
+			assert.deepStrictEqual({ before, outcome, restored: button.contains(mainWindow.document.activeElement), activations: activations() }, {
 				before: { role: 'dialog', description: 'We default to Agent, find your custom agents in the + menu', focused: true },
 				outcome: dismiss === 'escape' ? OnboardingOutcome.Skipped : OnboardingOutcome.Completed,
 				restored: dismiss !== 'target',
+				activations: dismiss === 'understood' || dismiss === 'escape' ? 0 : 1,
 			});
 		});
 	}
