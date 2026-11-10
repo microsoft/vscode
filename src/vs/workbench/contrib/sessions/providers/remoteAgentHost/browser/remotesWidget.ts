@@ -13,7 +13,7 @@ import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/ho
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Action } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -26,13 +26,14 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../../platform/actions/common/actions.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -43,6 +44,9 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../pl
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
 import { getConnectionLabel, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
@@ -140,7 +144,9 @@ export class RemotesWidget extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this._register(model);
@@ -186,10 +192,11 @@ export class RemotesWidget extends Disposable {
 		toolbar.setActions([this.refreshAction]);
 		const addButton = this._register(new Button(dom.append(searchRow, dom.$('.remotes-add')), {
 			...defaultButtonStyles, secondary: true, hoverDelegate: actionHoverDelegate,
-			title: localize('remotes.configureSSHHosts', "Configure SSH hosts"),
+			title: localize('remotes.addEnvironmentHover', "Connect to another environment over SSH, a dev tunnel, or another supported route"),
 		}));
-		addButton.label = localize('remotes.configureSSHHosts', "Configure SSH hosts");
-		this._register(addButton.onDidClick(() => this.openConfiguration('ssh')));
+		addButton.label = localize('remotes.addEnvironment', "Add environment");
+		addButton.element.setAttribute('aria-haspopup', 'menu');
+		this._register(addButton.onDidClick(() => this.showAddMenu(addButton.element)));
 		this.message = dom.append(this.overview, dom.$('.remotes-message'));
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
@@ -467,6 +474,42 @@ export class RemotesWidget extends Disposable {
 		this.render();
 		const index = this.rows.findIndex(row => row.id === id);
 		this.table.setFocus([index]);
+	}
+
+	/**
+	 * Offers the same supported connection routes as the environment picker, plus the SSH source
+	 * inventory. The raw WebSocket command is excluded because its hosts are outside this inventory.
+	 */
+	private showAddMenu(anchor: HTMLElement): void {
+		const context = this.contextKeyService.createOverlay([[SessionWorkspacePickerGroupContext.key, SESSION_WORKSPACE_GROUP_REMOTE]]);
+		const routes: IAction[] = this.menuService.getMenuActions(Menus.SessionWorkspaceManage, context, { renderShortTitle: true })
+			.flatMap(([, actions]) => actions)
+			.map(action => toAction({
+				id: action.id, label: action.label, tooltip: action.tooltip, enabled: action.enabled,
+				run: () => this.runAddRoute(() => action.run()),
+			}));
+		const configure = toAction({
+			id: 'remotes.configureSSHHosts', label: localize('remotes.configureSSHHosts', "Configure SSH hosts..."),
+			tooltip: localize('remotes.configureSSHHostsHover', "Edit the SSH configuration that lists hosts here"),
+			run: () => this.openConfiguration('ssh'),
+		});
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => routes.length ? [...routes, new Separator(), configure] : [configure],
+		});
+	}
+
+	private async runAddRoute(run: () => Promise<unknown>): Promise<void> {
+		try {
+			await run();
+			if (!this._store.isDisposed) {
+				await this.refresh();
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		}
 	}
 
 	private async openConfiguration(kind: RemoteKind): Promise<void> {

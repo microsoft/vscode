@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { ActionRunner, IAction } from '../../../../../../../base/common/actions.js';
+import { ActionRunner, IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
+import { IMenuService } from '../../../../../../../platform/actions/common/actions.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -184,6 +185,8 @@ suite('RemotesWidget', () => {
 			}
 		});
 		instantiationService.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
+		const routes: IAction[] = ['connectViaSSH', 'connectViaTunnel'].map(id => toAction({ id, label: id, run: async () => { commands.push(id); } }));
+		instantiationService.stub(IMenuService, 'getMenuActions', () => [['navigation', routes]]);
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
 		let snapshots = 0;
@@ -375,14 +378,22 @@ suite('RemotesWidget', () => {
 		}, { statusGroups: ['Available', 'Ready to use', 'SSH'], statusRows: ['SSH'], hidden: true, signIn: false, typeGroups: ['Dev Tunnels', 'WSL', 'SSH'] });
 	});
 
-	test('SSH configuration entry opens its inventory source without connecting', async () => {
+	test('Add environment offers supported routes and the SSH inventory source', async () => {
 		const { parent, model, opened, commands, configRequests } = createWidget();
 		parent.querySelector<HTMLElement>('.remotes-add .monaco-button')!.click();
+		const actions = menus.get(parent)!();
+		const labels = actions.map(action => action.label || '---');
+		await actions.find(action => action.id === 'connectViaTunnel')!.run();
+		await actions.find(action => action.id === 'remotes.configureSSHHosts')!.run();
 		await timeout(0);
 		assert.deepStrictEqual({
+			labels, commands,
 			files: opened.map(({ input, group }) => ({ path: input.resource?.path, group })),
-			configRequests: configRequests(), commands, connections: model.connectionChanges,
-		}, { files: [{ path: '/home/test/.ssh/config', group: MODAL_GROUP }], configRequests: 1, commands: [], connections: [] });
+			configRequests: configRequests(), connections: model.connectionChanges,
+		}, {
+			labels: ['connectViaSSH', 'connectViaTunnel', '---', 'Configure SSH hosts...'], commands: ['connectViaTunnel'],
+			files: [{ path: '/home/test/.ssh/config', group: MODAL_GROUP }], configRequests: 1, connections: [],
+		});
 	});
 
 	function selectType(parent: HTMLElement, label: string): void {
@@ -673,7 +684,7 @@ suite('RemotesWidget', () => {
 		}, {
 			icons: ['codicon codicon-circle-filled-compact', 'codicon codicon-circle-outline', 'codicon codicon-circle-slash-compact'],
 			counts: ['1', '2', '1'], colors: ['rgb(34, 170, 34)', 'rgb(34, 102, 255)', 'rgb(136, 136, 136)'],
-			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true, standardAdd: 'Configure SSH hosts',
+			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true, standardAdd: 'Add environment',
 		});
 	});
 
