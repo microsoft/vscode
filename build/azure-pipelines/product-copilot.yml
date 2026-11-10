@@ -8,12 +8,6 @@ parameters:
   - name: VSCODE_UPLOAD_SOURCEMAPS
     type: boolean
     default: true
-  # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
-  - name: VSCODE_PRIVILEGED_CONNECTIONS
-    type: boolean
-    default: true
 
 jobs:
   - job: Copilot
@@ -116,12 +110,15 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      # The test setup needs the VS Code Development WIF connection, which the
-      # SDK validation pipeline (sdk-validation-build.yml) must not reference.
-      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
-        - template: copilot/test-steps.yml
-          parameters:
-            runIntegrationTests: false
+      # The Copilot tests run in the Copilot Tests job of each platform stage
+      # (see copilot/product-test-steps.yml).
+      - script: pnpm run typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Typecheck
+
+      - script: pnpm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Lint
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:

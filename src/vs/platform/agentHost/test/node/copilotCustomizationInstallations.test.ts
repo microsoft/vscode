@@ -788,7 +788,11 @@ suite('CopilotCustomizationInstallations', () => {
 			const review = await prepareReview(service, { installationId: installation.installationId });
 			results.push(await applyReview(service, review).then(() => 'removed', error => error instanceof Error ? error.message : String(error)));
 		}
-		assert.deepStrictEqual([...new Set(results)], ['The customization removal did not complete.']);
+		assert.deepStrictEqual(results, [
+			'The customization removal did not complete. (cancelled)',
+			'The customization removal did not complete. (declined)',
+			'The customization removal did not complete. (recovery-required)',
+		]);
 	});
 
 	test('adds a raw MCP configuration through the SDK', async () => {
@@ -1115,7 +1119,7 @@ suite('CopilotCustomizationInstallations', () => {
 		const expiresAtEpochMs = Date.now() + 60_000;
 		const expiresAt = new Date(expiresAtEpochMs).toISOString();
 		const catalogue = {
-			resourceId: 'urn:air:api.mcp.github.com:io.github.example:demo',
+			resourceId: 'urn:air:registry.modelcontextprotocol.io:io.github.example:demo',
 			displayName: 'Demo MCP',
 			description: 'A demo MCP server',
 			source: 'agentfinder.github.com',
@@ -1295,7 +1299,7 @@ suite('CopilotCustomizationInstallations', () => {
 				negotiated,
 			});
 			override readonly applyUninstall: CopilotClient['rpc']['mcp']['applyUninstall'] = async () => {
-				const request: InstallationConfirmationRequest = {
+				const request = (authority: string): InstallationConfirmationRequest => ({
 					policySessionId: policySessions.sessionId,
 					confirmationId: 'uninstall-confirmation',
 					operationId: 'uninstall-operation',
@@ -1307,7 +1311,7 @@ suite('CopilotCustomizationInstallations', () => {
 							action: 'uninstall',
 							installationId: installation.installationId,
 							identity,
-							provenance,
+							provenance: { ...provenance, authority },
 							target,
 							policy,
 							restoresPreviousConfiguration: false,
@@ -1315,9 +1319,12 @@ suite('CopilotCustomizationInstallations', () => {
 							preservesSharedAuthentication: true,
 						},
 					},
-				};
-				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
-				uninstallDecisions.push(decision);
+				});
+				let decision: string | undefined;
+				for (const authority of ['', provenance.authority]) {
+					decision = await serviceRef.value!.confirmationHandler(request(authority), cancellationToken);
+					uninstallDecisions.push(decision);
+				}
 				installed = decision !== 'confirm';
 				return {
 					kind: 'outcome',
@@ -1407,7 +1414,7 @@ suite('CopilotCustomizationInstallations', () => {
 				restoresPreviousConfiguration: false,
 				preservesSharedAuthentication: true,
 			},
-			uninstallDecisions: ['confirm'],
+			uninstallDecisions: ['cancel', 'confirm'],
 			installed: false,
 			searchCapabilities: [[
 				'catalog-search-credential-required',

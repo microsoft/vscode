@@ -24,6 +24,7 @@
 		"--vscode-agentFeedbackEditorWidget-background",
 		"--vscode-agentFeedbackEditorWidget-border",
 		"--vscode-agentFeedbackInputWidget-border",
+		"--vscode-agentSessionNeedsInput-foreground",
 		"--vscode-agentSessionReadIndicator-foreground",
 		"--vscode-agentSessionSelectedBadge-border",
 		"--vscode-agentSessionSelectedUnfocusedBadge-border",

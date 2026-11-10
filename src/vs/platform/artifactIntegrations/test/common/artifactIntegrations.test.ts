@@ -1290,6 +1290,36 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	const presentedIssue = { id: '2', label: '#2', icon: { id: 'issues' }, resource: 'https://github.com/o/r/issues/2' };
+	for (const [itemId, expectedDetails] of [
+		['2', [{ title: 'Reported Issues', availability: { kind: 'available' }, links: [], items: [presentedIssue], completeness: 'complete' }]],
+		// The details no longer list the item, so the request names the item action without the details of every item.
+		['3', []],
+	] as const) {
+		test(`a prompt an item action starts for ${itemId === '2' ? 'a listed' : 'an unlisted'} item is presented as that action on its own item`, () => run(async store => {
+			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
+			const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+			const binding = f.bindings[0];
+			const issue = (id: string) => ({ id, label: `#${id}`, icon: { id: 'issues' }, resource: `https://github.com/o/r/issues/${id}`, actions: ['fixIssue'] });
+			const issues = {
+				title: 'Reported Issues', description: '2 open issues', availability: { kind: 'available' as const },
+				facts: [{ id: 'open', label: 'Open', value: '2' }],
+				links: [{ kind: 'action' as const, actionId: 'fix' }],
+				itemActions: [{ id: 'fixIssue', label: 'Fix Issue', iconId: 'wand', actionId: 'fix' }],
+				items: [issue('1'), issue('2')],
+				completeness: 'partial' as const,
+			};
+			binding.view.set({ ...binding.view.get(), lists: [{ id: 'issues', label: 'Reported Issues', detailsId: 'issues' }] }, undefined);
+			binding.acquireDetails = (detailsId = 'main') => ({ details: constObservable(detailsId === 'issues' ? issues : binding.details.get()), dispose: () => { } });
+			const requested = await model.invoke('test', 'fix', 'invoking-chat', 'manual', undefined, { detailsId: 'issues', itemId });
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+			assert.deepStrictEqual({ action: f.submitted[0].presentation?.action, details: f.submitted[0].presentation?.details }, {
+				action: { label: 'Fix Issue', iconId: 'wand' },
+				details: expectedDetails,
+			});
+		}));
+	}
+
 	for (const source of ['manual', 'automation'] as const) {
 		test(`retains an asynchronously loaded chat while admitting ${source} prompts`, () => run(async store => {
 			const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };

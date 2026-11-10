@@ -892,7 +892,7 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) > .active-item-indicator {
-	background-color: var(--vscode-modernTab-activeBackground) !important;
+	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
 .modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked > .action-label.codicon {
@@ -1017,8 +1017,10 @@
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator,
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
 	background-color: transparent !important;
 }
 
@@ -1029,8 +1031,8 @@
 	outline: none !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before,
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
 	display: none !important;
 }
 
@@ -1039,8 +1041,8 @@
 	outline: none !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator {
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -1061,8 +1063,8 @@
  * Drop the checked underline in favour of the rounded background while retaining
  * the base keyboard-focus indicator.
  */
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before {
+.modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;

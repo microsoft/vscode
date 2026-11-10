@@ -59,8 +59,8 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
-      - name: SANITY_NODE_VERSION
-        value: 22.22.0
+      - name: SANITY_NODE_VERSION_SPEC
+        value: 24.x
       - name: TEST_DIR
         value: $(Build.SourcesDirectory)/test/sanity
       - name: LOG_FILE
@@ -79,6 +79,11 @@ jobs:
           value: --artifacts-dir /root/artifacts
         ${{ else }}:
           value: --artifacts-dir $(ARTIFACTS_DIR)
+      # The pnpm store that the cache below restores (restore-pnpm-store.yml needs more of the
+      # repository than this job checks out). The job installs only test/sanity, so pnpm's metadata
+      # cache, which saves little here, isn't cached with it.
+      - name: PNPM_CONFIG_STORE_DIR
+        value: $(Pipeline.Workspace)/pnpm-store
       - name: SETUID_SANDBOX_GREP
         ${{ if or(eq(length(parameters.artifacts), 0), and(contains(join(',', parameters.artifacts), '_deb-package'), contains(join(',', parameters.artifacts), '_rpm-package'))) }}:
           value: desktop-linux-(deb|rpm)-
@@ -165,6 +170,29 @@ jobs:
           displayName: Clear NuGet access token
           condition: always()
 
+      # Resolve the latest release before restoring caches so a new Node.js release gets fresh caches.
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - powershell: |
+            $ErrorActionPreference = 'Stop'
+            $sums = & curl.exe -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the latest Node.js release' }
+            $match = [regex]::Match(($sums -join "`n"), 'node-v(24\.\d+\.\d+)-')
+            if (-not $match.Success) { throw 'No Node.js 24 release found' }
+            Write-Host "##vso[task.setvariable variable=SANITY_NODE_VERSION]$($match.Groups[1].Value)"
+          displayName: Resolve latest Node.js 24 release
+
+      - ${{ else }}:
+        - bash: |
+            set -euo pipefail
+            sums=$(curl -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt")
+            version=$(printf '%s\n' "$sums" | sed -n 's/.* node-v\(24\.[0-9]*\.[0-9]*\)-.*/\1/p' | sort -u)
+            if [[ ! "$version" =~ ^24\.[0-9]+\.[0-9]+$ ]]; then
+              echo 'Could not resolve the latest Node.js 24 release' >&2
+              exit 1
+            fi
+            echo "##vso[task.setvariable variable=SANITY_NODE_VERSION]$version"
+          displayName: Resolve latest Node.js 24 release
+
       # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
       # agent pools at times, so the bounded download below is only the fallback.
       - task: Cache@2
@@ -190,11 +218,13 @@ jobs:
 
       - task: Cache@2
         inputs:
-          key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
-          path: $(TEST_DIR)/node_modules
-          cacheHitVar: SANITY_NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+          key: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
+          restoreKeys: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}"'
+          path: $(PNPM_CONFIG_STORE_DIR)
+          cacheHitVar: PNPM_STORE_RESTORED
+        displayName: Restore pnpm store cache
         retryCountOnTaskFailure: 2
+        continueOnError: true
 
       # Sets the registry and its authentication in the user npm configuration, as the product build
       # jobs do: `npm install -g pnpm` (also on a cache hit) doesn't read a project .npmrc, and these
@@ -208,7 +238,10 @@ jobs:
       - script: pnpm install --frozen-lockfile
         workingDirectory: $(TEST_DIR)
         displayName: Install Dependencies
-        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+
+      - template: ./prune-pnpm-store.yml@self
+        parameters:
+          os: ${{ parameters.os }}
 
       - script: pnpm run compile
         workingDirectory: $(TEST_DIR)
