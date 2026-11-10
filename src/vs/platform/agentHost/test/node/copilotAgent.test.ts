@@ -9,6 +9,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
@@ -3019,10 +3020,134 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		afterTest(() => disposeAgent(agent));
 		assert.deepStrictEqual(await agent.listPluginInstallations(), [
-			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
-			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
-			{ name: 'live', marketplace: 'local', directSourceId: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, enabled: false, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
+			{ name: 'live', marketplace: 'local', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
 		]);
+	});
+
+	test('plugin inventory separates global state from the exact chat and refuses ambiguous direct identities', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: false, rootPath: '/plugins/spark' },
+			{ name: 'direct', marketplace: '', enabled: true, directSourceId: 'first' },
+			{ name: 'direct', marketplace: '', enabled: false, directSourceId: 'second' },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'inventory-context');
+		setDefaultSessionStub(agent, 'inventory-context', {
+			listInstalledPlugins: async () => [{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: false }],
+		});
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		setPeerChatStub(agent, chat, {
+			listInstalledPlugins: async () => [
+				{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: true },
+				{ name: 'direct', marketplace: '', enabled: true },
+			],
+		}, 'sdk-inventory-peer');
+		const global = await agent.listPluginInstallations();
+		const peer = await agent.listPluginInstallations(session, chat);
+		assert.deepStrictEqual({
+			global: global.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+			peer: peer.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+			root: peer[0].resource,
+		}, {
+			global: [[false, undefined], [true, undefined], [false, undefined]],
+			peer: [[false, true], [true, undefined], [false, undefined]],
+			root: URI.file('/plugins/spark'),
+		});
+	});
+
+	test('publishes disabled and contentless runtime plugins without forwarding or manufacturing MCP intent', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const workspace = URI.file('/workspace');
+		const native = URI.file('/sdk-installed/native');
+		const empty = URI.file('/sdk-installed/empty');
+		await fileService.writeFile(URI.joinPath(native, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+		await fileService.writeFile(URI.joinPath(native, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+		await fileService.writeFile(URI.joinPath(empty, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"empty"}'));
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ name: 'native', marketplace: 'marketplace', enabled: false, rootPath: native.fsPath },
+			{ name: 'empty', marketplace: 'marketplace', enabled: false, rootPath: empty.fsPath },
+		];
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			fileService, copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		afterTest(() => disposeAgent(agent));
+		const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+		await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+		stateManager.createSession({
+			resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
+		});
+		const pending = await getDefaultChatCustomizations(agent, sessionUri);
+		agent['_hostCustomizations'].set(sessionUri, pending);
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...pending] });
+		const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+		disposables.add(session);
+		const preInitializationInventory = await session.listInstalledPlugins();
+		const initialIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+		const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+		const snapshot = await activeClient.snapshot(defaultChatUri(sessionUri).toString());
+		const clientCustomization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'remote-client-copy', uri: native.toString(),
+			name: 'remote-client-copy', clientId: 'remote-client',
+		};
+		const runtimeResolvedPlugin = (pluginDir?: URI) => activeClient.pluginController['_runtimeResolvedPlugin']({
+			customization: clientCustomization, pluginDir,
+		});
+		const clientIdentities = [
+			runtimeResolvedPlugin()?.uri,
+			runtimeResolvedPlugin(URI.file('/materialized/remote-client-copy'))?.uri,
+			runtimeResolvedPlugin(native)?.uri,
+		];
+		const publications: (readonly Customization[])[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.resource.toString() === sessionUri.toString()
+				&& signal.action.type === ActionType.SessionCustomizationsChanged) {
+				publications.push(signal.action.customizations);
+			}
+		}));
+		session.initializeSession = async () => { };
+		session.listInstalledPlugins = async () =>
+			client.pluginInstallations.map(plugin => ({ ...plugin, enabled: plugin.name === 'native' }));
+		const registrationRefresh = spy(activeClient.pluginController, 'publishWhenSettled');
+		try {
+			await agent['_initializeAndRegisterSession'](session, () => {
+				agent['_registerLiveChat'](defaultChatUri(sessionUri), session, activeClient);
+			});
+			await Promise.all(registrationRefresh.returnValues);
+		} finally {
+			await Promise.all(registrationRefresh.returnValues);
+			registrationRefresh.restore();
+		}
+		const settled = publications.at(-1);
+		assert.ok(settled, 'readiness must publish without another customization read');
+		const summarize = (customizations: readonly Customization[]) => customizations.flatMap(customization => {
+			const runtime = readRuntimePluginEnablement(customization);
+			return runtime && customization.type === CustomizationType.Plugin
+				? [{ name: customization.name, global: runtime.globalEnabled, effective: runtime.effectiveEnabled, children: customization.children?.map(child => child.type) }] : [];
+		});
+		assert.deepStrictEqual({
+			pending: summarize(pending), settled: summarize(settled), preInitializationInventory, initialIntent, clientIdentities,
+			forwarded: { plugins: snapshot.plugins, mcpServers: snapshot.mcpServers },
+		}, {
+			pending: [
+				{ name: 'native', global: false, effective: undefined, children: [CustomizationType.McpServer] },
+				{ name: 'empty', global: false, effective: undefined, children: [] },
+			],
+			settled: [
+				{ name: 'native', global: false, effective: true, children: [CustomizationType.McpServer] },
+				{ name: 'empty', global: false, effective: false, children: [] },
+			],
+			preInitializationInventory: undefined, initialIntent: [],
+			clientIdentities: [undefined, undefined, native.toString()],
+			forwarded: { plugins: [], mcpServers: {} },
+		});
 	});
 
 	test('prefers a live session and preserves marketplace revisions', async () => {
@@ -19433,6 +19558,11 @@ suite('CopilotAgent', () => {
 					resource: identity?.resource?.toString(),
 				});
 				const built = makeForkFake(launchPlan, identity?.chatChannelUri, remaps, revalidateTelemetryBeforeRegistration);
+				Object.assign(built, {
+					ownerRef: identity.owner,
+					ownerSessionUri: identity.owner.get(),
+					resourceUri: identity.resource,
+				});
 				return built;
 			};
 			return { forks, launches, remaps };
@@ -21951,6 +22081,9 @@ suite('CopilotAgent', () => {
 				const shouldFail = callIndex === failingCallNumber;
 				return {
 					sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
+					ownerRef: identity.owner,
+					ownerSessionUri: identity.owner.get(),
+					resourceUri: identity.resource,
 					chatChannelUri: identity.chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],
@@ -27007,7 +27140,7 @@ suite('CopilotAgent', () => {
 
 		type ConvInternals = {
 			_provisionalSessions: Map<string, unknown>;
-			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity: { owner: IAgentChatOwnerRef; chatChannelUri: URI }) => CopilotAgentSession;
+			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity: { owner: IAgentChatOwnerRef; chatChannelUri: URI; resource: URI }) => CopilotAgentSession;
 		};
 
 		interface IFakeConvRecorder {
@@ -27065,6 +27198,9 @@ suite('CopilotAgent', () => {
 				const chatChannelUri = identity?.chatChannelUri ?? defaultChatUri(sessionUri);
 				return {
 					sessionUri,
+					ownerRef: identity?.owner ?? fixedChatOwnerRef(sessionUri),
+					ownerSessionUri: sessionUri,
+					resourceUri: identity?.resource ?? sessionUri,
 					chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],

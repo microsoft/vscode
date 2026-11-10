@@ -81,6 +81,8 @@ A descriptor may define:
 
 Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
+Copilot-owned plugin activation is authoritative in the runtime. Global inventory supplies persisted enablement; an initialized chat supplies effective repository enablement. Legacy workbench and Agent Host plugin overrides do not layer over those decisions. Global installation controls use runtime mutations without mirroring local storage. Contextual plugin actions offer global and repository scopes, never session-only activation, and preserve the owning backend session and advertised chat identities. Hosts without the optional plugin-management capability remain read-only; other plugin providers and standalone MCP enablement retain their existing ownership.
+
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 
 ### Customization sources

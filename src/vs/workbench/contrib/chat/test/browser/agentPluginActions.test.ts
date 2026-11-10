@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { withRuntimePluginEnablement } from '../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -322,5 +323,35 @@ suite('AgentPluginActions', () => {
 			clientCalls: [],
 			hostCalls: [[sessionResource, 'host-plugin', customization.enablement, CustomizationEnablementKind.Global, true]],
 		});
+	});
+
+	test('runtime-owned plugin actions offer global and repository scopes without local or session writes', async () => {
+		const calls: unknown[][] = [];
+		const session = URI.parse('other-session://opaque/conversation');
+		const customization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const service = new class extends mock<IAgentHostCustomizationService>() {
+			override canSetRuntimePluginEnablement(): boolean { return true; }
+			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean]): Promise<void> { calls.push(args); }
+		}();
+		const actions = getAgentHostPluginEnablementActions(service, undefined, session, customization, true);
+		await actions[0].run();
+		await actions[1].run();
+		assert.deepStrictEqual({ actions: actions.map(action => [action.label, action.enabled]), calls }, {
+			actions: [['Enable Globally', true], ['Disable for Repository', true]],
+			calls: [[session, 'opaque-plugin', 'global', true], [session, 'opaque-plugin', 'repository', false]],
+		});
+	});
+
+	test('runtime-owned plugins remain read-only on hosts without the management capability', async () => {
+		const customization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, repositorySupported: true }),
+		};
+		const actions = getAgentHostPluginEnablementActions(new class extends mock<IAgentHostCustomizationService>() { }(), undefined, URI.parse('other-session://opaque/conversation'), customization, true);
+		await assert.rejects(() => Promise.resolve(actions[0].run()), /unavailable/);
+		assert.deepStrictEqual(actions.map(action => action.enabled), [false, false]);
 	});
 });

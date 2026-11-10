@@ -91,10 +91,17 @@ export interface IAgentPluginService {
 	readonly enablementModel: IEnablementModel;
 }
 
-/** Commits global runtime enablement before publishing the client's decision; workspace overrides stay local. */
+/** Routes runtime-owned installations to their owner; other plugins retain workbench-scoped decisions. */
 export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEnablementModel, state: ContributionEnablementState): Promise<void> {
 	if (plugin.policyEnablement?.get() !== undefined || plugin.policyBlocked?.get()) {
 		throw new Error(localize('pluginEnablementManaged', "Plugin '{0}' is managed by your organization.", plugin.label));
+	}
+	if (plugin.copilotCliInstallation) {
+		if (!plugin.setEnabled || (state !== ContributionEnablementState.EnabledProfile && state !== ContributionEnablementState.DisabledProfile)) {
+			throw new Error(localize('pluginRuntimeScopeRequired', "Change repository enablement for plugin '{0}' from its chat customizations.", plugin.label));
+		}
+		await plugin.setEnabled(isContributionEnabled(state));
+		return;
 	}
 	const key = plugin.uri.toString();
 	const rejected = () => new Error(localize('pluginEnablementRejected', "Plugin '{0}' enablement was rejected by the local enablement model.", plugin.label));

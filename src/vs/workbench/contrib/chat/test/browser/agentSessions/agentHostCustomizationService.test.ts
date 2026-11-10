@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -54,6 +55,8 @@ import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHo
 import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
+	setPluginEnabled?: IAgentConnection['setPluginEnabled'];
+	listPluginInstallations?: IAgentConnection['listPluginInstallations'];
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
 	readonly clientId = 'vscode';
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
@@ -129,6 +132,8 @@ class RecordingLogService extends NullLogService {
 }
 
 class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
+	backendChatResource: URI | undefined;
+	override getBackendChatResource(): URI | undefined { return this.backendChatResource; }
 	private readonly _targets = new ResourceMap<FakeTarget>();
 
 	constructor(
@@ -189,6 +194,89 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('runtime plugin presentation uses exact chat inventory and never inherits default-chat activation', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/peer');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin], 'file:///repository');
+		const calls: unknown[][] = [];
+		target.listPluginInstallations = async (...args) => {
+			calls.push(args);
+			return [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: false }];
+		};
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
+		const [resolved] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		target.listPluginInstallations = undefined;
+		const [unavailable] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		assert.deepStrictEqual({
+			calls,
+			effective: readRuntimePluginEnablement(resolved)?.effectiveEnabled,
+			unavailable: readRuntimePluginEnablement(unavailable)?.effectiveEnabled,
+			source: readRuntimePluginEnablement(plugin)?.effectiveEnabled,
+		}, {
+			calls: [['other-provider', target.backendSession, sut.backendChatResource]],
+			effective: false,
+			unavailable: undefined,
+			source: true,
+		});
+	});
+
+	test('runtime inventory failure marks only its provider unavailable and preserves unrelated customizations', async () => {
+		const log: string[] = [];
+		const sut = createSut(undefined, { logService: new RecordingLogService(log) });
+		const session = URI.parse('client-session://selection/peer');
+		const native: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'unavailable', plugin: 'native@marketplace', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const healthy: PluginCustomization = {
+			...native, id: 'healthy',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'healthy', plugin: 'healthy@marketplace', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const ordinary: PluginCustomization = { type: CustomizationType.Plugin, id: 'ordinary', name: 'Ordinary', uri: 'file:///plugins/ordinary' };
+		const target = new FakeTarget([native, healthy, ordinary]);
+		target.listPluginInstallations = async provider => {
+			if (provider === 'unavailable') {
+				throw new Error('Runtime unavailable');
+			}
+			return [{ name: 'healthy', marketplace: 'marketplace', enabled: true, effectiveEnabled: true }];
+		};
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/peer');
+		const resolved = await sut.resolveRuntimePluginEnablement(session, target.customizations);
+		assert.deepStrictEqual({
+			error: resolved[0].type === CustomizationType.Plugin ? resolved[0].load?.kind : undefined,
+			effective: resolved.map(plugin => readRuntimePluginEnablement(plugin)?.effectiveEnabled),
+			ordinaryPreserved: resolved[2] === ordinary,
+			logged: log.some(entry => entry.includes('Failed to read runtime plugin inventory')),
+		}, { error: 'error', effective: [undefined, true, undefined], ordinaryPreserved: true, logged: true });
+	});
+
+	test('runtime plugin mutations preserve opaque owning session and exact chat and reject stale capability or policy', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/peer');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin], 'file:///repository');
+		const calls: unknown[][] = [];
+		target.setPluginEnabled = async (...args) => { calls.push(args); };
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
+		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', false);
+		assert.throws(() => sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, true), /owning runtime/);
+		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(plugin._meta, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true, managedDesiredEnabled: false }) }];
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /managed/);
+		target.setPluginEnabled = undefined;
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /unavailable/);
+		assert.deepStrictEqual(calls, [['other-provider', 'opaque-source', false, 'repository', target.backendSession, sut.backendChatResource]]);
+	});
 
 	function captureStatus(): () => string {
 		const host = document.body.appendChild(document.createElement('div'));

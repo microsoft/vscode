@@ -1349,6 +1349,9 @@ export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	/** Optional provider-owned management APIs; unsupported hosts remain read-only. */
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Opens a private, non-resumable stream in the connected host's network. */
 	openTcpConnection?(target: { host: string; port: number }): Promise<IAgentHostTcpConnection>;
 

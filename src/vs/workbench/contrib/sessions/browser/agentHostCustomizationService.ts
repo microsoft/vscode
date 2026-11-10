@@ -94,6 +94,8 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
 				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
+			setPluginEnabled: provider.setPluginEnabled,
+			listPluginInstallations: provider.listPluginInstallations,
 			startMcpServer: rawId => {
 				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
 			},
@@ -133,7 +135,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		return isEqual(mainChat.resource, resource) ? mainChat : session.chats.get().find(chat => isEqual(chat.resource, resource));
 	}
 
-	getBackendChatResource(sessionResource: URI): URI | undefined {
+	override getBackendChatResource(sessionResource: URI): URI | undefined {
 		const directSession = this._getSession(sessionResource);
 		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(sessionResource);
 		const session = directSession ?? ownedChat?.session;

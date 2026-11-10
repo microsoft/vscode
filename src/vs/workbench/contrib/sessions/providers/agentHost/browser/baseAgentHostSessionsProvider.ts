@@ -5050,6 +5050,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
+	get setPluginEnabled(): IAgentConnection['setPluginEnabled'] {
+		const connection = this.connection;
+		return connection?.setPluginEnabled
+			? (provider, plugin, enabled, scope, session, chat) => connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
+			: undefined;
+	}
+
+	get listPluginInstallations(): IAgentConnection['listPluginInstallations'] {
+		const connection = this.connection;
+		return connection?.listPluginInstallations
+			? (provider, session, chat) => connection.listPluginInstallations!(provider, session, chat)
+			: undefined;
+	}
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;

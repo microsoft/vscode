@@ -186,6 +186,8 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	readonly setPluginEnabled?: IAgentConnection['setPluginEnabled'];
+	readonly listPluginInstallations?: IAgentConnection['listPluginInstallations'];
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;

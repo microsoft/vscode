@@ -28,6 +28,7 @@ import { getAgentHostCustomizationSource, getAgentHostCustomizationUri } from '.
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
@@ -122,6 +123,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource, uri: URI): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
+		const runtime = readRuntimePluginEnablement(customization);
+		const runtimeStatus = runtime?.managedDesiredEnabled !== undefined
+			? localize('runtimePluginManaged', "This plugin is managed by your organization.")
+			: runtime && !this._customAgentsService.canSetRuntimePluginEnablement?.(sessionResource)
+				? localize('runtimePluginReadOnly', "This host does not support plugin enablement.")
+				: runtime && runtime.effectiveEnabled === undefined
+					? localize('runtimePluginPending', "Plugin activation for this chat is not available yet.")
+					: runtime && !runtime.repositorySupported
+						? localize('runtimePluginRepositoryUnsupported', "Repository enablement is not available for directly installed plugins. You can change global enablement.") : undefined;
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -132,7 +142,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			scope: AICustomizationScopes.fromSource(getAgentHostCustomizationSource(customization) ?? source),
 			delivery: clientId !== undefined ? SYNCED_FROM_CLIENT : undefined,
 			status: toStatusString(customization.load),
-			statusMessage: toStatusMessage(customization.load),
+			statusMessage: toStatusMessage(customization.load) ?? runtimeStatus,
 			enabled: isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
 			extensionId: undefined,
@@ -355,7 +365,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
-		const customizations = this.getCustomizations(sessionResource);
+		const snapshot = this.getCustomizations(sessionResource);
+		const customizations = await this._customAgentsService.resolveRuntimePluginEnablement?.(sessionResource, snapshot) ?? snapshot;
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {

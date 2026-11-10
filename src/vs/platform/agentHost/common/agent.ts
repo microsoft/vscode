@@ -335,6 +335,13 @@ export interface IAgentPluginUninstallRequest {
 
 /** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
 export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	/** Persisted user/global activation reported by the owning runtime. */
+	readonly enabled?: boolean;
+	/** Effective activation in the exact live chat; absent before that chat is initialized. */
+	readonly effectiveEnabled?: boolean;
+	readonly managedDesiredEnabled?: boolean;
+	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
+	readonly resource?: URI;
 	readonly version?: string;
 	readonly description?: string;
 	readonly verifiedSource?: { readonly repository: string; readonly revision: string };

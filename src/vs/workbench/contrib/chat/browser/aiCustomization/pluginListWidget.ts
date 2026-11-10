@@ -436,7 +436,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
 		templateData.status.className = 'plugin-list-item-status';
 		if (element.item.enabled === false) {
-			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
+			templateData.status.textContent = getRemotePluginStatusLabel(element.item);
 			templateData.status.classList.add('disabled');
 		} else {
 			switch (element.item.status) {
@@ -723,6 +723,9 @@ function formatContributionLabel(count: number, singular: string, plural: string
 }
 
 function getRemotePluginStatusLabel(item: ICustomizationItem): string {
+	if (item.statusMessage) {
+		return item.statusMessage;
+	}
 	if (item.enabled === false) {
 		return getRemotePluginDisabledLabel(item);
 	}
@@ -760,7 +763,7 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 
 export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
 	await setAgentPluginEnablement(plugin, model, state);
-	return model.readEnabled(plugin.uri.toString());
+	return plugin.copilotCliInstallation ? plugin.enablement.get() : model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1856,7 +1859,10 @@ export class PluginListWidget extends Disposable {
 	protected appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
 		row.setAttribute('role', 'listitem');
-		row.setAttribute('aria-label', localize('pluginSessionCardAria', "{0}. Session plugin", item.name));
+		const statusLabel = getRemotePluginStatusLabel(item);
+		row.setAttribute('aria-label', statusLabel
+			? localize('pluginSessionCardAriaWithStatus', "{0}. Session plugin. Status: {1}", item.name, statusLabel)
+			: localize('pluginSessionCardAria', "{0}. Session plugin", item.name));
 		row.classList.toggle('disabled', item.enabled === false);
 
 		const details = DOM.append(row, $('.plugin-list-item-details'));
@@ -1869,7 +1875,6 @@ export class PluginListWidget extends Disposable {
 		metadata.textContent = localize('sessionPluginConfigurationSource', "Configured on the active agent host");
 
 		const status = DOM.append(row, $('.plugin-list-item-status'));
-		const statusLabel = getRemotePluginStatusLabel(item);
 		if (statusLabel) {
 			status.textContent = statusLabel;
 			status.classList.toggle('disabled', item.enabled === false || item.status === 'degraded' || item.status === 'error');
@@ -2425,13 +2430,15 @@ export class PluginListWidget extends Disposable {
 	private getRemotePluginActions(item: ICustomizationItem): IAction[] {
 		const actions: IAction[] = [];
 		for (const itemAction of item.actions ?? []) {
-			actions.push(new Action(
+			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
 				itemAction.enabled !== false,
 				() => itemAction.run(),
-			));
+			);
+			action.tooltip = itemAction.tooltip ?? '';
+			actions.push(action);
 		}
 		return actions;
 	}

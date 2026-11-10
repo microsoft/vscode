@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -16,6 +16,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../common/enablement.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -160,7 +161,10 @@ export async function resolveLocalCustomAgents(
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
-		if (agent.source === AICustomizationSources.plugin && !plugin) {
+		if (agent.source === AICustomizationSources.plugin && (!plugin || plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType))) {
+			continue;
+		}
+		if (plugin?.copilotCliInstallation && !isContributionEnabled(plugin.enablement.get())) {
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
@@ -268,6 +272,9 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType)) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {
@@ -285,7 +292,9 @@ export async function resolveCustomizationRefs(
 					name: plugin.label,
 					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 						kind: CustomizationEnablementKind.Global,
-						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+						enabled: plugin.copilotCliInstallation
+							? isContributionEnabled(plugin.enablement.get())
+							: agentPluginService.enablementModel.readProfileEnabled(key),
 					}),
 				};
 				if (nonce !== undefined) {

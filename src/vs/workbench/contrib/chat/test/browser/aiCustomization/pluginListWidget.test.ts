@@ -170,10 +170,15 @@ suite('pluginListWidget', () => {
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
+			widget.getPluginEntryAriaLabel({
+				type: 'remote-item',
+				item: { ...item, enabled: false, status: 'loading', statusMessage: 'Plugin activation for this chat is not available yet.' },
+			}),
 		], [
 			'host-plugin. Agent host',
 			'host-plugin. Agent host. Status: Loaded',
 			'host-plugin. Organization: contoso. Agent host',
+			'host-plugin. Agent host. Status: Plugin activation for this chat is not available yet.',
 		]);
 	});
 
