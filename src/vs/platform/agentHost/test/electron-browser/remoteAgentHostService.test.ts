@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
@@ -215,6 +215,7 @@ class TestConfigurationService {
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private _entries: IRawRemoteAgentHostEntry[] = [];
+	private _workspaceEntries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
 	private _autoConnect = true;
 	updateValueCalls = 0;
@@ -225,6 +226,9 @@ class TestConfigurationService {
 		}
 		if (key === RemoteAgentHostAutoConnectSettingId) {
 			return this._autoConnect;
+		}
+		if (key === WorkspaceRemoteAgentHostsSettingId) {
+			return this._workspaceEntries;
 		}
 		return this._entries;
 	}
@@ -276,6 +280,20 @@ class TestConfigurationService {
 		});
 	}
 
+	setAutoConnect(autoConnect: boolean): void {
+		this._autoConnect = autoConnect;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostAutoConnectSettingId,
+		});
+	}
+
+	setWorkspaceEntries(entries: IRawRemoteAgentHostEntry[]): void {
+		this._workspaceEntries = entries;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === WorkspaceRemoteAgentHostsSettingId,
+		});
+	}
+
 	dispose(): void {
 		this._onDidChangeConfiguration.dispose();
 	}
@@ -297,7 +315,7 @@ class TestStorageService extends InMemoryStorageService {
 
 suite('RemoteAgentHostService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let createdClientInfos: (Implementation | undefined)[];
@@ -400,8 +418,6 @@ suite('RemoteAgentHostService', () => {
 		}), entries);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {
@@ -532,6 +548,32 @@ suite('RemoteAgentHostService', () => {
 			sandboxConnections: 1,
 			connections: [[address, 'connected']],
 			settings: [{ name: 'Updated host', address: 'ws://updated:8080', connectionToken: undefined }],
+		});
+	});
+
+	test('editor window dials WebSocket hosts listed in workspace settings', async () => {
+		service.dispose();
+		configService.setEntries([{ name: 'User host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://user:8080' } }]);
+		service = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		configService.setWorkspaceEntries([{ name: 'Workspace host', address: 'ws://workspace:8080', connectionToken: 'tkn' }]);
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+		const configuredEntries = service.configuredEntries;
+		const connected = service.connections.map(connection => connection.address);
+
+		configService.setWorkspaceEntries([]);
+
+		assert.deepStrictEqual({
+			configuredEntries,
+			connected,
+			afterRemoval: service.connections.map(connection => connection.address),
+			clientInfos: createdClientInfos,
+		}, {
+			configuredEntries: [{ name: 'Workspace host', connectionToken: 'tkn', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'workspace:8080' } }],
+			connected: ['workspace:8080'],
+			afterRemoval: [],
+			clientInfos: [editorWindowAgentHostClientInfo],
 		});
 	});
 
@@ -881,6 +923,60 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		for (const autoConnect of [false, true]) {
+			for (const { name, error, retryable } of [
+				{ name: 'cancellation', error: new CancellationError(), retryable: false },
+				{ name: 'host key denial', error: new NonReconnectableTransportError('Host key denied'), retryable: false },
+				{ name: 'network failure', error: new Error('connect ETIMEDOUT'), retryable: true },
+			]) {
+				test(`SSH ${name} follows the service retry policy (auto-connect ${autoConnect})`, () => runWithFakedTimers({}, async () => {
+					configService.setAutoConnect(autoConnect);
+					const attempts: (boolean | undefined)[] = [];
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override createConnection(entry: IRemoteAgentHostEntry, options?: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+							attempts.push(options?.userInitiated);
+							return super.createConnection(entry);
+						}
+					}(RemoteAgentHostEntryType.SSH));
+					disposables.add(service.registerConnectionFactory(factory));
+					const entry: IRemoteAgentHostEntry = {
+						name: 'Machine',
+						connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:machine', sshConfigHost: 'machine', hostName: 'machine.example' },
+					};
+					const address = getEntryAddress(entry);
+					factory.stageFailure(entry, error);
+					if (!autoConnect) {
+						service.reconnect(address, true);
+					}
+					await assert.rejects(service.waitForConnection(address), err => err === error);
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+
+					const replacement = disposables.add(new MockProtocolClient(address));
+					factory.stage(entry, replacement);
+					await replacement.connectDeferred.complete();
+					await timeout(60_000);
+					const beforeExplicitReconnect = attempts.slice();
+					const recoveredAutomatically = retryable && autoConnect;
+					if (!recoveredAutomatically) {
+						service.reconnect(address, true);
+					}
+					const connected = await service.waitForConnection(address);
+
+					assert.deepStrictEqual({
+						beforeExplicitReconnect,
+						attempts,
+						status: connected.status,
+					}, {
+						beforeExplicitReconnect: recoveredAutomatically ? [false, false] : [!autoConnect],
+						attempts: recoveredAutomatically ? [false, false] : [!autoConnect, true],
+						status: RemoteAgentHostConnectionStatus.connected,
+					});
+				}));
+			}
+		}
+
 		function connectionState(address: string) {
 			const connection = service.connections.find(connection => connection.address === address);
 			return { status: connection?.status, lastConnectionError: connection?.lastConnectionError };
@@ -2362,6 +2458,21 @@ suite('RemoteAgentHostService', () => {
 			const formatter = formatterFor('host1:8080');
 			assert.ok(formatter, 'formatter is registered');
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('retains formatters across unchanged large inventory reconciliations', () => {
+			const entries: IRemoteAgentHostEntry[] = Array.from({ length: 150 }, (_, index) => ({
+				name: `Host ${index}`,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: `ws://host${index}:8080` },
+			}));
+			configService.setEntries(entries);
+			const original = [...registeredFormatters];
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			assert.deepStrictEqual({
+				count: registeredFormatters.length,
+				unchanged: registeredFormatters.every((formatter, index) => formatter === original[index]),
+			}, { count: 150, unchanged: true });
 		});
 
 		test('updates formatter with native Windows path formatting after connecting', async () => {

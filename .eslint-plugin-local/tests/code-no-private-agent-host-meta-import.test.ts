@@ -20,7 +20,7 @@ const featureFiles = [
 	'src/vs/platform/agentHost/node/copilot/copilotAgentSession.ts',
 	'src/vs/platform/agentHost/common/state/sessionState.ts',
 	'src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.ts',
-	'src/vs/sessions/contrib/providers/agentHost/browser/baseAgentHostSessionsProvider.ts',
+	'src/vs/workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.ts',
 	'src/vs/base/common/feature.ts',
 ];
 const privateDirectories = ['copilotd', 'vscode'];

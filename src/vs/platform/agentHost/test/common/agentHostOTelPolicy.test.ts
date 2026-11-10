@@ -10,7 +10,7 @@ import { IConfigurationValue } from '../../../configuration/common/configuration
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../registry/common/platform.js';
-import { AgentHostOTelEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, readAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, CanvasesEnabledSettingId, readAgentHostOTelPolicySettings } from '../../common/agentService.js';
 import { getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
 
 suite('Agent Host OTel managed policy registration', () => {
@@ -107,6 +107,22 @@ suite('Agent Host OTel managed policy registration', () => {
 			exporterType: 'file',
 			outfile: '/managed/copilot.jsonl',
 			disabled: false,
+		});
+	});
+
+	test('disables Canvases when editor preview features are disabled', () => {
+		const policy = registry.getConfigurationProperties()[CanvasesEnabledSettingId].policy;
+
+		assert.deepStrictEqual({
+			name: policy?.name,
+			disabled: policy?.value?.({ chat_preview_features_enabled: false }),
+			enabled: policy?.value?.({ chat_preview_features_enabled: true }),
+			unspecified: policy?.value?.({}),
+		}, {
+			name: 'ChatCanvases',
+			disabled: false,
+			enabled: undefined,
+			unspecified: undefined,
 		});
 	});
 

@@ -6,6 +6,7 @@ import mermaid, { MermaidConfig } from 'mermaid';
 import { buildMermaidConfig, loadExtensionConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
 import { DiagramManager } from '../shared/diagramManager';
 import { IDisposable } from '../shared/disposable';
+import { placeSubgraphTitlesIn } from '../shared/subgraphTitles';
 import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 
 let currentAbortController: AbortController | undefined;
@@ -45,6 +46,7 @@ async function init() {
 		if (isError) {
 			return;
 		}
+		placeSubgraphTitlesIn(mermaidContainer);
 		activeIds.add(mermaidContainer.id);
 		currentDisposables.push(diagramManager.setup(mermaidContainer.id, mermaidContainer));
 	}, signal);

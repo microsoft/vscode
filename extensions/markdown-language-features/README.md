@@ -8,4 +8,4 @@ See [Markdown in Visual Studio Code](https://code.visualstudio.com/docs/language
 
 ## Testing
 
-Run `npm run test-editor-title` from this directory to verify that the source and preview title actions keep a consistent order alongside Git's Open Changes action.
+Run `pnpm run test-editor-title` from this directory to verify that the source and preview title actions keep a consistent order alongside Git's Open Changes action.

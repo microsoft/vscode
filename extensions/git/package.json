@@ -43,7 +43,6 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
-    "timeline",
     "workspaceTrust"
   ],
   "categories": [
@@ -4395,22 +4394,22 @@
     "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
     "file-type": "21.3.2",
-    "picomatch": "2.3.2",
-    "vscode-uri": "^2.0.0",
-    "which": "4.0.0"
+    "picomatch": "^2.3.2",
+    "which": "^4.0.0"
   },
   "devDependencies": {
-    "@types/byline": "4.2.31",
+    "@types/byline": "^4.2.32",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/picomatch": "2.3.0",
-    "@types/which": "3.0.0"
+    "@types/picomatch": "^2.3.0",
+    "@types/sinon": "^10.0.2",
+    "@types/which": "^3.0.0",
+    "mocha": "^10.8.2",
+    "sinon": "^12.0.1",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
-  },
-  "allowScripts": {
-    "@vscode/fs-copyfile@2.0.0": true
   }
 }

@@ -26,7 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../services/environment/bro
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
-import { Part } from './part.js';
+import { Part, relayoutWorkbenchParts, updateSashEndpoints } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
@@ -34,6 +34,8 @@ import { coalesce } from '../../base/common/arrays.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { ISizeService } from '../../platform/theme/common/sizeService.js';
+import { panelsSpacing } from '../../platform/theme/common/sizeRegistry.js';
 import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
@@ -309,6 +311,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private logService!: ILogService;
 	private telemetryService!: ITelemetryService;
 	private auxiliaryWindowService!: IAuxiliaryWindowService;
+	private panelSpacing = 4;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -335,6 +338,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.logService = accessor.get(ILogService);
 		this.telemetryService = accessor.get(ITelemetryService);
 		this.auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
+		const sizeService = accessor.get(ISizeService);
+		const updatePanelSpacing = () => {
+			const spacing = sizeService.getSize(panelsSpacing, this.themeService.getColorTheme())!.value;
+			if (spacing !== this.panelSpacing) {
+				this.panelSpacing = spacing;
+				if (this.workbenchGrid && this.isFloatingPanelsEnabled()) {
+					this.layout();
+					relayoutWorkbenchParts(this.workbenchGrid);
+				}
+			}
+		};
+		updatePanelSpacing();
+		this._register(sizeService.onDidChangeSizes(updatePanelSpacing));
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -537,6 +553,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
 		if (container === this.mainContainer) {
+			this.updateSashEndpoints();
 			this._onDidLayoutMainContainer.fire(dimension);
 		}
 
@@ -545,6 +562,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this._onDidLayoutContainer.fire({ container, dimension });
+	}
+
+	private updateSashEndpoints(): void {
+		if (this.workbenchGrid) {
+			updateSashEndpoints(this.workbenchGrid.element, this.isFloatingPanelsEnabled() && !this.isModernUICompact());
+		}
 	}
 
 	private onFullscreenChanged(windowId: number): void {
@@ -638,6 +661,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	isModernUICompact(): boolean {
 		return this.isFloatingPanelsEnabled() && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
+	}
+
+	getPanelSpacing(): number {
+		return this.isModernUICompact() ? 0 : this.panelSpacing;
 	}
 
 	private updateFloatingPanels(): void {
@@ -2081,6 +2108,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
+		this.updateSashEndpoints();
 		this._onDidChangePanelAlignment.fire(alignment);
 	}
 
@@ -2492,6 +2520,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.adjustPartPositions(this.getSideBarPosition(), this.getPanelAlignment(), position);
 		}
 
+		this.updateSashEndpoints();
 		this._onDidChangePanelPosition.fire(newPositionValue);
 	}
 
@@ -3100,10 +3129,7 @@ class LayoutStateModel extends Disposable {
 		// Auxiliary bar: Maximized settings
 		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			const startupEditor = this.configurationService.getValue<'none' | 'welcomePage' | 'readme' | 'newUntitledFile' | 'welcomePageInEmptyWorkbench' | 'terminal' | 'agentSessionsWelcomePage'>('workbench.startupEditor');
-			if (startupEditor === 'agentSessionsWelcomePage') {
-				this.applyAuxiliaryBarHiddenOverride(true);
-			} else if (
+			if (
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {
@@ -3142,10 +3168,6 @@ class LayoutStateModel extends Disposable {
 
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
-	}
-
-	private applyAuxiliaryBarHiddenOverride(value: boolean): void {
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, value);
 	}
 
 	save(workspace: boolean, global: boolean): void {

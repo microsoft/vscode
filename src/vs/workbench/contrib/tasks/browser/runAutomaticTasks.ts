@@ -55,9 +55,12 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		this._hasRunTasks = true;
 		this._logService.trace('RunAutomaticTasks: Trying to run tasks.');
 		// Wait until we have task system info (the extension host and workspace folders are available).
-		if (!this._taskService.hasTaskSystemInfo) {
+		while (!this._store.isDisposed && !this._taskService.hasTaskSystemInfo) {
 			this._logService.trace('RunAutomaticTasks: Awaiting task system info.');
-			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
+			await Event.toPromise(Event.filter(this._taskService.onDidChangeTaskSystemInfo, () => this._taskService.hasTaskSystemInfo), this._store);
+		}
+		if (this._store.isDisposed) {
+			return;
 		}
 		let workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
 		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);

@@ -8,7 +8,7 @@ import es from 'event-stream';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util.ts';
-import { getProductionDependencies } from '../lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from '../lib/dependencies.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import Stream from 'stream';
 import { azureStorage } from '../lib/gulp/facade.ts';
@@ -37,8 +37,9 @@ function main(): Promise<void> {
 		sources.push(vs);
 
 		const productionDependencies = getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
+		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
 		sources.push(nodeModules);

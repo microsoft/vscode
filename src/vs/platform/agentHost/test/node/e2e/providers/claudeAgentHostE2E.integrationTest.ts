@@ -69,6 +69,8 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	cancelledInputPrompt: 'Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
 	supportsRuntimeSlashCommandsE2E: true,
+	supportsPausedTurnCancellationE2E: true,
+	supportsTruncateE2E: true,
 	supportsAttachmentsE2E: true,
 	supportsWorktreeIncludeFilesE2E: true,
 	enabled: !!CLAUDE_SDK_ROOT,
@@ -90,9 +92,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsInitialTitle: true,
 	supportsChatFork: true,
-	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
-	// so a provider fork silently starts with fresh context.
-	supportsChatForkE2E: false,
+	supportsChatForkE2E: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

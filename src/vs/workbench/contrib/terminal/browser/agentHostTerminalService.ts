@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
@@ -19,7 +24,10 @@ import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITer
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
 
 export interface IAgentHostTerminalCreateOptions {
-	/** Human-readable terminal name. */
+	/**
+	 * Fixed terminal name. When omitted, the terminal is titled by its running
+	 * process, like a local terminal.
+	 */
 	readonly name?: string;
 	/** Initial working directory. */
 	readonly cwd?: URI;
@@ -171,6 +179,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 	}
@@ -269,13 +278,11 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		const provider: ITerminalProfileProvider = {
 			createContributedTerminalProfile: async (options) => {
 				let connection: IAgentConnection | undefined;
-				let displayName = entry.name;
 
 				if (key === '__quickpick__') {
-					const picks: (IQuickPickItem & { address: string; hostName: string })[] = allEntries.map(e => ({
+					const picks: (IQuickPickItem & { address: string })[] = allEntries.map(e => ({
 						label: localize('agentHostTerminal.profileName', "Agent Host ({0})", e.name),
 						address: e.address,
-						hostName: e.name,
 					}));
 					const pick = await this._quickInputService.pick(picks, {
 						placeHolder: localize('agentHostTerminal.pickHost', "Select an agent host to open a terminal on"),
@@ -285,7 +292,6 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					}
 					this._usedHosts.add(pick.address);
 					this._reconcile();
-					displayName = pick.hostName;
 					connection = allEntries.find(e => e.address === pick.address)?.getConnection();
 				} else {
 					connection = entry.getConnection();
@@ -296,7 +302,6 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				}
 
 				await this.createTerminal(connection, {
-					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
 					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : this._defaultCwd,
 					location: options.location,
 				});
@@ -338,7 +343,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	async createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
-		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
+		const name = options?.name;
 		const key = terminalUri.toString();
 		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
@@ -358,7 +363,8 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						return pty;
 					},
 					name,
-					icon: { id: 'remote' },
+					hostLabel: this._getHostLabel(connection),
+					isRemotePty: connection.clientConnectionKind !== AgentHostClientConnectionKind.Local,
 					isFeatureTerminal: false,
 				},
 				location: options?.location,
@@ -421,7 +427,9 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					ptyRegistration.setPty(pty);
 					return pty;
 				},
-				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
+				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
+				hostLabel: this._getHostLabel(connection),
+				isRemotePty: connection.clientConnectionKind !== AgentHostClientConnectionKind.Local,
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
@@ -501,6 +509,21 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		// Reconnection moves the terminal's PTY to the new connection.
 		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
 		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
+	}
+
+	/**
+	 * The name of the remote agent host that owns the given connection, for the terminals created on it,
+	 * like `${local}` marks a local terminal in a remote window. Looked up here rather than per entry
+	 * because regular windows have no entry for the remote hosts of their chat sessions. Read when each
+	 * terminal is created, so new terminals show the host's current name. Desktop only: on the web,
+	 * the Agents window shows one host at a time, so the name would repeat on every terminal.
+	 */
+	private _getHostLabel(connection: IAgentConnection): string | undefined {
+		if (isWeb) {
+			return undefined;
+		}
+		const host = this._remoteAgentHostService.connections.find(info => info.clientId === connection.clientId);
+		return host && (host.name || host.address);
 	}
 
 	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {

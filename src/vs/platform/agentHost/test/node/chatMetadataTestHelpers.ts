@@ -5,12 +5,14 @@
 
 import { DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionsV2Exclusion } from '../../node/agentHostDatabase.js';
 import { type ISessionAdditionalWorktree, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -45,7 +47,7 @@ export function createLegacyChatMetadataPersistence(service: ISessionDataService
 	};
 }
 
-export async function readTestSessionListCatalogs(database: IAgentHostDatabase, sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]> {
+export async function readTestSessionListCatalogs(database: Pick<IAgentHostDatabase, 'listSessionsV2' | 'readCatalogSnapshot'>, sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]> {
 	const [catalogs, snapshots] = await Promise.all([database.listSessionsV2(sessions), database.readCatalogSnapshot(sessions)]);
 	const bySession = new Map(snapshots.map(snapshot => [snapshot.session, snapshot]));
 	return catalogs.map(catalog => {
@@ -57,13 +59,13 @@ export async function readTestSessionListCatalogs(database: IAgentHostDatabase, 
 	});
 }
 
-export async function listTestLegacyChatCatalogSessions(database: IAgentHostDatabase, sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+export async function listTestLegacyChatCatalogSessions(database: Pick<IAgentHostDatabase, 'readCatalogSnapshot'>, sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 	return (await database.readCatalogSnapshot(sessions))
 		.filter(entry => entry.authorityVersion === 1 && !entry.isChatBacking && !entry.provisional)
 		.map(entry => entry.session);
 }
 
-export async function readTestChatV2(database: IAgentHostDatabase, session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+export async function readTestChatV2(database: Pick<IAgentHostDatabase, 'readCatalogSnapshot'>, session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 	const [snapshot] = await database.readCatalogSnapshot([session]);
 	if (snapshot?.authorityVersion !== 2) {
 		return { normalized: false };
@@ -72,7 +74,7 @@ export async function readTestChatV2(database: IAgentHostDatabase, session: stri
 	return { normalized: true, ...(row ? { chat: row } : {}) };
 }
 
-async function registeredTestSessions(database: IAgentHostDatabase): Promise<string[]> {
+async function registeredTestSessions(database: Pick<IAgentHostDatabase, 'listSessionV2Registrations' | 'listSessions'>): Promise<string[]> {
 	return [...new Set([
 		...(await database.listSessionV2Registrations()).map(identity => identity.session),
 		...(await database.listSessions()).map(identity => identity.session),
@@ -80,7 +82,7 @@ async function registeredTestSessions(database: IAgentHostDatabase): Promise<str
 }
 
 /** In-memory counterpart of {@link IAgentHostDatabase.findCentralChatOwners} for database fakes. */
-export async function findTestCentralChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+export async function findTestCentralChatOwners(database: Pick<IAgentHostDatabase, 'listSessionV2Registrations' | 'listSessions' | 'readCatalogSnapshot' | 'isSessionTombstoned' | 'getSessionChatCatalog'>, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 	const sessions = await registeredTestSessions(database);
 	const snapshots = await database.readCatalogSnapshot(sessions);
 	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
@@ -101,7 +103,7 @@ export async function findTestCentralChatOwners(database: IAgentHostDatabase, ch
 }
 
 /** In-memory counterpart of {@link IAgentHostDatabase.findCatalogPayloadChatOwners} for database fakes. */
-export async function findTestCatalogPayloadChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+export async function findTestCatalogPayloadChatOwners(database: Pick<IAgentHostDatabase, 'listSessionV2Registrations' | 'listSessions' | 'listSessionsV2' | 'isSessionTombstoned'>, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
 	const rows = await database.listSessionsV2(await registeredTestSessions(database));
 	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
 	for (const chat of chats) {
@@ -130,7 +132,7 @@ export function testRegistrationGeneration(...registrations: Iterable<IAgentHost
 }
 
 /** In-memory counterpart of {@link IAgentHostDatabase.readSessionRegistrations} for database fakes. */
-export async function readTestSessionRegistrations(database: IAgentHostDatabase): Promise<IAgentHostDatabaseSessionRegistrations> {
+export async function readTestSessionRegistrations(database: Pick<IAgentHostDatabase, 'getRegistrationGeneration' | 'listSessionV2Registrations' | 'listSessions'>): Promise<IAgentHostDatabaseSessionRegistrations> {
 	const generation = await database.getRegistrationGeneration();
 	const [current, legacy] = await Promise.all([database.listSessionV2Registrations(), database.listSessions()]);
 	// Database fakes keep no normalized chat catalogs.
@@ -174,6 +176,10 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 		this._sessionStateDatabase = undefined;
 	}
 
+	hideSession(...args: Parameters<IAgentHostDatabase['hideSession']>): ReturnType<IAgentHostDatabase['hideSession']> { return this._sessionState.hideSession(...args); }
+	isSessionSuppressed(...args: Parameters<IAgentHostDatabase['isSessionSuppressed']>): ReturnType<IAgentHostDatabase['isSessionSuppressed']> { return this._sessionState.isSessionSuppressed(...args); }
+	isSessionHidden(...args: Parameters<IAgentHostDatabase['isSessionHidden']>): ReturnType<IAgentHostDatabase['isSessionHidden']> { return this._sessionState.isSessionHidden(...args); }
+	listHiddenSessions(...args: Parameters<IAgentHostDatabase['listHiddenSessions']>): ReturnType<IAgentHostDatabase['listHiddenSessions']> { return this._sessionState.listHiddenSessions(...args); }
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
 	getWorktreeDiskUsageRevision(...args: Parameters<IAgentHostDatabase['getWorktreeDiskUsageRevision']>): ReturnType<IAgentHostDatabase['getWorktreeDiskUsageRevision']> { return this._sessionState.getWorktreeDiskUsageRevision(...args); }
 	readWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['readWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['readWorktreeDiskUsage']> { return this._sessionState.readWorktreeDiskUsage(...args); }
@@ -219,6 +225,234 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	markOrphanedScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']> { return this._sessionState.markOrphanedScratchFolderRemoving(...args); }
 }
 
+/** Shared compatibility and metadata behavior for Agent Host database test doubles. */
+export abstract class TestAgentHostDatabaseBase extends SessionStateUnsupportedDatabase {
+	abstract getRegistrationGeneration(): ReturnType<IAgentHostDatabase['getRegistrationGeneration']>;
+	abstract listSessionV2Registrations(): ReturnType<IAgentHostDatabase['listSessionV2Registrations']>;
+	abstract listSessions(): ReturnType<IAgentHostDatabase['listSessions']>;
+	abstract listSessionsV2(...args: Parameters<IAgentHostDatabase['listSessionsV2']>): ReturnType<IAgentHostDatabase['listSessionsV2']>;
+	abstract readCatalogSnapshot(...args: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']>;
+	abstract isSessionTombstoned(session: string): ReturnType<IAgentHostDatabase['isSessionTombstoned']>;
+	abstract getSessionChatCatalog(session: string): ReturnType<IAgentHostDatabase['getSessionChatCatalog']>;
+	abstract upsertSessionV2(...args: Parameters<IAgentHostDatabase['upsertSessionV2']>): ReturnType<IAgentHostDatabase['upsertSessionV2']>;
+
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+	recordChatStorageIdentity(): void { }
+	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
+		return undefined;
+	}
+	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		return [];
+	}
+	async recordOlderBuildChatListProjected(): ReturnType<IAgentHostDatabase['recordOlderBuildChatListProjected']> { }
+	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		return { status: 'conflict' };
+	}
+	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
+		return undefined;
+	}
+	async recordOlderBuildChatState(): ReturnType<IAgentHostDatabase['recordOlderBuildChatState']> { }
+	async readOlderBuildChatListEdit(): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
+		return undefined;
+	}
+	async reprojectOlderBuildChatList(): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
+		return false;
+	}
+	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+		return readTestChatV2(this, session, chat);
+	}
+	readSessionRegistrations(): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
+		return readTestSessionRegistrations(this);
+	}
+	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+		return findTestCentralChatOwners(this, chats);
+	}
+	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+		return findTestCatalogPayloadChatOwners(this, chats);
+	}
+	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
+		return readTestSessionListCatalogs(this, sessions);
+	}
+	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async moveChatV2(..._args: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> { return { status: 'notReady' }; }
+	async moveSessionV2(..._args: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> { return { status: 'notReady' }; }
+	async promoteChatV2(..._args: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> { return { status: 'notReady' }; }
+	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
+	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
+	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
+	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
+	async hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> { return false; }
+	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
+		return this.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+	declare readonly _serviceBrand: undefined;
+	protected readonly _providerBackfilled = new Set<string>();
+	protected readonly _sessionsV2Backfilled = new Set<string>();
+	protected readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
+	protected readonly _tombstones = new Set<string>();
+	protected readonly _hiddenSessions = new Map<string, string>();
+	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessionV2Registrations();
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+}
+
+/** Shared in-memory catalog behavior for Agent Host database test doubles. */
+export abstract class TestAgentHostCatalogDatabase extends TestAgentHostDatabaseBase {
+	abstract unregisterRuntimeSession(...args: Parameters<IAgentHostDatabase['unregisterRuntimeSession']>): ReturnType<IAgentHostDatabase['unregisterRuntimeSession']>;
+
+	override async getRegistrationGeneration(): Promise<number> {
+		return testRegistrationGeneration(this._sessionV2Registrations.values(), this._sessions.values());
+	}
+	protected readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	protected readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
+	protected readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
+	protected _backfilled = false;
+	protected readonly _agentMergeEnabled = new Set<string>();
+	protected readonly _provisionalSessions = new Set<string>();
+	protected readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessions.get(session);
+	}
+	async isSessionRegistryEmpty(): Promise<boolean> {
+		return this._sessions.size === 0;
+	}
+	async isSessionRegistryBackfilled(): Promise<boolean> {
+		return this._backfilled;
+	}
+	async isProviderBackfilled(provider: string): Promise<boolean> {
+		return this._providerBackfilled.has(provider);
+	}
+	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
+		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
+	}
+	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
+	}
+	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
+	}
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()];
+	}
+	override async hideSession(session: string, provider: string): Promise<void> {
+		await this.unregisterRuntimeSession(session);
+		this._tombstones.delete(session);
+		this._hiddenSessions.set(session, provider);
+	}
+	override async isSessionHidden(session: string): Promise<boolean> {
+		return this._hiddenSessions.has(session);
+	}
+	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
+		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
+	}
+	override async isSessionTombstoned(session: string): Promise<boolean> {
+		return this._tombstones.has(session);
+	}
+	override async isSessionSuppressed(session: string): Promise<boolean> {
+		return this._tombstones.has(session) || this._hiddenSessions.has(session);
+	}
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		return [...new Set([...this._sessionV2Registrations.values(), ...this._sessions.values()]
+			.filter(session => !this._sessionsV2Exclusions.has(`${session.provider}:${session.session}`))
+			.map(session => session.session))];
+	}
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this._agentMergeEnabled.add(session);
+		} else {
+			this._agentMergeEnabled.delete(session);
+		}
+	}
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		return [...this._agentMergeEnabled];
+	}
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		if (provisional) {
+			this._provisionalSessions.add(session);
+		} else {
+			this._provisionalSessions.delete(session);
+		}
+	}
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		return [...this._provisionalSessions];
+	}
+	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessionV2Registrations.get(session);
+	}
+	async isSessionV2RegistryEmpty(): Promise<boolean> {
+		return this._sessionV2Registrations.size === 0;
+	}
+	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		const current = this._sessionsV2.get(session);
+		if (!current) {
+			return undefined;
+		}
+		const payloadDirty = current.payloadDirty + 1;
+		this._sessionsV2.set(session, { ...current, payloadDirty });
+		return payloadDirty;
+	}
+	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		return this._sessionsV2.get(session)?.payloadDirty;
+	}
+	async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		for (const [session, current] of this._sessionsV2) {
+			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+		}
+	}
+	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
+		for (const session of sessions) {
+			const current = this._sessionsV2.get(session);
+			if (current) {
+				this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+			}
+		}
+	}
+	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
+		const current = this._sessionsV2.get(session);
+		if (!current || current.payloadDirty !== expectedDirty) {
+			return false;
+		}
+		this._sessionsV2.set(session, { ...current, payloadDirty: 0 });
+		return true;
+	}
+	override async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+		return this._sessionChats.get(session);
+	}
+	override async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: this._sessionsV2.get(identity.session)?.isChatBacking ?? false,
+			provisional: this._provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision, ...(payload === undefined ? {} : { legacyMirroredPayload: payload }) });
+		return true;
+	}
+	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredPayload: payload });
+		return true;
+	}
+}
+
 /** A real session state store over `database` and `service`, outside the leak check. */
 export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
@@ -226,7 +460,7 @@ export function createTestSessionStateStore(database: IAgentHostDatabase, servic
 
 /** A real worktree clean-up service over `worktree` and a private in-memory agent-host.db. */
 export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
-	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
+	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 }
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */

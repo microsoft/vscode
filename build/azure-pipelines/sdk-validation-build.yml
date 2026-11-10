@@ -167,6 +167,13 @@ extends:
           - repository: vscode_loc
       tsa:
         enabled: false
+      # BinSkim still scans and reports, but does not break this build. The 1ES
+      # templates only break on BinSkim results when a pipeline is not official
+      # with TSA enabled. The product build is, so it files these results in TSA
+      # instead, while this never-shipping build has TSA off and would fail on
+      # existing findings in the server's native modules.
+      binskim:
+        break: false
       codeql:
         compiled:
           enabled: false
@@ -180,20 +187,6 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-      # Every compile job waits for the copilot_vsix artifact of this stage.
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-              VSCODE_UPLOAD_SOURCEMAPS: false
-              VSCODE_PRIVILEGED_CONNECTIONS: false
-
       - stage: Windows
         displayName: Windows X64
         dependsOn: []

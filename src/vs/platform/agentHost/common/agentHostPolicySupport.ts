@@ -101,10 +101,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// not reach runtime-owned marketplace operations, whose enforcement needs separate verification.
 	// Extra marketplaces are additive.
 	ChatExtraMarketplaces: { status: 'partial' },
-	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
-	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
-	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
-	// that runtime enforcement, and lockdown of standalone instructions, still need execution verification.
+	// The workbench filters synchronized customizations only for the boolean form. Runtime managed settings
+	// govern independent discovery, including executable Copilot extensions, but VS Code-only policy values
+	// do not reach those paths and standalone instructions still lack equivalent runtime coverage.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
 	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
 	ChatHooks: { status: 'notEnforced' },
@@ -131,6 +130,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
 	ChatAgentHostGitHubEnvironments: { status: 'enforced' },
+	// Policy-backed configuration gates both workbench presentation and the mirrored Agent Host root setting.
+	ChatCanvases: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
 
@@ -184,6 +185,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
+	UpdateRestartWhenIdle: { status: 'enforced' },
 	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
 	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },

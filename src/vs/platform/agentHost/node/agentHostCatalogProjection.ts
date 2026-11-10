@@ -14,6 +14,7 @@ import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../
 import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/channels-chat/state.js';
+import { SessionOriginKind } from '../common/state/protocol/channels-session/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
 export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 2;
@@ -376,6 +377,12 @@ const codexSessionModelValidator = new RefinedValidator(plainObject(vObj({
 	? value
 	: { message: 'Expected a canonical Codex provider model selection.' });
 
+export const agentHostCatalogSessionOriginValidator = plainObject(vObj({
+	kind: vEnum(SessionOriginKind.Automation),
+	automation: uriString(),
+	run: uriString(),
+}));
+
 /**
  * The session's `_meta` bag, validated slot by slot under the same well-known
  * keys `sessionState.ts` uses, so readers such as `readSessionGitState` accept
@@ -449,6 +456,7 @@ export const agentHostCatalogDataValidator = plainObject(vObj({
 	isChatBacking: vOptionalProp(vBoolean()),
 	workingDirectories: workingDirectoriesValidator,
 	changes: vOptionalProp(agentHostCatalogChangesValidator),
+	origin: vOptionalProp(agentHostCatalogSessionOriginValidator),
 	_meta: vOptionalProp(metadataValidator),
 	chats: chatsValidator,
 }));
@@ -510,6 +518,21 @@ export function encodeAgentHostCatalogPayload(data: AgentHostCatalogData): Agent
 
 /** Validates a stored payload without building an unused canonical serialization. */
 export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
+	return decodePayloadData(payload, false);
+}
+
+/**
+ * Validates a stored payload of the current version or of an older version whose data the current version reads
+ * unchanged, so a row whose source no longer resolves can still be re-projected from what it stored (#345377).
+ */
+export function decodeUpgradableAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
+	return decodePayloadData(payload, true);
+}
+
+/** Payload versions the current version reads unchanged: version 2 only added the optional per-chat read state. */
+const UPGRADABLE_AGENT_HOST_CATALOG_PAYLOAD_VERSIONS: ReadonlySet<number> = new Set([1]);
+
+function decodePayloadData(payload: string, acceptUpgradable: boolean): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
 	if (Buffer.byteLength(payload, 'utf8') > AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT) {
 		return invalidPayload(`Payload exceeds ${AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT} bytes.`);
 	}
@@ -526,7 +549,7 @@ export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCat
 	if (typeof payloadVersion !== 'number' || !Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
 		return invalidPayload('Expected a non-negative safe integer payloadVersion.');
 	}
-	if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+	if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION && !(acceptUpgradable && UPGRADABLE_AGENT_HOST_CATALOG_PAYLOAD_VERSIONS.has(payloadVersion))) {
 		return { ok: false, reason: 'outdated', error: `Expected payload version ${AGENT_HOST_CATALOG_PAYLOAD_VERSION}, but got ${payloadVersion}.` };
 	}
 	const result = payloadValidator.validate(parsed);

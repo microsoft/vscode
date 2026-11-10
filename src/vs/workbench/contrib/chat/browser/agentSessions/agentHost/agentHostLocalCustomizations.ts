@@ -194,7 +194,7 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Collects MCP servers with resolved, representable configurations, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than `.vscode/mcp.json` entries.
  * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine and is never forwarded.
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
@@ -310,21 +310,11 @@ export async function resolveCustomizationRefs(
 	}
 
 	// Plugin prompt discovery is not guaranteed to be hydrated before an agent
-	// host registration resolves (notably in the Agents window). Include every
-	// enabled plugin with a concrete contribution directly; `pluginRefs`
+	// host registration resolves (notably in the Agents window), and plugins can
+	// ship content only the agent host runtime understands (for example Copilot
+	// extensions with canvases). Include every installed plugin; `pluginRefs`
 	// de-duplicates those already found through prompt-file enumeration.
 	for (const plugin of plugins) {
-		if (pluginRefs.has(plugin.uri.toString())) {
-			continue;
-		}
-		if (plugin.hooks.get().length === 0
-			&& plugin.commands.get().length === 0
-			&& plugin.skills.get().length === 0
-			&& plugin.agents.get().length === 0
-			&& plugin.instructions.get().length === 0
-			&& plugin.mcpServerDefinitions.get().length === 0) {
-			continue;
-		}
 		addPluginRef(plugin);
 	}
 

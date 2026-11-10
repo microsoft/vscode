@@ -13,6 +13,7 @@ import { ArtifactRequestPresentation } from '../../../../../../../platform/artif
 import { createTestArtifactRequestPresentation } from '../../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IListService, WorkbenchListWidget } from '../../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -34,9 +35,7 @@ suite('ChatArtifactActionContentPart', () => {
 			}
 		}();
 		instantiation.stub(IListService, listService);
-		instantiation.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover() { return toDisposable(() => { }); }
-		}());
+		instantiation.stub(IHoverService, { ...NullHoverService });
 		const opened: string[] = [];
 		const errors: string[] = [];
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() {

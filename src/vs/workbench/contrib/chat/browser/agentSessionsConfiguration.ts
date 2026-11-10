@@ -6,9 +6,10 @@
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -110,11 +111,21 @@ for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfig
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
-		[ChatConfiguration.UnifiedWorkspacePicker]: {
+		[AgentHostCopilotM365EnabledSettingId]: {
 			type: 'boolean',
-			default: true,
+			markdownDescription: nls.localize('chat.agentHost.copilot.m365.enabled', "Enable Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. When disabled, Microsoft sign-in continues to use GitHub Copilot only.\n\nChanging this setting requires restarting VS Code. It does not switch your active account or service; sign out and sign back in to change accounts."),
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+		},
+		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: nls.localize('chat.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for chat inputs in the editor and Agents windows when the default agent is selected. While a non-default agent is selected, the picker appears in its usual position."),
+			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {

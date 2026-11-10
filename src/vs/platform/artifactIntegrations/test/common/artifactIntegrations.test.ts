@@ -13,7 +13,7 @@ import { constObservable, ISettableObservable, observableValue, waitForState } f
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
 import { applyArtifactAutomationSelection, disableArtifactAutomation, reconcileArtifactAutomationOptions } from '../../common/artifactAutomationConfiguration.js';
 import { formatArtifactAutomationNotice, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges, mergeArtifactAutomationNotices } from '../../common/artifactIntegrationNotices.js';
 import { ArtifactIntegrationRegistry } from '../../common/artifactIntegrationRegistry.js';
@@ -930,6 +930,17 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(f.service.ledger.state.get().runs.map(run => [run.chat, run.state]), [['invoking-chat', 'completed']]);
 	}));
 
+	test('a manual run records whether it was requested through a general action', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		const state = await reference.object.invoke('test', 'act', 'chat', 'state');
+		await f.service.whenIdle();
+		binding.view.set({ ...binding.view.get(), stateActions: [], generalActions: [{ id: 'act', enabled: true }] }, undefined);
+		const general = await reference.object.invoke('test', 'act', 'chat', 'general');
+		assert.deepStrictEqual([state.generalAction, general.generalAction], [undefined, true]);
+	}));
+
 	test('changing one automation control does not revoke another control in the same binding', () => run(async store => {
 		const started = new DeferredPromise<void>();
 		const finish = new DeferredPromise<void>();
@@ -967,7 +978,10 @@ suite('Artifact Integrations', () => {
 		await waitForState(f.service.ledger.state, state => state.runs[0]?.indeterminate === true);
 		const blocked = await second.object.invoke('test', 'act', 'chat', 'alias');
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === blocked.id && run.state === 'blocked'));
-		assert.deepStrictEqual({ effects, resources: f.counts().resources }, { effects: 1, resources: 1 });
+		assert.deepStrictEqual({
+			effects, resources: f.counts().resources,
+			resourceKeys: [first, second].map(reference => reference.object.snapshot.get().contributions.map(contribution => contribution.resourceKey)),
+		}, { effects: 1, resources: 1, resourceKeys: [['canonical-resource'], ['canonical-resource']] });
 	}));
 
 	test('main presentation follows registration priority rather than availability timing', () => run(async store => {
@@ -1081,12 +1095,12 @@ suite('Artifact Integrations', () => {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
 					'',
-					'- Repair enabled\\',
+					'- **Repair enabled**\\',
 					'  Repair failures.',
-					'- Merge enabled\\',
+					'- **Merge enabled**\\',
 					'  Merge when ready.\\',
 					'  Mode: Only if Unchanged',
-					'- Address \\*Reviews\\* disabled\\',
+					'- **Address \\*Reviews\\* disabled**\\',
 					'  Attempt limit reached',
 					'',
 					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
@@ -1103,6 +1117,22 @@ suite('Artifact Integrations', () => {
 			},
 			integrations: 'Still enabled: Repair.',
 			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+		});
+	});
+
+	test('notice list titles are bold without formatting their descriptions', () => {
+		assert.deepStrictEqual(formatArtifactAutomationNotice('Example', [
+			{ integrationId: 'test', optionId: 'repair', label: '*Repair*\nfailures', kind: 'changed', details: ['Use [this](command:run).\nThen push.'] },
+			{ integrationId: 'test', optionId: 'merge', label: 'Merge', kind: 'enabled', details: [] },
+		], []), {
+			kind: 'changed',
+			content: [
+				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'- **\\*Repair\\* failures updated**\\',
+				'  Use \\[this\\]\\(command:run\\). Then push.',
+				'- **Merge enabled**',
+			].join('\n'),
 		});
 	});
 
@@ -1245,6 +1275,61 @@ suite('Artifact Integrations', () => {
 			details: [],
 		});
 	}));
+
+	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
+		const promptDetails = {
+			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
+			items: [{ id: 'failed', label: 'Failed', icon: { id: 'error' }, resource: artifact.resource }],
+			completeness: 'complete' as const,
+		};
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse', details: [promptDetails, { title: 'Invalid' } as unknown as ArtifactDetails] } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const acquired: string[] = [];
+		f.bindings[0].acquireDetails = (detailsId = 'main') => {
+			acquired.push(detailsId);
+			return { details: f.bindings[0].details, dispose: () => { } };
+		};
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual({ prompt: f.submitted[0].prompt, details: f.submitted[0].presentation?.details, acquired }, {
+			prompt: { text: 'Analyse' },
+			details: [
+				{ ...promptDetails, links: [] },
+				{ title: 'Analyse', availability: { kind: 'error', reason: 'The integration supplied invalid details for this action.' }, links: [], items: [], completeness: 'partial' },
+			],
+			acquired: [],
+		});
+	}));
+
+	const presentedIssue = { id: '2', label: '#2', icon: { id: 'issues' }, resource: 'https://github.com/o/r/issues/2' };
+	for (const [itemId, expectedDetails] of [
+		['2', [{ title: 'Reported Issues', availability: { kind: 'available' }, links: [], items: [presentedIssue], completeness: 'complete' }]],
+		// The details no longer list the item, so the request names the item action without the details of every item.
+		['3', []],
+	] as const) {
+		test(`a prompt an item action starts for ${itemId === '2' ? 'a listed' : 'an unlisted'} item is presented as that action on its own item`, () => run(async store => {
+			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
+			const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+			const binding = f.bindings[0];
+			const issue = (id: string) => ({ id, label: `#${id}`, icon: { id: 'issues' }, resource: `https://github.com/o/r/issues/${id}`, actions: ['fixIssue'] });
+			const issues = {
+				title: 'Reported Issues', description: '2 open issues', availability: { kind: 'available' as const },
+				facts: [{ id: 'open', label: 'Open', value: '2' }],
+				links: [{ kind: 'action' as const, actionId: 'fix' }],
+				itemActions: [{ id: 'fixIssue', label: 'Fix Issue', iconId: 'wand', actionId: 'fix' }],
+				items: [issue('1'), issue('2')],
+				completeness: 'partial' as const,
+			};
+			binding.view.set({ ...binding.view.get(), lists: [{ id: 'issues', label: 'Reported Issues', detailsId: 'issues' }] }, undefined);
+			binding.acquireDetails = (detailsId = 'main') => ({ details: constObservable(detailsId === 'issues' ? issues : binding.details.get()), dispose: () => { } });
+			const requested = await model.invoke('test', 'fix', 'invoking-chat', 'manual', undefined, { detailsId: 'issues', itemId });
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+			assert.deepStrictEqual({ action: f.submitted[0].presentation?.action, details: f.submitted[0].presentation?.details }, {
+				action: { label: 'Fix Issue', iconId: 'wand' },
+				details: expectedDetails,
+			});
+		}));
+	}
 
 	for (const source of ['manual', 'automation'] as const) {
 		test(`retains an asynchronously loaded chat while admitting ${source} prompts`, () => run(async store => {
@@ -1506,6 +1591,32 @@ suite('Artifact Integrations', () => {
 		await reference.object.cancel(second.id);
 		await reference.object.reconcile(first.id);
 		assert.deepStrictEqual({ effects, runs: f.service.ledger.state.get().runs.map(run => [run.state, run.indeterminate === true]) }, { effects: 1, runs: [['completed', false], ['cancelled', false]] });
+	}));
+
+	test('a native effect the external system rejected fails with a known outcome without blocking new requests', () => run(async store => {
+		let effects = 0;
+		const action: ArtifactAction = {
+			...codeAction,
+			prepare: async () => ({
+				kind: 'ready', value: {
+					run: async () => {
+						if (++effects === 1) {
+							throw new ArtifactActionRejectedError('Base branch was modified');
+						}
+						return { kind: 'completed', summary: 'Done' };
+					}
+				}
+			}),
+		};
+		const f = fixture(store, action);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const first = await reference.object.invoke('test', 'act', 'chat', 'first');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === first.id && isArtifactRunSettled(run)));
+		const second = await reference.object.invoke('test', 'act', 'chat', 'second');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === second.id && isArtifactRunSettled(run)));
+		assert.deepStrictEqual({ effects, runs: f.service.ledger.state.get().runs.map(run => [run.state, run.indeterminate === true, run.reason]) }, {
+			effects: 2, runs: [['failed', false, 'Base branch was modified'], ['completed', false, 'Done']],
+		});
 	}));
 
 	test('expanded action consent is disabled on restart instead of silently inheriting authorization', () => run(async store => {

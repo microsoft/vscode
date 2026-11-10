@@ -194,7 +194,7 @@ export function createAgentServiceComposition(
 			stateManager,
 			customizationEnablementService,
 			{
-				getAgent: session => providerService.getProviderForSession(session),
+				getAgent: (session, chat) => providerService.getProviderForChat(session, chat),
 				sessionDataService,
 				localTurns,
 				agents: providerService.agents,

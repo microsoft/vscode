@@ -21,21 +21,22 @@ import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../..
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig } from '../../browser/customizationsToolbar.contribution.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, ICustomizationItemConfig } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 // Ensure color registrations are loaded
-import '../../../../common/theme.js';
+import '../../../../../workbench/contrib/sessions/common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 
 
@@ -202,7 +203,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidEditorsChange = Event.None;
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = observableValue('mockActiveSession', undefined);
+				readonly activeSession = observableValue('mockActiveSession', undefined);
 			}());
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));

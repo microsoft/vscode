@@ -5,6 +5,12 @@ parameters:
   - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
     default: false
+  # Reruns failed unit, Agent Host E2E and node.js integration tests, like the
+  # pull request workflows do (the extension host suites are not rerun). Only
+  # the product build test jobs set it.
+  - name: VSCODE_RERUN_FAILED_TESTS
+    type: boolean
+    default: false
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same run.
@@ -14,12 +20,14 @@ steps:
   - ${{ if eq(parameters.VSCODE_COMPILE_TEST_SUITES, true) }}:
     - script: |
         set -e
-        npm run compile --prefix test/smoke
-        npm run compile --prefix test/integration/browser
+        pnpm -C test/smoke run compile
+        pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - template: ../../common/restore-playwright-browsers.yml@self
+
+  - script: pnpm exec npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -27,7 +35,7 @@ steps:
     retryCountOnTaskFailure: 3
 
   - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
-    - script: npm run gulp node
+    - script: pnpm run gulp node
       env:
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Download Node.js
@@ -59,7 +67,7 @@ steps:
       parameters:
         testId: unit-electron
         testStep:
-          script: ./scripts/test.sh --build --tfs "Unit Tests"
+          script: ./scripts/test.sh --build --tfs "Unit Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run unit tests (Electron)
@@ -73,7 +81,7 @@ steps:
           script: |
             set -e
             mkdir -p .build/crashes
-            npm run test-node -- --build
+            pnpm run test-node --build${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
@@ -84,7 +92,7 @@ steps:
       parameters:
         testId: unit-browser-chromium
         testStep:
-          script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+          script: pnpm run test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             DEBUG: "*browser*"
           displayName: 🧪 Run unit tests (Browser, Chromium)
@@ -92,7 +100,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp \
+      pnpm run gulp \
         compile-extension:configuration-editing \
         compile-extension:css-language-features-server \
         compile-extension:emmet \
@@ -128,7 +136,7 @@ steps:
             APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
             INTEGRATION_TEST_APP_NAME="$APP_NAME" \
             INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-            ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"
+            ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
@@ -149,7 +157,7 @@ steps:
             APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
             INTEGRATION_TEST_APP_NAME="$APP_NAME" \
             INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-            ./scripts/test-integration.sh --build --tfs "Integration Tests"
+            ./scripts/test-integration.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
@@ -207,7 +215,7 @@ steps:
         testStep:
           script: |
             set -e
-            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+            pnpm run smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
           env:
             VSCODE_SMOKE_TEST_POLICY: '1'
             # Keep the smoke test data dir (user-data, extensions, workspace and the
@@ -230,7 +238,7 @@ steps:
       parameters:
         testId: smoke-browser-chromium
         testStep:
-          script: npm run smoketest-no-compile -- --web --tracing --headless
+          script: pnpm run smoketest-no-compile --web --tracing --headless
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
             TMPDIR: $(Agent.TempDirectory)
@@ -246,7 +254,7 @@ steps:
             set -e
             APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
             VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
-            npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
+            pnpm run smoketest-no-compile --tracing --remote --build "$APP_PATH"
           env:
             TMPDIR: $(Agent.TempDirectory)
           timeoutInMinutes: 30
@@ -259,7 +267,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
+    - template: ../../copilot/product-test-steps.yml@self
       parameters:
         OS: linux
 

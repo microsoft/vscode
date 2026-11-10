@@ -19,25 +19,27 @@ import { DisposableStore, ImmortalReference, IReference } from '../../../../../b
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
-import { toPRContentUri } from '../../../github/common/utils.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { IChat, IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPRFetcher } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { toPRContentUri } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, CodeReviewService } from '../../browser/codeReviewService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ICreateNewChatInSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
 
 suite('CodeReviewService', () => {
 
@@ -51,9 +53,9 @@ suite('CodeReviewService', () => {
 
 	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
-		private readonly _activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+		private readonly _activeSession: ReturnType<typeof observableValue<ITestSessionWithChat | undefined>>;
 		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-		readonly activeSession: IObservable<IActiveSession | undefined>;
+		readonly activeSession: IObservable<ITestSessionWithChat | undefined>;
 
 		private readonly _sessions = new Map<string, ISession>();
 
@@ -61,7 +63,7 @@ suite('CodeReviewService', () => {
 			super();
 			this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 			this.onDidChangeSessions = this._onDidChangeSessions.event;
-			this._activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			this._activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			this.activeSession = this._activeSession;
 		}
 
@@ -120,7 +122,7 @@ suite('CodeReviewService', () => {
 		}
 
 		setActiveSession(session: ISession | undefined): void {
-			this._activeSession.set(session as IActiveSession | undefined, undefined);
+			this._activeSession.set(session as ITestSessionWithChat | undefined, undefined);
 		}
 
 		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {
@@ -302,6 +304,7 @@ suite('CodeReviewService', () => {
 		sessionsManagement = new MockSessionsManagementService(store);
 		instantiationService.stub(ISessionsManagementService, sessionsManagement);
 		instantiationService.stub(ISessionsService, { activeSession: sessionsManagement.activeSession } as unknown as ISessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		gitHubService = new MockGitHubService(sessionsManagement);
 		instantiationService.stub(IGitHubService, gitHubService);
@@ -683,12 +686,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the tab-level editor actions before layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Run Code Review is the first primary action of the Changes editor header', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the tab-level editor actions');
+		assert.ok(headerItem, 'expected Run Code Review in the Changes editor header');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
@@ -697,7 +700,7 @@ suite('Code Review Contributions', () => {
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			tabRowActions: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 				.filter(isIMenuItem)
 				.filter(item => item.command.id === 'sessions.codeReview.run')
 				.map(item => item.command.id),
@@ -714,7 +717,7 @@ suite('Code Review Contributions', () => {
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			oldHeaderActions: [],
+			tabRowActions: [],
 			group: 'navigation',
 			order: 10,
 			enabledFromSessionChanges: true,
@@ -722,7 +725,8 @@ suite('Code Review Contributions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDesktopLayoutGate: true,
-			hasAuxiliaryWindowGate: true,
+			// It shows in the editor area of a chat window too; the Agents window's editor windows do not show the menu.
+			hasAuxiliaryWindowGate: false,
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
@@ -736,6 +740,7 @@ suite('Code Review Contributions', () => {
 		const session = {
 			resource: sessionResource,
 			capabilities: constObservable({ supportsMultipleChats: true }),
+			status: constObservable(SessionStatus.Untitled),
 		} as ISession;
 		let sentQuery: string | undefined;
 		const testInstantiationService = store.add(new TestInstantiationService());
@@ -748,6 +753,7 @@ suite('Code Review Contributions', () => {
 			}
 		});
 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getSessionResource(resource: URI): URI | undefined {
@@ -760,6 +766,46 @@ suite('Code Review Contributions', () => {
 		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, editorResource));
 
 		assert.strictEqual(sentQuery, '/code-review');
+	});
+	test('Run Code Review sends into a new chat of an existing multi-chat session', async () => {
+		const sessionResource = URI.parse('session:existing');
+		const session = {
+			resource: sessionResource,
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			status: constObservable(SessionStatus.Completed),
+		} as ISession;
+		const newChat = { resource: URI.parse('chat:new') } as IChat;
+		const calls: string[] = [];
+		const testInstantiationService = store.add(new TestInstantiationService());
+		testInstantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSession(): ISession | undefined {
+				return session;
+			}
+			override async sendNewChatRequest(): Promise<void> {
+				throw new Error('Cannot start a session that is no longer pending');
+			}
+			override async createNewChatInSession(_session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
+				calls.push(`createNewChatInSession:forceNew=${options?.forceNew}`);
+				return newChat;
+			}
+			override async sendRequest(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+				calls.push(`sendRequest:${chat.resource.toString()}:${options.query}`);
+			}
+		});
+		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
+		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getSessionResource(): URI | undefined {
+				return undefined;
+			}
+		});
+		const command = CommandsRegistry.getCommand('sessions.codeReview.run');
+		assert.ok(command);
+
+		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, sessionResource));
+
+		assert.deepStrictEqual(calls, ['createNewChatInSession:forceNew=true', 'sendRequest:chat:new:/code-review']);
 	});
 });
 

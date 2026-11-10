@@ -13,7 +13,7 @@ const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger .action-label`;
-const ENVIRONMENT_PICKER = `${NEW_SESSION_VIEW} [aria-label^="Choose Environment,"]`;
+const ENVIRONMENT_PICKER = `${NEW_SESSION_VIEW} [data-session-picker-id="sessions.focusNewSessionEnvironmentPicker"] .action-label`;
 const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
 const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
@@ -201,7 +201,10 @@ export class AgentsWindow {
 		await this.selectRemoteFolder(name, workspacePath);
 	}
 
-	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+	/**
+	 * @param expectedFolderEntry an entry of `workspacePath` whose listing shows that the folder picker has loaded it.
+	 */
+	async connectWSLHost(distro: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
@@ -215,7 +218,7 @@ export class AgentsWindow {
 			}).click({ timeout: 30_000 });
 		}
 		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
-		await this.selectRemoteFolder(distro, workspacePath);
+		await this.selectRemoteFolder(distro, workspacePath, expectedFolderEntry);
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
 	}
 
@@ -282,7 +285,7 @@ export class AgentsWindow {
 		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
 	}
 
-	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+	private async selectRemoteFolder(hostName: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({
 			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
@@ -290,7 +293,7 @@ export class AgentsWindow {
 		const input = widget.locator('.quick-input-box input');
 		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
 		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
-		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.getByText(expectedFolderEntry, { exact: true }).waitFor({ timeout: 30_000 });
 		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
 		await input.press('Enter');
 		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
@@ -360,21 +363,38 @@ export class AgentsWindow {
 		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
+	/**
+	 * Switches the new-session environment from Cloud to This Computer.
+	 *
+	 * The workspace handoff of a window opened with a folder can switch the
+	 * environment to This Computer on its own after startup. That re-renders the
+	 * composer and closes an open Environment picker, so each attempt is bounded
+	 * and the loop ends as soon as the picker no longer shows Cloud.
+	 */
 	private async selectLocalEnvironment(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
 		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
 		while (await cloudEnvironment.isVisible()) {
-			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
-			if (await localEnvironment.isVisible()) {
-				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
-				return;
-			}
-			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					return;
+				}
+				lastError = new Error('This Computer is not listed in the Environment picker');
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded', { timeout: 5_000 }).catch(() => undefined) === 'true') {
+				await page.keyboard.press('Escape');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}
