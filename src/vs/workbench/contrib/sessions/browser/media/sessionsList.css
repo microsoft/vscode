@@ -1045,11 +1045,12 @@
 			}
 		}
 
-		/* Right-to-left so a long path is cut at its start, keeping the folders nearest the command. */
+		/* Right-to-left so a long path is cut at its start, keeping the folders nearest the command.
+			`pre` rather than `nowrap` keeps repeated spaces, which can be all that tells two paths apart. */
 		.session-approval-working-directory-path {
 			min-width: 0;
 			overflow: hidden;
-			white-space: nowrap;
+			white-space: pre;
 			text-overflow: ellipsis;
 			direction: rtl;
 		}
@@ -1064,6 +1065,11 @@
 			white-space: nowrap;
 		}
 	}
+}
+
+/* The approval row's hover shows the working directory as inline code; keep its repeated spaces too. */
+.monaco-hover.session-approval-hover code {
+	white-space: pre-wrap;
 }
 
 /*

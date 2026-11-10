@@ -1443,6 +1443,7 @@ function renderApprovalRowContent(
 			content: fullContent,
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.BELOW },
+			additionalClasses: ['session-approval-hover'],
 		}));
 	}
 
