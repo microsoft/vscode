@@ -460,7 +460,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 					options.fillExtraContextMenuActions(actions, e);
 					this.fillContextMenuActions(actions, e);
 				}
-			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService, configurationService);
 
 		if (globalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));

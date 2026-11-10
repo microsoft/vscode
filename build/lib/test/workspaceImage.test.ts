@@ -46,8 +46,8 @@ suite('workspace images', () => {
 	});
 
 	// image.ts runs before the checkout, without the files of the repository, so it lists the inputs
-	// of the base key of the node_modules caches itself
-	test('compare the inputs of the base key of the node_modules caches', () => {
+	// of the base key of node_modules folders itself
+	test('compare the inputs of the base key of node_modules folders', () => {
 		const read = new Set<string>();
 		const key = computeNodeModulesBaseCacheKey([], file => {
 			read.add(file);

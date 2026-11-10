@@ -148,6 +148,7 @@
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/msal-node": "~5.4.0",
     "@azure/msal-node-extensions": "~5.3.2",
+    "@azure/msal-node-runtime": "^0.20.0",
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"

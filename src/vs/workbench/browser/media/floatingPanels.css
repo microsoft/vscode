@@ -26,6 +26,8 @@
 	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
 	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-size40);
+	/* Match native border snapping across display scaling and window zoom. */
+	--modern-ui-floating-card-stroke-width: calc(max(1px, round(down, var(--vscode-strokeThickness) * var(--window-device-pixel-ratio, 1), 1px)) / var(--window-device-pixel-ratio, 1));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact {
@@ -34,8 +36,6 @@
 	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-sizeNone);
 	--modern-ui-floating-card-border-color: transparent;
 	--modern-ui-editor-border-color: transparent;
-	/* Match native border snapping across display scaling and window zoom. */
-	--modern-ui-floating-card-stroke-width: calc(max(1px, round(down, var(--vscode-strokeThickness) * var(--window-device-pixel-ratio, 1), 1px)) / var(--window-device-pixel-ratio, 1));
 }
 
 .monaco-workbench.floating-panels .part.sidebar,

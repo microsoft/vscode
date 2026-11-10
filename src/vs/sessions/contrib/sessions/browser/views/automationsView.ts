@@ -28,6 +28,9 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -77,7 +80,8 @@ import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameCo
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
@@ -404,6 +408,9 @@ class AutomationCardsSection extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -420,7 +427,9 @@ class AutomationCardsSection extends Disposable {
 		this.partialErrorIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
 		this.partialErrorIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
-		this.partialStateMessage = DOM.append(this.partialStateContainer, $('div.automations-cards-partial-state-message'));
+		const partialStateContent = DOM.append(this.partialStateContainer, $('.automations-cards-partial-state-content'));
+		this.partialStateMessage = DOM.append(partialStateContent, $('div.automations-cards-partial-state-message'));
+		this.renderManageRemotesLink(partialStateContent);
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -1147,7 +1156,36 @@ class AutomationCardsSection extends Disposable {
 		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
 		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
+		this.renderManageRemotesLink(this.unavailableContainer);
 		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
+	}
+
+	private renderManageRemotesLink(parent: HTMLElement): void {
+		const container = DOM.append(parent, $('span.automations-manage-remotes-link'));
+		this._register(this.instantiationService.createInstance(Link, container, {
+			label: localize('automationsManageRemotes', "Manage Remotes"),
+			href: `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}`,
+		}, {
+			opener: () => {
+				void this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID).catch(error => {
+					this.logService.error('[Automations] Failed to open Remote Environments.', error);
+					this.notificationService.error(error);
+				});
+			},
+		}));
+		const configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
+		this._register(autorun(reader => {
+			configurationChanged.read(reader);
+			const visible = this.automationService.catalogueState.read(reader) === 'unavailable'
+				&& this.automationService.unavailableProviders.read(reader).some(provider => provider.unavailableReasonCode === 'disconnected')
+				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			if (!visible && container.contains(DOM.getActiveElement())) {
+				this.focusRoot.focus();
+			}
+			container.style.display = visible ? '' : 'none';
+		}));
 	}
 
 	private renderErrorState(): IButton {
