@@ -1194,22 +1194,26 @@ suite('GitHub authenticated IPC clients', () => {
 	});
 
 	for (const failure of ['network', 'authentication', 'server'] as const) {
-		test(`does not replay notifications mutations after ${failure} failure`, async () => {
-			let mutations = 0;
-			const { connect } = setup(async input => {
-				if (new URL(String(input)).pathname === '/user') {
-					return Response.json({ id: 101 });
-				}
-				mutations++;
-				if (failure === 'network') {
-					throw new TypeError('Network unavailable');
-				}
-				return new Response('Rejected', { status: failure === 'authentication' ? 401 : 503 });
+		for (const operation of ['notifications', 'issue creation'] as const) {
+			test(`does not replay ${operation} mutations after ${failure} failure`, async () => {
+				let mutations = 0;
+				const { connect } = setup(async input => {
+					if (new URL(String(input)).pathname === '/user') {
+						return Response.json({ id: 101 });
+					}
+					mutations++;
+					if (failure === 'network') {
+						throw new TypeError('Network unavailable');
+					}
+					return new Response('Rejected', { status: failure === 'authentication' ? 401 : 503 });
+				});
+				const client = store.add(await connect().remote.acquireClient(authorization, signal()));
+				await assert.rejects(operation === 'notifications'
+					? client.notifications.markRead('42', signal())
+					: client.issues.create({ owner: 'o', repo: 'r' }, { title: 'Report', body: 'Description' }, signal()), { kind: failure });
+				assert.strictEqual(mutations, 1);
 			});
-			const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-			await assert.rejects(client.notifications.markRead('42', signal()), { kind: failure });
-			assert.strictEqual(mutations, 1);
-		});
+		}
 	}
 
 	for (const status of [200, 201]) {
