@@ -200,9 +200,6 @@ function init() {
 	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown, options: IBrowserElementSelectionOptions) => {
 		elementPicker.start(options);
 	});
-	ipcRenderer.on('vscode:browserView:setElementPickerPageMouseEventsSuppressed', (_event: unknown, suppressed: boolean) => {
-		elementPicker.setPageMouseEventsSuppressed(suppressed);
-	});
 	ipcRenderer.on('vscode:browserView:stopElementPicker', (_event: unknown) => {
 		elementPicker.stop();
 	});
@@ -424,7 +421,6 @@ class ElementPicker {
 	private _externalHighlightTarget: Element | undefined;
 	private _focusedTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
-	private _pageMouseEventsSuppressed = false;
 	private _dismissedCommentOnPointerDown = false;
 	private _commentTarget: Element | undefined;
 	private _commentAnchor: { x: number; y: number } | undefined;
@@ -635,9 +631,6 @@ class ElementPicker {
 
 		window.addEventListener('scroll', () => this._onScrollOrResize(), { passive: true, capture: true });
 		window.addEventListener('resize', () => this._onScrollOrResize());
-		for (const type of ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'mousemove', 'mouseover', 'mouseout', 'mouseenter', 'mouseleave']) {
-			window.addEventListener(type, this._onEmulationHoverEvent, true);
-		}
 	}
 
 	start(options: IBrowserElementSelectionOptions): boolean {
@@ -690,10 +683,6 @@ class ElementPicker {
 			this._focusedTarget = this._getFocusedElement();
 			this._updateHighlight(this._focusedTarget);
 		}
-	}
-
-	setPageMouseEventsSuppressed(suppressed: boolean): void {
-		this._pageMouseEventsSuppressed = suppressed;
 	}
 
 	stop(): void {
@@ -836,17 +825,6 @@ class ElementPicker {
 	}
 
 	// --- Event handlers ---
-
-	private _onEmulationHoverEvent = (event: Event): void => {
-		if (!this._pageMouseEventsSuppressed || (event instanceof PointerEvent && event.pointerType !== 'mouse')) {
-			return;
-		}
-		if (this._selectionActive && event.type === 'pointerleave') {
-			this._onPointerLeave();
-		}
-		event.preventDefault();
-		event.stopImmediatePropagation();
-	};
 
 	private _onPointerMove = (e: PointerEvent): void => {
 		if (!this._selectionActive) {

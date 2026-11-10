@@ -28,9 +28,6 @@ export class BrowserViewEmulator extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChange: Event<IBrowserDeviceProfile | undefined> = this._onDidChange.event;
-	private readonly _onDidChangePageMouseEventsSuppressed = this._register(new Emitter<boolean>());
-	readonly onDidChangePageMouseEventsSuppressed: Event<boolean> = this._onDidChangePageMouseEventsSuppressed.event;
-	private _pageMouseEventsSuppressed = false;
 
 	constructor(
 		private readonly browser: BrowserView,
@@ -170,11 +167,6 @@ export class BrowserViewEmulator extends Disposable {
 			if (this.device !== device || emitTouchEventsForMouse !== this._shouldEmitTouchEventsForMouse) { return; } // Bail if emulation changed while we were awaiting
 
 			await this.browser.debugger.sendCommandRaw('Emulation.setEmitTouchEventsForMouse', { enabled: emitTouchEventsForMouse });
-			const pageMouseEventsSuppressed = mobile;
-			if (this._pageMouseEventsSuppressed !== pageMouseEventsSuppressed) {
-				this._pageMouseEventsSuppressed = pageMouseEventsSuppressed;
-				this._onDidChangePageMouseEventsSuppressed.fire(pageMouseEventsSuppressed);
-			}
 		} catch (err) {
 			this.logService.error('[BrowserViewEmulator] _applyTouchAndMedia failed', err);
 		}
