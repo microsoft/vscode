@@ -151,6 +151,11 @@ suite('WebContentsViewHost', () => {
 		host.layout();
 		const cleared = host.pauseElement.classList.contains('visible');
 
-		assert.deepStrictEqual({ disabled, enabled, cleared }, { disabled: false, enabled: true, cleared: false });
+		await configurationService.setUserConfiguration('workbench.browser.dimOnOverlay', false);
+		place('notifications-center');
+		host.layout();
+		const notification = host.pauseElement.classList.contains('visible') && host.pauseElement.classList.contains('show-message');
+
+		assert.deepStrictEqual({ disabled, enabled, cleared, notification }, { disabled: false, enabled: true, cleared: false, notification: true });
 	});
 });

@@ -32,6 +32,7 @@ export class WebContentsViewHost extends Disposable {
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
 	private _overlayObscured = false;
+	private _notificationObscured = false;
 	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -191,7 +192,8 @@ export class WebContentsViewHost extends Disposable {
 		const placeholderActive = !!this._model?.url && !this._model.error;
 		this._placeholderScreenshot.style.display = placeholderActive ? '' : 'none';
 		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
-		const dim = pauseActive && this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false;
+		// Notifications always dim the page and show the banner; the setting covers other overlays.
+		const dim = pauseActive && (this._notificationObscured || this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false);
 		this._overlayPauseElement.classList.toggle('visible', dim);
 		if (!this._model) {
 			return;
@@ -229,9 +231,11 @@ export class WebContentsViewHost extends Disposable {
 		}
 		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
 		const obscured = overlays.length > 0;
-		this._overlayPauseElement.classList.toggle('show-message', overlays.some(overlay => overlay.type === BrowserOverlayType.Notification));
-		if (obscured !== this._overlayObscured) {
+		const notificationObscured = overlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
+		this._overlayPauseElement.classList.toggle('show-message', notificationObscured);
+		if (obscured !== this._overlayObscured || notificationObscured !== this._notificationObscured) {
 			this._overlayObscured = obscured;
+			this._notificationObscured = notificationObscured;
 			this._refresh();
 		}
 	}

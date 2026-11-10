@@ -960,7 +960,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['advanced'],
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.dimOnOverlay' },
-				"Controls whether the Integrated Browser page is dimmed while something, such as a hover, menu, dialog, or notification, overlaps it. The page is still paused and replaced by a screenshot."
+				"Controls whether the Integrated Browser page is dimmed while something, such as a hover, menu, dialog, or notification, overlaps it. The page is still paused and replaced by a screenshot. Notifications always dim the page."
 			),
 		},
 		[BrowserNewTabPlacementSettingId]: {
