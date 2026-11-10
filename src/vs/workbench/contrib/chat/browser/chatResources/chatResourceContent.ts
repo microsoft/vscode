@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ContextMenuController } from '../../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { ContentHoverController } from '../../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { MenuPreventer } from '../../../codeEditor/browser/menuPreventer.js';
@@ -24,10 +22,9 @@ import { ICustomEditorService } from '../../../customEditor/common/customEditor.
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
-/** What a embedded resource shows: a resource, or the changes from an original to a modified resource. */
+/** What a embedded resource shows. */
 export interface IChatResourceTarget {
 	readonly resource: URI;
-	readonly originalResource?: URI;
 	readonly label: string;
 }
 
@@ -40,8 +37,7 @@ export interface IChatResourceContent extends Disposable {
 
 /**
  * Renders a resource with the editor that opens it by default: its custom editor when that is the default (such as an
- * extension's view or an image preview), and a readonly text editor otherwise. A text resource with an original shows as a
- * readonly diff.
+ * extension's view or an image preview), and a readonly text editor otherwise.
  */
 export async function createChatResourceContent(
 	target: IChatResourceTarget,
@@ -55,13 +51,10 @@ export async function createChatResourceContent(
 			const customEditorService = accessor.get(ICustomEditorService);
 			await accessor.get(IExtensionService).activateByEvent(`onCustomEditor:${defaultEditor}`);
 			// Only custom editors that an extension provides render in a webview here; other editors, such as notebooks, show
-			// the resource as text. A custom editor shows the resource as it is; only text editors show changes, as a diff.
+			// the resource as text.
 			if (customEditorService.getCustomEditorCapabilities(defaultEditor)) {
 				return instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, body, getClippingContainer).ready();
 			}
-		}
-		if (target.originalResource) {
-			return instantiationService.createInstance(ChatResourceDiffContent, target.originalResource, target.resource, body).ready();
 		}
 		return instantiationService.createInstance(ChatResourceTextContent, target.resource, body).ready();
 	});
@@ -119,58 +112,6 @@ class ChatResourceTextContent extends Disposable implements IChatResourceContent
 		}
 		this._register(reference);
 		this._editor.setModel(reference.object.textEditorModel);
-		this._contentHeight.set(this._editor.getContentHeight(), undefined);
-		return this;
-	}
-
-	layout(width: number, height: number): void {
-		this._editor.layout({ width, height });
-	}
-}
-
-/** The changes from an original to a modified text resource in a readonly, compact diff editor. */
-class ChatResourceDiffContent extends Disposable implements IChatResourceContent {
-	private readonly _contentHeight = observableValue<number | undefined>(this, undefined);
-	readonly contentHeight: IObservable<number | undefined> = this._contentHeight;
-	private readonly _editor: DiffEditorWidget;
-
-	constructor(
-		private readonly _original: URI,
-		private readonly _modified: URI,
-		body: HTMLElement,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-	) {
-		super();
-		const options: ICodeEditorWidgetOptions = { isSimpleWidget: false, contributions: editorContributions() };
-		this._editor = this._register(instantiationService.createInstance(DiffEditorWidget, body, {
-			...embeddedEditorOptions,
-			originalAriaLabel: localize('chatResources.original', "Original"),
-			modifiedAriaLabel: localize('chatResources.modified', "Modified"),
-			renderSideBySide: false,
-			useInlineViewWhenSpaceIsLimited: true,
-			experimental: { useTrueInlineView: true },
-			renderOverviewRuler: false,
-			renderMarginRevertIcon: false,
-			renderGutterMenu: false,
-			compactMode: true,
-			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
-			isInEmbeddedEditor: true,
-		}, { originalEditor: options, modifiedEditor: options }));
-		this._register(this._editor.onDidContentSizeChange(() => this._contentHeight.set(this._editor.getContentHeight(), undefined)));
-	}
-
-	async ready(): Promise<this> {
-		const references: IReference<IResolvedTextEditorModel>[] = await Promise.all([
-			this._textModelService.createModelReference(this._original),
-			this._textModelService.createModelReference(this._modified),
-		]);
-		if (this._store.isDisposed) {
-			references.forEach(reference => reference.dispose());
-			return this;
-		}
-		references.forEach(reference => this._register(reference));
-		this._editor.setModel({ original: references[0].object.textEditorModel, modified: references[1].object.textEditorModel });
 		this._contentHeight.set(this._editor.getContentHeight(), undefined);
 		return this;
 	}

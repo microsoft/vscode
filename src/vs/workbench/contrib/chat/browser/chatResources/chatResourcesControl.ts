@@ -143,7 +143,7 @@ export class ChatResourcesControl extends Disposable {
 					openInEditor: () => this._openInEditor(resource, true),
 					// Closing hides the resource; its pill shows it again, like a tab.
 					close: () => this._select(area, null),
-				})), resource => `${resource.id}\u0000${resource.resource.toString()}\u0000${resource.originalResource?.toString()}`);
+				})), resource => `${resource.id}\u0000${resource.resource.toString()}`);
 			this._register(autorun(reader => {
 				dom.reset(areaElement, ...frames.read(reader).map(frame => frame.element));
 			}));
@@ -245,7 +245,7 @@ export class ChatResourcesControl extends Disposable {
 		return !!area && this._shown[area].read(reader)?.id === resource.id;
 	}
 
-	/** Whether an editor shows the resource, including a diff editor that shows its changes. */
+	/** Whether an editor shows the resource. */
 	private _isOpenInEditor(resource: IChatResource): boolean {
 		return this._editorService.editors.some(editor => isEqual(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource.resource));
 	}
@@ -261,10 +261,7 @@ export class ChatResourcesControl extends Disposable {
 			this._select(area, null);
 		}
 		const options = { pinned };
-		const opened = resource.originalResource
-			? this._editorService.openEditor({ original: { resource: resource.originalResource }, modified: { resource: resource.resource }, label: resource.label, options })
-			: this._editorService.openEditor({ resource: resource.resource, options });
-		opened.catch(error => this._notificationService.error(error));
+		this._editorService.openEditor({ resource: resource.resource, options }).catch(error => this._notificationService.error(error));
 	}
 
 	private _onDidClickPill(resource: IChatResource): void {
@@ -302,7 +299,7 @@ export class ChatResourcesControl extends Disposable {
 		const action = store.add(new Action(
 			`chatResources.pill.${resource.id}`,
 			resource.label,
-			ThemeIcon.asClassName(resource.icon ?? (resource.originalResource ? Codicon.diff : Codicon.file)),
+			ThemeIcon.asClassName(resource.icon ?? Codicon.file),
 			true,
 			async () => this._onDidClickPill(resource),
 		));
