@@ -67,17 +67,17 @@ type RemoteConnectionsSelectMethodClassification = {
 };
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Only accessible from this machine.");
+	return localize('remoteConnections.off.detail', "Don't allow connections from other devices through this app.");
 }
 
 export function getDevTunnelsDetail(): string {
-	return localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents.");
+	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.");
 }
 
 export function getGitHubEnvironmentsDetail(availability: GitHubEnvironmentsAvailability): string {
 	return availability === 'policyDisabled'
 		? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
-		: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.");
+		: localize('remoteConnections.githubEnvironment.detail', "Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.");
 }
 
 export interface IRemoteConnectionsStateSource {
