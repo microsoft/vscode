@@ -2874,6 +2874,41 @@ suite('authenticateProtectedResources', () => {
 		});
 	});
 
+	test('allows a newly signed-in account after a scope-less removal of a quarantined account', async () => {
+		const removed: AuthenticationSession = { id: 'removed-session', scopes: ['read'], accessToken: 'removed-token', account: { id: 'account-1', label: 'Account 1' } };
+		const added: AuthenticationSession = { id: 'added-session', scopes: ['read'], accessToken: 'added-token', account: { id: 'account-2', label: 'Account 2' } };
+		let sessions = [removed];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider-1',
+			getSessions: async () => sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const authTokenCache = new AgentHostAuthTokenCache();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { tokens.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, { ...options, challengeReason: AuthRequiredReason.Expired }));
+		sessions = [added];
+		// A provider that enumerates accounts reports the removed account without scopes.
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [{ id: removed.id, scopes: [] }], options);
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual({
+			tokens,
+			quarantine: authTokenCache.getRejectedSession(protectedResource.resource, protectedResource.scopes_supported),
+		}, {
+			tokens: ['removed-token', '', 'added-token'],
+			quarantine: undefined,
+		});
+	});
+
 	test('cancels a background lookup that returns a token quarantined while it was pending', async () => {
 		const account = { id: 'account-1', label: 'Account 1' };
 		const exactSession: AuthenticationSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
@@ -3143,6 +3178,29 @@ suite('resolveAuthenticationInteractively', () => {
 			});
 		});
 	}
+
+	test('explicit recovery forwards the replacement when sign-in replaces the default session', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		let session: AuthenticationSession = { id: 'old-session', scopes: ['read'], accessToken: 'old-token', account };
+		const commands = new TestCommandService();
+		commands.onExecute = () => { session = { ...session, id: 'new-session', accessToken: 'new-token' }; };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider-1',
+			getSessions: async () => [session],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication, commands);
+		instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override get currentDefaultAccount(): IDefaultAccount {
+				return { sessionId: session.id, accountName: account.label, enterprise: false, authenticationProvider: { id: 'provider-1', name: 'Provider', enterprise: false } };
+			}
+		}());
+		const tokens: string[] = [];
+		await instantiation.createInstance(AgentHostInteractiveAuthentication).request(protectedResource, {
+			logPrefix: '[Test]', isCurrent: () => true,
+			authenticate: async request => { tokens.push(request.token); },
+		});
+		assert.deepStrictEqual({ prompts: commands.calls.length, tokens }, { prompts: 1, tokens: ['new-token'] });
+	});
 
 	test('explicit recovery can be retried after cancellation without forwarding a credential', async () => {
 		const commands = new TestCommandService();

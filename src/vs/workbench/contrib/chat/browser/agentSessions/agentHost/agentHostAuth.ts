@@ -815,6 +815,7 @@ export async function revokeAuthenticationForRemovedSessions(
 				&& await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
 				throwIfAuthenticationStale(options);
 				options.authTokenCache?.clear(resource.resource, scopes);
+				options.authTokenCache?.clearRejectedSession(resource.resource, scopes);
 				await forwardAuthenticationToken(options, resource.resource, scopes, undefined);
 				reconciledResources.add(key);
 				continue;
@@ -1103,8 +1104,9 @@ async function forceAuthenticationInteractively(
 			returnResult: true,
 		});
 		throwIfAuthenticationStale(options);
-		if (defaultAccount) {
-			throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
+		// Signing in replaces the default session, so only a sign-out or provider change is stale here.
+		if (defaultAccount && defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== defaultAccount.authenticationProvider.id) {
+			throw new CancellationError();
 		}
 		if (setupResult?.success === undefined) {
 			data.result = 'cancelled';
