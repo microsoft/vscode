@@ -25,7 +25,7 @@ interface INonPtyShellStream {
 	readonly uri: string;
 	readonly title: string;
 	created: boolean;
-	/** The last cumulative snapshot, or the streamed transcript once the call streams chunks. */
+	/** The last cumulative snapshot, or the streamed transcript until the call goes to the background. */
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
@@ -224,7 +224,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private readonly _streams = new Map<string, INonPtyShellStream>();
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
-	/** Tool call of each detached shell that exited while its log was still being read, keyed by shell ID. */
+	/** Tool call and reported exit code of each exited detached shell whose log is still being read, keyed by shell ID. */
 	private readonly _drainingDetachedShells = new Map<string, { readonly toolCallId: string; exitCode: number | undefined }>();
 	private _shellTaskReads = 0;
 
@@ -574,10 +574,10 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private _completeBackgroundShell(shellId: string, exitCode: number | undefined, settleDetachedRead: boolean): void {
 		const draining = this._drainingDetachedShells.get(shellId);
 		if (settleDetachedRead) {
-			const drainingStream = draining === undefined ? undefined : this._streams.get(draining.toolCallId);
+			const drainingStream = draining && this._streams.get(draining.toolCallId);
 			this._drainingDetachedShells.delete(shellId);
-			if (drainingStream) {
-				this._finalize(drainingStream, draining?.exitCode);
+			if (draining && drainingStream) {
+				this._finalize(drainingStream, draining.exitCode);
 			}
 		} else if (draining) {
 			draining.exitCode ??= exitCode;
