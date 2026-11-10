@@ -179,12 +179,19 @@ suite('Sessions - Layout Actions', () => {
 		await CommandsRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')!.handler(accessor);
 		const enabled = [configuration.getValue(SESSIONS_DETAILS_POSITION_SETTING), configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING)];
 		const floating = checked();
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.left')!.handler(accessor);
+		const left = { checked: checked(), floating: configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING) };
 		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.right')!.handler(accessor);
 		assert.deepStrictEqual({
 			enabled,
-			top, bottom, floating, right: checked(),
+			top, bottom, floating, left, right: checked(),
 			reset: [configuration.getValue(SESSIONS_DETAILS_POSITION_SETTING), configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING)],
 			options: options.map(item => item.command.id),
+			menuLabels: options.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
+			paletteLabels: options.map(item => {
+				const title = MenuRegistry.getCommand(item.command.id)!.title;
+				return typeof title === 'string' ? title : title.value;
+			}),
 			separateEntries: [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].flatMap(menu =>
 				MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentSessions.toggleFloatingDetails')),
 		}, {
@@ -192,12 +199,15 @@ suite('Sessions - Layout Actions', () => {
 			top: ['workbench.action.agentSessions.detailsPosition.top'],
 			bottom: ['workbench.action.agentSessions.detailsPosition.bottom'],
 			floating: ['workbench.action.agentSessions.toggleFloatingDetails'],
+			left: { checked: ['workbench.action.agentSessions.detailsPosition.left'], floating: false },
 			right: ['workbench.action.agentSessions.detailsPosition.right'],
 			reset: ['right', false],
 			options: [
-				...['top', 'bottom', 'right'].map(position => `workbench.action.agentSessions.detailsPosition.${position}`),
+				...['top', 'bottom', 'left', 'right'].map(position => `workbench.action.agentSessions.detailsPosition.${position}`),
 				'workbench.action.agentSessions.toggleFloatingDetails',
 			],
+			menuLabels: ['Above Editor', 'Below Editor', 'Left', 'Right', 'Floating'],
+			paletteLabels: ['Move Details Above Editor', 'Move Details Below Editor', 'Move Details Left', 'Move Details Right', 'Floating Details Panel'],
 			separateEntries: [],
 		});
 	});

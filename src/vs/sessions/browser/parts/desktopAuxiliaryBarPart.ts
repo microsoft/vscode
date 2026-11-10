@@ -22,6 +22,8 @@ import { ViewPaneContainer } from '../../../workbench/browser/parts/views/viewPa
 export class DesktopAuxiliaryBarPart extends AuxiliaryBarPart {
 	private sizeToContent = false;
 	private contentSizingContainer: ViewPaneContainer | undefined;
+	private focusContainer: ViewPaneContainer | undefined;
+	private readonly focusPreparation = this._register(new MutableDisposable());
 	private readonly contentHeightListener = this._register(new MutableDisposable());
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -37,7 +39,13 @@ export class DesktopAuxiliaryBarPart extends AuxiliaryBarPart {
 
 	private updateContentSizing(): void {
 		const composite = this.getActivePaneComposite();
-		const container = this.sizeToContent && composite instanceof PaneComposite ? composite.getViewPaneContainer() : undefined;
+		const activeContainer = composite instanceof PaneComposite ? composite.getViewPaneContainer() : undefined;
+		if (activeContainer !== this.focusContainer) {
+			this.focusPreparation.clear();
+			this.focusContainer = activeContainer;
+			this.focusPreparation.value = activeContainer?.setFocusPreparation(() => this.beforeFocus?.());
+		}
+		const container = this.sizeToContent ? activeContainer : undefined;
 		if (container === this.contentSizingContainer) {
 			return;
 		}

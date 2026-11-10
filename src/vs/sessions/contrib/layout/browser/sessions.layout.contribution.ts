@@ -58,7 +58,7 @@ export class SessionsSidePaneLayoutContribution extends Disposable implements IW
 
 		const update = () => {
 			const position = configurationService.getValue<DetailsPosition>(SESSIONS_DETAILS_POSITION_SETTING);
-			layoutService.setDetailsPosition(position === 'top' || position === 'bottom' ? position : 'right');
+			layoutService.setDetailsPosition(position === 'left' || position === 'top' || position === 'bottom' ? position : 'right');
 			layoutService.setAuxiliaryBarFloating(configurationService.getValue(SESSIONS_FLOATING_DETAILS_SETTING) === true);
 		};
 		update();
@@ -78,9 +78,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		[SESSIONS_DETAILS_POSITION_SETTING]: {
 			type: 'string',
-			enum: ['right', 'top', 'bottom'],
+			enum: ['right', 'left', 'top', 'bottom'],
 			enumDescriptions: [
 				localize('detailsPosition.right', "Show details to the right of the editor content inside the side panel."),
+				localize('detailsPosition.left', "Show details to the left of the editor content inside the side panel."),
 				localize('detailsPosition.top', "Show details above the editor content inside the side panel."),
 				localize('detailsPosition.bottom', "Show details below the editor content inside the side panel."),
 			],

@@ -1520,8 +1520,8 @@ suite('Sessions - Workbench', () => {
 				titleBarPartView: { minimumHeight: 30 },
 			});
 			const topology = getPartTopology(createDesktopGridDescriptor.call(host, 1800, 1000).root);
-			const setPosition = Reflect.get(Workbench.prototype, 'setDetailsPosition') as (this: ITestWorkbench, position: 'right' | 'top' | 'bottom') => void;
-			for (const position of ['top', 'bottom', 'right'] as const) {
+			const setPosition = Reflect.get(Workbench.prototype, 'setDetailsPosition') as (this: ITestWorkbench, position: 'left' | 'right' | 'top' | 'bottom') => void;
+			for (const position of ['top', 'bottom', 'left', 'right'] as const) {
 				setPosition.call(host, position);
 				assert.deepStrictEqual({
 					topology: getPartTopology(createDesktopGridDescriptor.call(host, 1800, 1000).root),
@@ -1555,7 +1555,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	for (const position of ['right', 'top', 'bottom'] as const) {
+	for (const position of ['left', 'right', 'top', 'bottom'] as const) {
 		test(`layout sizing targets floating details instead of the remembered ${position} docked geometry`, () => {
 			let floatingSize: IViewSize = { width: 300, height: 400 };
 			const host = Object.assign(createHost({ single: true, editorWidth: 900, partVisibility: { editor: true, auxiliaryBar: true } }), {
@@ -1624,6 +1624,61 @@ suite('Sessions - Workbench', () => {
 			resizes: [], editor: true, details: true,
 		});
 	});
+
+	for (const position of ['top', 'bottom'] as const) {
+		test(`${position} layout restores a closed side pane after grid deserialization`, () => {
+			const results = [];
+			for (const savedWidth of [740, undefined, 120]) {
+				for (const editorVisible of [true, false]) {
+					const host = Object.assign(createHost({
+						single: true,
+						partVisibility: { sidebar: false, editor: false, auxiliaryBar: false },
+					}), {
+						_detailsPosition: position,
+						_panelAlignment: 'justify' as PanelAlignment,
+						_savedPartSizes: { editor: savedWidth },
+						layoutPolicy: {
+							getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 300, panelSize: 250 }),
+							viewportClass: { get: () => 'desktop' },
+						},
+						titleBarPartView: { minimumHeight: 30 },
+					});
+					const views = new Map<Parts, TestPartView>();
+					const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, 1800, 800), {
+						fromJSON: ({ type }: { type: Parts }) => {
+							const view = store.add(new TestPartView(type));
+							views.set(type, view);
+							return view;
+						},
+					}, { proportionalLayout: false }));
+					grid.layout(1800, 800);
+					const getView = (part: Parts) => {
+						const view = views.get(part);
+						assert.ok(view);
+						return view;
+					};
+					Object.assign(host, {
+						workbenchGrid: grid,
+						editorPartView: getView(Parts.EDITOR_PART),
+						sessionsPartView: getView(Parts.SESSIONS_PART),
+						sideBarPartView: getView(Parts.SIDEBAR_PART),
+						panelPartView: getView(Parts.PANEL_PART),
+						customViewGridPartView: getView(Parts.CUSTOM_VIEW_GRID_PART),
+					});
+					restoreSidePaneComposition.call(host, { editor: editorVisible, auxiliaryBar: true });
+					results.push({
+						savedWidth, editorVisible, width: grid.getViewSize(getView(Parts.EDITOR_PART)).width,
+						composition: captureSidePaneComposition.call(host),
+					});
+				}
+			}
+			assert.deepStrictEqual(results, results.map(result => ({
+				...result,
+				width: result.savedWidth === 740 ? 740 : 900,
+				composition: { editor: result.editorVisible, auxiliaryBar: true },
+			})));
+		});
+	}
 
 	test('desktop container resize preserves the sessions/editor ratio', () => {
 		const sessionsPartView = { minimumWidth: 300 };
@@ -1844,6 +1899,26 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual(saved, { editor: 1400, sessions: 1400, sidebar: 280, auxiliaryBar: 300, auxiliaryBarHeight: 280, panel: 300 });
 	});
 
+	for (const position of ['top', 'bottom'] as const) {
+		test(`${position} layout captures the latest editor-only width before closing and preserves valid widths after a squeeze`, () => {
+			const persisted = [900, 200].map(editorWidth => {
+				let saved: { editor?: number } | undefined;
+				const host = Object.assign(createHost({
+					single: true, editorWidth, partVisibility: { editor: true, auxiliaryBar: false },
+				}), {
+					_detailsPosition: position,
+					_savedPartSizes: { editor: 600 },
+					storageService: { store: (_key: string, value: string) => { saved = JSON.parse(value); } },
+				});
+				Object.assign(host.workbenchGrid, { getViewCachedVisibleSize: (view: object) => host.workbenchGrid.getViewSize(view).width });
+				host.setEditorHidden(true);
+				savePartSizes.call(host as unknown as ISavePartSizesTestHarness);
+				return saved?.editor;
+			});
+			assert.deepStrictEqual(persisted, [900, 600]);
+		});
+	}
+
 	test('_savePartSizes preserves the last valid editor width after the detail-only node closes (desktop)', () => {
 		// The cached detail-only node width must not replace the last valid Editor-content width.
 		const stored: Record<string, string> = {};
@@ -1973,6 +2048,24 @@ suite('Sessions - Workbench', () => {
 		}, {
 			withDetail: 600,
 			editorOnly: 900,
+		});
+	});
+
+	test('left details use horizontal sizing and preserve editor width across visibility changes', () => {
+		const host = Object.assign(createHost({ single: true, editorWidth: 900, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: true } }), {
+			_detailsPosition: 'left',
+			_editorPartContainer: { clientWidth: 900, clientHeight: 800 },
+		});
+		const getSize = Reflect.get(Workbench.prototype, 'getSize') as (this: typeof host, part: Parts) => IViewSize;
+		const resize = Reflect.get(Workbench.prototype, 'resizePart') as (this: typeof host, part: Parts, width: number, height: number) => void;
+		resize.call(host, Parts.AUXILIARYBAR_PART, 60, 60);
+		const resized = getSize.call(host, Parts.AUXILIARYBAR_PART);
+		const persisted = persistedEditorWidth.call(host, 900);
+		host.setEditorHidden(true);
+		const hidden = host.workbenchGrid.getViewSize(host.editorPartView).width;
+		host.setEditorHidden(false);
+		assert.deepStrictEqual({ resized, persisted, hidden, restored: host.workbenchGrid.getViewSize(host.editorPartView).width }, {
+			resized: { width: 360, height: 800 }, persisted: 540, hidden: 360, restored: 900,
 		});
 	});
 

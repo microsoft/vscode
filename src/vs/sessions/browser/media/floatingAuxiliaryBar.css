@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Keep editor scrollbars and decorations beneath sibling detail overlays. */
-.agent-sessions-workbench.dock-detail-panel .part.editor.floating-details-visible:not(.modal-editor-part) > .content {
+/* Keep pane scrollbars below floating details without trapping the shared frame beneath webviews. */
+.agent-sessions-workbench.dock-detail-panel .part.editor.floating-details-visible:not(.modal-editor-part) > .content .editor-group-container > .editor-container {
 	isolation: isolate;
 }
 

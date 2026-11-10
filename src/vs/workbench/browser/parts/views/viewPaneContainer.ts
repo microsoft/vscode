@@ -292,6 +292,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
+	private focusPreparation: (() => void) | undefined;
 	private lastMergedCollapsedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
@@ -595,6 +596,16 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		return createActionViewItem(this.instantiationService, action, options);
 	}
 
+	/** Lets an embedding host reveal its content before container or individual-view focus. */
+	setFocusPreparation(prepare: () => void): IDisposable {
+		this.focusPreparation = prepare;
+		return toDisposable(() => {
+			if (this.focusPreparation === prepare) {
+				this.focusPreparation = undefined;
+			}
+		});
+	}
+
 	focus(): void {
 		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
@@ -608,6 +619,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			}
 		}
 		if (paneToFocus) {
+			this.focusPreparation?.();
 			paneToFocus.focus();
 		}
 	}
@@ -804,6 +816,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		if (view) {
 			view.setExpanded(true);
 			if (focus) {
+				this.focusPreparation?.();
 				view.focus();
 			}
 		}

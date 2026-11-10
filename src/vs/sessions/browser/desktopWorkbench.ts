@@ -98,7 +98,7 @@ export class DesktopWorkbench extends Workbench {
 
 	override setDockedAuxiliaryBarWidth(width: number): void {
 		this._dockedAuxiliaryBarWidth = width;
-		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor && this.getDetailsPosition() === 'right') {
+		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor && this._isHorizontalDetailsPosition()) {
 			this._runWithEditorVisibilitySyncSuspended(() => {
 				this.workbenchGrid.resizeView(this.editorPartView, {
 					width: this._dockedAuxiliaryBarWidth,
@@ -118,8 +118,13 @@ export class DesktopWorkbench extends Workbench {
 		this._layoutDockedAuxBar();
 	}
 
+	private _isHorizontalDetailsPosition(): boolean {
+		const position = this.getDetailsPosition();
+		return position === 'left' || position === 'right';
+	}
+
 	private _reservedDetailWidth(): number {
-		return this.getDetailsPosition() === 'right' && !this.isAuxiliaryBarFloating() ? this._dockedAuxiliaryBarWidth : 0;
+		return this._isHorizontalDetailsPosition() && !this.isAuxiliaryBarFloating() ? this._dockedAuxiliaryBarWidth : 0;
 	}
 
 	override getPreferredEditorPartWidth(): number | undefined {
@@ -162,7 +167,7 @@ export class DesktopWorkbench extends Workbench {
 		if (floating) {
 			return floating.getSize();
 		}
-		return this.getDetailsPosition() === 'right'
+		return this._isHorizontalDetailsPosition()
 			? { width: this._dockedAuxiliaryBarWidth, height: this._editorPartContainer?.clientHeight ?? 0 }
 			: { width: this._editorPartContainer?.clientWidth ?? 0, height: this.getDockedAuxiliaryBarHeight() };
 	}
@@ -173,7 +178,7 @@ export class DesktopWorkbench extends Workbench {
 			floating.setSize(size);
 			return;
 		}
-		if (this.getDetailsPosition() === 'right') {
+		if (this._isHorizontalDetailsPosition()) {
 			this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, size.width);
 			this._layoutDockedAuxBar();
 		} else {
@@ -188,7 +193,7 @@ export class DesktopWorkbench extends Workbench {
 			floating.setSize({ width: size.width + deltaWidth, height: size.height + deltaHeight });
 			return;
 		}
-		if (this.getDetailsPosition() === 'right') {
+		if (this._isHorizontalDetailsPosition()) {
 			this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, this._dockedAuxiliaryBarWidth + deltaWidth);
 			this._layoutDockedAuxBar();
 		} else {
@@ -241,7 +246,7 @@ export class DesktopWorkbench extends Workbench {
 		// The editor part spans the editor + auxiliary bar width (the aux bar is
 		// docked inside it, not a grid column) so the editor tab bar spans the full width.
 		if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar) {
-			return this.getDetailsPosition() === 'right' ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? EDITOR_PART_DEFAULT_WIDTH;
+			return this._isHorizontalDetailsPosition() ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? EDITOR_PART_DEFAULT_WIDTH;
 		}
 		return effectiveEditorWidth + (this._reservedDetailWidth() > 0 ? effectiveAuxBarWidth : 0);
 	}
@@ -391,28 +396,39 @@ export class DesktopWorkbench extends Workbench {
 		this._runWithEditorVisibilitySyncSuspended(fn);
 	}
 
-	protected override _applyEditorVisibility(hidden: boolean): void {
-		if (this.getDetailsPosition() !== 'right') {
-			if (hidden && this.partVisibility.auxiliaryBar) {
-				this._savedPartSizes.editor = this.workbenchGrid.getViewSize(this.editorPartView).width;
+	private _applyStackedEditorNodeVisibility(): void {
+		const visible = this._editorNodeShouldBeVisible();
+		const revealing = visible && !this.workbenchGrid.isViewVisible(this.editorPartView);
+		const savedWidth = this._savedPartSizes.editor;
+		const hasSavedWidth = savedWidth !== undefined && savedWidth >= EDITOR_PART_MINIMUM_WIDTH;
+		this.workbenchGrid.setViewVisible(this.editorPartView, visible, revealing && !hasSavedWidth ? Sizing.Distribute : undefined);
+		if (revealing) {
+			if (hasSavedWidth) {
+				this.workbenchGrid.resizeView(this.editorPartView, {
+					width: savedWidth,
+					height: this.workbenchGrid.getViewSize(this.editorPartView).height,
+				});
+			} else {
+				this._hasAppliedInitialEditorSplit = true;
 			}
-			this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
-			this._layoutDockedAuxBar();
-			this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
-			this._notifyContainerDidLayout();
-			return;
 		}
-		// Part sizes are workbench-global, so hiding the side pane must not discard the
-		// user's chosen editor width. Capture the current editor content width before the
-		// grid collapses the node, so revealing later — e.g. switching back from a session
-		// that closed the pane — restores it instead of resetting to the default split.
+	}
+
+	protected override _applyEditorVisibility(hidden: boolean): void {
+		// Capture content width before the shared grid node is hidden or resized.
 		if (hidden) {
 			const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
 			if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
 				this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
 			}
 		}
-
+		if (!this._isHorizontalDetailsPosition()) {
+			this._applyStackedEditorNodeVisibility();
+			this._layoutDockedAuxBar();
+			this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
+			this._notifyContainerDidLayout();
+			return;
+		}
 		// When revealing without a captured "Hide Editor" size to restore, prefer the
 		// remembered global editor width and only fall back to the equal split
 		// when there is no known good width (a genuine first open).
@@ -492,11 +508,12 @@ export class DesktopWorkbench extends Workbench {
 		// event the grid path would otherwise raise (the layout controller listens
 		// for it to capture per-session state).
 		if (this.workbenchGrid) {
-			this.workbenchGrid.setViewVisible(
-				this.editorPartView,
-				this._editorNodeShouldBeVisible()
-			);
-			if (!hidden && !this.partVisibility.editor && this.getDetailsPosition() === 'right') {
+			if (this._isHorizontalDetailsPosition()) {
+				this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
+			} else {
+				this._applyStackedEditorNodeVisibility();
+			}
+			if (!hidden && !this.partVisibility.editor && this._isHorizontalDetailsPosition()) {
 				this._runWithEditorVisibilitySyncSuspended(() => {
 					this.workbenchGrid.resizeView(this.editorPartView, {
 						width: this._dockedAuxiliaryBarWidth,

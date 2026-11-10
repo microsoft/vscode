@@ -483,19 +483,23 @@ suite('Workbench editor utils', () => {
 		const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
 		title.classList.add('title-border-bottom');
 		const results = [];
-		for (const { width, inset } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }]) {
+		for (const { width, inset, left = 0 } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }, { width: 600, inset: 0, left: 220 }, { width: 700, inset: 100, left: 220 }, { width: 400, inset: 0, left: 500 }, { width: 600, inset: 0, left: 0 }]) {
 			group.layout(width, 400, 0, 0);
-			group.setContentRightInset(inset);
+			group.setContentHorizontalInsets(left, inset);
 			results.push({
-				width, inset,
+				width, inset, left,
 				separatorWidth: mainWindow.getComputedStyle(title, '::after').width,
+				separatorLeft: mainWindow.getComputedStyle(title, '::after').left,
 				editorWidth: root.querySelector<HTMLElement>('.editor-container')!.style.width,
+				editorLeft: root.querySelector<HTMLElement>('.editor-container')!.style.marginLeft,
 			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result,
-			separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
-			editorWidth: `${Math.max(0, result.width - result.inset)}px`,
+			separatorWidth: `${Math.max(0, result.width - result.left - result.inset)}px`,
+			separatorLeft: `${result.left}px`,
+			editorWidth: `${Math.max(0, result.width - result.left - result.inset)}px`,
+			editorLeft: result.left ? `${result.left}px` : '',
 		})));
 	});
 

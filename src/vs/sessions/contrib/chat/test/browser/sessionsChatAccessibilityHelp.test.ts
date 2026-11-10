@@ -235,7 +235,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
-			detailPositions: content.includes('above, or below editor content inside the side panel. The side panel stays beside chat.'),
+			detailPositions: content.includes('to the left or right of, above, or below editor content inside the side panel. The side panel stays beside chat.'),
 			floatingDetails: content.includes('Activate Unpin to return to hover-preview mode without collapsing the view or moving focus.'),
 			instantSelection: content.includes('Opening a file or diff collapses an unpinned preview immediately, without a delay or collapse animation; expanding a folder does not.'),
 			passiveDetailsHeader: content.includes('Clicking the title or header does not change the pin state.'),

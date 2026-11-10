@@ -25,7 +25,7 @@ export interface IDockedAuxiliaryBarHost {
 	isAuxiliaryBarVisible(): boolean;
 	/** Hide the docked auxiliary bar via the workbench part-visibility API. */
 	hideAuxiliaryBar(): void;
-	setEditorContentInsets(right: number, top: number, bottom: number): void;
+	setEditorContentInsets(right: number, top: number, bottom: number, left: number): void;
 	/** Height of the editor tabs above the optional header. */
 	getTabsHeight(): number;
 	getEditorContentTop(): number;
@@ -82,15 +82,15 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 		if (this.floating?.isEnabled() && this.host.isEditorAreaVisible() && this.host.isEditorVisible() && this.host.isAuxiliaryBarVisible()) {
 			this._layoutState = undefined;
-			this.host.setEditorContentInsets(0, 0, 0);
+			this.host.setEditorContentInsets(0, 0, 0, 0);
 			this._disableSashes();
-			auxiliaryBarContainer.classList.remove('docked-auxiliarybar-top', 'docked-auxiliarybar-bottom');
+			auxiliaryBarContainer.classList.remove('docked-auxiliarybar-left', 'docked-auxiliarybar-top', 'docked-auxiliarybar-bottom');
 			this._floatingController ??= this._register(this.floating.createController());
 			if (this._pinFloatingOnReveal) {
 				this._floatingController.setPinned(true);
 				this._pinFloatingOnReveal = false;
 			}
-			this._floatingController.layout(this._getTop());
+			this._floatingController.layout(this.host.getEditorContentTop());
 			return;
 		}
 		this._floatingController?.hide();
@@ -98,15 +98,16 @@ export class DockedAuxiliaryBarController extends Disposable {
 		if (!this.host.isEditorAreaVisible() || !this.host.isAuxiliaryBarVisible()) {
 			this._layoutState = undefined;
 			auxiliaryBarContainer.style.display = 'none';
-			this.host.setEditorContentInsets(0, 0, 0);
+			this.host.setEditorContentInsets(0, 0, 0, 0);
 			this._disableSashes();
 			return;
 		}
 
 		const position = this.host.getPosition();
+		auxiliaryBarContainer.classList.toggle('docked-auxiliarybar-left', position === 'left');
 		auxiliaryBarContainer.classList.toggle('docked-auxiliarybar-top', position === 'top');
 		auxiliaryBarContainer.classList.toggle('docked-auxiliarybar-bottom', position === 'bottom');
-		if (position !== 'right') {
+		if (position === 'top' || position === 'bottom') {
 			this._layoutVertical(auxiliaryBarContainer, position);
 			return;
 		}
@@ -126,13 +127,14 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 		auxiliaryBarContainer.style.display = '';
 		auxiliaryBarContainer.style.position = 'absolute';
-		auxiliaryBarContainer.style.right = '0';
+		auxiliaryBarContainer.style.left = position === 'left' ? '0' : '';
+		auxiliaryBarContainer.style.right = position === 'right' ? '0' : '';
 		auxiliaryBarContainer.style.top = `${top}px`;
 		auxiliaryBarContainer.style.width = `${auxWidth}px`;
 		auxiliaryBarContainer.style.height = `${height}px`;
 
-		this.host.setEditorContentInsets(auxWidth, 0, 0);
-		this.auxiliaryBarPart.layout(auxWidth, height, top, editorRect.width - auxWidth);
+		this.host.setEditorContentInsets(position === 'right' ? auxWidth : 0, 0, 0, position === 'left' ? auxWidth : 0);
+		this.auxiliaryBarPart.layout(auxWidth, height, top, position === 'left' ? 0 : editorRect.width - auxWidth);
 
 		this._ensureSash();
 		// The real grid sash owns resizing/collapsing when editor content is hidden.
@@ -173,10 +175,11 @@ export class DockedAuxiliaryBarController extends Disposable {
 		this._verticalLayoutState = { height, sashTop: position === 'top' ? top + height : top };
 		container.style.display = '';
 		container.style.position = 'absolute';
+		container.style.left = '';
 		container.style.right = '0';
 		container.style.top = `${top}px`;
 		container.style.width = `${width}px`;
-		this.host.setEditorContentInsets(0, editorVisible && position === 'top' ? height : 0, editorVisible && position === 'bottom' ? height : 0);
+		this.host.setEditorContentInsets(0, editorVisible && position === 'top' ? height : 0, editorVisible && position === 'bottom' ? height : 0, 0);
 		this.auxiliaryBarPart.layout(width, Math.max(0, height - 1), top, 0);
 		// Pane-composite layout clears the height; restore the allocated box including its separator.
 		container.style.height = `${height}px`;
@@ -277,7 +280,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 				const auxWidth = this.host.isEditorVisible()
 					? this._layoutState?.auxiliaryBarWidth ?? DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), width)
 					: width;
-				return Math.max(0, width - auxWidth);
+				return this.host.getPosition() === 'left' ? auxWidth : Math.max(0, width - auxWidth);
 			},
 			getVerticalSashTop: () => this._getTop(),
 			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - this._getTop()),
@@ -294,8 +297,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 			if (this._sashCollapsed) {
 				return;
 			}
-			// Dragging left (currentX < startX) widens the detail panel.
-			const delta = e.startX - e.currentX;
+			const delta = this.host.getPosition() === 'left' ? e.currentX - e.startX : e.startX - e.currentX;
 			const width = editorPartContainer.clientWidth;
 			const requestedWidth = this._sashStartWidth + delta;
 			if (requestedWidth < DockedAuxiliaryBarController.COLLAPSE_WIDTH) {

@@ -3011,7 +3011,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	getDetailsPosition(): DetailsPosition {
-		return this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
+		return this._detailsPosition === 'left' || this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
 	}
 
 	setDetailsPosition(position: DetailsPosition): void {

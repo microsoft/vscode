@@ -59,6 +59,8 @@ suite('Sessions chat layout configuration', () => {
 			setAuxiliaryBarFloating: floating => calls.push(floating),
 		});
 		const contribution = store.add(new SessionsSidePaneLayoutContribution(configuration, layout));
+		await configuration.setUserConfiguration(SESSIONS_DETAILS_POSITION_SETTING, 'left');
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
 		await configuration.setUserConfiguration(SESSIONS_DETAILS_POSITION_SETTING, 'bottom');
 		await configuration.setUserConfiguration(SESSIONS_FLOATING_DETAILS_SETTING, true);
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
@@ -67,14 +69,14 @@ suite('Sessions chat layout configuration', () => {
 		store.add(new SessionsSidePaneLayoutContribution(configuration, upcastPartial<IAgentWorkbenchLayoutService>({
 			...layout, agentWorkbenchLayout: AgentWorkbenchLayout.Mobile,
 		})));
-		assert.deepStrictEqual(calls, ['right', false, 'bottom', true]);
+		assert.deepStrictEqual(calls, ['right', false, 'left', false, 'bottom', true]);
 	});
 
-	test('registers right, top, and bottom positions within the editor side panel', () => {
+	test('registers left, right, top, and bottom positions within the editor side panel', () => {
 		assert.deepStrictEqual({
 			options: registeredProperties[SESSIONS_DETAILS_POSITION_SETTING].enum,
 			descriptions: registeredProperties[SESSIONS_DETAILS_POSITION_SETTING].enumDescriptions?.length,
-		}, { options: ['right', 'top', 'bottom'], descriptions: 3 });
+		}, { options: ['right', 'left', 'top', 'bottom'], descriptions: 4 });
 	});
 
 	test('does not register a separate PR activity action opt-in setting', () => {

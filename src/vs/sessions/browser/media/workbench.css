@@ -396,6 +396,11 @@
 	z-index: 2;
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar-left {
+	border-left: 0;
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar-top {
 	border-left: 0;
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);

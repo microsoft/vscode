@@ -10,7 +10,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Emitter } from '../../../base/common/event.js';
 import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { FloatingAuxiliaryBarController } from '../../browser/floatingAuxiliaryBarController.js';
 import { DockedAuxiliaryBarController } from '../../browser/dockedAuxiliaryBarController.js';
@@ -18,6 +18,11 @@ import { upcastPartial } from '../../../base/test/common/mock.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { DesktopAuxiliaryBarPart } from '../../browser/parts/desktopAuxiliaryBarPart.js';
+import { PaneComposite } from '../../../workbench/browser/panecomposite.js';
+import { ViewPane } from '../../../workbench/browser/parts/views/viewPane.js';
+import { ViewPaneContainer } from '../../../workbench/browser/parts/views/viewPaneContainer.js';
+import { IView, ViewContainerLocation } from '../../../workbench/common/views.js';
+import { ViewsService } from '../../../workbench/services/views/browser/viewsService.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { getIconRegistry } from '../../../platform/theme/common/iconRegistry.js';
@@ -1167,6 +1172,83 @@ suite('Sessions - Floating Details', () => {
 		assert.deepStrictEqual(calls, ['open:false', 'reveal', 'open:true']);
 	});
 
+	test('opening an individual view reveals and pins floating details before focusing its tree', async () => {
+		const { editor, tree, part, controller } = createHost(false);
+		controller.layout(33);
+		const calls: string[] = [];
+		const view = upcastPartial<ViewPane>({
+			id: 'files',
+			setExpanded: () => false,
+			focus: () => {
+				calls.push(part.style.display === 'none' ? 'focus:hidden' : 'focus:visible');
+				tree.focus();
+			},
+		});
+		const container = upcastPartial<ViewPaneContainer>({ getView: () => view });
+		Object.setPrototypeOf(container, ViewPaneContainer.prototype);
+		const composite = upcastPartial<PaneComposite>({});
+		Object.setPrototypeOf(composite, PaneComposite.prototype);
+		Reflect.set(composite, 'viewPaneContainer', container);
+		let activeComposite: PaneComposite | undefined = composite;
+		const auxiliaryBar = upcastPartial<DesktopAuxiliaryBarPart>({
+			getActivePaneComposite: () => activeComposite,
+			beforeFocus: () => { calls.push('reveal'); controller.setPinned(true); },
+		});
+		Object.setPrototypeOf(auxiliaryBar, DesktopAuxiliaryBarPart.prototype);
+		Reflect.set(auxiliaryBar, 'contentHeightListener', store.add(new MutableDisposable()));
+		Reflect.set(auxiliaryBar, 'focusPreparation', store.add(new MutableDisposable()));
+		Reflect.set(auxiliaryBar, '_onDidChangeContentHeight', store.add(new Emitter<void>()));
+		auxiliaryBar.setSizeToContent(false);
+		const open = sinon.stub(AbstractPaneCompositePart.prototype, 'openPaneComposite').callsFake(async (_id, focus) => {
+			calls.push(`open:${focus}`);
+			return composite;
+		});
+		store.add(toDisposable(() => open.restore()));
+		const viewsHost = {
+			viewDescriptorService: {
+				getViewContainerByViewId: () => ({ id: 'files-container' }),
+				getViewContainerModel: () => ({ activeViewDescriptors: [{ id: 'files' }] }),
+				getViewContainerLocation: () => ViewContainerLocation.AuxiliaryBar,
+			},
+			paneCompositeService: {
+				getPaneComposite: () => ({ id: 'files-container', name: 'Files' }),
+				openPaneComposite: (id: string, _location: ViewContainerLocation, focus?: boolean) => auxiliaryBar.openPaneComposite(id, focus),
+			},
+		};
+		Object.setPrototypeOf(viewsHost, ViewsService.prototype);
+		const openView = Reflect.get(ViewsService.prototype, 'openView') as (this: typeof viewsHost, id: string, focus: boolean) => Promise<IView | null>;
+		await openView.call(viewsHost, 'files', false);
+		const nonFocusingOpen = editor.querySelector('.floating-details')!.classList.contains('collapsed');
+		const opened = await openView.call(viewsHost, 'files', true);
+		assert.deepStrictEqual({
+			nonFocusingOpen, opened: opened === view, focused: getActiveElement() === tree,
+			pinned: editor.querySelector('.floating-details-toggle')?.getAttribute('aria-pressed'), calls,
+		}, { nonFocusingOpen: true, opened: true, focused: true, pinned: 'true', calls: ['open:undefined', 'open:undefined', 'reveal', 'focus:visible'] });
+
+		activeComposite = undefined;
+		auxiliaryBar.setSizeToContent(false);
+		controller.setPinned(false);
+		controller.hide();
+		controller.layout(33);
+		calls.length = 0;
+		container.openView('files', true);
+		assert.deepStrictEqual(calls, ['focus:hidden']);
+	});
+
+	test('focus preparation is opt-in and is released without changing ordinary container focus', () => {
+		const calls: string[] = [];
+		const view = upcastPartial<ViewPane>({ isExpanded: () => true, focus: () => calls.push('focus') });
+		const container = upcastPartial<ViewPaneContainer>({});
+		Object.setPrototypeOf(container, ViewPaneContainer.prototype);
+		Reflect.set(container, 'paneItems', [{ pane: view }]);
+		container.focus();
+		const preparation = store.add(container.setFocusPreparation(() => calls.push('prepare')));
+		container.focus();
+		preparation.dispose();
+		container.focus();
+		assert.deepStrictEqual(calls, ['focus', 'prepare', 'focus', 'focus']);
+	});
+
 	test('a preview stays open during resize and uses the exit grace period after releasing outside it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { editor, controller, snapshot } = createHost(false);
 		controller.layout(33);
@@ -1232,7 +1314,11 @@ suite('Sessions - Floating Details', () => {
 			Object.assign(editor.style, { position: 'relative', width: '800px', height: '600px', overflow: 'hidden' });
 			const content = append(editor, $('.content'));
 			Object.assign(content.style, { position: 'absolute', inset: '0' });
-			const editorScroll = append(content, $('.monaco-scrollable-element'));
+			const group = append(content, $('.editor-group-container'));
+			Object.assign(group.style, { position: 'absolute', inset: '0' });
+			const pane = append(group, $('.editor-container'));
+			Object.assign(pane.style, { position: 'absolute', inset: '0' });
+			const editorScroll = append(pane, $('.monaco-scrollable-element'));
 			Object.assign(editorScroll.style, { position: 'absolute', inset: '0' });
 			const editorScrollbar = append(editorScroll, $('.scrollbar.vertical.visible'));
 			Object.assign(editorScrollbar.style, { position: 'absolute', right: '0', top: '0', width: '14px', height: '100%' });

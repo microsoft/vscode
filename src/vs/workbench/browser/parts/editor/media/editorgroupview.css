@@ -239,7 +239,7 @@
 	content: '';
 	position: absolute;
 	bottom: 0;
-	left: 0;
+	left: var(--title-border-bottom-left, 0px);
 	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);

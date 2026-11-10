@@ -190,11 +190,13 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
-				setEditorContentInsets: (right, top, bottom) => {
+				setEditorContentInsets: (right, top, bottom, left) => {
 					this.setContentRightInset(right);
 					for (const group of this.groups) {
+						(group as EditorGroupView).setContentHorizontalInsets(left, right);
 						(group as EditorGroupView).setContentVerticalInsets(top, bottom);
 					}
+					this.element.style.setProperty('--sessions-editor-content-left-inset', `${left}px`);
 					this.element.style.setProperty('--sessions-editor-content-top-inset', `${top}px`);
 					this.element.style.setProperty('--sessions-editor-content-bottom-inset', `${bottom}px`);
 				},

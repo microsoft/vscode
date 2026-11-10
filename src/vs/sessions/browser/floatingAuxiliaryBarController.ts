@@ -170,7 +170,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 			if (accessibilityService.isMotionReduced() && this.motion.value) {
 				this.motion.clear();
 				if (this.visible) {
-					this.layout(this.tabsHeight);
+					this.layout(this.contentTop);
 				}
 			}
 		}));
@@ -187,7 +187,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 				if (event.reset === 'width' || (event.east || event.west) && event.dimension.width !== this.renderedSize.width) {
 					this.host.setWidth(event.reset === 'width' ? 300 : event.dimension.width);
 				}
-				this.layout(this.tabsHeight);
+				this.layout(this.contentTop);
 			}
 			if (event.done) {
 				this.resizing = false;
@@ -239,12 +239,12 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		}));
 	}
 
-	private tabsHeight = 0;
+	private contentTop = 0;
 
-	layout(tabsHeight: number): void {
+	layout(contentTop: number): void {
 		this.stopDragging();
 		this.motion.clear();
-		this.tabsHeight = tabsHeight;
+		this.contentTop = contentTop;
 		this.updateTitle();
 		const part = this.auxiliaryBarPart.getContainer();
 		if (!part) {
@@ -303,7 +303,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		part.style.width = `${Math.max(0, width - 2)}px`;
 		part.style.height = `${Math.max(0, height - FloatingAuxiliaryBarController.HEADER_HEIGHT - 2)}px`;
 		this.auxiliaryBarPart.layout(Math.max(0, width - 2), Math.max(0, height - FloatingAuxiliaryBarController.HEADER_HEIGHT - 2),
-			bottom ? this.editorContainer.clientHeight - FloatingAuxiliaryBarController.GAP - y - height : tabsHeight + FloatingAuxiliaryBarController.GAP + y + FloatingAuxiliaryBarController.HEADER_HEIGHT,
+			bottom ? this.editorContainer.clientHeight - FloatingAuxiliaryBarController.GAP - y - height : contentTop + FloatingAuxiliaryBarController.GAP + y + FloatingAuxiliaryBarController.HEADER_HEIGHT,
 			left ? FloatingAuxiliaryBarController.GAP + x : this.editorContainer.clientWidth - width - FloatingAuxiliaryBarController.GAP - x);
 		this.updateResizeHandle(this.widthHandle, width, this.resizable.minSize.width, maxWidth);
 		this.updateResizeHandle(this.heightHandle, height, this.resizable.minSize.height, heightLimits.maximum);
@@ -363,7 +363,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 			this.host.setWidth(width);
 		}
 		if (this.visible) {
-			this.layout(this.tabsHeight);
+			this.layout(this.contentTop);
 		}
 	}
 
@@ -415,7 +415,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		const limits = this.getHeightLimits(this.getAvailableSpace().maxHeight);
 		if (limits.height !== this.renderedSize.height || limits.maximum !== this.resizable.maxSize.height) {
 			const from = this.motion.value ? this.resizable.domNode.getBoundingClientRect() : undefined;
-			this.layout(this.tabsHeight);
+			this.layout(this.contentTop);
 			if (from) {
 				this.animateFrame(from, this.resizable.domNode.getBoundingClientRect());
 			}
@@ -424,7 +424,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 
 	private getAvailableSize(): Dimension {
 		return new Dimension(Math.max(0, this.editorContainer.clientWidth - FloatingAuxiliaryBarController.GAP * 2),
-			Math.max(0, this.editorContainer.clientHeight - this.tabsHeight - FloatingAuxiliaryBarController.GAP * 2));
+			Math.max(0, this.editorContainer.clientHeight - this.contentTop - FloatingAuxiliaryBarController.GAP * 2));
 	}
 
 	private getAvailableSpace(): { x: number; y: number; maxWidth: number; maxHeight: number } {
@@ -442,7 +442,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		element.classList.toggle('anchored-bottom', bottom);
 		element.style.left = left ? `${FloatingAuxiliaryBarController.GAP + x}px` : '';
 		element.style.right = left ? '' : `${FloatingAuxiliaryBarController.GAP + x}px`;
-		element.style.top = bottom ? '' : `${this.tabsHeight + FloatingAuxiliaryBarController.GAP + y}px`;
+		element.style.top = bottom ? '' : `${this.contentTop + FloatingAuxiliaryBarController.GAP + y}px`;
 		element.style.bottom = bottom ? `${FloatingAuxiliaryBarController.GAP + y}px` : '';
 	}
 
@@ -454,11 +454,11 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		const maximumY = Math.max(0, area.height - bounds.height);
 		const editor = this.editorContainer.getBoundingClientRect();
 		const x = clamp(bounds.left - editor.left - this.editorContainer.clientLeft - FloatingAuxiliaryBarController.GAP + deltaX, 0, maximumX);
-		const y = clamp(bounds.top - editor.top - this.editorContainer.clientTop - this.tabsHeight - FloatingAuxiliaryBarController.GAP + deltaY, 0, maximumY);
+		const y = clamp(bounds.top - editor.top - this.editorContainer.clientTop - this.contentTop - FloatingAuxiliaryBarController.GAP + deltaY, 0, maximumY);
 		const horizontal = this.state === 'collapsed' ? (x > maximumX / 2 ? 'right' : 'left') : this.position.horizontal;
 		const vertical = this.state === 'collapsed' ? (y > maximumY / 2 ? 'bottom' : 'top') : this.position.vertical;
 		this.position = { horizontal, vertical, x: horizontal === 'left' ? x : maximumX - x, y: vertical === 'top' ? y : maximumY - y };
-		this.layout(this.tabsHeight);
+		this.layout(this.contentTop);
 	}
 
 	private startDragging(event: PointerEvent): void {
@@ -468,12 +468,12 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		event.preventDefault();
 		event.stopPropagation();
 		this.hoverExit.cancel();
-		this.layout(this.tabsHeight);
+		this.layout(this.contentTop);
 		const origin = this.resizable.domNode.getBoundingClientRect();
 		const area = this.getAvailableSize();
 		const editor = this.editorContainer.getBoundingClientRect();
 		const left = origin.left - editor.left - this.editorContainer.clientLeft - FloatingAuxiliaryBarController.GAP;
-		const top = origin.top - editor.top - this.editorContainer.clientTop - this.tabsHeight - FloatingAuxiliaryBarController.GAP;
+		const top = origin.top - editor.top - this.editorContainer.clientTop - this.contentTop - FloatingAuxiliaryBarController.GAP;
 		const position = {
 			...this.position,
 			x: this.position.horizontal === 'left' ? left : area.width - origin.width - left,
@@ -509,7 +509,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 
 	private resetPosition(): void {
 		this.position = defaultPosition;
-		this.layout(this.tabsHeight);
+		this.layout(this.contentTop);
 	}
 
 	private setState(state: FloatingDetailsState, animate = true): void {
@@ -525,7 +525,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		this.state = state;
 		this.updateTitle();
 		if (this.visible && expanded !== (state !== 'collapsed')) {
-			this.layout(this.tabsHeight);
+			this.layout(this.contentTop);
 			if (animate && from) {
 				this.animateFrame(from, this.resizable.domNode.getBoundingClientRect());
 			}
@@ -576,7 +576,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 		animation.onfinish = () => {
 			this.motion.clear();
 			if (this.visible) {
-				this.layout(this.tabsHeight);
+				this.layout(this.contentTop);
 			}
 		};
 	}
@@ -619,7 +619,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 				} else {
 					this.host.setHeight(key.keyCode === KeyCode.Home ? 400 : value);
 				}
-				this.layout(this.tabsHeight);
+				this.layout(this.contentTop);
 			}
 		}));
 		return handle;
