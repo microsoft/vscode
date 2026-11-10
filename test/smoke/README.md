@@ -84,6 +84,8 @@ Proxy runs disable worktree isolation. The mandatory Copilot test sends a fresh 
 
 Kerberos mode serves the mock API over HTTPS so the runtime exercises proxy CONNECT before TLS, matching production CAPI transport. The fixture generates a one-day test CA and server certificate, passes the CA through `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`, and removes the certificate material during cleanup. The Agent Host includes Node's process-supplied extra certificates alongside system certificates in the proxy-agent certificate callback, so Node-side model discovery uses the same CA without modifying the macOS trust store. TLS verification remains enabled. The unauthenticated proxy fixture continues to use HTTP.
 
+`--basic` instead requires Basic authentication with a random password for all proxy traffic and serves the mock API over HTTPS like Kerberos mode. It sets no system PAC URL: the smoke tests put the proxy URL, credentials included, in the `http.proxy` user setting, and run only the `Agents Window (local AgentHost` suites. The local AgentHost suite checks that the Agent Host forwarded the credentialed proxy to the Copilot runtime. Post-run validation requires a tunnel to the mock host that Squid authenticated for the fixture's user.
+
 ### WSL Agent Hosts through a Windows Kerberos proxy
 
 These Windows suites check that an Agent Host in WSL uses its Windows client's proxy configuration, Kerberos tickets and certificates, so that the WSL distribution needs none of them. The Agents Window suite starts the Agent Host itself; the editor window suite opens a remote window on a VS Code server in WSL, which spawns the Agent Host. After compiling the smoke tests, run:
@@ -103,6 +105,18 @@ The editor window suite opens `vscode-remote://wsl+<distribution>/...` through t
 For both suites, the script first verifies that Squid answers an unauthenticated tunnel with HTTP 407 and that Windows can obtain an `HTTP/localhost` ticket. Afterwards, it requires the PAC fetch, a Kerberos-authenticated tunnel to the mock host in Squid's access log, and a ticket that the KDC issued to Windows. Cleanup restores the proxy settings and the Kerberos, certificate and firewall configuration, and removes all temporary files. Logs are kept in `.build/logs/agents-window-wsl-kerberos-proxy`, including the smoke test logs, so that an earlier run's `.build/logs/smoke-tests-electron` is kept. Likewise, the JUnit report goes to `test-results/*-desktop-smoke-tests-wsl-kerberos-proxy-results.xml`, keeping an earlier run's report.
 
 In CI, the Windows Electron smoke job that runs the WSL Dev Container suite also runs this script after the main smoke tests, in the distribution that `test/smoke/wslDevContainer.ps1` provisions with the KDC and Squid packages and the pinned server. The pinned server refuses a client built from source or of another commit, so pull request CI runs only the Agents Window suite. The Azure product build (`smoke-wsl-kerberos-proxy`) runs both suites with its packaged client: the editor window suite uses the Linux server of the same run's Linux x64 compile job, which `wslDevContainer.ps1 -Operation AddServer` extracts into the distribution. Without a Linux x64 build in the run, only the Agents Window suite runs.
+
+#### Basic authentication from the `http.proxy` setting
+
+`-ProxyAuth Basic` runs the editor window suite through a Squid proxy that requires Basic authentication with a random password, instead of Kerberos:
+
+```powershell
+.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+```
+
+The smoke tests put the proxy URL, credentials included, in the `http.proxy` user setting, which the client mirrors to the WSL server's Agent Host. There is no KDC, PAC or `ksetup` configuration and no network-only logon; the test CA and firewall rule are set up as for Kerberos. The suite additionally checks that the WSL Agent Host forwarded the credentialed proxy to the Copilot runtime. Afterwards, the script requires a tunnel to the mock host that Squid authenticated for the fixture's user. `-Suites AgentsWindow` is not supported in this mode. Logs are kept in `.build/logs/agents-window-wsl-basic-proxy`, and the JUnit report goes to `test-results/*-desktop-smoke-tests-wsl-basic-proxy-results.xml`.
+
+The editor window suite needs a server of the client's commit, so only the Azure product build runs this mode (`smoke-wsl-basic-proxy`), with the Linux server of the same run's Linux x64 compile job. The macOS Basic run (`--basic` above) runs in the last macOS Electron smoke shard and in the Azure product build (`smoke-agents-basic-proxy`).
 
 ### Dev Container sessions over SSH, Tunnels, and WSL
 

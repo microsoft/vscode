@@ -30,7 +30,6 @@ import {
 	ICloudSandboxAgentHostService,
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
-	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
 	CloudSandboxRequestError,
 	type CloudSandboxConnectResult,
@@ -44,6 +43,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { isSealedEnvironmentToken } from '../../../../../platform/github/common/missionControl/environments.js';
 import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { getCloudSandboxConnectionSurface, ICloudSandboxTelemetryService, type CloudSandboxConnectionSurface, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
@@ -395,7 +395,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		if (!sealedToken) {
 			throw new Error(`Mission Control returned no sealed token for ${address}; the session cannot make authenticated requests.`);
 		}
-		if (!isCloudSandboxSealedToken(sealedToken)) {
+		if (!isSealedEnvironmentToken(sealedToken)) {
 			throw new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
 		}
 		staged.lastAuthenticationToken = sealedToken;
@@ -642,7 +642,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		let rateLimitFailures = 0;
 		let rateLimitedAt: number | undefined;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
-		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
+		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isSealedEnvironmentToken(clientToken.encrypted_github_token); attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

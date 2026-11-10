@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
-import { bufferToStream, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../../base/common/errors.js';
@@ -70,8 +69,14 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../services/host/browser/host.js';
+import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
+import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
+import { AccountClient } from '../../../../../../../platform/github/common/account/accountClient.js';
+import { LocalMissionControlRequestProvider } from '../../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
+import { IGitHubCredentials } from '../../../../../../../platform/github/common/githubCredentialService.js';
+import { GitHubTransport } from '../../../../../../../platform/github/common/githubTransport.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILifecycleService } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -423,6 +428,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = Event.None;
+		override readonly onDidResume = Event.None;
+	}());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportSessionFeed() { }
@@ -3064,17 +3073,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	test('successive short-gap reconnects send since from the last successful list until full repair is due', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: { since: string | null; environment: string | null; repository: string | null; archived: string | null; limit: string | null; page: string | null }[][] = [];
 		let currentRequests: typeof requests[number] = [];
+		const transport = store.add(new GitHubTransport(async input => {
+			const query = new URL(String(input)).searchParams;
+			currentRequests.push({
+				since: query.get('since'), environment: query.get('include_environment_kinds'),
+				repository: query.get('with_repo'), archived: query.get('is_archived'), limit: query.get('per_page'), page: query.get('page'),
+			});
+			return Response.json({ tasks: [] }, { headers: { date: new Date().toUTCString() } });
+		}));
 		const api = store.add(new CloudSandboxApiService(
-			new class extends mock<IRequestService>() {
-				override async request(options: { url?: string }) {
-					const query = new URL(options.url!).searchParams;
-					currentRequests.push({
-						since: query.get('since'), environment: query.get('include_environment_kinds'),
-						repository: query.get('with_repo'), archived: query.get('is_archived'), limit: query.get('per_page'), page: query.get('page'),
-					});
-					return { res: { statusCode: 200, headers: { date: new Date().toUTCString() } }, stream: bufferToStream(VSBuffer.fromString('{"tasks":[]}')) };
-				}
-			}(),
+			new class extends mock<IRequestService>() { }(),
 			new class extends mock<IAuthenticationService>() {
 				override readonly onDidChangeSessions = Event.None;
 				override readonly onDidRegisterAuthenticationProvider = Event.None;
@@ -3086,7 +3094,22 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override reportDiscovery() { }
 				override reportRequest() { }
 			}(),
-			new class extends mock<IWorkbenchGitHubService>() { }(),
+			new class extends mock<IWorkbenchGitHubService>() {
+				override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+					const lifetime = new DisposableStore();
+					const controller = new AbortController();
+					lifetime.add(toDisposable(() => controller.abort()));
+					const credentials: IGitHubCredentials = {
+						onDidInvalidate: Event.None,
+						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, signal: controller.signal }),
+						handleRequestError: () => { },
+					};
+					const provider = new LocalMissionControlRequestProvider({
+						apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test',
+					}, credentials, transport, new NullLogService(), controller.signal);
+					return new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, lifetime);
+				}
+			}(),
 			new class extends mock<IUserDataProfileService>() {
 				override readonly currentProfile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
 				override readonly onDidChangeCurrentProfile = Event.None;

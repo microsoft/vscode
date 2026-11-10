@@ -1,0 +1,47 @@
+parameters:
+  # Arguments of `computePnpmStoreCacheKey.ts`, for the platform of the job. Jobs that install the
+  # same dependencies on the same platform use the same arguments, so that they share a cache entry.
+  - name: keyArgs
+    type: string
+  # Operating system of the job (linux, macOS or windows), for templates that know it. Empty when the
+  # job can run on any of them.
+  - name: os
+    type: string
+    default: ''
+
+# Restores the pnpm store of the job's platform from the pipeline cache before the dependencies are
+# installed. The first step points pnpm at the cached folder for the later steps of the job
+# (PNPM_CONFIG_STORE_DIR), with pnpm's metadata cache inside it (PNPM_CONFIG_CACHE_DIR): the
+# metadata cache also keeps the log of the lockfiles that passed the supply-chain policies, which
+# pnpm then doesn't check again (https://pnpm.io/continuous-integration).
+#
+# The key is the platform and the lockfiles of every install root. When no store has it, for
+# example after a lockfile change, the latest store of the platform is restored, so pnpm downloads
+# only the packages that it doesn't have, and the cache saves the store at the end of the job.
+# Include prune-pnpm-store.yml after the installation, so that the saved store drops the packages
+# that the lockfiles no longer use.
+#
+# A failing cache step doesn't fail the job (continueOnError): pnpm then installs without the cached
+# store, and the cache doesn't save it, because it only saves after jobs that fully succeeded.
+steps:
+  - script: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts ${{ parameters.keyArgs }}
+    displayName: Prepare pnpm store cache key
+    continueOnError: true
+
+  - task: Cache@2
+    inputs:
+      key: '"pnpm_store" | .build/pnpmstorebase | .build/pnpmstorelockfiles'
+      restoreKeys: '"pnpm_store" | .build/pnpmstorebase'
+      path: $(PNPM_CONFIG_STORE_DIR)
+      cacheHitVar: PNPM_STORE_RESTORED
+    # AcesShared agents download the default 64 KB dedup chunks of large entries at ~7 MB/s, with
+    # request timeouts, against ~40 MB/s for the 1 MB chunks of pipeline artifacts. These agent
+    # knobs make the post-job step save new entries with 1 MB chunks, and restores follow the
+    # chunking of the saved entry.
+    ${{ if eq(parameters.os, 'macOS') }}:
+      env:
+        AGENT_ENABLE_PIPELINEARTIFACT_LARGE_CHUNK_SIZE: "true"
+        OVERRIDE_PIPELINE_ARTIFACT_CHUNKSIZE: Dedup1024K
+    displayName: Restore pnpm store cache
+    retryCountOnTaskFailure: 2
+    continueOnError: true
