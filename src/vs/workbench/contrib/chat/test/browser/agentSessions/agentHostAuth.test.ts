@@ -522,8 +522,12 @@ suite('AgentHostAuthenticationRecovery', () => {
 		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
 		session = { ...session, id: 'rotated', accessToken: 'replacement-token' };
 		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		session = { ...session, id: 'old-token-replayed', accessToken: 'original-token' };
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		session = { ...session, id: 'fresh', accessToken: 'fresh-token' };
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
 		assert.deepStrictEqual({ forwarded, interaction: command.calls, account: options.authTokenCache.getAccountId(resource.resource, resource.scopes_supported) }, {
-			forwarded: ['original-token', 'replacement-token'], interaction: [], account: account.id,
+			forwarded: ['original-token', 'replacement-token', 'fresh-token'], interaction: [], account: account.id,
 		});
 	});
 

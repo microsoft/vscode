@@ -9,6 +9,7 @@ import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { match } from '../../../../../../base/common/glob.js';
+import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -204,7 +205,7 @@ export class AgentHostAuthTokenCache {
 	}
 
 	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
-		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
+		this._rejectSession(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
 	}
 
 	/** Quarantines the credential previously sent for an expired challenge without losing sign-out ownership. */
@@ -214,8 +215,15 @@ export class AgentHostAuthTokenCache {
 		if (!current?.token || !current.identity) {
 			return this._rejectedSessions.has(key);
 		}
-		this._rejectedSessions.set(key, { id: current.identity.sessionId, accountId: current.identity.accountId, accessToken: current.token });
+		this._rejectSession(key, { id: current.identity.sessionId, accountId: current.identity.accountId, accessToken: current.token });
 		return true;
+	}
+
+	private _rejectSession(key: string, session: Omit<RejectedAuthenticationSession, 'tokenHashes'>): void {
+		const previous = this._rejectedSessions.get(key);
+		const tokenHashes = new Set(previous?.accountId === session.accountId ? previous.tokenHashes : undefined);
+		tokenHashes.add(authenticationTokenHash(session.accessToken));
+		this._rejectedSessions.set(key, { ...session, tokenHashes });
 	}
 
 	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
@@ -249,10 +257,17 @@ interface RejectedAuthenticationSession {
 	readonly id: string;
 	readonly accessToken: string;
 	readonly accountId: string;
+	readonly tokenHashes: ReadonlySet<string>;
+}
+
+function authenticationTokenHash(token: string): string {
+	const hash = new StringSHA1();
+	hash.update(token);
+	return hash.digest();
 }
 
 function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null): boolean {
-	return rejectedSession === null || (session.account.id === rejectedSession.accountId && session.accessToken !== rejectedSession.accessToken);
+	return rejectedSession === null || (session.account.id === rejectedSession.accountId && !rejectedSession.tokenHashes.has(authenticationTokenHash(session.accessToken)));
 }
 
 /**
@@ -531,7 +546,7 @@ async function resolveAuthenticationSessionForResource(
 			// With a default account, its preference picks the account, so a rejected session only excludes itself.
 			allSessions.filter(session => scopes.length > 0 && (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
 				&& (usesDefaultAccount
-					? rejectedSession === null || session.accessToken !== rejectedSession.accessToken
+					? rejectedSession === null || !rejectedSession.tokenHashes.has(authenticationTokenHash(session.accessToken))
 					: isAuthenticationSessionCandidate(session, rejectedSession))),
 			scopes,
 			preferredSessionId || usesDefaultAccount ? { accountId: preferredAccountId, fallbackToSoleAccount: usesDefaultAccount } : undefined,
@@ -551,7 +566,7 @@ async function resolveAuthenticationSessionForResource(
 			throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
 			const acquired = selectAuthenticationSession(sessions.filter(session => session.account.id === account.id
 				&& (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
-				&& (rejectedSession === null || session.accessToken !== rejectedSession.accessToken)), scopes);
+				&& (rejectedSession === null || !rejectedSession.tokenHashes.has(authenticationTokenHash(session.accessToken)))), scopes);
 			if (acquired.kind === 'selected') {
 				const entitlement = defaultAccountEntitlement(defaultAccount, providerId, acquired.session);
 				return { kind: 'resolved', providerId, session: acquired.session, match: acquired.match, ...(entitlement ? { entitlement } : {}) };
@@ -649,7 +664,7 @@ async function forwardAuthenticationToken(
 	const token = session?.accessToken ?? '';
 	const rejectedSession = options.target ? undefined : options.authTokenCache?.getRejectedSession(resource, scopes);
 	// The lookup may have started before this session was quarantined.
-	if (rejectedSession && rejectedSession.accessToken === token) {
+	if (rejectedSession?.tokenHashes.has(authenticationTokenHash(token))) {
 		throw new CancellationError();
 	}
 	const request = {

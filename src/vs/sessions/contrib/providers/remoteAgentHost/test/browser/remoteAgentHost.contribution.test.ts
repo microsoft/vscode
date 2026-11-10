@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -400,15 +400,16 @@ suite('RemoteAgentHost auth notifications', () => {
 		assert.deepStrictEqual(forwarded, []);
 	});
 
-	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
+	test('renews a previously supplied notification resource that is not advertised by root agents', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
+		let token = 'session-token';
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{
 				id: 'session-id',
 				account: { id: 'account-id', label: 'Test Account' },
 				scopes: ['session:read'],
-				accessToken: 'session-token',
+				accessToken: token,
 			}],
 		});
 		const logService = new NullLogService();
@@ -439,13 +440,17 @@ suite('RemoteAgentHost auth notifications', () => {
 			reason: AuthRequiredReason.Expired,
 		};
 
+		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
+		await timeout(0);
+		authenticateCalls.length = 0;
+		token = 'replacement-token';
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(authenticateCalls, [{
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
-			token: 'session-token',
+			token: 'replacement-token',
 			_meta: {
 				'vscode.authentication.account': {
 					providerId: 'test-provider',
@@ -486,17 +491,20 @@ suite('RemoteAgentHost auth notifications', () => {
 		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
 	});
 
-	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
+	test('explicit recovery creates a fresh envelope and passive required repair reseals the accepted token', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		let token = 'session-token';
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
-			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
+			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: token }],
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		let promptCount = 0;
 		instantiationService.stub(ICommandService, {
 			executeCommand: async <R>() => {
 				promptCount++;
+				token = 'replacement-token';
 				return { success: true } as R;
 			},
 		});
@@ -527,15 +535,25 @@ suite('RemoteAgentHost auth notifications', () => {
 			authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; },
 		};
 
-		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
+		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
 		await timeout(0);
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
+		await timeout(0);
+		assert.deepStrictEqual({ envelopes, promptCount }, { envelopes: ['session-token:sealed-1'], promptCount: 0 });
+		const state = contribution._connections.get(address);
+		assert.ok(state);
+		assert.strictEqual(await instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			authTokenCache: state.authTokenCache,
+			logPrefix: '[Test]',
+			authenticate: contribution._authenticateCallback(address, connection),
+		}), true);
+		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
 		await timeout(0);
 
 		assert.deepStrictEqual({ envelopes, promptCount, reasons }, {
-			envelopes: ['session-token:sealed-1', 'session-token:sealed-2'],
+			envelopes: ['session-token:sealed-1', 'replacement-token:sealed-2', 'replacement-token:sealed-3'],
 			promptCount: 1,
-			reasons: [AuthRequiredReason.Expired, AuthRequiredReason.Expired],
+			reasons: [AuthRequiredReason.Required, undefined, AuthRequiredReason.Required],
 		});
 	});
 
