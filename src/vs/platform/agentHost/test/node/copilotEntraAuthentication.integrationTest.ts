@@ -204,6 +204,18 @@ suite('Copilot Entra authentication transport', () => {
 				graphToken: 'synthetic-reconnected-graph-credential',
 				ping: 'pong: disconnected-host',
 			});
+			const reconnected = new TestProtocolClient(server.boundPort);
+			store.add(toDisposable(() => reconnected.close()));
+			await reconnected.connect();
+			await reconnected.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-reconnected', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
+			await assert.rejects(reconnected.call('authenticate', {
+				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'],
+				token: 'synthetic-other-account', expiresIn: 3600,
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'another-account' }),
+			}), /original account/i);
+			assert.deepStrictEqual(await bridge.options.tokenProvider?.({
+				kind: 'identity', clientId: bridge.options.clientId, accountId: 'transport-selected-account', reason: 'renewal',
+			}, CancellationToken.None as Parameters<EntraTokenProvider>[1]), { kind: 'identity', accountId: 'transport-selected-account' });
 		} finally {
 			client.close();
 			try {

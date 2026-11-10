@@ -31,7 +31,7 @@ import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/st
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
-import type { AgentInfo, RootState } from '../../common/state/sessionState.js';
+import type { AgentInfo } from '../../common/state/sessionState.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 
 interface IRemoteAgentHostServiceTestAccess {
@@ -323,7 +323,7 @@ suite('RemoteAgentHostService', () => {
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 	let storageService: TestStorageService;
-	let resolveAuthentication: (address: string, agents: readonly AgentInfo[], rootState?: RootState) => Promise<readonly AuthenticateParams[]>;
+	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
 
 	setup(() => {
@@ -340,7 +340,7 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
 		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
-			createResolver: address => ({ resolve: (agents, root) => resolveAuthentication(address, agents, root), dispose: () => { } }),
+			createResolver: address => ({ resolve: agents => resolveAuthentication(address, agents), dispose: () => { } }),
 			takePendingSessionRemovals: () => [],
 		});
 		storageService = disposables.add(new TestStorageService());
@@ -387,22 +387,21 @@ suite('RemoteAgentHostService', () => {
 
 	test('WebSocket connections resolve advertised credentials during their handshake', async () => {
 		const requests = [{ resource: 'https://api.example.com', token: 'existing-token' }];
-		const calls: { address: string; agents: readonly AgentInfo[]; root?: RootState }[] = [];
-		resolveAuthentication = async (address, agents, root) => {
-			calls.push({ address, agents, root });
+		const calls: { address: string; agents: readonly AgentInfo[] }[] = [];
+		resolveAuthentication = async (address, agents) => {
+			calls.push({ address, agents });
 			return requests;
 		};
 		configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:8080' } }]);
 		await timeout(0);
 		const agents: AgentInfo[] = [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [] }];
-		const root = { agents, _meta: { 'example.authentication': true } };
 		assert.deepStrictEqual({
-			requests: await createdClientOptions[0]?.resolveAdvertisedAuthentication?.(agents, root),
+			requests: await createdClientOptions[0]?.resolveAdvertisedAuthentication?.(agents),
 			calls,
 			incompatible: RemoteAgentHostConnectionStatus.fromConnectError(new AgentHostAuthenticationPendingError('https://api.example.com'), []),
 		}, {
 			requests,
-			calls: [{ address: 'localhost:8080', agents, root }],
+			calls: [{ address: 'localhost:8080', agents }],
 			incompatible: undefined,
 		});
 	});

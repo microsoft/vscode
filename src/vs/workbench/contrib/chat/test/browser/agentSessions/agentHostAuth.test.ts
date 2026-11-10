@@ -13,6 +13,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
@@ -38,7 +39,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveProtectedResourceAuthentication, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 const mcpAuthenticationTarget: McpServerAuthenticateTarget = {
@@ -500,6 +501,32 @@ suite('AgentHostAuthenticationRecovery', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('standard host challenges stay passive and quarantine rejected tokens for any provider', async () => {
+		const account = { id: 'resource-account', label: 'Account' };
+		let session: AuthenticationSession = { id: 'original', account, scopes: ['read'], accessToken: 'original-token' };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'resource-provider',
+			getSessions: async () => [session],
+		});
+		const command = new TestCommandService();
+		const instantiation = createAuthInstantiationService(disposables, authentication, command);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const resource = { resource: 'https://resource.example/api', authorization_servers: ['https://issuer.example'], scopes_supported: ['read'] };
+		const forwarded: string[] = [];
+		const options = {
+			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.token); },
+		};
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		const expired = { ...options, challengeReason: AuthRequiredReason.Expired };
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		session = { ...session, id: 'rotated', accessToken: 'replacement-token' };
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		assert.deepStrictEqual({ forwarded, interaction: command.calls, account: options.authTokenCache.getAccountId(resource.resource, resource.scopes_supported) }, {
+			forwarded: ['original-token', 'replacement-token'], interaction: [], account: account.id,
+		});
+	});
+
 	test('cancels recovery when its enablement generation becomes stale', async () => {
 		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
 		const authService = createMockAuthService({
@@ -569,7 +596,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 				authenticateCalls.push(token.value);
 			});
 		};
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls.length,
@@ -579,11 +606,11 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticateCalls: ['tok-1', 'tok-2', 'tok-2'],
 		});
 
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 		assert.strictEqual(commandService.calls.length, 2);
 	});
 
-	test('tries a broader matching session once before prompting again', async () => {
+	test('renews from a broader matching session and leaves prompting to explicit recovery', async () => {
 		const account = { id: 'account-1', label: 'Account 1' };
 		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
 		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
@@ -607,9 +634,9 @@ suite('AgentHostAuthenticationRecovery', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		const afterFallback = { commandCalls: commandService.calls.length, authenticateCalls: [...authenticateCalls] };
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 
 		assert.deepStrictEqual({
 			afterFallback,
@@ -655,7 +682,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		providerReady = false;
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 
@@ -665,7 +692,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 	});
 
-	test('prompts when the broader session is removed after replacing a rejected exact session', async () => {
+	test('explicit recovery may prompt after a replacement session is removed', async () => {
 		const account = { id: 'account-1', label: 'Account 1' };
 		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
 		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
@@ -691,9 +718,9 @@ suite('AgentHostAuthenticationRecovery', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		broaderSessionAvailable = false;
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls.length,
@@ -738,13 +765,13 @@ suite('AgentHostAuthenticationRecovery', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls.length,
 			authenticateCalls,
 		}, {
-			commandCalls: 1,
+			commandCalls: 0,
 			authenticateCalls: ['stale-token'],
 		});
 	});
@@ -815,13 +842,12 @@ suite('AgentHost authentication telemetry', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
+		await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 
 		assert.deepStrictEqual(telemetry.events, [
 			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardCurrent', initialSessionMatch: 'exact', quarantinePresent: false, windowAgeMs: '<duration>' } },
-			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardAlternative', initialSessionMatch: 'exact', quarantinePresent: false, windowAgeMs: '<duration>' } },
-			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'prompt', initialSessionMatch: 'exact', quarantinePresent: true, windowAgeMs: '<duration>' } },
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardAlternative', initialSessionMatch: 'superset', quarantinePresent: true, windowAgeMs: '<duration>' } },
 			{ name: 'agentHost.authSignInResult', data: { trigger: 'hostChallenge', result: 'cancelled', credentialChanged: undefined, sessionMatch: undefined, durationMs: '<duration>' } },
 		]);
 	});
@@ -952,13 +978,13 @@ suite('AgentHost authentication telemetry', () => {
 			const options: IAgentHostAuthenticationOptions = { logPrefix: '[AgentHost]', authenticate: async () => { } };
 
 			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+			await instantiationService.createInstance(AgentHostInteractiveAuthentication).request(resource, options);
 
 			assert.deepStrictEqual({ events: telemetry.events.length, result: telemetry.events.at(-1) }, {
-				events: 3,
+				events: 2,
 				result: {
 					name: 'agentHost.authSignInResult',
-					data: { trigger: 'hostChallenge', result: 'tokenForwarded', credentialChanged: match !== 'unchanged', sessionMatch: match === 'superset' ? 'superset' : 'exact', durationMs: '<duration>' },
+					data: { trigger: 'hostChallenge', result: 'tokenForwarded', credentialChanged: undefined, sessionMatch: match === 'superset' ? 'superset' : 'exact', durationMs: '<duration>' },
 				},
 			});
 		});
@@ -2216,6 +2242,61 @@ suite('authenticateProtectedResources', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const requirement of [
+		{ resource: 'https://graph.microsoft.com', scopes_supported: ['User.Read'] },
+		{ resource: 'https://df.loki.delve.office.com/api/v1/llmapi', scopes_supported: ['42c8f7bd-c7a8-4ba9-bc1c-91edfb716247/.default'] },
+		{ resource: 'https://resource.example/api', scopes_supported: [] },
+	]) {
+		test(`acquires advertised scopes for an enumerated default account without host metadata: ${requirement.resource}`, async () => {
+			const account = { id: 'selected-account', label: 'Selected' };
+			const identity: AuthenticationSession = { id: 'selected-session', account, scopes: [], accessToken: 'account-list-placeholder' };
+			const other: AuthenticationSession = { ...identity, id: 'other-session', account: { id: 'other-account', label: 'Other' } };
+			const scoped: AuthenticationSession = { ...identity, scopes: requirement.scopes_supported, accessToken: 'scoped-credential' };
+			const calls: Parameters<IAuthenticationService['getSessions']>[] = [];
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'microsoft',
+				getSessions: async (provider, scopes, options, activate) => {
+					calls.push([provider, scopes, options, activate]);
+					return scopes === undefined ? [other, identity] : [other, scoped];
+				},
+			});
+			const instantiation = createAuthInstantiationService(disposables, authentication);
+			instantiation.stub(IDefaultAccountService, {
+				currentDefaultAccount: {
+					sessionId: identity.id, accountName: account.label, enterprise: false,
+					authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+				},
+			});
+			const resource = { ...requirement, authorization_servers: ['https://login.microsoftonline.com/organizations'] };
+			const request = await instantiation.invokeFunction(resolveProtectedResourceAuthentication, resource, '[test]');
+			assert.deepStrictEqual({ request, scopedQueries: calls.filter(([, scopes]) => scopes !== undefined) }, {
+				request: {
+					resource: resource.resource, scopes: resource.scopes_supported, token: scoped.accessToken,
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: account.label }),
+				},
+				scopedQueries: [['microsoft', resource.scopes_supported, { account, authorizationServer: URI.parse(resource.authorization_servers[0]), silent: true }, true]],
+			});
+		});
+	}
+
+	test('a scoped acquisition cannot return another account in place of the selected identity', async () => {
+		const identity: AuthenticationSession = { id: 'selected-session', account: { id: 'selected-account', label: 'Selected' }, scopes: [], accessToken: 'account-list-placeholder' };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'resource-provider',
+			getSessions: async (_provider, scopes) => scopes === undefined ? [identity] : [{
+				id: 'other-session', account: { id: 'other-account', label: identity.account.label }, scopes, accessToken: 'wrong-account-credential',
+			}],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		instantiation.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: identity.id, accountName: identity.account.label, enterprise: false,
+				authenticationProvider: { id: 'resource-provider', name: 'Provider', enterprise: false },
+			},
+		});
+		assert.strictEqual(await instantiation.invokeFunction(resolveProtectedResourceAuthentication, protectedResource, '[test]'), undefined);
+	});
+
 	test('provider-level protected resource authentication does not include an MCP target', async () => {
 		const authentication = createMockAuthService({
 			getOrActivateProviderIdForServer: async () => 'example-provider',
@@ -2771,7 +2852,7 @@ suite('authenticateProtectedResources', () => {
 		};
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		sessions = [newSession];
 		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [exactSession, broaderSession], options);
 		const success = await instantiationService.invokeFunction(resolveAuthenticationInteractively, [protectedResource], options);
@@ -2821,7 +2902,7 @@ suite('authenticateProtectedResources', () => {
 		delayNextLookup = true;
 		const backgroundAuthentication = instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
 		await lookupStarted.p;
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		const cancelled = assert.rejects(backgroundAuthentication, isCancellationError);
 		pendingSessions.complete([exactSession]);
 		await cancelled;

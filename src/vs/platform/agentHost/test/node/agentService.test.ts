@@ -16,7 +16,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { Barrier, DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
@@ -39,7 +39,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { ITelemetryService, TelemetryLevel, type ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
@@ -114,7 +114,6 @@ import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthentica
 import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
-import { supportsCopilotEntraAuthentication } from '../../common/meta/agentHostCopilotAuthentication.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -1226,27 +1225,6 @@ suite('AgentService (node dispatcher)', () => {
 	}
 
 	suite('credential sponsorship', () => {
-		for (const enabled of [false, true]) {
-			test(`advertises the inherited startup Microsoft bridge capability (${enabled}) without following live edits`, async () => {
-				const directory = mkdtempSync(join(tmpdir(), 'copilot-entra-capability-'));
-				const localDisposables = disposables.add(new DisposableStore());
-				try {
-					const resource = URI.file(join(directory, 'agent-host-config.json'));
-					writeFileSync(resource.fsPath, JSON.stringify({ [CopilotCliConfigKey.M365Enabled]: enabled }));
-					const scopedService = localDisposables.add(createTestAgentService(
-						new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), resource,
-					));
-					const configuration = getTestAgentServiceComposition(scopedService).configurationService;
-					configuration.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: !enabled });
-					await configuration.whenIdle();
-					assert.strictEqual(supportsCopilotEntraAuthentication(getStateManager(scopedService).rootState), enabled);
-				} finally {
-					localDisposables.dispose();
-					await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-				}
-			});
-		}
-
 		function source(userId = '1') {
 			return disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
 				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId,
