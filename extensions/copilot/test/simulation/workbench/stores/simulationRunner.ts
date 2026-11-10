@@ -54,8 +54,6 @@ export class TestRuns {
 	constructor(
 		public readonly name: string,
 		public readonly runs: TestRun[],
-		public readonly simulationInputPath?: string,
-		public activeEditorLanguageId?: string,
 	) { }
 }
 
@@ -83,7 +81,7 @@ export class SimulationRunner extends Disposable {
 		return SimulationRunner.readFromStdoutJSON(stdoutFilePath);
 	}
 
-	public static async readFromStdoutJSON(stdoutFilePath: string, simulationInputPath?: string): Promise<TestRuns[]> {
+	public static async readFromStdoutJSON(stdoutFilePath: string): Promise<TestRuns[]> {
 		const entries = JSON.parse(await fs.promises.readFile(stdoutFilePath, 'utf8')) as RunOutput[];
 		const testRuns = SimulationRunner.createFromRunOutput(stdoutFilePath, entries);
 		return testRuns.map(tr => new TestRuns(tr.name, tr.runs));
@@ -378,9 +376,6 @@ class SimulationExecutor {
 		switch (runConfig.cacheMode) {
 			case CacheMode.Disable:
 				args.push(`--skip-cache`);
-				break;
-			case CacheMode.Regenerate:
-				args.push(`--regenerate-cache`);
 				break;
 			case CacheMode.Require:
 				args.push(`--require-cache`);

@@ -8,7 +8,7 @@ import { buildReasoningEffortSchemaProperty } from '../../conversation/common/la
 
 /**
  * Wraps {@link byokKnownModelToAPIInfo} and enriches the model entry with
- * a localized configurationSchema for the "Thinking Effort" picker when the
+ * a localized configurationSchema for the "Effort Level" picker when the
  * model's capabilities include `supportsReasoningEffort`.
  */
 export function byokKnownModelToAPIInfoWithEffort(providerName: string, id: string, capabilities: BYOKModelCapabilities): LanguageModelChatInformation {

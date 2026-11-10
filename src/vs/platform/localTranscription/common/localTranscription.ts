@@ -115,10 +115,10 @@ export interface ILocalTranscriptionService {
 	 *
 	 * `proxyUrl`/`noProxy` bridge VS Code's `http.proxy`/`http.noProxy` settings
 	 * into this utility process: when set, they are applied as the standard proxy
-	 * environment variables before any download, so all provisioning legs — the
-	 * addon tarball and NuGet core libraries (our own fetches) and the native
-	 * Foundry Local *model* download — route through the proxy. When they are
-	 * omitted, the process's inherited OS environment proxy vars still apply.
+	 * environment variables before any download, so both the native runtime CDN
+	 * download and the Foundry Local *model* download route through the proxy.
+	 * When they are omitted, the process's inherited OS environment proxy vars
+	 * still apply.
 	 *
 	 * `proxyStrictSSL === false` (VS Code's `http.proxyStrictSSL`) disables TLS
 	 * certificate verification for the JavaScript download legs. `proxyAuthorization`
@@ -130,9 +130,10 @@ export interface ILocalTranscriptionService {
 	 *
 	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
 	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
-	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
-	 * CDN for this host's target. When omitted (local dev builds), the runtime
-	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
+	 * runtime (Foundry Local addons + shared libraries) is downloaded from VS
+	 * Code's CDN for this host's target. When omitted (local dev builds), the
+	 * runtime falls back to the SDK's own `node_modules` payload and nothing is
+	 * downloaded.
 	 */
 	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string; readonly runtimeUrlTemplate?: string; readonly runtimeVersion?: string }): Promise<void>;
 

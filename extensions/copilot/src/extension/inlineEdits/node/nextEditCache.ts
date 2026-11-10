@@ -226,7 +226,14 @@ export class NextEditCache extends Disposable {
 		return docCache.tryRebaseCacheEntry(cachedEdit, currentDocumentContents, currentSelection, this._getNesRebaseConfigs());
 	}
 
-	public rejectedNextEdit(requestId: string): void {
+	/**
+	 * Marks the cached suggestions of a rejected request as rejected: all of them, or only `onlyEntry` when given.
+	 */
+	public rejectedNextEdit(requestId: string, onlyEntry?: CachedEdit): void {
+		if (onlyEntry) {
+			onlyEntry.rejected = true;
+			return;
+		}
 		this._sharedCache.getValues()
 			.filter(v => v.source.headerRequestId === requestId)
 			.forEach(v => v.rejected = true);

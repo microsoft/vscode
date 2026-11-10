@@ -50,7 +50,6 @@ suite('Chat Paste Providers', () => {
 
 		assert.deepStrictEqual({
 			belowLengthThreshold: createPastedTextArtifact(`${'x'.repeat(100)}\n`.repeat(10), []),
-			belowLineThreshold: createPastedTextArtifact('x'.repeat(20000), []),
 			respectsConfiguredThreshold: !!createPastedTextArtifact(`${'x'.repeat(10)}\n`.repeat(10), [], { minLength: 100 }),
 			first: {
 				name: first.attachment.name,
@@ -69,7 +68,6 @@ suite('Chat Paste Providers', () => {
 			},
 		}, {
 			belowLengthThreshold: undefined,
-			belowLineThreshold: undefined,
 			respectsConfiguredThreshold: true,
 			first: {
 				name: 'Pasted text #1',
@@ -86,6 +84,37 @@ suite('Chat Paste Providers', () => {
 				referenceText: '#attachment:Pasted text #2',
 				pastedLines: '12 lines',
 			},
+		});
+	});
+
+	test('creates pasted text artifacts based on character count regardless of line count', () => {
+		const threshold = pastedTextArtifactDefaultMinLength;
+		const twoLines = `${'x'.repeat(threshold)}\nsecond line`;
+
+		assert.deepStrictEqual({
+			belowThreshold: createPastedTextArtifact('x'.repeat(threshold - 1), []),
+			atThreshold: createPastedTextArtifact('x'.repeat(threshold), [])?.attachment.pastedLines,
+			aboveThreshold: createPastedTextArtifact('x'.repeat(threshold + 1), [])?.attachment.pastedLines,
+			twoLines: createPastedTextArtifact(twoLines, [])?.attachment.pastedLines,
+			customThreshold: createPastedTextArtifact('abc', [], { minLength: 2 })?.attachment.pastedLines,
+			belowCustomThreshold: createPastedTextArtifact('a', [], { minLength: 2 }),
+			highThreshold: createPastedTextArtifact(twoLines, [], { minLength: Number.MAX_SAFE_INTEGER }),
+			zeroThreshold: createPastedTextArtifact('x', [], { minLength: 0 })?.attachment.pastedLines,
+			empty: createPastedTextArtifact('', [], { minLength: 0 }),
+			whitespaceOnly: createPastedTextArtifact(' \t\r\n', [], { minLength: 0 }),
+			trimmedLength: createPastedTextArtifact(' x ', [], { minLength: 2 }),
+		}, {
+			belowThreshold: undefined,
+			atThreshold: '1 line',
+			aboveThreshold: '1 line',
+			twoLines: '2 lines',
+			customThreshold: '1 line',
+			belowCustomThreshold: undefined,
+			highThreshold: undefined,
+			zeroThreshold: '1 line',
+			empty: undefined,
+			whitespaceOnly: undefined,
+			trimmedLength: undefined,
 		});
 	});
 
@@ -175,7 +204,7 @@ suite('Chat Paste Providers', () => {
 		});
 	});
 
-	test('replaces a long plain-text paste with an inline attachment reference', async () => {
+	test('replaces a long single-line plain-text paste with an inline attachment reference', async () => {
 		const attachments: IChatRequestVariableEntry[] = [];
 		const inlineAttachments: { entry: IChatRequestVariableEntry; text: string; range: IRange }[] = [];
 		let isTerminalCommandPaste = false;
@@ -217,7 +246,7 @@ suite('Chat Paste Providers', () => {
 			uri: modelUri,
 			getOffsetAt: position => position.column - 1,
 		});
-		const longText = `${'x'.repeat(10000)}\n`.repeat(10);
+		const longText = 'x'.repeat(pastedTextArtifactDefaultMinLength + 1);
 		const transferOf = (entries: Record<string, string>) => {
 			const transfer = new VSDataTransfer();
 			for (const [mime, value] of Object.entries(entries)) {

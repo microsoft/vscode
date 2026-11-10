@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSessionFolderPickerDecision, readSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, withSessionFolderPickerDecision, withSessionGitHubState } from '../../common/state/sessionState.js';
+import { parseSessionFolderPickerDecision, readSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, withSessionFolderPickerDecision, withSessionGitHubStateInput } from '../../common/state/sessionState.js';
 
 suite('Session folder-picker meta', () => {
 
@@ -34,7 +34,7 @@ suite('Session folder-picker meta', () => {
 	});
 
 	test('round-trips the decision, preserves other slots, and clears to undefined', () => {
-		const withOther = withSessionGitHubState(undefined, { owner: 'octo' });
+		const withOther = withSessionGitHubStateInput(undefined, { owner: 'octo' });
 		const tagged = withSessionFolderPickerDecision(withOther, { hidden: true, primary: 'file:///wsB' });
 
 		assert.deepStrictEqual({

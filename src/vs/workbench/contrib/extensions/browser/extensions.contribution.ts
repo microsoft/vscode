@@ -55,7 +55,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -247,33 +246,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						'pub.name': false
 					}
 				}]
-			},
-			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
-				type: 'object',
-				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: 'boolean',
-						default: false
-					}
-				},
-				additionalProperties: false,
-				default: {},
-				defaultSnippets: [{
-					'body': {
-						'pub.name': true
-					}
-				}]
-			},
-			[EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY]: {
-				type: 'boolean',
-				scope: ConfigurationScope.APPLICATION,
-				description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, extensions can declare whether they support running in the Agents window."),
-				default: false,
-				tags: ['experimental'],
-				experiment: { mode: 'startup' },
-				agentsWindow: { default: false }
 			},
 			'extensions.experimental.affinity': {
 				type: 'object',
@@ -506,7 +478,7 @@ CommandsRegistry.registerCommand({
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
-				const extension = extensionsWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id, uuid: version }));
+				const extension = (await extensionsWorkbenchService.queryLocal()).find(e => areSameExtensions(e.identifier, { id, uuid: version }));
 				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
 					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
 					if (!gallery) {

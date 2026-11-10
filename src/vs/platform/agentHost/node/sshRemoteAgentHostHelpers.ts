@@ -239,14 +239,15 @@ export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality
  */
 export function buildFindFallbackCLICommand(serverDataFolderName: string, quality: string): string {
 	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const relativeRoot = root.slice(2);
 	const archive = getRemoteCLIArchiveName(quality);
 	const commitGlob = '[0-9a-f]'.repeat(40);
 	const q = validateShellToken(quality, 'quality');
 	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
 	const legacyBin = `${legacyDir}/${archive}`;
 	return [
-		`ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null`,
-		`ls -1 -- ${legacyBin} 2>/dev/null`,
+		`(cd ~ && ls -1t -- ${relativeRoot}/${archive}-${commitGlob} 2>/dev/null | sed 's#^#~/#')`,
+		`test ! -f ${legacyBin} || printf '%s\\n' ${shellEscape(legacyBin)}`,
 		'true',
 	].join('; ');
 }
@@ -347,9 +348,10 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
 /**
  * Build the command that spawns a brand-new dedicated standalone agent
  * host on the remote, self-managed via `--idle-timeout`: once no client
- * has been connected for `idleTimeoutSec`, the process exits on its own,
- * so callers must NOT tie its lifetime to the SSH exec channel used to
- * launch it (see {@link waitForNewStandaloneEndpoint}).
+ * has been connected for `idleTimeoutSec` and its agent host server has
+ * stopped itself (which it only does once no session is running), the
+ * process exits on its own, so callers must NOT tie its lifetime to the
+ * SSH exec channel used to launch it (see {@link waitForNewStandaloneEndpoint}).
  *
  * Always passes `--new-instance`: plain `agent host` reuses an existing
  * live standalone when one is already registered, which would silently

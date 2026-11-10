@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .empty-file-editor {
+	position: relative;
 	height: 100%;
 	display: flex;
 	align-items: center;
@@ -18,13 +19,14 @@
 	align-items: center;
 	text-align: center;
 	gap: var(--vscode-spacing-size160);
-	padding: 20px;
-	max-width: 280px;
+	width: min(320px, calc(100% - 2 * var(--vscode-spacing-size240)));
 }
 
+.empty-file-editor-search,
 .empty-file-editor-actions {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-top: 2px;
+	width: 100%;
+}
+
+.empty-file-editor-search .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-small);
 }

@@ -1,0 +1,217 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-default-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/unmanaged-default-before.txt
+            file_text: MANAGED_WRITE_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-default-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-default-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/unmanaged-default-before.txt with 21 characters
+    response:
+      content: Created unmanaged-default-before.txt with the exact content.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-peer-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: create
+          input:
+            path: ${workdir}/unmanaged-peer-before.txt
+            file_text: MANAGED_WRITE_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-peer-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-peer-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/unmanaged-peer-before.txt with 21 characters
+    response:
+      content: Created unmanaged-peer-before.txt with the content MANAGED_WRITE_CONTENT.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-default-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-default-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/unmanaged-default-before.txt with 21 characters
+        - role: assistant
+          content: Created unmanaged-default-before.txt with the exact content.
+        - role: user
+          content: Use create exactly once to create new-managed-default.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: create
+          input:
+            file_text: MANAGED_WRITE_CONTENT
+            path: ${workdir}/new-managed-default.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-default-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-default-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/unmanaged-default-before.txt with 21 characters
+        - role: assistant
+          content: Created unmanaged-default-before.txt with the exact content.
+        - role: user
+          content: Use create exactly once to create new-managed-default.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                file_text: MANAGED_WRITE_CONTENT
+                path: ${workdir}/new-managed-default.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Created file ${workdir}/new-managed-default.txt with 21 characters
+    response:
+      content: Created new-managed-default.txt with the exact content.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-peer-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-peer-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/unmanaged-peer-before.txt with 21 characters
+        - role: assistant
+          content: Created unmanaged-peer-before.txt with the content MANAGED_WRITE_CONTENT.
+        - role: user
+          content: Use create exactly once to create new-managed-peer.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: create
+          input:
+            file_text: MANAGED_WRITE_CONTENT
+            path: ${workdir}/new-managed-peer.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create unmanaged-peer-before.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/unmanaged-peer-before.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/unmanaged-peer-before.txt with 21 characters
+        - role: assistant
+          content: Created unmanaged-peer-before.txt with the content MANAGED_WRITE_CONTENT.
+        - role: user
+          content: Use create exactly once to create new-managed-peer.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                file_text: MANAGED_WRITE_CONTENT
+                path: ${workdir}/new-managed-peer.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: Created file ${workdir}/new-managed-peer.txt with 21 characters
+    response:
+      content: Created new-managed-peer.txt with the content MANAGED_WRITE_CONTENT.
+      stopReason: end_turn

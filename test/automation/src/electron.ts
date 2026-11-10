@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, remoteAuthority, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
 	const env = { ...process.env };
 
 	const args: string[] = [
@@ -61,7 +61,10 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			throw new Error('Workspace path is required when running remote');
 		}
 		// Replace workspace path with URI
-		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;
+		const workspaceUri = remoteAuthority
+			? URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: URI.file(workspacePath).path }).toString()
+			: `vscode-remote://test+test/${URI.file(workspacePath).path}`;
+		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=${workspaceUri}`;
 
 		if (codePath) {
 			if (!extensionsPath) {
@@ -87,7 +90,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	}
 
 	if (!codePath) {
-		args.unshift(root);
+		args.unshift(options.sourceAppRoot ?? root);
 	}
 
 	if (extraArgs) {
@@ -190,6 +193,20 @@ export function getBuildElectronPath(root: string): string {
 		}
 		default:
 			throw new Error('Unsupported platform.');
+	}
+}
+
+export function getBuildProductPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return join(root, 'Contents', 'Resources', 'app', 'product.json');
+		case 'win32':
+			// On Windows the built app may nest the payload inside a subdirectory
+			// (e.g. VSCode-win32-x64), so search for product.json rather than
+			// assuming it lives directly under the root.
+			return findFilePath(root, join('resources', 'app', 'product.json'));
+		default:
+			return join(root, 'resources', 'app', 'product.json');
 	}
 }
 

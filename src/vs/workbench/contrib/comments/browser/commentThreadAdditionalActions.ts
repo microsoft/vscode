@@ -23,6 +23,10 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 	private _buttonBar: HTMLElement | null;
 	private _commentFormActions!: CommentFormActions;
 
+	get domNode(): HTMLElement | null {
+		return this._container;
+	}
+
 	constructor(
 		container: HTMLElement,
 		private _commentThread: languages.CommentThread<T>,
@@ -43,6 +47,21 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 
 	private _showMenu() {
 		this._container?.classList.remove('hidden');
+	}
+
+	/**
+	 * Measures the width the buttons need, which don't wrap.
+	 */
+	measureWidth(): number {
+		if (!this._container || !this._buttonBar || this._container.classList.contains('hidden')) {
+			return 0;
+		}
+		let width = 0;
+		for (const button of this._buttonBar.children) {
+			width += dom.isHTMLElement(button) ? dom.getTotalWidth(button) : 0;
+		}
+		const style = dom.getWindow(this._container).getComputedStyle(this._container);
+		return (parseFloat(style.marginLeft) || 0) + width + (parseFloat(style.marginRight) || 0);
 	}
 
 	private _hideMenu() {

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { DiagnosticCollection, ExtHostDiagnostics } from '../../common/extHostDiagnostics.js';
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from '../../common/extHostTypes.js';
-import { MainThreadDiagnosticsShape, IMainContext } from '../../common/extHost.protocol.js';
+import { IMarkerChange, MainThreadDiagnosticsShape, IMainContext } from '../../common/extHost.protocol.js';
 import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -23,7 +23,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 suite('ExtHostDiagnostics', () => {
 
 	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
-		override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+		override $changeMany(owner: string, entries: IMarkerChange[]): void {
 			//
 		}
 		override $clear(owner: string): void {
@@ -277,9 +277,9 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic capping (max per file)', function () {
 
-		let lastEntries!: [UriComponents, IMarkerData[]][];
+		let lastEntries!: [UriComponents, IMarkerData[], isTruncated?: boolean][];
 		const collection = new DiagnosticCollection('test', 'test', 100, 250, versionProvider, extUri, new class extends DiagnosticsShape {
-			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[], isTruncated?: boolean][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
@@ -300,6 +300,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.strictEqual(lastEntries[0][1][0].severity, MarkerSeverity.Error);
 		assert.strictEqual(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
 		assert.strictEqual(lastEntries[0][1][250].severity, MarkerSeverity.Info);
+		assert.strictEqual(lastEntries[0][2], true);
 	});
 
 	test('diagnostic capping (max files)', function () {

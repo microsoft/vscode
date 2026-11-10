@@ -5,7 +5,6 @@
 
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { memoize } from '../../../../base/common/decorators.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -131,17 +130,24 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		this._resolvePromise = undefined;
 	}
 
-	@memoize
 	public override async resolve() {
 		if (!this._resolved) {
 			this._resolved = true;
 			this._resolvePromise = createCancelablePromise(token => this._webviewWorkbenchService.resolveWebview(this, token));
-			try {
-				await this._resolvePromise;
-			} catch (e) {
-				if (!isCancellationError(e)) {
-					throw e;
+		}
+
+		const resolvePromise = this._resolvePromise;
+		try {
+			await resolvePromise;
+		} catch (e) {
+			const disposedWhileResolving = isCancellationError(e) && this.isDisposed();
+			if (!disposedWhileResolving) {
+				// Allow resolving again, for example when the user retries opening the editor
+				if (this._resolvePromise === resolvePromise) {
+					this._resolved = false;
+					this._resolvePromise = undefined;
 				}
+				throw e;
 			}
 		}
 		return super.resolve();

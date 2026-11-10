@@ -29,6 +29,33 @@ suite('ChatErrorMessages', () => {
 
 	suite('getChatErrorDetailsFromMeta', () => {
 
+		test('renders Copilot error detail when VS Code metadata is invalid without allowing command links', () => {
+			const copilot = { errorCode: 'limited', statusCode: 429, url: 'command:unsafe', providerCallId: 'request' };
+			const error: ErrorInfo = { errorType: 'rate_limit', message: 'Slow down', _meta: { 'copilot.errorDetail': copilot } };
+			const expected = {
+				message: 'Slow&nbsp;down', code: 'limited', isRateLimited: true, isQuotaExceeded: false, isExpectedError: true,
+			};
+			assert.deepStrictEqual([
+				getChatErrorDetailsFromMeta(error),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: null } }),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: { fetchError: {} } } }),
+			], [expected, expected, expected]);
+		});
+
+		test('valid VS Code error metadata keeps its existing formatting when both styles are present', () => {
+			const forwarded = {
+				fetchError: { type: ChatFetchResponseType.RateLimited, retryAfter: 60 },
+				copilotPlan: 'free',
+			};
+			assert.deepStrictEqual(
+				getChatErrorDetailsFromMeta(errorInfo({
+					chatError: forwarded,
+					'copilot.errorDetail': { errorCode: 'ignored', statusCode: 500 },
+				})),
+				getChatErrorDetailsFromMeta(errorInfo({ chatError: forwarded })),
+			);
+		});
+
 		test('returns undefined when no meta or no chatError', () => {
 			assert.strictEqual(getChatErrorDetailsFromMeta(undefined), undefined);
 			assert.strictEqual(getChatErrorDetailsFromMeta(errorInfo(undefined)), undefined);
@@ -185,6 +212,15 @@ suite('ChatErrorMessages', () => {
 				'Sorry, the upstream model provider is currently experiencing high demand. Please try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
 				'Sorry, GitHub Copilot Chat is currently experiencing high demand. Please try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
 				'Sorry, your request was rate-limited. Please wait 30 seconds before trying again or consider switching to Auto. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+			]);
+		});
+
+		test('rate-limit messages suggest Copilot Fusion when Auto is presented as Fusion', () => {
+			const message = (capiCode: string | undefined) => getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30, capiError: capiCode ? { code: capiCode } : undefined }, undefined, undefined, undefined, true).message;
+			assert.deepStrictEqual([message('model_overloaded'), message('user_model_rate_limited'), message(undefined)], [
+				'Sorry, the upstream model provider is currently experiencing high demand. Please try again in 30 seconds or consider switching to Copilot Fusion. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'You\'ve hit the rate limit for this model. Please try switching to Copilot Fusion or try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'Sorry, your request was rate-limited. Please wait 30 seconds before trying again or consider switching to Copilot Fusion. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
 			]);
 		});
 

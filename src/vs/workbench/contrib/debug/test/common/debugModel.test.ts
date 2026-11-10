@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IDebugSession, IInstructionBreakpoint } from '../../common/debug.js';
+import { IDebugSession, IInstructionBreakpoint, IStackFrame } from '../../common/debug.js';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
 import { MockDebugStorage } from './mockDebug.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('DebugModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
@@ -47,97 +47,85 @@ suite('DebugModel', () => {
 		// reference+offset must still succeed when the caller supplies the
 		// resolved address.
 		test('removeInstructionBreakpoints prefers address match when instructionReference has changed', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				const address = BigInt(0x1000);
-				model.addInstructionBreakpoint({
-					instructionReference: 'oldRef',
-					offset: 0,
-					address,
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			const address = BigInt(0x1000);
+			model.addInstructionBreakpoint({
+				instructionReference: 'oldRef',
+				offset: 0,
+				address,
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 1);
 
-				// Simulate the disassembly view asking for removal after the
-				// debug adapter handed out a new instruction reference.
-				model.removeInstructionBreakpoints('newRef', 0, address);
+			// Simulate the disassembly view asking for removal after the
+			// debug adapter handed out a new instruction reference.
+			model.removeInstructionBreakpoints('newRef', 0, address);
 
-				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(model.getInstructionBreakpoints().length, 0);
 		});
 
 		test('removeInstructionBreakpoints falls back to instructionReference+offset when address not supplied', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				model.addInstructionBreakpoint({
-					instructionReference: 'ref',
-					offset: 4,
-					address: BigInt(0x2000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			model.addInstructionBreakpoint({
+				instructionReference: 'ref',
+				offset: 4,
+				address: BigInt(0x2000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				// Non-matching reference leaves the breakpoint in place.
-				model.removeInstructionBreakpoints('other', 4);
-				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+			// Non-matching reference leaves the breakpoint in place.
+			model.removeInstructionBreakpoints('other', 4);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 1);
 
-				// Matching reference+offset removes it.
-				model.removeInstructionBreakpoints('ref', 4);
-				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
-			} finally {
-				disposable.dispose();
-			}
+			// Matching reference+offset removes it.
+			model.removeInstructionBreakpoints('ref', 4);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 0);
 		});
 
 		test('removeInstructionBreakpoints with only address removes the matching entry and leaves others', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				const keep: IInstructionBreakpoint[] = [];
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			const keep: IInstructionBreakpoint[] = [];
 
-				model.addInstructionBreakpoint({
-					instructionReference: 'refA',
-					offset: 0,
-					address: BigInt(0x3000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
-				model.addInstructionBreakpoint({
-					instructionReference: 'refB',
-					offset: 0,
-					address: BigInt(0x4000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			model.addInstructionBreakpoint({
+				instructionReference: 'refA',
+				offset: 0,
+				address: BigInt(0x3000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
+			model.addInstructionBreakpoint({
+				instructionReference: 'refB',
+				offset: 0,
+				address: BigInt(0x4000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				model.removeInstructionBreakpoints(undefined, undefined, BigInt(0x3000));
+			model.removeInstructionBreakpoints(undefined, undefined, BigInt(0x3000));
 
-				const remaining = model.getInstructionBreakpoints();
-				assert.strictEqual(remaining.length, 1);
-				assert.strictEqual(remaining[0].address, BigInt(0x4000));
-				keep.push(...remaining);
-				assert.strictEqual(keep.length, 1);
-			} finally {
-				disposable.dispose();
-			}
+			const remaining = model.getInstructionBreakpoints();
+			assert.strictEqual(remaining.length, 1);
+			assert.strictEqual(remaining[0].address, BigInt(0x4000));
+			keep.push(...remaining);
+			assert.strictEqual(keep.length, 1);
 		});
 	});
 
@@ -159,6 +147,42 @@ suite('DebugModel', () => {
 	});
 
 	suite('DebugModel', () => {
+		test('refreshTopOfCallstack notifies when a repeated stop confirms the stack is complete without changing frames', async () => {
+			await runWithFakedTimers({}, async () => {
+				const frame = upcastPartial<IStackFrame>({});
+				const fakeThread = upcastPartial<Thread>({
+					session: upcastDeepPartial<IDebugSession>({ capabilities: { supportsDelayedStackTraceLoading: true } }),
+					getCallStack: () => [frame],
+					getStaleCallStack: () => [frame],
+					reachedEndOfCallStack: false,
+					fetchCallStack: async (levels: number) => {
+						if (levels > 1) {
+							fakeThread.reachedEndOfCallStack = true;
+						}
+					},
+					getId: () => '1',
+				});
+
+				const disposable = new DisposableStore();
+				const storage = disposable.add(new TestStorageService());
+				const model = new DebugModel(disposable.add(new MockDebugStorage(storage)), upcastPartial<ITextFileService>({ isDirty: (_: unknown) => false }), undefined!, new NullLogService());
+				disposable.add(model);
+
+				let callStackChangeCount = 0;
+				disposable.add(model.onDidChangeCallStack(() => callStackChangeCount++));
+				const refresh = model.refreshTopOfCallstack(fakeThread);
+				await refresh.topCallStack;
+				assert.strictEqual(callStackChangeCount, 1);
+
+				// Match the 420 ms delay hard-coded in refreshTopOfCallstack before it fetches the rest of the stack.
+				await timeout(420);
+				await refresh.wholeCallStack;
+				assert.strictEqual(callStackChangeCount, 2);
+
+				disposable.dispose();
+			});
+		});
+
 		test('refreshTopOfCallstack resolves all returned promises when called multiple times', async () => {
 			return runWithFakedTimers({}, async () => {
 				const topFrameDeferred = new DeferredPromise<void>();

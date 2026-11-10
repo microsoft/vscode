@@ -30,6 +30,7 @@ import { Tag } from '../../prompts/node/base/tag';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
 import { IGrepResultService } from './grepResultService';
 
@@ -189,8 +190,8 @@ Then if you want to include those files you can call the tool again by setting "
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
-		if (options.chatRequestId !== undefined) {
-			this.grepResultService.addGrepResult(options.chatRequestId, groupedMatches);
+		if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined) {
+			this.grepResultService.addGrepResult(options.chatSessionResource, options.chatRequestId, groupedMatches);
 		}
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesGrepResult,

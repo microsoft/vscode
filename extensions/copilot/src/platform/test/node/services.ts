@@ -73,6 +73,8 @@ import { resolveOTelConfig } from '../../otel/common/otelConfig';
 import { IOTelService } from '../../otel/common/otelService';
 import { IParserService } from '../../parser/node/parserService';
 import { ParserServiceImpl } from '../../parser/node/parserServiceImpl';
+import { IPromptsService } from '../../promptFiles/common/promptsService';
+import { MockPromptsService } from '../../promptFiles/test/common/mockPromptsService';
 import { IPromptPathRepresentationService, TestPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { BasicCodeSearchAuthenticationService, ICodeSearchAuthenticationService } from '../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { NullRequestLogger } from '../../requestLogger/node/nullRequestLogger';
@@ -100,6 +102,7 @@ import { SnapshotSearchService, TestingTabsAndEditorsService } from './simulatio
 import { TestChatAgentService } from './testChatAgentService';
 import { TestWorkbenchService } from './testWorkbenchService';
 import { TestWorkspaceService } from './testWorkspaceService';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IGrepResultService, NullGrepResultService } from '../../../extension/tools/node/grepResultService';
 import { IRegionContextProviderService, NullRegionContextProviderService } from '../../languageContextProvider/common/regionContextProvider';
 
@@ -273,6 +276,7 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 	testingServiceCollection.define(IRegionContextProviderService, new SyncDescriptor(NullRegionContextProviderService));
 	testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(TestPromptPathRepresentationService));
+	testingServiceCollection.define(IPromptsService, new SyncDescriptor(MockPromptsService));
 	testingServiceCollection.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
 	testingServiceCollection.define(IChatSessionService, new SyncDescriptor(TestChatSessionService));
 

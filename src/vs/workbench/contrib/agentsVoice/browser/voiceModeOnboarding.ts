@@ -461,6 +461,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			return;
 		}
 		this.running = true;
+		this.lastTimestamp = undefined;
 		const targetWindow = dom.getWindow(this.container);
 		const tick = (time: number) => {
 			if (!this.running) {
@@ -503,7 +504,8 @@ class VoiceModeOnboardingAnimator extends Disposable {
 		// paused the loop) simply advances the trace to where it should be: the
 		// phase is periodic and the easing factor stays bounded, so there is no
 		// lurch to guard against.
-		const dt = this.lastTimestamp === undefined
+		// Redraws for resize or theme changes must not advance a reduced-motion or suspended waveform.
+		const dt = !this.running || this.lastTimestamp === undefined
 			? 0
 			: Math.max(0, (timestamp - this.lastTimestamp) * 0.001);
 		this.lastTimestamp = timestamp;

@@ -8,22 +8,210 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from '../../common/files.js';
+import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 
+class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities & ~FileSystemProviderCapabilities.FileReadWrite;
+	}
+}
+
+class AtomicRenameFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
+	}
+
+	async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+		return super.rename(from, to, options);
+	}
+}
+
 suite('File Service', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => {
-		disposables.clear();
+	suite('atomic move', () => {
+		test('rejects providers without atomic rename support before changing either file', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /atomic rename/);
+			assert.deepStrictEqual([
+				(await service.readFile(source)).value.toString(),
+				(await service.readFile(target)).value.toString(),
+			], ['new', 'old']);
+		});
+
+		test('preserves the target on rename failure and supports retry', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
+				failRename = true;
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+					if (this.failRename) {
+						throw new Error('rename failed');
+					}
+					return super.renameFileAtomic(from, to, options);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /rename failed/);
+			const afterFailure = (await service.readFile(target)).value.toString();
+			provider.failRename = false;
+			await service.move(source, target, true, { atomic: true });
+
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: (await service.readFile(target)).value.toString(),
+				sourceExists: await service.exists(source),
+			}, { afterFailure: 'old', afterRetry: 'new', sourceExists: false });
+		});
+
+		test('rejects cross-provider moves without changing either file', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			disposables.add(service.registerProvider('other', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('other:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /same file system provider/);
+			assert.deepStrictEqual([
+				(await service.readFile(source)).value.toString(),
+				(await service.readFile(target)).value.toString(),
+			], ['new', 'old']);
+		});
+
+		for (const sourceDirectory of [true, false]) {
+			test(`rejects a ${sourceDirectory ? 'source' : 'target'} directory`, async () => {
+				const service = disposables.add(new FileService(new NullLogService()));
+				disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+				const source = URI.parse('test:/source');
+				const target = URI.parse('test:/target');
+				await service.createFolder(sourceDirectory ? source : target);
+				await service.writeFile(sourceDirectory ? target : source, VSBuffer.fromString('preserved'));
+				await assert.rejects(service.move(source, target, true, { atomic: true }), /only support/);
+				assert.deepStrictEqual({
+					sourceDirectory: (await service.stat(source)).isDirectory,
+					targetDirectory: (await service.stat(target)).isDirectory,
+					content: (await service.readFile(sourceDirectory ? target : source)).value.toString(),
+				}, { sourceDirectory, targetDirectory: !sourceDirectory, content: 'preserved' });
+			});
+		}
+
+		test('still requires overwrite permission', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, false, { atomic: true }), error =>
+				error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT);
+			assert.strictEqual((await service.readFile(target)).value.toString(), 'old');
+		});
+
+		test('creates missing target parents for non-sibling moves', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/new/parent/target');
+			await service.writeFile(source, VSBuffer.fromString('content'));
+			await service.move(source, target, true, { atomic: true });
+			assert.deepStrictEqual({
+				sourceExists: await service.exists(source),
+				content: (await service.readFile(target)).value.toString(),
+			}, { sourceExists: false, content: 'content' });
+		});
+
+		test('does not replace the target when the source is missing', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const target = URI.parse('test:/target');
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(URI.parse('test:/missing'), target, true, { atomic: true }));
+			assert.strictEqual((await service.readFile(target)).value.toString(), 'old');
+		});
+
+		test('does not rename after a target stat permission error', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
+				denyTarget = false;
+				renamed = false;
+				override async stat(resource: URI) {
+					if (this.denyTarget && resource.path === '/target') {
+						throw createFileSystemProviderError('denied', FileSystemProviderErrorCode.NoPermissions);
+					}
+					return super.stat(resource);
+				}
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+					this.renamed = true;
+					return super.renameFileAtomic(from, to, options);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			provider.denyTarget = true;
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /denied/);
+			provider.denyTarget = false;
+			assert.deepStrictEqual({
+				renamed: provider.renamed,
+				content: (await service.readFile(target)).value.toString(),
+			}, { renamed: false, content: 'old' });
+		});
+	});
+
+	test('resolveAll does not trace missing resources', async () => {
+		const traces: (string | Error)[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string | Error): void {
+				traces.push(message);
+			}
+		}();
+		const service = disposables.add(new FileService(logService));
+		disposables.add(service.registerProvider('test', new class extends NullFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				if (resource.path === '/missing') {
+					throw createFileSystemProviderError('missing', FileSystemProviderErrorCode.FileNotFound);
+				}
+
+				throw createFileSystemProviderError('unavailable', FileSystemProviderErrorCode.Unavailable);
+			}
+		}()));
+
+		const result = await service.resolveAll([
+			{ resource: URI.parse('test:///missing') },
+			{ resource: URI.parse('test:///unavailable') },
+		]);
+
+		assert.deepStrictEqual({
+			result,
+			traces: traces.map(trace => trace.toString()),
+		}, {
+			result: [
+				{ stat: undefined, success: false },
+				{ stat: undefined, success: false },
+			],
+			traces: ['Unavailable (FileSystemError): unavailable'],
+		});
 	});
 
 	test('provider registration', async () => {
@@ -271,6 +459,37 @@ suite('File Service', () => {
 		}
 	}
 
+	test('readFileStream releases cancellation listeners when the provider throws synchronously', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const provider = new class extends NullFileSystemProvider {
+			override async stat(): Promise<IStat> {
+				return { type: FileType.File, ctime: 0, mtime: 0, size: 1 };
+			}
+
+			override readFileStream(): ReadableStreamEvents<Uint8Array> {
+				throw new Error('read failed');
+			}
+		};
+		provider.setCapabilities(FileSystemProviderCapabilities.FileReadStream);
+		disposables.add(service.registerProvider('test', provider));
+
+		const emitter = disposables.add(new class extends Emitter<void> {
+			get listenerCount(): number { return this._size; }
+		}());
+		const token: CancellationToken = {
+			isCancellationRequested: false,
+			onCancellationRequested: emitter.event,
+		};
+
+		const listenerCounts: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			await assert.rejects(service.readFileStream(URI.parse('test:///resource'), undefined, token), /read failed/);
+			listenerCounts.push(emitter.listenerCount);
+		}
+
+		assert.deepStrictEqual(listenerCounts, [0, 0, 0, 0, 0]);
+	});
+
 	test('readFile/readFileStream supports cancellation (https://github.com/microsoft/vscode/issues/138805)', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
 
@@ -328,6 +547,56 @@ suite('File Service', () => {
 
 		assert.ok(e2);
 	});
+
+	for (const validationError of [false, true]) {
+		test(`readFile waits for handle closure after ${validationError ? 'metadata failure' : 'cancellation during open'}`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const cts = disposables.add(new CancellationTokenSource());
+			const closeStarted = new DeferredPromise<void>();
+			const finishClose = new DeferredPromise<void>();
+			const calls: string[] = [];
+			const provider = new class extends NullFileSystemProvider {
+				override async stat(): Promise<IStat> {
+					if (validationError) {
+						throw new Error('metadata failed');
+					}
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 1 };
+				}
+
+				override async open(): Promise<number> {
+					calls.push('open');
+					cts.cancel();
+					return 42;
+				}
+
+				override async read(): Promise<number> {
+					calls.push('read');
+					return 0;
+				}
+
+				override async close(): Promise<void> {
+					calls.push('close');
+					closeStarted.complete();
+					await finishClose.p;
+				}
+			};
+			provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+			disposables.add(service.registerProvider('test', provider));
+
+			let settled = false;
+			const result = service.readFile(URI.parse('test:///resource'), undefined, cts.token).finally(() => settled = true);
+			const rejected = assert.rejects(result, validationError ? /metadata failed/ : /Canceled/);
+			await closeStarted.p;
+			const settledBeforeClose = settled;
+			finishClose.complete();
+			await rejected;
+
+			assert.deepStrictEqual({ calls, settledBeforeClose }, {
+				calls: ['open', 'close'],
+				settledBeforeClose: false,
+			});
+		});
+	}
 
 	test('enforced atomic read/write/delete', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
@@ -419,5 +688,290 @@ suite('File Service', () => {
 		assert.strictEqual(atomicDeleteCounter, 1);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	for (const [writeFails, streamFails] of [[false, false], [true, false], [false, true], [true, true]]) {
+		test(`buffered stream waits for pending writes before closing (write error: ${writeFails}, stream error: ${streamFails})`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			const writeFinished = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = new class extends NullFileSystemProvider {
+				override async stat(): Promise<IStat> {
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 0 };
+				}
+
+				override async open(): Promise<number> {
+					return 1;
+				}
+
+				override async write(_fd: number, _pos: number, _data: Uint8Array, _offset: number, length: number): Promise<number> {
+					events.push('write started');
+					writeStarted.complete();
+					await finishWrite.p;
+					events.push('write finished');
+					writeFinished.complete();
+					if (writeFails) {
+						throw new Error('write failed');
+					}
+					return length;
+				}
+
+				override async close(): Promise<void> {
+					events.push('close');
+				}
+			};
+			provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+			disposables.add(service.registerProvider('test', provider));
+
+			const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks));
+			disposables.add(toDisposable(() => stream.destroy()));
+			stream.write(VSBuffer.fromString('content'));
+			if (streamFails) {
+				stream.error(new Error('stream failed'));
+			}
+			stream.end();
+
+			const result = service.writeFile(URI.parse('test:///file'), stream).then(
+				() => 'success',
+				(error: Error) => error.message
+			);
+			await writeStarted.p;
+			await timeout(0);
+			finishWrite.complete();
+			const outcome = await result;
+			await writeFinished.p;
+
+			const expectedError = streamFails ? 'stream failed' : writeFails ? 'write failed' : undefined;
+			assert.deepStrictEqual({
+				events,
+				outcome: expectedError ? outcome.includes(expectedError) : outcome
+			}, {
+				events: ['write started', 'write finished', 'close'],
+				outcome: expectedError ? true : 'success'
+			});
+		});
+	}
+
+	test('buffered stream serializes buffered chunks and completes partial writes', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; offset: number; length: number }[] = [];
+		let activeWrites = 0;
+		let maxActiveWrites = 0;
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, offset, length });
+				maxActiveWrites = Math.max(maxActiveWrites, ++activeWrites);
+				try {
+					await timeout(0);
+					return await super.write(fd, pos, data, offset, Math.min(2, length));
+				} finally {
+					activeWrites--;
+				}
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(null);
+		disposables.add(toDisposable(() => stream.destroy()));
+		stream.write(VSBuffer.fromString('abc'));
+		stream.write(VSBuffer.fromString('defg'));
+		stream.end();
+
+		const resource = URI.parse('test:///file');
+		const stat = await service.writeFile(resource, stream);
+
+		assert.deepStrictEqual({
+			writes,
+			maxActiveWrites,
+			size: stat.size,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, offset: 0, length: 3 },
+				{ pos: 2, offset: 2, length: 1 },
+				{ pos: 3, offset: 0, length: 4 },
+				{ pos: 5, offset: 2, length: 2 }
+			],
+			maxActiveWrites: 1,
+			size: 7,
+			content: 'abcdefg'
+		});
+	});
+
+	test('buffered stream resumes a producer waiting on backpressure across multiple chunks', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; content: string }[] = [];
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, content: VSBuffer.wrap(data.subarray(offset, offset + length)).toString() });
+				await timeout(0);
+				return super.write(fd, pos, data, offset, length);
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), { highWaterMark: 0 });
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const result = service.writeFile(resource, stream);
+		let backpressureCount = 0;
+		const producer = (async () => {
+			for (const chunk of ['one', 'two', 'three']) {
+				const pending = stream.write(VSBuffer.fromString(chunk));
+				if (pending) {
+					backpressureCount++;
+				}
+				await pending;
+			}
+			stream.end();
+		})();
+		await Promise.all([result, producer]);
+
+		assert.deepStrictEqual({
+			writes,
+			backpressureCount,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, content: 'one' },
+				{ pos: 3, content: 'two' },
+				{ pos: 6, content: 'three' }
+			],
+			backpressureCount: 3,
+			content: 'onetwothree'
+		});
+	});
+
+	test('buffered stream writes the peeked prefix before resuming the remaining chunks', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; content: string }[] = [];
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, content: VSBuffer.wrap(data.subarray(offset, offset + length)).toString() });
+				await timeout(0);
+				return super.write(fd, pos, data, offset, length);
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), { highWaterMark: 0 });
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const result = service.writeFile(resource, stream);
+		const producer = (async () => {
+			for (const chunk of ['a', 'b', 'c', 'd', 'ef', 'gh']) {
+				await stream.write(VSBuffer.fromString(chunk));
+			}
+			stream.end();
+		})();
+		await Promise.all([result, producer]);
+
+		assert.deepStrictEqual({
+			writes,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, content: 'abcd' },
+				{ pos: 4, content: 'ef' },
+				{ pos: 6, content: 'gh' }
+			],
+			content: 'abcdefgh'
+		});
+	});
+
+	for (const failure of ['write', 'stream']) {
+		test(`buffered stream releases the write queue after a ${failure} failure`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+				override async open(resource: URI, options: IFileOpenOptions): Promise<number> {
+					const fd = await super.open(resource, options);
+					events.push(`open ${fd}`);
+					return fd;
+				}
+
+				override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+					events.push(`write ${fd}`);
+					if (fd === 0) {
+						writeStarted.complete();
+						await finishWrite.p;
+						if (failure === 'write') {
+							throw new Error('write failed');
+						}
+					}
+					return super.write(fd, pos, data, offset, length);
+				}
+
+				override async close(fd: number): Promise<void> {
+					await super.close(fd);
+					events.push(`close ${fd}`);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+
+			const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks));
+			disposables.add(toDisposable(() => stream.destroy()));
+			stream.write(VSBuffer.fromString('first'));
+			if (failure === 'stream') {
+				stream.error(new Error('stream failed'));
+			}
+			stream.end();
+
+			const resource = URI.parse('test:///file');
+			const firstResult = assert.rejects(service.writeFile(resource, stream), new RegExp(`${failure} failed`));
+			await writeStarted.p;
+			const nextStream = bufferToStream(VSBuffer.fromString('recovery'));
+			disposables.add(toDisposable(() => nextStream.destroy()));
+			const nextResult = service.writeFile(resource, nextStream);
+			await timeout(0);
+			const eventsBeforeRelease = events.slice();
+			finishWrite.complete();
+			await Promise.all([firstResult, nextResult]);
+
+			assert.deepStrictEqual({
+				eventsBeforeRelease,
+				events,
+				content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+			}, {
+				eventsBeforeRelease: ['open 0', 'write 0'],
+				events: ['open 0', 'write 0', 'close 0', 'open 1', 'write 1', 'close 1'],
+				content: 'recovery'
+			});
+		});
+	}
+
+	test('buffered stream closes an empty stream without writing', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const events: string[] = [];
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				events.push('write');
+				return super.write(fd, pos, data, offset, length);
+			}
+
+			override async close(fd: number): Promise<void> {
+				await super.close(fd);
+				events.push('close');
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = bufferToStream(VSBuffer.alloc(0));
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const stat = await service.writeFile(resource, stream);
+
+		assert.deepStrictEqual({
+			events,
+			size: stat.size,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			events: ['close'],
+			size: 0,
+			content: ''
+		});
+	});
+
 });

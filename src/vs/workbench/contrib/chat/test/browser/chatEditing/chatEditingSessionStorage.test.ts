@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestEnvironmentService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -34,8 +34,7 @@ suite('ChatEditingSessionStorage', () => {
 	}
 
 	setup(() => {
-		fs = ds.add(new FileService(new NullLogService()));
-		ds.add(fs.registerProvider(TestEnvironmentService.workspaceStorageHome.scheme, ds.add(new InMemoryFileSystemProvider())));
+		fs = createInMemoryFileService(ds, TestEnvironmentService.workspaceStorageHome.scheme);
 		// eslint-disable-next-line local/code-no-any-casts
 		workspaceContextService = { getWorkspace: () => ({ id: 'workspaceId' }) } as any;
 

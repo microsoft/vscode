@@ -25,7 +25,9 @@ import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from './workbench.js';
-import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
+import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -46,17 +48,23 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 	) {
 		super();
 
-		const { width } = getClientArea(mainWindow.document.body);
-		const isPhoneLayout = width < 640;
+		const isPhoneLayout = layoutService.initialViewportClass
+			? layoutService.initialViewportClass === 'phone'
+			: getClientArea(mainWindow.document.body).width < 640;
 
-		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(isPhoneLayout ? MobilePanelPart : PanelPart));
-		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(isPhoneLayout ? MobileSidebarPart : SidebarPart));
+		// Each main part has a child scope of its own, owned with the part.
+		const createMainPart = <T extends IPaneCompositePart>(ctor: new (...args: never[]) => T): T => {
+			const scope = this._register(createMainWindowInstantiationService(instantiationService));
+			return scope.createInstance(ctor);
+		};
+		this.registerPart(ViewContainerLocation.Panel, createMainPart(isPhoneLayout ? MobilePanelPart : PanelPart));
+		this.registerPart(ViewContainerLocation.Sidebar, createMainPart(isPhoneLayout ? MobileSidebarPart : SidebarPart));
 
-		// In the single-pane layout the auxiliary bar is owned by (docked inside)
+		// In the desktop layout the auxiliary bar is owned by (docked inside)
 		// the editor part; share that instance instead of creating a separate one.
-		const auxiliaryBarPart = layoutService.isSinglePaneLayoutEnabled
-			? (editorGroupsService.mainPart as SinglePaneMainEditorPart).auxiliaryBar
-			: instantiationService.createInstance(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart);
+		const auxiliaryBarPart = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
+			? (editorGroupsService.mainPart as DesktopMainEditorPart).auxiliaryBar
+			: createMainPart(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart);
 		this.registerPart(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
 	}
 
