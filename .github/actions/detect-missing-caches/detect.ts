@@ -157,7 +157,7 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	const caches: ICache[] = [];
 	if (job.pnpmStore) {
 		const base = hashFiles(Buffer.from(computePnpmStoreBaseCacheKey(job.pnpmStore.args, readFile)));
-		caches.push(cache(`${job.pnpmStore.prefix}-${base}-${hashFiles(Buffer.from(computePnpmStoreCacheKey(readFile)))}`, '../.pnpm-store'));
+		caches.push(cache(`${job.pnpmStore.prefix}-${base}-${hashFiles(Buffer.from(computePnpmStoreCacheKey(readFile)))}`, '.build/pnpm-store'));
 	}
 	if (job.electron) {
 		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
