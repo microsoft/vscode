@@ -1782,6 +1782,8 @@ export class ChatService extends Disposable implements IChatService {
 		// concurrent send reliably observes the in-flight materialization.
 		const materialized = new DeferredPromise<URI | undefined>();
 		this._inFlightUntitledMaterializations.set(untitledResource, materialized.p);
+		const modelReference = new DisposableStore();
+		modelReference.add(Event.once(untitledModel.onDidDispose)(() => modelReference.dispose()));
 		try {
 			const parsedRequest = this.parseChatRequest(untitledResource, request, options?.location ?? untitledModel.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
@@ -1795,6 +1797,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(untitledResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource }, CancellationToken.None);
 			if (!newItem) {
+				modelReference.dispose();
 				materialized.complete(undefined);
 				return undefined;
 			}
@@ -1803,9 +1806,17 @@ export class ChatService extends Disposable implements IChatService {
 			// for the new resource resolve to the untitled session's options.
 			this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
 
-			// Do not dispose tempRef as per 6bc5ae80de9caffb21e9eb58e18b5ca24fa2d6e8
+			// Keep the real model alive until the UI releases the untitled model during
+			// the handoff, rather than leaking the temporary reference indefinitely.
 			// Join a concurrent load of the real session instead of restoring it twice.
-			const tempRef = await this.acquireOrLoadSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None, undefined, untitledModel.sessionTypeSelectionReason);
+			const tempRef = await this.acquireOrLoadSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None, 'ChatService#materializeUntitledSession', untitledModel.sessionTypeSelectionReason);
+			if (modelReference.isDisposed) {
+				tempRef?.dispose();
+				throw new CancellationError();
+			}
+			if (tempRef) {
+				modelReference.add(tempRef);
+			}
 			const realModel = tempRef?.object as ChatModel | undefined;
 			if (!realModel) {
 				throw new Error(`Failed to load session for resource: ${newItem.resource}`);
@@ -1836,6 +1847,7 @@ export class ChatService extends Disposable implements IChatService {
 			// untitled path rather than inheriting this failure, then propagate the
 			// error to the originating caller. The forward mapping is only published
 			// on success, so there is nothing to roll back here.
+			modelReference.dispose();
 			materialized.complete(undefined);
 			throw err;
 		} finally {

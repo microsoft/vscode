@@ -3440,6 +3440,92 @@ suite('ChatService', () => {
 			} as const;
 		}
 
+		test('releases the materialization reference after the UI takes over the real session', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-reference-handoff' });
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const result = await service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			// The first response may finish before the UI swaps models. The real
+			// model must survive that interval, then release its temporary owner.
+			assert.ok(service.getSession(realResource));
+			const uiRef = testDisposables.add((await service.acquireOrLoadSession(realResource, ChatAgentLocation.Chat, CancellationToken.None, 'test-ui'))!);
+			untitledRef.dispose();
+			await service.waitForModelDisposals();
+			assert.deepStrictEqual(service.getChatModelReferenceDebugInfo().models.map(model => ({
+				resource: model.sessionResource.toString(),
+				holders: model.holders,
+			})), [{
+				resource: realResource.toString(),
+				holders: [{ holder: 'test-ui', count: 1 }],
+			}]);
+
+			uiRef.dispose();
+			await service.waitForModelDisposals();
+			assert.strictEqual(service.getSession(realResource), undefined);
+		});
+
+		test('releases the materialized model when the untitled session is abandoned without a UI handoff', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-reference-abandoned' });
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const result = await service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			untitledRef.dispose();
+			await service.waitForModelDisposals();
+			await service.waitForModelDisposals();
+			assert.deepStrictEqual(service.getChatModelReferenceDebugInfo().models, []);
+		});
+
+		test('releases a late materialization reference when the untitled model was already disposed', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-reference-late' });
+			const contentRequested = new DeferredPromise<void>();
+			const content = new DeferredPromise<IChatSession>();
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+				provideContent: resource => {
+					if (resource.toString() === realResource.toString()) {
+						contentRequested.complete();
+						return content.p;
+					}
+					return Promise.resolve({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } });
+				},
+			});
+			const untitledRef = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const sending = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const rejected = assert.rejects(sending, isCancellationError);
+			await contentRequested.p;
+			untitledRef.dispose();
+			await service.waitForModelDisposals();
+			content.complete({ sessionResource: realResource, history: [], onWillDispose: Event.None, dispose: () => { } });
+
+			await rejected;
+			await service.waitForModelDisposals();
+			assert.deepStrictEqual(service.getChatModelReferenceDebugInfo().models, []);
+		});
+
+		test('releases the real model reference when materialization fails after loading', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-reference-failed' });
+			const { service, untitledResource, mockSessionsService } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			mockSessionsService.setSessionOption(untitledResource, 'model', 'test-model');
+			mockSessionsService.updateSessionOptions = () => { throw new Error('option update failed'); };
+
+			await assert.rejects(service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme }), /option update failed/);
+			await service.waitForModelDisposals();
+			assert.strictEqual(service.getSession(realResource), undefined);
+		});
+
 		test('carries the selected mode from the untitled session to the materialized session', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-mode' });
 			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
@@ -3785,6 +3871,8 @@ suite('ChatService', () => {
 			ChatSendResult.assertSent(r1);
 			await r1.data.responseCompletePromise;
 			assert.ok(service.getSession(realResource), 'real session exists after first send');
+			// The UI acquires the real model before releasing the untitled one.
+			testDisposables.add((await service.acquireOrLoadSession(realResource, ChatAgentLocation.Chat, CancellationToken.None, 'test-ui'))!);
 
 			// Disposing the untitled session (the UI swap in production) must drop
 			// the untitled→real mapping so it cannot grow unbounded or redirect.
