@@ -48,19 +48,19 @@ export class AgentPickerSpotlight extends Disposable {
 				return widget.visible && widget.inputPart.isAgentPickerInAttachContextMenu;
 			});
 		});
-		const readyTarget = observableValue<HTMLElement | undefined>(this, undefined);
+		const targetReady = observableValue(this, false);
 		this._register(autorun(reader => {
 			const widget = eligibleChat.read(reader);
-			readyTarget.set(undefined, undefined);
+			targetReady.set(false, undefined);
 			if (widget) {
 				reader.store.add(scheduleAtNextAnimationFrame(getWindow(widget.domNode), () => {
-					readyTarget.set(widget.inputPart.attachContextButtonElement, undefined);
+					targetReady.set(!!widget.inputPart.attachContextButtonElement, undefined);
 				}));
 			}
 		}));
 		this._register(registerOnboardingTargetProvider(AGENT_PICKER_SPOTLIGHT_ID, scope => {
 			const element = eligibleChat.get()?.inputPart.attachContextButtonElement;
-			return scope === undefined && element && element === readyTarget.get() ? { element } : undefined;
+			return scope === undefined && element && targetReady.get() ? { element } : undefined;
 		}));
 		const scenario: IOnboardingScenario<ISpotlightPayload> = {
 			id: AGENT_PICKER_SPOTLIGHT_ID,
@@ -69,7 +69,7 @@ export class AgentPickerSpotlight extends Disposable {
 				ContextKeyExpr.equals(`config.${ChatConfiguration.AgentsPickerInAttachContextMenu}`, true),
 				EditorPartModalVisibleContext.toNegated(),
 			),
-			trigger: { kind: 'observable', signal: derived(this, reader => !!eligibleChat.read(reader) && !!readyTarget.read(reader)) },
+			trigger: { kind: 'observable', signal: derived(this, reader => !!eligibleChat.read(reader) && targetReady.read(reader)) },
 			presentation: {
 				kind: SPOTLIGHT_PRESENTATION_KIND,
 				payload: {

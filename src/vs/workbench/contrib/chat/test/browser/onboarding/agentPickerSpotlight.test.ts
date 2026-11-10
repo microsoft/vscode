@@ -47,7 +47,7 @@ suite('AgentPickerSpotlight', () => {
 	function createHarness(enabled = true) {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentsPickerInAttachContextMenu]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const button = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+		let button = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
 		button.textContent = '+';
 		button.style.cssText = 'width: 28px; height: 28px;';
 		store.add(toDisposable(() => button.remove()));
@@ -56,7 +56,7 @@ suite('AgentPickerSpotlight', () => {
 		let supported = true;
 		const changed = store.add(new Emitter<IChatWidget>());
 		const widget = new class extends mock<IChatWidget>() {
-			override readonly domNode = button;
+			override readonly domNode = mainWindow.document.body;
 			override get visible() { return visible; }
 			override readonly inputPart = new class extends mock<ChatInputPart>() {
 				override get currentModeObs() { return mode; }
@@ -90,6 +90,14 @@ suite('AgentPickerSpotlight', () => {
 			setVisible: (value: boolean) => { visible = value; changed.fire(widget); },
 			setSupported: (value: boolean) => { supported = value; changed.fire(widget); },
 			removeWidget: () => { widgets.length = 0; changed.fire(widget); },
+			replaceButton: () => {
+				const replacement = mainWindow.document.createElement('button');
+				replacement.textContent = '+';
+				replacement.style.cssText = button.style.cssText;
+				button.replaceWith(replacement);
+				button = replacement;
+				return replacement;
+			},
 		};
 	}
 
@@ -125,6 +133,16 @@ suite('AgentPickerSpotlight', () => {
 		removeWidget();
 		record();
 		assert.deepStrictEqual(states, [false, false, true, false, true, false, true, false, false, false]);
+	});
+
+	test('resolves the current + button when the toolbar rerenders after readiness', async () => {
+		const { frame, replaceButton, signal } = createHarness();
+		await frame();
+		const replacement = replaceButton();
+		assert.deepStrictEqual({
+			ready: signal?.get(),
+			currentTarget: resolveOnboardingTarget(mainWindow, AGENT_PICKER_SPOTLIGHT_ID)?.element === replacement,
+		}, { ready: true, currentTarget: true });
 	});
 
 	test('honors AI and onboarding gates and persists once-only state across engine recreation', async () => {
@@ -177,10 +195,11 @@ suite('AgentPickerSpotlight', () => {
 		});
 	});
 
-	for (const dismiss of ['understood', 'escape'] as const) {
-		test(`announces the tip and restores focus after ${dismiss}`, async () => {
-			const { button, scenario, frame } = createHarness();
+	for (const dismiss of ['understood', 'escape', 'target'] as const) {
+		test(`shows the accessible tip after toolbar replacement and dismisses via ${dismiss}`, async () => {
+			const { scenario, frame, replaceButton } = createHarness();
 			await frame();
+			const button = replaceButton();
 			button.focus();
 			const context = store.add(new ContextKeyService(new TestConfigurationService()));
 			const layout = new class extends TestLayoutService {
@@ -194,7 +213,9 @@ suite('AgentPickerSpotlight', () => {
 			const description = mainWindow.document.getElementById(callout.getAttribute('aria-describedby')!);
 			const next = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(element => element.textContent === 'Understood')!;
 			const before = { role: callout.getAttribute('role'), description: description?.textContent, focused: mainWindow.document.activeElement === next };
-			if (dismiss === 'understood') {
+			if (dismiss === 'target') {
+				button.click();
+			} else if (dismiss === 'understood') {
 				next.click();
 			} else {
 				next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
@@ -202,8 +223,8 @@ suite('AgentPickerSpotlight', () => {
 			const outcome = (await result).outcome;
 			assert.deepStrictEqual({ before, outcome, restored: mainWindow.document.activeElement === button }, {
 				before: { role: 'dialog', description: 'We default to Agent, find your custom agents in the + menu', focused: true },
-				outcome: dismiss === 'understood' ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
-				restored: true,
+				outcome: dismiss === 'escape' ? OnboardingOutcome.Skipped : OnboardingOutcome.Completed,
+				restored: dismiss !== 'target',
 			});
 		});
 	}
