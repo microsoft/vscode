@@ -351,6 +351,9 @@ suite('UriTemplate', () => {
 		testResolution('{/list*,path:4}', variables, '/red/green/blue/%2Ffoo');
 		testResolution('{/keys}', variables, '/semi,;,dot,.,comma,,');
 		testResolution('{/keys*}', variables, '/semi=%3B/dot=./comma=%2C');
+		testResolution('{/var,list}', variables, '/value/red,green,blue');
+		testResolution('{/list,var}', variables, '/red,green,blue/value');
+		testResolution('{/var,keys}', variables, '/value/semi,;,dot,.,comma,,');
 	});
 
 	test('Level 4 - Path-style parameters with value modifiers', () => {
@@ -427,6 +430,7 @@ suite('UriTemplate', () => {
 
 		// Fragment expansion
 		testResolution('{#defined,undef,null,empty}', variables, '#value,');
+		testResolution('{#undef,null}', variables, '');
 
 		// Label expansion
 		testResolution('X{.defined,undef,null,empty}', variables, 'X.value');

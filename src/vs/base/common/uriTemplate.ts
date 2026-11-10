@@ -196,6 +196,8 @@ export class UriTemplate {
 						vals.push(joined);
 					} else if (isParam || isForm || isFormCont) {
 						vals.push(v.name + '=' + joined);
+					} else if (isPath) {
+						vals.push('/' + joined);
 					} else {
 						vals.push(joined);
 					}
@@ -222,6 +224,8 @@ export class UriTemplate {
 						vals.push(v.name + '=' + value.join(','));
 					} else if (isForm || isFormCont) {
 						vals.push(v.name + '=' + value.join(','));
+					} else if (isPath) {
+						vals.push('/' + value.map(x => UriTemplate._encode(x, isReserved)).join(','));
 					} else {
 						vals.push(value.map(x => UriTemplate._encode(x, isReserved)).join(','));
 					}
@@ -268,7 +272,7 @@ export class UriTemplate {
 		} else if (isFormCont) {
 			joined = vals.length ? prefix + vals.join('&') : '';
 		} else if (isFragment) {
-			joined = prefix + vals.join(',');
+			joined = vals.length ? prefix + vals.join(',') : '';
 		} else if (isReserved) {
 			joined = vals.join(',');
 		} else {
