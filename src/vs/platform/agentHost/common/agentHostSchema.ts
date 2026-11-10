@@ -1059,7 +1059,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
-		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files and websites they record, such as above the chat input."),
 		default: false,
 	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
