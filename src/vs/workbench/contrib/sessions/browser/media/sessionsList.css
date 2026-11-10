@@ -382,26 +382,10 @@
 
 /* Session Item */
 
-.sessions-list-primary,
-.sessions-list-inbox-footer {
+.sessions-list-primary {
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
-}
-
-.sessions-list-inbox-resize {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: var(--vscode-spacing-size40);
-	pointer-events: none;
-	z-index: 1;
-
-	&:focus-visible {
-		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
 }
 
 .sessions-list-control.inbox-layout {
@@ -414,7 +398,7 @@
 		}
 	}
 
-	.sessions-list-inbox-footer .session-section {
+	.session-section {
 		font-weight: var(--vscode-fontWeight-regular);
 
 		.session-section-count {

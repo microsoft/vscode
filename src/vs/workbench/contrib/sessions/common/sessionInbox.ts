@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from './inboxNotificationsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 
@@ -57,6 +58,13 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 	if (state) {
 		return SessionInboxSection.OnHold;
 	}
+	const chats = session.chats.read(reader).filter(chat => !chat.isArchived.read(reader));
+	if (chats.length > 1 && chats.some(chat => {
+		const status = chat.status.read(reader);
+		return status === SessionStatus.Completed || status === SessionStatus.NeedsInput || status === SessionStatus.Error;
+	}) && (attention?.tab === InboxTab.Working || !attention && session.status.read(reader) === SessionStatus.InProgress)) {
+		return SessionInboxSection.ReadyForYou;
+	}
 	if (attention) {
 		switch (attention.tab) {
 			case InboxTab.ReadyForYou: return SessionInboxSection.ReadyForYou;
@@ -68,8 +76,19 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 	if (status === SessionStatus.NeedsInput || status === SessionStatus.Error) {
 		return SessionInboxSection.ReadyForYou;
 	}
+
 	if (status === SessionStatus.InProgress) {
 		return SessionInboxSection.Working;
 	}
 	return SessionInboxSection.ReadyForYou;
+}
+
+export function getSessionInboxDescription(state: SessionInboxState | undefined): string | undefined {
+	switch (state?.kind) {
+		case 'snoozed': return localize('inboxSnoozedUntil', "Snoozed until {0}", new Date(state.until).toLocaleString());
+		case 'untilActivity': return localize('inboxSnoozedUntilActivity', "Snoozed until new activity");
+		case 'hold': return localize('inboxHeldUntilResumed', "On hold until you return it to Inbox");
+		case 'done': return localize('inboxDismissedNotArchived', "Dismissed from Inbox, not archived");
+		default: return undefined;
+	}
 }

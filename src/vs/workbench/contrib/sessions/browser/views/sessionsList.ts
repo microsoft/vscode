@@ -14,7 +14,6 @@ import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDr
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
 import { IFindFilter, RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { LayoutPriority, Orientation, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -134,12 +133,12 @@ import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessio
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
 import { WindowCanvasInput } from '../windowCanvas.js';
-import { IInboxNotificationsService, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { getInboxPullRequestMergeOperation, IInboxNotificationsService, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
 import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
+import { getSessionInboxDescription, getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
 
@@ -193,6 +192,7 @@ export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemInboxStateContext = new RawContextKey<string>('sessionItem.inboxState', '');
+export const SessionItemCanMergePullRequestContext = new RawContextKey<boolean>('sessionItem.canMergePullRequest', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
 export const SessionItemHasUnreadNestedSessionsContext = new RawContextKey<boolean>('sessionItem.hasUnreadNestedSessions', false);
 type SessionContextKeyProvider = (session: ISession, reader: IReader | undefined) => Iterable<[string, ContextKeyValue]>;
@@ -466,7 +466,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 		case SessionInboxSection.OnHold:
 			return Codicon.history;
 		case SessionInboxSection.Done:
-			return Codicon.check;
+			return Codicon.mailRead;
 		case CUSTOMIZATIONS_SECTION_ID:
 			return Codicon.extensions;
 		case 'archived':
@@ -1696,6 +1696,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
 			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+			getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
 			/** How many groups deep the custom group whose rows include the session's row is nested; the row steps in by that many levels. */
@@ -1926,13 +1927,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		let rowObservesMainChatBranchChanges = false;
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () =>
-				withSessionsListHoverPresentation(createSessionSummaryHover(
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => {
+				const hover = createSessionSummaryHover(
 					element,
 					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
 					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
 					this.openerService,
-				)), { groupId: 'sessions-list' }));
+				);
+				const triage = this.options.getTriageDescription?.(element, undefined);
+				if (triage && DOM.isHTMLElement(hover.content)) {
+					DOM.append(hover.content, $('div', undefined, triage));
+				}
+				return withSessionsListHoverPresentation(hover);
+			}, { groupId: 'sessions-list' }));
 		}
 
 		// Pending voice response indicator: a response arrived while this session
@@ -2220,6 +2227,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 				badgeEl.textContent = badgeLabel;
 				parts.push(badgeEl);
+			}
+
+			const triage = this.options.getTriageDescription?.(element, reader);
+			if (triage) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+				}
+				const label = DOM.append(template.detailsRow, $('span.session-description', undefined, triage));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: triage }));
+				parts.push(label);
 			}
 
 			if (searchHint) {
@@ -3494,6 +3511,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+	readonly getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** The harness label of a nested chat whose harness differs from its session's. */
 	readonly getChatHarnessLabel?: (session: ISession, chat: IChat, reader: IReader | undefined) => string | undefined;
 	/** While searching, the field a session or a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
@@ -3690,6 +3708,10 @@ class SessionsAccessibilityProvider {
 				?? (status === SessionStatus.Completed ? this.options?.getCompletedStatusMessage?.(element, reader) : undefined);
 			if (historyStatusMessage) {
 				label = localize('sessionItemHistoryStatusAria', "{0}, {1}", label, typeof historyStatusMessage === 'string' ? historyStatusMessage : renderAsPlaintext(historyStatusMessage, { omitMarkdownSyntax: true }));
+			}
+			const triage = this.options?.getTriageDescription?.(element, reader);
+			if (triage) {
+				label = localize('sessionItemTriageAria', "{0}, {1}", label, triage);
 			}
 			const eligible = isExternalApplicationBadgeEligible(element, reader);
 			if (eligible) {
@@ -4587,17 +4609,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private readonly listContainer: HTMLElement;
 	private readonly primaryContainer: HTMLElement;
-	private readonly inboxFooterContainer: HTMLElement;
-	private readonly inboxResizeHandle: HTMLElement;
-	private readonly inboxSplitView: SplitView;
-	private readonly inboxTree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
-	private readonly inboxFooterSizeChanged = this._register(new Emitter<number | undefined>());
-	private inboxFooterMaximumSize = 0;
-	private inboxFooterMinimumSize = 0;
-	private inboxFooterPreferredSize: number | undefined;
-	private listHeight = 0;
-	private listWidth = 0;
-	private layingOutInbox = false;
 	private readonly stickyShowMoreContainer: HTMLElement;
 	private readonly stickyShowMoreButton: Button;
 	private readonly stickyShowMoreLabel: HTMLElement;
@@ -4742,26 +4753,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private isInboxLayout(): boolean {
-		return this.options.grouping() === SessionsGrouping.Inbox && !IsPhoneLayoutContext.getValue(this.contextKeyService);
+		return this.options.grouping() === SessionsGrouping.Inbox;
 	}
 
-	protected getTree(element: SessionListItem): WorkbenchObjectTree<SessionListItem, FuzzyScore> {
-		return this.inboxTree?.hasElement(element) ? this.inboxTree : this.tree;
+	protected getTree(_element: SessionListItem): WorkbenchObjectTree<SessionListItem, FuzzyScore> {
+		return this.tree;
 	}
 
 	protected get trees(): readonly WorkbenchObjectTree<SessionListItem, FuzzyScore>[] {
-		return [this.tree, this.inboxTree];
+		return [this.tree];
 	}
 
 	protected getFocusedTree(): WorkbenchObjectTree<SessionListItem, FuzzyScore> {
-		return DOM.isAncestorOfActiveElement(this.inboxFooterContainer)
-			|| !DOM.isAncestorOfActiveElement(this.primaryContainer) && this.inboxTree.getFocus().length > 0
-			? this.inboxTree : this.tree;
+		return this.tree;
 	}
 
 	private getRootNode(): ITreeNode<SessionListItem | null, FuzzyScore> {
-		const root = this.tree.getNode();
-		return { ...root, children: [...root.children, ...this.inboxTree.getNode().children] };
+		return this.tree.getNode();
 	}
 
 	private getSelection(): (SessionListItem | null)[] {
@@ -4833,50 +4841,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		];
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
-		this.primaryContainer = $('.sessions-list-primary');
-		this.inboxFooterContainer = $('.sessions-list-inbox-footer');
-		this.inboxResizeHandle = DOM.append(this.inboxFooterContainer, $('.sessions-list-inbox-resize', {
-			role: 'separator', 'aria-orientation': 'horizontal', 'aria-label': localize('resizeInboxCategories', "Resize Inbox Categories"),
-		}));
-		this._register(DOM.addDisposableListener(this.inboxResizeHandle, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			let size = this.inboxSplitView.getViewSize(1);
-			switch (event.key) {
-				case 'ArrowUp': size += 26; break;
-				case 'ArrowDown': size -= 26; break;
-				case 'Home': size = this.inboxFooterMinimumSize; break;
-				case 'End': size = this.inboxFooterMaximumSize; break;
-				default: return;
-			}
-			event.preventDefault();
-			event.stopPropagation();
-			this.inboxFooterPreferredSize = Math.max(this.inboxFooterMinimumSize, Math.min(size, this.inboxFooterMaximumSize));
-			this.layoutInbox();
-		}));
-		// Dispose tree editors before SplitView detaches their focused inputs and fires blur.
+		this.primaryContainer = DOM.append(this.listContainer, $('.sessions-list-primary'));
 		const treeDisposables = this._register(new DisposableStore());
-		this.inboxSplitView = this._register(new SplitView(this.listContainer, { orientation: Orientation.VERTICAL, proportionalLayout: false }));
-		this.inboxSplitView.addView({
-			element: this.primaryContainer,
-			minimumSize: 0,
-			maximumSize: Number.POSITIVE_INFINITY,
-			priority: LayoutPriority.High,
-			onDidChange: Event.None,
-			layout: height => this.tree?.layout(height, this.listWidth),
-		}, 0);
-		const owner = this;
-		this.inboxSplitView.addView({
-			element: this.inboxFooterContainer,
-			get minimumSize() { return owner.inboxFooterMinimumSize; },
-			get maximumSize() { return owner.inboxFooterMaximumSize; },
-			onDidChange: this.inboxFooterSizeChanged.event,
-			layout: height => this.inboxTree?.layout(height, this.listWidth),
-		}, 0);
-		this._register(this.inboxSplitView.onDidSashChange(() => {
-			if (!this.layingOutInbox) {
-				this.inboxFooterPreferredSize = this.inboxSplitView.getViewSize(1);
-				this.layoutInbox();
-			}
-		}));
 		const listContextKeyService = this._register(contextKeyService.createScoped(this.listContainer));
 		const treeInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, listContextKeyService])));
 		this.listContainer.classList.toggle('compact', this.isCompact());
@@ -4971,8 +4937,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				aggregateChatApprovals: false,
 				toolbarMenuId: Menus.SessionItemToolbar,
 				toolbarTelemetrySource: 'sessionsList.row',
-				getAdditionalContextKeys: (session, reader) => [[SessionItemInboxStateContext.key,
-				this.options.grouping() === SessionsGrouping.Inbox ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : '']],
+				getAdditionalContextKeys: (session, reader) => [
+					[SessionItemInboxStateContext.key, this.isInboxLayout() ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : ''],
+					[SessionItemCanMergePullRequestContext.key, this.canMergeInboxPullRequest(session, reader)],
+				],
+				getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 				inlineRename: true,
 				contextViewService: this.contextViewService,
 				onDidDoubleClickRename: session => this.preservePendingOpenFocus(session),
@@ -5211,6 +5180,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					widgetAriaLabel: label,
+					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
 					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
@@ -5331,8 +5301,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 		this.tree = createTree(this.primaryContainer, localize('sessionsPrimaryList', "Sessions"));
-		this.inboxTree = createTree(this.inboxFooterContainer, localize('inboxCategories', "Inbox categories"));
-		this._register(this.inboxTree.onDidChangeContentHeight(() => this.layoutInbox()));
 		this.findController = this._register(new SessionsListFindController(this.tree, this.searchFilter, this.contextViewService, {
 			isSearching: () => this.searchFilter.isSearching,
 			// Showing no chats of a session that has some makes its row stand for the whole session.
@@ -5341,41 +5309,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
 			styles: defaultFindWidgetStyles,
-			additionalTrees: [this.inboxTree],
 		}));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(listContextKeyService);
 		this.focusedChatCanMoveUpContext = SessionChatItemCanMoveUpContext.bindTo(listContextKeyService);
 		this.focusedChatCanMoveDownContext = SessionChatItemCanMoveDownContext.bindTo(listContextKeyService);
 		for (const tree of this.trees) {
 			tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
-			this._register(tree.onDidChangeFocus(e => {
-				if (this.isInboxLayout() && e.elements.length > 0) {
-					for (const other of this.trees) {
-						if (other !== tree) {
-							other.setFocus([]);
-						}
-					}
-				}
-			}));
-			this._register(tree.onDidChangeSelection(e => {
-				if (this.isInboxLayout() && e.elements.length > 0) {
-					const additive = e.browserEvent && DOM.isMouseEvent(e.browserEvent) && (tree.useAltAsMultipleSelectionModifier ? e.browserEvent.altKey : e.browserEvent.ctrlKey || e.browserEvent.metaKey);
-					for (const other of this.trees) {
-						if (other !== tree && (!additive || ![...e.elements, ...other.getSelection()].every(element => element && isSessionItem(element) && !element.isArchived.get()))) {
-							other.setSelection([]);
-						}
-					}
-				}
-			}));
-			this._register(tree.onPointer(e => {
-				if (this.isInboxLayout() && e.browserEvent.button === 0) {
-					for (const other of this.trees) {
-						if (other !== tree) {
-							other.setSelection([]);
-						}
-					}
-				}
-			}));
 		}
 		this.stickyShowMoreContainer = DOM.append(this.listContainer, $('.sessions-list-sticky-show-more'));
 		this.stickyShowMoreContainer.hidden = true;
@@ -5409,7 +5348,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.stickyShowMoreButton.onDidEscape(() => this.tree.domFocus()));
 		this._register(this.tree.onDidScroll(() => this.updateStickyShowMore()));
 		this._register(this.tree.onDidChangeContentHeight(() => {
-			this.layoutInbox();
 			this.updateStickyShowMore();
 		}));
 		this._register(Event.any(...this.trees.map(tree => tree.onDidChangeFocus))(e => {
@@ -5897,7 +5835,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.groupDepths.clear();
 		const topLevelGroupIds = topLevelGroups.filter(group => !comparisonsByGroupId.has(group.id)).map(group => getSessionGroupSectionId(group.id));
 
-		const archivedSectionLabel = inbox ? localize('archivedInboxSessions', "Archived") : getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
+		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
@@ -6225,7 +6163,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 				}
 			}
-			if (section.id === 'archived' || this.isInboxLayout() && sessionInboxSections.some(id => id === section.id)) {
+			if (section.id === 'archived' || inbox && section.id !== SessionInboxSection.ReadyForYou && section.id !== SessionInboxSection.Done && sessionInboxSections.some(id => id === section.id)) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
@@ -6236,7 +6174,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return {
 				element: section as SessionListItem,
-				collapsible: !sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0,
+				collapsible: section.id !== SessionInboxSection.ReadyForYou && (!sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0),
 				collapsed: resolveCollapsed(section, this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed),
 				children: sectionChildren,
 			};
@@ -6363,26 +6301,49 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Match sessions again before filtering sections: their text may have changed since the last update.
 		this.searchFilter.invalidate();
 		this.hiddenGroupingSections = [];
-		const footerChildren: IObjectTreeElement<SessionListItem>[] = [];
 		if (inbox) {
 			this._topLevelOrder = [];
 			for (const id of sessionInboxSections) {
 				const sourceSection = sections.find(section => section.id === id);
-				const section = sourceSection && this.isInboxLayout() && this.hasFindPattern
+				const section = sourceSection && this.hasFindPattern
 					? { ...sourceSection, sessions: sourceSection.sessions.filter(session => !!this.searchFilter.getMatch(session)) }
 					: sourceSection;
-				if (section) {
-					const rendered = renderWorkspaceSection(section);
-					if (!this.isInboxLayout()) {
-						children.push(rendered);
-					} else if (id === SessionInboxSection.ReadyForYou) {
-						const primary = [...rendered.children ?? []];
-						children.push(...primary.length > 0 ? primary : [{
-							element: { placeholder: true as const, sectionId: id, label: localize('inboxEmpty', "Your inbox is clear") },
-						}]);
-					} else {
-						footerChildren.push(rendered);
+				if (section && (section.sessions.length > 0 || id === SessionInboxSection.ReadyForYou)) {
+					let rendered = renderWorkspaceSection(section);
+					if (id === SessionInboxSection.ReadyForYou) {
+						rendered = { ...rendered, collapsed: false };
+						if (section.sessions.length === 0) {
+							const hasDismissed = sections.some(section => section.id === SessionInboxSection.Done && section.sessions.length > 0);
+							rendered = { ...rendered, children: [{
+								element: {
+									placeholder: true as const, sectionId: id,
+									label: hasDismissed ? localize('inboxEmptyHistory', "No new activity. See Dismissed below.") : localize('inboxEmpty', "Your inbox is clear"),
+									hover: hasDismissed ? localize('inboxHistoryHelp', "Dismissed includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
+								},
+							}] };
+						}
+					} else if (id === SessionInboxSection.OnHold) {
+						const workspaces = new Map<string, { sessions: ISession[]; children: IObjectTreeElement<SessionListItem>[] }>();
+						for (const child of rendered.children ?? []) {
+							const sessions = isSessionItem(child.element) ? [child.element] : isSessionGroupItem(child.element) ? child.element.sessions : [];
+							if (sessions.length === 0) {
+								continue;
+							}
+							const label = sessionWorkspaceLabel(sessions[0]);
+							let workspace = workspaces.get(label);
+							if (!workspace) {
+								workspace = { sessions: [], children: [] };
+								workspaces.set(label, workspace);
+							}
+							workspace.sessions.push(...sessions);
+							workspace.children.push(child);
+						}
+						rendered = { ...rendered, children: [...workspaces].sort(([a], [b]) => a.localeCompare(b)).map(([label, workspace]) => {
+							const section: ISessionSection = { id: `${SessionInboxSection.OnHold}:workspace:${label}`, label, sessions: workspace.sessions };
+							return { ...renderSection(section), children: workspace.children };
+						}) };
 					}
+					children.push(rendered);
 				}
 			}
 		} else if (grouping === SessionsGrouping.Date) {
@@ -6466,13 +6427,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const archivedSection = sections.find(s => s.id === 'archived');
 		if (archivedSection) {
-			(this.isInboxLayout() ? footerChildren : children).push(renderSection(archivedSection));
+			children.push(renderSection(archivedSection));
 		}
 
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
 		this.listContainer.classList.toggle('inbox-layout', this.isInboxLayout());
 		this.tree.getHTMLElement().setAttribute('aria-label', this.isInboxLayout() ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
-		this.inboxTree.setChildren(null, footerChildren);
 		this.tree.setChildren(null, children);
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
@@ -6482,7 +6442,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		}
-		this.layoutInbox();
 		this.updateArchiveDemand();
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
@@ -6544,10 +6503,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealAboveStickyShowMore(element: SessionListItem): void {
-		if (this.getTree(element) === this.inboxTree) {
-			this.inboxTree.reveal(element);
-			return;
-		}
 		this.tree.reveal(element);
 		if (this.stickyShowMoreContainer.hidden) {
 			return;
@@ -6981,40 +6936,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	layout(height: number, width: number): void {
 		this.layoutNavigation(width);
-		this.listHeight = Math.max(0, height);
-		this.listWidth = width;
 		this.listContainer.style.height = `${height}px`;
-		this.layoutInbox();
+		this.tree.layout(Math.max(0, height), width);
 		this.updateStickyShowMore();
-	}
-
-	private layoutInbox(): void {
-		if (this.layingOutInbox) {
-			return;
-		}
-		this.layingOutInbox = true;
-		try {
-			const enabled = this.isInboxLayout();
-			this.inboxFooterContainer.hidden = !enabled;
-			const contentHeight = this.inboxTree.contentHeight;
-			const primaryContentHeight = this.tree.contentHeight;
-			const primaryMinimumSize = Math.min(primaryContentHeight, this.listHeight * 0.35);
-			this.inboxFooterMaximumSize = enabled ? Math.min(contentHeight, this.listHeight - primaryMinimumSize) : 0;
-			const collapsedHeight = this.inboxTree.getNode().children.filter(node => node.visible).length * (this.options.sectionRowHeight ?? 26);
-			this.inboxFooterMinimumSize = Math.min(collapsedHeight, this.inboxFooterMaximumSize);
-			const primaryPreferredSize = Math.min(primaryContentHeight, this.listHeight * 0.6);
-			const preferred = Math.max(collapsedHeight, this.inboxFooterPreferredSize ?? this.listHeight - primaryPreferredSize);
-			this.inboxFooterSizeChanged.fire(Math.min(preferred, this.inboxFooterMaximumSize));
-			this.inboxSplitView.layout(this.listHeight);
-			this.inboxSplitView.resizeView(1, Math.min(preferred, this.inboxFooterMaximumSize));
-			this.inboxResizeHandle.tabIndex = this.inboxFooterMaximumSize > this.inboxFooterMinimumSize ? 0 : -1;
-			const percent = (size: number) => String(this.listHeight > 0 ? Math.round(size / this.listHeight * 100) : 0);
-			this.inboxResizeHandle.setAttribute('aria-valuemin', percent(this.inboxFooterMinimumSize));
-			this.inboxResizeHandle.setAttribute('aria-valuemax', percent(this.inboxFooterMaximumSize));
-			this.inboxResizeHandle.setAttribute('aria-valuenow', percent(this.inboxSplitView.getViewSize(1)));
-		} finally {
-			this.layingOutInbox = false;
-		}
 	}
 
 	setCompact(): void {
@@ -7834,7 +7758,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sortComparisonChildren(children: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem>[] {
 		const inbox = this.options.grouping() === SessionsGrouping.Inbox;
 		const key = (child: IObjectTreeElement<SessionListItem>) => isSessionItem(child.element) || (isSessionGroupItem(child.element) && child.element.comparison)
-			? inbox ? this.getListSortEntry(child.element).updatedAt.get().getTime()
+			? inbox ? (this.options.sorting() === SessionsSorting.Created ? this.getListSortEntry(child.element).createdAt : this.getListSortEntry(child.element).updatedAt.get()).getTime()
 				: this._sessionsListModelService.getSortKey(this.getListSortEntry(child.element), sortingToMode(this.options.sorting()))
 			: Number.NEGATIVE_INFINITY;
 		const priority = (child: IObjectTreeElement<SessionListItem>) => !inbox ? InboxNotificationPriority.Later
@@ -8473,6 +8397,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
 			[SessionItemInboxStateContext.key, inboxStates.every(state => state === inboxStates[0]) ? inboxStates[0] ?? '' : 'mixed'],
+			[SessionItemCanMergePullRequestContext.key, this.canMergeInboxPullRequest(element)],
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
 			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService, isCrossAgentChatMoveEnabled(this.configurationService)).length > 0],
@@ -8663,6 +8588,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showCreateGroupContextMenu(anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
+		if (this.isInboxLayout()) {
+			return;
+		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => [this.getCreateGroupAction()],
 			getAnchor: () => anchor,
@@ -8717,7 +8645,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				color => this._sessionGroupsService.setSectionColor(section.id, color),
 			)]);
 		}
-		organize.push(this.getCreateGroupAction());
+		if (grouping !== SessionsGrouping.Inbox) {
+			organize.push(this.getCreateGroupAction());
+		}
 		groups.push(['2_organize', organize]);
 		this.showHeaderContextMenu(Menus.SessionSectionContext, contextKeyService, section, groups, anchor);
 	}
@@ -8931,6 +8861,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private getInboxSection(session: ISession): SessionInboxSection {
 		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.inboxNotificationsService.sessionAttention.get().get(session.sessionId));
+	}
+
+	private canMergeInboxPullRequest(session: ISession, reader?: IReader): boolean {
+		return this.isInboxLayout() && !session.isArchived.read(reader)
+			&& getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, this.inboxNotificationsService.sessionAttention.read(reader).get(session.sessionId)) === SessionInboxSection.ReadyToMerge
+			&& getInboxPullRequestMergeOperation(session, reader) !== undefined;
+	}
+
+	private getInboxDescription(session: ISession, reader?: IReader): string | undefined {
+		return this.isInboxLayout() && !session.isArchived.read(reader)
+			? getSessionInboxDescription(this._sessionsListModelService.getInboxState(session, reader))
+			: undefined;
 	}
 
 	private getInboxPriority(session: ISession): InboxNotificationPriority {
@@ -9936,9 +9878,7 @@ export function groupSessionsForList(
 		? sessionInboxSections.map(id => ({
 			id,
 			label: getSessionInboxSectionLabel(id),
-			sessions: regular.filter(session => getInboxSection(session) === id).sort((a, b) =>
-				getInboxPriority(a) - getInboxPriority(b)
-				|| b.updatedAt.get().getTime() - a.updatedAt.get().getTime()),
+			sessions: sortSessions(regular.filter(session => getInboxSection(session) === id), sorting).sort((a, b) => getInboxPriority(a) - getInboxPriority(b)),
 		}))
 		: grouping === SessionsGrouping.Workspace
 			? groupByWorkspace(regular)
@@ -9961,11 +9901,11 @@ export function groupSessionsForList(
 
 function getSessionInboxSectionLabel(section: SessionInboxSection): string {
 	switch (section) {
-		case SessionInboxSection.ReadyForYou: return localize('inboxReadyForYou', "Ready for you");
+		case SessionInboxSection.ReadyForYou: return localize('inboxSection', "Inbox");
 		case SessionInboxSection.ReadyToMerge: return localize('inboxReadyToMerge', "Ready to merge");
 		case SessionInboxSection.Working: return localize('inboxWorking', "Working");
 		case SessionInboxSection.OnHold: return localize('inboxOnHold', "On hold");
-		case SessionInboxSection.Done: return localize('inboxDone', "Done");
+		case SessionInboxSection.Done: return localize('inboxDismissed', "Dismissed");
 	}
 }
 
