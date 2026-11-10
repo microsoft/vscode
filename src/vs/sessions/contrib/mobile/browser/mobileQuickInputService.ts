@@ -142,25 +142,30 @@ export class MobileQuickInputService extends QuickInputService {
 			const submit = dom.append(body, $('button.mobile-quick-input-submit', { type: 'button' })) as HTMLButtonElement;
 			submit.textContent = localize('mobileQuickInput.ok', "OK");
 
-			const validate = async (): Promise<boolean> => {
+			let validationGeneration = 0;
+			const validate = async (value: string): Promise<boolean> => {
 				if (!options.validateInput) {
 					return true;
 				}
-				const message = await options.validateInput(input.value);
+				const generation = ++validationGeneration;
+				const message = await options.validateInput(value);
 				if (store.isDisposed || token.isCancellationRequested) {
 					return false;
 				}
 				const text = typeof message === 'string' ? message : message?.content;
-				validation.textContent = text ?? '';
-				validation.classList.toggle('visible', !!text);
+				if (generation === validationGeneration && value === input.value) {
+					validation.textContent = text ?? '';
+					validation.classList.toggle('visible', !!text);
+				}
 				// Info and warning messages are shown but do not block accepting.
 				return !text || (typeof message === 'object' && message !== null && message.severity < Severity.Error);
 			};
-			store.add(dom.addDisposableListener(input, dom.EventType.INPUT, () => void validate().catch(onUnexpectedError)));
+			store.add(dom.addDisposableListener(input, dom.EventType.INPUT, () => void validate(input.value).catch(onUnexpectedError)));
 
 			const accept = async () => {
-				if (await validate() && !store.isDisposed && !token.isCancellationRequested) {
-					result = input.value;
+				const value = input.value;
+				if (await validate(value) && !store.isDisposed && !token.isCancellationRequested) {
+					result = value;
 					api.close();
 				}
 			};

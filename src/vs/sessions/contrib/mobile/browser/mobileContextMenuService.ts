@@ -106,9 +106,8 @@ export class MobileContextMenuService extends Disposable implements IContextMenu
 				continue;
 			}
 
-			// Ids can repeat across sections (e.g. the same command contributed
-			// twice), so key rows by position to keep the mapping unambiguous.
-			const id = `${items.length}:${action.id}`;
+			// Command IDs can repeat in submenus, so allocate positions across the whole sheet.
+			const id = `${byId.size}:${action.id}`;
 			byId.set(id, action);
 			const icon = action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : undefined;
 			items.push({

@@ -9,12 +9,36 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IMobileContentSheetOptions, showMobileContentSheet, showMobilePickerSheet } from '../../../browser/mobile/mobilePickerSheet.js';
 
 suite('MobilePickerSheet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a provider refresh without focus preferences preserves the focused row', async () => {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const changed = store.add(new Emitter<void>());
+		let items = [{ id: 'one', label: 'One' }, { id: 'two', label: 'Two' }];
+		const closed = showMobilePickerSheet(container, 'Choices', items, {
+			initialFocusItemId: 'two',
+			itemProvider: { onDidChange: changed.event, getItems: () => items },
+		});
+		store.add(toDisposable(() => container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+		const sheet = container.querySelector('.mobile-picker-sheet');
+		items = [{ id: 'two', label: 'Updated two' }, { id: 'one', label: 'One' }];
+		changed.fire();
+		const state = {
+			sameSheet: container.querySelector('.mobile-picker-sheet') === sheet,
+			focus: mainWindow.document.activeElement?.textContent,
+		};
+		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!.click();
+		assert.deepStrictEqual({ ...state, selected: await closed, remaining: container.childElementCount }, {
+			sameSheet: true, focus: 'Updated two', selected: 'two', remaining: 0,
+		});
+	});
 
 	for (const alreadyCancelled of [false, true]) {
 		test(`owner cancellation dismisses the picker without selection (${alreadyCancelled ? 'before' : 'after'} opening)`, async () => {

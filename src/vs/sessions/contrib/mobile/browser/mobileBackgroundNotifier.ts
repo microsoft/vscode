@@ -53,6 +53,11 @@ export class MobileBackgroundNotifier extends Disposable {
 				this._track(session);
 			}
 		}));
+		this._register(this._sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this._statusListeners.deleteAndDispose(from.sessionId);
+			this._close(from);
+			this._track(to);
+		}));
 	}
 
 	private _track(session: ISession): void {
