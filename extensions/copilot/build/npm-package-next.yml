@@ -46,17 +46,18 @@ extends:
 
           - template: build/azure-pipelines/common/install-pnpm.yml@self
 
+          # Every platform build of VS Code ships the built-in Copilot extension with the
+          # version that the build stamped, so the Windows x64 server archive has it.
           - download: vscode
-            artifact: copilot_vsix
-            displayName: 📥 Download Copilot VSIX
+            artifact: vscode_server_win32_x64_archive
+            displayName: 📥 Download VS Code server (Windows x64)
             condition: and(succeeded(), ne(variables['resources.pipeline.vscode.runName'], ''))
 
           - bash: |
               set -e
-              if [ -f "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" ]; then
-                unzip -o "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" 'extension/package.json'
-                VERSION=$(node -p "require('./extension/package.json').version")
-                rm -rf extension
+              ARCHIVE="$(Pipeline.Workspace)/vscode/vscode_server_win32_x64_archive/vscode-server-win32-x64.zip"
+              if [ -f "$ARCHIVE" ]; then
+                VERSION=$(unzip -p "$ARCHIVE" 'vscode-server-win32-x64/extensions/copilot/package.json' | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
                 node -e "
                   const fs = require('fs');
                   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -65,7 +66,7 @@ extends:
                 "
                 echo "Set extension version to $VERSION"
               else
-                echo "No Copilot VSIX found, using version from package.json"
+                echo "No VS Code server archive found, using version from package.json"
               fi
             displayName: 📋 Sync version from extension
             workingDirectory: extensions/copilot
