@@ -1153,14 +1153,17 @@ export async function resolveAuthenticationInteractively(
 	const logService = accessor.get(ILogService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
-	const defaultProviderId = defaultAccountService.currentDefaultAccount?.authenticationProvider.id;
+	const defaultAccount = defaultAccountService.currentDefaultAccount;
+	const defaultProviderId = defaultAccount?.authenticationProvider.id;
 	if (context?.kind === 'legacy' && defaultProviderId) {
 		const resources: ProtectedResourceMetadata[] = [];
 		for (const resource of protectedResources) {
-			if (await resourceMatchesAuthenticationProvider(authenticationService, resource, defaultProviderId, logService, options.logPrefix)) {
+			const matches = await resourceMatchesAuthenticationProvider(authenticationService, resource, defaultProviderId, logService, options.logPrefix);
+			throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
+			throwIfAuthenticationStale(options);
+			if (matches) {
 				resources.push(resource);
 			}
-			throwIfAuthenticationStale(options);
 		}
 		protectedResources = resources;
 	}
