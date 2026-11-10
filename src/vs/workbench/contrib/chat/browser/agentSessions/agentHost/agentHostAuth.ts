@@ -24,7 +24,6 @@ import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -92,8 +91,8 @@ interface IForwardedAuthenticationIdentity {
  * when the connection is disposed.
  */
 export class AgentHostAuthTokenCache {
-	private readonly _completedTokens = new Map<string, { readonly credentialKey?: string; readonly token?: string; readonly identity?: IForwardedAuthenticationIdentity }>();
-	private readonly _pendingAuthentications = new Map<string, { readonly credentialKey: string; readonly token: string; readonly promise: Promise<void>; readonly identity?: IForwardedAuthenticationIdentity }>();
+	private readonly _completedTokens = new Map<string, { readonly credentialKey?: string; readonly identity?: IForwardedAuthenticationIdentity }>();
+	private readonly _pendingAuthentications = new Map<string, { readonly credentialKey: string; readonly promise: Promise<void>; readonly identity?: IForwardedAuthenticationIdentity }>();
 	private readonly _keyGenerations = new Map<string, number>();
 	private readonly _rejectedSessions = new Map<string, RejectedAuthenticationSession>();
 	private _globalGeneration = 0;
@@ -114,7 +113,7 @@ export class AgentHostAuthTokenCache {
 				if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 					throw new CancellationError();
 				}
-				this._completedTokens.set(key, { credentialKey, token, identity });
+				this._completedTokens.set(key, { credentialKey, identity });
 				return false;
 			}
 
@@ -130,7 +129,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		if (this._completedTokens.get(key)?.credentialKey === credentialKey) {
-			this._completedTokens.set(key, { credentialKey, token, identity });
+			this._completedTokens.set(key, { credentialKey, identity });
 			return false;
 		}
 
@@ -139,9 +138,9 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			this._completedTokens.set(key, { credentialKey, token, identity });
+			this._completedTokens.set(key, { credentialKey, identity });
 		})();
-		this._pendingAuthentications.set(key, { credentialKey, token, promise, identity });
+		this._pendingAuthentications.set(key, { credentialKey, promise, identity });
 		try {
 			await promise;
 			return true;
@@ -194,36 +193,22 @@ export class AgentHostAuthTokenCache {
 		return (this._pendingAuthentications.get(key)?.identity ?? this._completedTokens.get(key)?.identity)?.accountId;
 	}
 
-	/** Allows a retry while retaining sign-out ownership and the last token for freshness challenges. */
+	/** Allows a retry while retaining sign-out ownership. */
 	invalidate(resource: string, scopes: readonly string[] | undefined): void {
 		const key = this._key(resource, scopes);
 		const previous = this._pendingAuthentications.get(key) ?? this._completedTokens.get(key);
 		this.clear(resource, scopes ?? []);
 		if (previous?.identity) {
-			this._completedTokens.set(key, { identity: previous.identity, token: previous.token });
+			this._completedTokens.set(key, { identity: previous.identity });
 		}
 	}
 
 	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
-		this._rejectSession(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
-	}
-
-	/** Quarantines the credential previously sent for an expired challenge without losing sign-out ownership. */
-	rejectForwardedSession(resource: string, scopes: readonly string[] | undefined): boolean {
 		const key = this._key(resource, scopes);
-		const current = this._pendingAuthentications.get(key) ?? this._completedTokens.get(key);
-		if (!current?.token || !current.identity) {
-			return this._rejectedSessions.has(key);
-		}
-		this._rejectSession(key, { id: current.identity.sessionId, accountId: current.identity.accountId, accessToken: current.token });
-		return true;
-	}
-
-	private _rejectSession(key: string, session: Omit<RejectedAuthenticationSession, 'tokenHashes'>): void {
 		const previous = this._rejectedSessions.get(key);
-		const tokenHashes = new Set(previous?.accountId === session.accountId ? previous.tokenHashes : undefined);
+		const tokenHashes = new Set(previous?.accountId === session.account.id ? previous.tokenHashes : undefined);
 		tokenHashes.add(authenticationTokenHash(session.accessToken));
-		this._rejectedSessions.set(key, { ...session, tokenHashes });
+		this._rejectedSessions.set(key, { id: session.id, accessToken: session.accessToken, accountId: session.account.id, tokenHashes });
 	}
 
 	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
@@ -349,6 +334,7 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
  * Coordinates recovery from authentication challenges for one agent-host connection.
  */
 export class AgentHostAuthenticationRecovery {
+	private readonly _resentTokens = new Map<string, string>();
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
 
 	constructor(
@@ -356,17 +342,18 @@ export class AgentHostAuthenticationRecovery {
 	) { }
 
 	clear(): void {
+		this._resentTokens.clear();
 		this._pendingRecoveries.clear();
 	}
 
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
-		const key = `${protectedResourceAuthenticationKey(resource)}:${options.challengeReason ?? AuthRequiredReason.Required}`;
+		const key = protectedResourceAuthenticationKey(resource);
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
 			return pendingRecovery;
 		}
 
-		const recovery = this._recover(accessor, resource, resolveAuthenticationOptions(accessor, options))
+		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options))
 			.finally(() => {
 				if (this._pendingRecoveries.get(key) === recovery) {
 					this._pendingRecoveries.delete(key);
@@ -376,11 +363,12 @@ export class AgentHostAuthenticationRecovery {
 		return recovery;
 	}
 
-	private async _recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
+	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const logService = accessor.get(ILogService);
 		const authenticationService = accessor.get(IAuthenticationService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const commandService = accessor.get(ICommandService);
 		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
@@ -388,16 +376,12 @@ export class AgentHostAuthenticationRecovery {
 		}
 		throwIfAuthenticationStale(options);
 		const scopes = resource.scopes_supported ?? [];
-		if (options.challengeReason === AuthRequiredReason.Expired
-			&& !options.authTokenCache?.rejectForwardedSession(resource.resource, scopes)
-			&& !options.renewAuthentication) {
-			logService.info(`${options.logPrefix} Credential freshness cannot be established silently; explicit authentication is required.`);
-			return;
-		}
-		options.authTokenCache?.invalidate(resource.resource, scopes);
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
-		const resolution = await resolveSessionForProtectedResource(authenticationService, defaultAccountService, logService, resource, options);
+		const resolution = await resolveSessionForProtectedResource(authenticationService, defaultAccountService, logService, resource, options, null);
 		throwIfAuthenticationStale(options);
+		if (resolution.kind === 'signedOut') {
+			this._resentTokens.delete(key);
+		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
 			reportAgentHostAuthRecovery(this._telemetryService, {
@@ -408,14 +392,80 @@ export class AgentHostAuthenticationRecovery {
 			});
 			return;
 		}
-		if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId, resolution.entitlement)) {
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+		const currentSession = resolution.session;
+		const previousToken = this._resentTokens.get(key);
+		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+		const isQuarantined = rejectedSession?.tokenHashes.has(authenticationTokenHash(currentSession.accessToken)) === true;
+		let candidateResolution: AuthenticationSessionResolution = resolution;
+		if (isQuarantined || previousToken === currentSession.accessToken) {
+			candidateResolution = await resolveSessionForProtectedResource(
+				authenticationService,
+				defaultAccountService,
+				logService,
+				resource,
+				options,
+				isQuarantined ? rejectedSession : { id: currentSession.id, accessToken: currentSession.accessToken, accountId: currentSession.account.id, tokenHashes: new Set([authenticationTokenHash(currentSession.accessToken)]) },
+			);
+			throwIfAuthenticationStale(options);
+		}
+		if (isQuarantined && candidateResolution.kind === 'unavailable') {
+			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, candidateResolution);
 			reportAgentHostAuthRecovery(this._telemetryService, {
 				trigger: 'hostChallenge',
-				action: quarantinePresent ? 'forwardAlternative' : 'forwardCurrent',
+				action: 'defer',
 				initialSessionMatch: resolution.match,
 				quarantinePresent,
 			});
+			return;
+		}
+
+		if (candidateResolution.kind === 'resolved' && (!isQuarantined || candidateResolution.session.accessToken !== previousToken)) {
+			const session = candidateResolution.session;
+			const isNewAlternative = session !== currentSession && !isQuarantined;
+			if (isNewAlternative) {
+				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
+			}
+			options.authTokenCache?.invalidate(resource.resource, scopes);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session, candidateResolution.providerId, candidateResolution.entitlement)) {
+				this._resentTokens.set(key, session.accessToken);
+				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+				reportAgentHostAuthRecovery(this._telemetryService, {
+					trigger: 'hostChallenge',
+					action: session === currentSession ? 'forwardCurrent' : 'forwardAlternative',
+					initialSessionMatch: resolution.match,
+					quarantinePresent,
+				});
+			}
+			return;
+		}
+
+		// Sign-in can only replace a credential of the provider it signs in, so other providers stay silent.
+		if (resolution.providerId !== defaultAccountService.getDefaultAccountAuthenticationProvider().id) {
+			reportAgentHostAuthRecovery(this._telemetryService, {
+				trigger: 'hostChallenge',
+				action: 'defer',
+				initialSessionMatch: resolution.match,
+				quarantinePresent,
+			});
+			return;
+		}
+
+		options.authTokenCache?.invalidate(resource.resource, scopes);
+		reportAgentHostAuthRecovery(this._telemetryService, {
+			trigger: 'hostChallenge',
+			action: 'prompt',
+			initialSessionMatch: resolution.match,
+			quarantinePresent,
+		});
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		const interactiveSession = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
+		throwIfAuthenticationStale(options);
+		if (!interactiveSession) {
+			return;
+		}
+		this._resentTokens.set(key, interactiveSession.accessToken);
+		if (interactiveSession.accessToken === challengedToken) {
+			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
 	}
 }
@@ -445,6 +495,7 @@ export async function resolveSessionForResource(
 	return resolution.kind === 'resolved' ? resolution.session : undefined;
 }
 
+/** Selects a session from the advertised authorization servers and scopes only; keep provider- and resource-specific rules out of here. */
 async function resolveAuthenticationSessionForResource(
 	resourceServer: URI,
 	authorizationServers: readonly string[],
@@ -559,6 +610,7 @@ async function resolveAuthenticationSessionForResource(
 			};
 		}
 		if (preferredIdentity) {
+			// Without scopes a provider may list accounts with no usable token, so request this account's scoped token.
 			const account = preferredIdentity.account;
 			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
 				account, authorizationServer: serverUri, silent: true,
@@ -597,7 +649,6 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
-	readonly challengeReason?: AuthRequiredReason;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;

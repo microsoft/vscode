@@ -12,7 +12,6 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -86,6 +85,8 @@ suite('Agent Host Microsoft credential acquisition', () => {
 				authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
 				sessionId: selected.id, accountName: selected.account.label, enterprise: false,
 			};
+			// The product sign-in dialog signs in GitHub, so a rejected Microsoft credential never opens it.
+			override getDefaultAccountAuthenticationProvider() { return { id: 'github', name: 'GitHub', enterprise: false }; }
 		}();
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IAuthenticationService, authentication);
@@ -268,7 +269,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
 		}));
 		assert.deepStrictEqual({
 			interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account),
@@ -281,7 +282,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		f.defaults.currentDefaultAccount = null;
 		f.authentication.sessions = [];
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(authenticateProtectedResources,
@@ -309,7 +310,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const cache = new AgentHostAuthTokenCache();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: cache, authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', authTokenCache: cache, authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
@@ -388,65 +389,38 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
-		const options = { logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken, selected.accessToken], prompts: [] });
+		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken], prompts: [] });
 	});
 
-	test('expired recovery never replays the challenged token or prompts and accepts a later silent replacement', async () => {
+	test('repeated challenges never prompt for a Microsoft credential and accept a later silent replacement', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		const expired = { ...options, challengeReason: AuthRequiredReason.Expired };
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.ok(f.defaults.currentDefaultAccount);
 		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount, sessionId: 'rotated-session' };
 		f.authentication.sessions = [{ ...selected, id: 'rotated-session' }];
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		f.authentication.sessions = [{ ...selected, id: 'rotated-session', accessToken: 'replacement-token' }];
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, expired));
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.deepStrictEqual({
 			tokens: forwarded.map(request => request.token), prompts: f.authentication.created,
 			account: options.authTokenCache.getAccountId(resource.resource, resource.scopes_supported),
 		}, { tokens: [selected.accessToken, 'replacement-token'], prompts: [], account: selected.account.id });
 	});
 
-	test('expired recovery without a known challenged credential defers to explicit recovery', async () => {
-		const f = fixture();
-		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Expired,
-			authenticate: async request => { forwarded.push(request); },
-		}));
-		assert.deepStrictEqual({ forwarded, prompts: f.authentication.created }, { forwarded: [], prompts: [] });
-	});
-
-	test('an expired challenge cannot join an earlier required recovery and replay its token', async () => {
-		const f = fixture();
-		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const options = { logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
-		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		f.authentication.pending = new DeferredPromise();
-		const required = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		const expired = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
-		const finished = Promise.allSettled([required, expired]);
-		f.authentication.pending.complete([selected]);
-		await finished;
-		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken], prompts: [] });
-	});
-
-	test('expired recovery retains sign-out ownership while the first credential push is pending', async () => {
+	test('recovery retains sign-out ownership while the first credential push is pending', async () => {
 		const f = fixture();
 		const forwarded: string[] = [];
 		const accepted = new DeferredPromise<void>();
 		const started = new DeferredPromise<void>();
 		const options = {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
 			authenticate: async (request: IAgentHostAuthenticateRequest) => {
 				forwarded.push(request.token);
 				if (request.token) {
@@ -459,7 +433,6 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const initial = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		const finished = assert.rejects(initial, isCancellationError);
 		await started.p;
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
 		f.defaults.currentDefaultAccount = null;
 		f.authentication.sessions = [];
 		await f.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions,
@@ -470,36 +443,13 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		assert.deepStrictEqual(forwarded, [selected.accessToken, '']);
 	});
 
-	test('a rotated session from an earlier silent lookup cannot replay an expired token', async () => {
-		const f = fixture();
-		const forwarded: string[] = [];
-		const options = {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authTokenCache: new AgentHostAuthTokenCache(),
-			authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.token); },
-		};
-		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
-		f.authentication.pending = new DeferredPromise();
-		f.authentication.pendingStarted = new DeferredPromise();
-		const lookup = f.instantiation.invokeFunction(authenticateProtectedResources,
-			[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }], options);
-		await f.authentication.pendingStarted.p;
-		const expired = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, challengeReason: AuthRequiredReason.Expired }));
-		f.authentication.pending.complete([{ ...selected, id: 'rotated-scoped-session' }]);
-		const results = await Promise.allSettled([lookup, expired]);
-		assert.deepStrictEqual({
-			forwarded, prompts: f.authentication.created,
-			results: results.map(result => result.status === 'fulfilled' ? 'completed' : isCancellationError(result.reason) ? 'cancelled' : 'error'),
-		}, { forwarded: [selected.accessToken], prompts: [], results: ['cancelled', 'completed'] });
-	});
-
 	test('a silent provider failure is surfaced without revocation or interactive fallback', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		f.authentication.pending = new DeferredPromise();
 		const result = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', authenticate: async request => { forwarded.push(request); },
 		}));
 		f.authentication.pending.error(new Error('provider unavailable'));
 		await assert.rejects(result, /provider unavailable/);
@@ -527,7 +477,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		let current = true;
 		f.authentication.pending = new DeferredPromise();
 		const result = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', challengeReason: AuthRequiredReason.Required, isCurrent: () => current, authenticate: async request => { forwarded.push(request); },
+			logPrefix: '[test]', isCurrent: () => current, authenticate: async request => { forwarded.push(request); },
 		}));
 		current = false;
 		f.authentication.pending.complete([selected]);

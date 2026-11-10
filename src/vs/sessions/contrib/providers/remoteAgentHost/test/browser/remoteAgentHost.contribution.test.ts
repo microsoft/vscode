@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -58,7 +58,7 @@ interface IRemoteAuthNotificationHarness {
 	_instantiationService: TestInstantiationService;
 	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_logService: NullLogService;
-	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate' | 'rootState'>, notification: INotification): void;
+	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
 	_authenticateCallback(address: string, connection: Pick<IAgentConnection, 'authenticate'>, reason?: AuthRequiredReason): IAgentConnection['authenticate'];
 }
 
@@ -78,6 +78,7 @@ function createAuthenticationInstantiationService(store: Pick<DisposableStore, '
 	service.stub(IConfigurationService, new TestConfigurationService());
 	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 		override readonly currentDefaultAccount = null;
+		override getDefaultAccountAuthenticationProvider() { return { id: 'test-provider', name: 'Test Provider', enterprise: false }; }
 	}());
 	return service;
 }
@@ -400,23 +401,21 @@ suite('RemoteAgentHost auth notifications', () => {
 		assert.deepStrictEqual(forwarded, []);
 	});
 
-	test('renews a previously supplied notification resource that is not advertised by root agents', async () => {
+	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
-		let token = 'session-token';
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{
 				id: 'session-id',
 				account: { id: 'account-id', label: 'Test Account' },
 				scopes: ['session:read'],
-				accessToken: token,
+				accessToken: 'session-token',
 			}],
 		});
 		const logService = new NullLogService();
 		instantiationService.stub(ILogService, logService);
 		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
-			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } }),
 			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
@@ -440,17 +439,13 @@ suite('RemoteAgentHost auth notifications', () => {
 			reason: AuthRequiredReason.Expired,
 		};
 
-		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
-		await timeout(0);
-		authenticateCalls.length = 0;
-		token = 'replacement-token';
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(authenticateCalls, [{
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
-			token: 'replacement-token',
+			token: 'session-token',
 			_meta: {
 				'vscode.authentication.account': {
 					providerId: 'test-provider',
@@ -483,28 +478,24 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
 
-		const rootState = upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } });
-		contribution._handleAuthenticationRequiredNotification('host-one', { rootState, authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
-		contribution._handleAuthenticationRequiredNotification('host-two', { rootState, authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-one', { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-two', { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
 	});
 
-	test('explicit recovery creates a fresh envelope and passive required repair reseals the accepted token', async () => {
+	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		let token = 'session-token';
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
-			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: token }],
+			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		let promptCount = 0;
 		instantiationService.stub(ICommandService, {
 			executeCommand: async <R>() => {
 				promptCount++;
-				token = 'replacement-token';
 				return { success: true } as R;
 			},
 		});
@@ -530,30 +521,17 @@ suite('RemoteAgentHost auth notifications', () => {
 			scopes_supported: ['session:read'],
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Expired };
-		const connection: Pick<IAgentConnection, 'authenticate' | 'rootState'> = {
-			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } }),
-			authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; },
-		};
+		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
 
-		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
+		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
-		assert.deepStrictEqual({ envelopes, promptCount }, { envelopes: ['session-token:sealed-1'], promptCount: 0 });
-		const state = contribution._connections.get(address);
-		assert.ok(state);
-		assert.strictEqual(await instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], {
-			authTokenCache: state.authTokenCache,
-			logPrefix: '[Test]',
-			authenticate: contribution._authenticateCallback(address, connection),
-		}), true);
-		contribution._handleAuthenticationRequiredNotification(address, connection, { ...notification, reason: AuthRequiredReason.Required });
-		await timeout(0);
 
 		assert.deepStrictEqual({ envelopes, promptCount, reasons }, {
-			envelopes: ['session-token:sealed-1', 'replacement-token:sealed-2', 'replacement-token:sealed-3'],
+			envelopes: ['session-token:sealed-1', 'session-token:sealed-2'],
 			promptCount: 1,
-			reasons: [AuthRequiredReason.Required, undefined, AuthRequiredReason.Required],
+			reasons: [AuthRequiredReason.Expired, AuthRequiredReason.Expired],
 		});
 	});
 
