@@ -309,36 +309,22 @@ export class IssueReporterOverlay {
 	private createAttachmentsSection(parent: HTMLElement): void {
 		const page = append(parent, $('section.wizard-attachments'));
 
-		const heading = append(page, $('h3.wizard-field-label.wizard-field-label-with-help'));
+		// How to capture and edit screenshots follows the heading, before the attachments.
+		const header = append(page, $('div.wizard-attachments-header'));
+		const heading = append(header, $('h3.wizard-field-label.wizard-field-label-with-help'));
 		append(heading, $('span')).textContent = localize('attachmentsHeading', "Attachments");
-		// How to edit and add attachments is explained on demand, which keeps the form short.
+		// The limits of attachments are explained on demand, which keeps the form short.
 		const help = append(page, $('p.wizard-attachments-help'));
 		help.id = `issue-attachments-help-${generateUuid()}`;
 		help.hidden = true;
-		help.textContent = `${localize('screenshotEditHint', "Click a screenshot to edit it.")} ${localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS)}`;
+		help.textContent = localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS);
 		this.renderHelpIcon(heading, localize('attachmentsHelp', "Attachments Help"), help);
-
-		// Screenshots lead the report, so they come before the ways to add more.
-		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
-		this.screenshotContainer.tabIndex = 0;
-		this.screenshotContainer.setAttribute('role', 'group');
-		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
-		this.screenshotContainer.setAttribute('aria-describedby', help.id);
-
-		this.fileInput = append(page, $<HTMLInputElement>('input'));
-		this.fileInput.type = 'file';
-		this.fileInput.multiple = true;
-		this.fileInput.hidden = true;
-		this.disposables.add(addDisposableListener(this.fileInput, EventType.CHANGE, () => {
-			this.requestAddAttachments(Array.from(this.fileInput.files ?? []));
-			this.fileInput.value = '';
-		}));
 
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
 		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
 		if (captureShortcut || recordShortcut) {
 			const targetDocument = getWindow(this.container).document;
-			const hint = append(page, $('p.wizard-subtitle.wizard-shortcut-hint'));
+			const hint = append(header, $('p.wizard-subtitle.wizard-shortcut-hint'));
 			const intro = localize('shortcutHintIntro', "Use the floating capture bar, or press");
 			hint.appendChild(targetDocument.createTextNode(`${intro} `));
 			if (captureShortcut) {
@@ -354,6 +340,24 @@ export class IssueReporterOverlay {
 			}
 			hint.appendChild(targetDocument.createTextNode('.'));
 		}
+		const editHint = append(header, $('p.wizard-subtitle'));
+		editHint.id = `issue-attachments-edit-hint-${generateUuid()}`;
+		editHint.textContent = localize('imageEditHint', "Click an image to edit it.");
+
+		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
+		this.screenshotContainer.tabIndex = 0;
+		this.screenshotContainer.setAttribute('role', 'group');
+		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
+		this.screenshotContainer.setAttribute('aria-describedby', `${editHint.id} ${help.id}`);
+
+		this.fileInput = append(page, $<HTMLInputElement>('input'));
+		this.fileInput.type = 'file';
+		this.fileInput.multiple = true;
+		this.fileInput.hidden = true;
+		this.disposables.add(addDisposableListener(this.fileInput, EventType.CHANGE, () => {
+			this.requestAddAttachments(Array.from(this.fileInput.files ?? []));
+			this.fileInput.value = '';
+		}));
 
 		this.attachmentStatus = append(page, $('p.wizard-subtitle.wizard-attachment-status'));
 		this.attachmentStatus.setAttribute('role', 'status');
@@ -832,13 +836,13 @@ export class IssueReporterOverlay {
 
 	private createDescriptionField(page: HTMLElement): void {
 		const descriptionGroup = append(page, $('div.wizard-field'));
-		const descLabel = append(descriptionGroup, $<HTMLLabelElement>('label.wizard-field-label'));
+		// The Write and Preview tabs follow the label, which keeps the field short.
+		const labelRow = append(descriptionGroup, $('div.wizard-description-label-row'));
+		const descLabel = append(labelRow, $<HTMLLabelElement>('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
 		this.appendRequiredMarker(descLabel);
 
-		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
-
-		const tabs = append(descriptionGroup, $('div.wizard-description-tabs'));
+		const tabs = append(labelRow, $('div.wizard-description-tabs'));
 		tabs.setAttribute('role', 'tablist');
 		tabs.setAttribute('aria-label', localize('descriptionMode', "Description mode"));
 		this.descriptionWriteTab = this.disposables.add(new Button(tabs, { ...defaultButtonStyles, secondary: true }));
@@ -859,10 +863,10 @@ export class IssueReporterOverlay {
 				(preview ? this.descriptionPreviewTab : this.descriptionWriteTab).element.focus();
 			}
 		}));
+		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.descriptionContainer = append(descriptionGroup, $('div.wizard-description-editor'));
 		this.descriptionInput.classList.add('wizard-description-input');
 		this.descriptionInput.setAttribute('aria-label', localize('descriptionInputLabel', "Description, Markdown. Paste or drop files to attach them."));
-		this.descriptionInput.rows = 10;
 		this.descriptionInput.required = true;
 		this.restoreDescriptionInput();
 		const descriptionId = `issue-description-${generateUuid()}`;

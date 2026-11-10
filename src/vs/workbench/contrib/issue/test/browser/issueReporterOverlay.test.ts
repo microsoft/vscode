@@ -1219,10 +1219,10 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
-	test('explains attachments behind a "?", and adds files rather than screenshots from the last card', () => {
+	test('explains attachments behind a "?", how to edit images before them, and adds files rather than screenshots from the last card', () => {
 		const { overlay, container, files, hovers } = createReporter();
 		const help = container.querySelector<HTMLElement>('.wizard-attachments .wizard-help-icon')!;
-		const describedBy = (element: Element) => mainWindow.document.getElementById(element.getAttribute('aria-describedby')!)?.textContent;
+		const describedBy = (element: Element) => element.getAttribute('aria-describedby')!.split(' ').map(id => mainWindow.document.getElementById(id)?.textContent);
 		const screenshotRequests: unknown[] = [];
 		store.add(overlay.onDidRequestScreenshot(request => screenshotRequests.push(request)));
 		let pickerOpens = 0;
@@ -1232,7 +1232,7 @@ suite('IssueReporterOverlay', () => {
 		}));
 		const addCard = files.querySelector<HTMLElement>('.wizard-screenshot-add')!;
 		addCard.click();
-		const explanation = 'Click a screenshot to edit it. Drop or paste up to 5 files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.';
+		const explanation = 'Drop or paste up to 5 files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.';
 		assert.deepStrictEqual({
 			heading: help.parentElement?.textContent,
 			help: { role: help.getAttribute('role'), label: help.getAttribute('aria-label'), hover: hovers.get(help), description: describedBy(help) },
@@ -1240,15 +1240,18 @@ suite('IssueReporterOverlay', () => {
 			addCard: { text: addCard.textContent, label: addCard.getAttribute('aria-label') },
 			pickerOpens,
 			screenshotRequests: screenshotRequests.length,
-			visibleHints: [...container.querySelectorAll<HTMLElement>('.wizard-attachments p.wizard-subtitle')].filter(hint => !hint.hidden).map(hint => hint.textContent),
+			visibleHints: [...container.querySelectorAll<HTMLElement>('.wizard-attachments p.wizard-subtitle')].filter(hint => !hint.hidden).map(hint => ({
+				text: hint.textContent,
+				beforeAttachments: !!(hint.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING),
+			})),
 		}, {
 			heading: 'Attachments',
-			help: { role: 'button', label: 'Attachments Help', hover: explanation, description: explanation },
-			attachmentsDescription: explanation,
+			help: { role: 'button', label: 'Attachments Help', hover: explanation, description: [explanation] },
+			attachmentsDescription: ['Click an image to edit it.', explanation],
 			addCard: { text: 'Add Files...', label: 'Add Files' },
 			pickerOpens: 1,
 			screenshotRequests: 0,
-			visibleHints: [],
+			visibleHints: [{ text: 'Click an image to edit it.', beforeAttachments: true }],
 		});
 	});
 
@@ -1280,6 +1283,23 @@ suite('IssueReporterOverlay', () => {
 			openedFile: '/owned/broken.png',
 			unchanged: [image, broken, attachment],
 		});
+	});
+
+	test('starts the description as tall as its placeholder, with its tabs after its label, and grows it with the text', () => {
+		const { container, editor, setText } = createReporter({ issueBody: '' });
+		const height = () => editor.getBoundingClientRect().height;
+		const empty = height();
+		setText(editor.placeholder);
+		const placeholderText = height();
+		setText('line\n'.repeat(8));
+		const eightLines = height();
+		setText('line\n'.repeat(100));
+		assert.deepStrictEqual({
+			labelRow: [...container.querySelector('.wizard-description-label-row')!.children].map(child => child.getAttribute('role') ?? child.tagName),
+			fitsPlaceholder: empty === placeholderText,
+			grows: eightLines > empty,
+			maxHeight: height(),
+		}, { labelRow: ['LABEL', 'tablist'], fitsPlaceholder: true, grows: true, maxHeight: 400 });
 	});
 
 	test('explains what to describe in the description\'s placeholder, and links to the guide for performance issues above it', () => {
