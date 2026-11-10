@@ -1371,6 +1371,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
+		if (this.isSizeToContent) {
+			return Math.min(this.getTreePaneDesiredSize(), Math.max(0, this.getSplitViewAvailableHeight() - reservedSectionHeight));
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
@@ -1398,6 +1401,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMaximumSize(): number {
+		if (this.isSizeToContent) {
+			return this.getTreePaneDesiredSize();
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return Number.POSITIVE_INFINITY;
 		}
@@ -1407,6 +1413,18 @@ export class ChangesViewPane extends ViewPane {
 
 	private fireTreePaneSizeChange(): void {
 		this.treePaneSizeChange.fire(undefined);
+		this._onDidChangeOptimalHeight.fire();
+	}
+
+	protected override getOptimalBodyHeight(): number | undefined {
+		if (!this.tree || this.tree.contentHeight === 0 && this.changesViewService.activeSessionChangesetLoadingObs.get()) {
+			return undefined;
+		}
+		const checksHeight = this.ciStatusWidget?.visible
+			? this.ciStatusWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget.desiredHeight)
+			: 0;
+		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
+		return this.getTreePaneDesiredSize() + checksHeight + (this.isSizeToContent ? 0 : 16) + actionsHeight + (actionsHeight > 0 ? 8 : 0);
 	}
 
 	/** Compute the height available to the SplitView within the body. */
@@ -1415,7 +1433,7 @@ export class ChangesViewPane extends ViewPane {
 		if (bodyHeight <= 0) {
 			return 0;
 		}
-		const bodyPadding = 16;
+		const bodyPadding = this.isSizeToContent ? 0 : 16;
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);

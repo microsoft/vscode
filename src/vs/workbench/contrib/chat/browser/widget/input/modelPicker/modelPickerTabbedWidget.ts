@@ -853,6 +853,7 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				preserveFocus: true,
 				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
 					? button => comparison.renderToggle!(button)
 					: undefined,

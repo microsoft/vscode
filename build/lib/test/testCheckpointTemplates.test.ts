@@ -690,6 +690,9 @@ suite('Product test checkpoint templates', () => {
 		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
 			sequence: [
 				{ displayName: 'Restore WSL installer cache', condition: gated },
+				{ displayName: 'Compute WSL distribution cache key', condition: gated },
+				{ displayName: 'Restore WSL distribution cache', condition: gated },
+				{ displayName: 'Build WSL distribution if not cached', condition: gated },
 				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 				{ testId: 'smoke-electron' },
 				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: proxyGated },

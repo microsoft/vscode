@@ -35542,6 +35542,72 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const { target, archived } of [
+			{ target: 'default', archived: false },
+			{ target: 'peer', archived: false },
+			{ target: 'default', archived: true },
+			{ target: 'peer', archived: true },
+		]) {
+			test(`get_session_context repeatedly reads a cold ${archived ? 'archived' : 'unarchived'} ${target} chat without opening it`, async () => {
+				let failPeerHistoryRead = false;
+				class ContextAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+						const targetName = parseChatUri(chat)?.chatId === 'peer-context' ? 'peer' : 'default';
+						if (targetName === 'peer' && failPeerHistoryRead) {
+							throw new Error('Peer history unavailable');
+						}
+						return [{
+							id: 'completed-turn', state: TurnState.Complete,
+							message: { text: 'Original task', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: `Completed ${targetName} answer` }],
+							usage: undefined,
+						}];
+					}
+				}
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ContextAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const caller = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const peer = buildChatUri(session, 'peer-context');
+				await seedNormalizedPeers(localService, session, [{ chat: peer, order: 0, providerData: 'peer-context' }]);
+				const stateManager = getStateManager(localService);
+				if (archived) {
+					await localService.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'archive-client', 1);
+					await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'archived session was not released');
+				} else {
+					stateManager.deleteSession(session.toString());
+				}
+				const args = {
+					session: buildOpenSessionLinkUri(session.toString(), target === 'peer' ? 'peer-context' : undefined),
+				};
+				const read = async (input: typeof args & { responseTurnId?: string; responseOffset?: number }) =>
+					JSON.parse(await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.GetSessionContext, input));
+				const first = await read(args);
+				const second = await read(args);
+				const page = await read({ ...args, responseTurnId: 'completed-turn', responseOffset: 10 });
+				const transcript = [
+					{ turn: 1, state: 'complete', user: 'Original task', assistant: `Completed ${target} answer` },
+				];
+				assert.deepStrictEqual({ first: first.transcript, second: second.transcript, response: page.assistant }, {
+					first: transcript, second: transcript, response: `${target} answer`,
+				});
+				if (archived) {
+					await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'transcript read kept the archived session resident');
+					if (target === 'peer') {
+						failPeerHistoryRead = true;
+						await assert.rejects(read(args), /Peer history unavailable/);
+						await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'failed transcript read kept the archived session resident');
+					}
+				}
+			});
+		}
+
 		test('get_session_context resolves a restored peer chat before reading its transcript', async () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {

@@ -1284,6 +1284,7 @@ export interface IAgentService {
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
 	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(session: URI): Promise<void>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 
@@ -1578,6 +1579,7 @@ export interface IAgentConnection {
 	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
 	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(session: URI): Promise<void>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;

@@ -40,6 +40,8 @@ import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDel
 import { IUnavailablePermissionLevel } from '../../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
+import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { ISessionHost } from '../../../../../../services/sessions/browser/sessionHost.js';
 
 const POLICY_DESCRIPTION = '$(briefcase) Disabled by your organization';
 const POLICY_HOVER = 'Your organization doesn\'t allow this permission level. Contact your administrator.';
@@ -113,6 +115,8 @@ suite('Copilot PermissionPicker', () => {
 					override readonly mainContainer = container;
 				}(),
 				unmanagedEnablementService,
+				new class extends mock<IChatPhoneInputPresenter>() { }(),
+				new class extends mock<ISessionHost>() { }(),
 			));
 			picker.render(container);
 			picker.showPicker();
@@ -378,7 +382,7 @@ suite('Copilot PermissionPicker', () => {
 				getSandboxToggleProvider: () => 'copilotcli',
 				getSandboxToggleSettingId: () => sandboxSettingId,
 				sandboxEnabled,
-				setSandboxEnabled: enabled => writes.push({ session: 'test-session', enabled }),
+				setSandboxEnabled: enabled => { writes.push({ session: 'test-session', enabled }); },
 				managedSandboxEnforced,
 			},
 			actionWidgetService,
@@ -584,7 +588,7 @@ suite('Copilot PermissionPicker', () => {
 				sandboxEnabled: constObservable(requestedOn),
 				sandboxDevContainer,
 				managedSandboxEnforced: constObservable(managed),
-				setSandboxEnabled: value => writes.push(value),
+				setSandboxEnabled: value => { writes.push(value); },
 			}, actionWidget, configuration, new TestDialogService(), NullOpenerService, store.add(new TestStorageService()),
 				NullTelemetryService, NullHoverService, unmanagedEnablementService));
 			const container = dom.append(document.body, dom.$('div'));

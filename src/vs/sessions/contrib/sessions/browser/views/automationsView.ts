@@ -84,7 +84,7 @@ import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
-import { automationRunWithLocalProgress } from './automationRunProgress.js';
+import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
 const $ = DOM.$;
@@ -314,6 +314,7 @@ export class AutomationsCardsWidget extends Disposable {
 				}
 			}
 			this.historySection.render(allRuns, sessions);
+			this.cardsSection.setPresentedRunIds(sessions.keys());
 		}));
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {
 			void refresh();
@@ -366,6 +367,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
 	private readonly ownershipSections = new Map<string, IAutomationOwnershipSection>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
+	private readonly presentedRunIds = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
 	private readonly templateDisposables = this._register(new DisposableStore());
 	private readonly stateDisposables = this._register(new DisposableStore());
@@ -411,6 +413,7 @@ class AutomationCardsSection extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -860,9 +863,11 @@ class AutomationCardsSection extends Disposable {
 		disposables.add(autorun(reader => {
 			const starting = startingRuns.read(reader);
 			const runs = this.automationService.runs.read(reader);
+			const presentedRunIds = this.presentedRunIds.read(reader);
 			const state = this.automationService.catalogueState.read(reader);
 			const historyState = this.automationService.historyState?.read(reader);
-			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id))
+			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id)
+				&& !isLocalAutomationRunStarting(run, () => presentedRunIds.has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined))
 				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
 				startingRuns.set(undefined, undefined);
 			}
@@ -886,9 +891,6 @@ class AutomationCardsSection extends Disposable {
 		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
 			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary;
 		const nameChanged = !previous || previous.name !== automation.name;
-		if (nameChanged || scheduleChanged) {
-			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, automation.enabled ? triggerSummary ?? schedule : schedule));
-		}
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
 			card.actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
@@ -930,13 +932,23 @@ class AutomationCardsSection extends Disposable {
 			card.moreActionsButton.focus();
 		}
 		card.runButton.element.style.display = eventTriggered ? 'none' : '';
-		const starting = card.startingRuns.get() !== undefined;
+		const starting = card.startingRuns.get() !== undefined || this.automationService.runs.get().some(run =>
+			run.automationId === automation.id
+			&& isLocalAutomationRunStarting(run, () => this.presentedRunIds.get().has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined)
+		);
 		card.startingIcon.style.display = starting ? '' : 'none';
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
 		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
 		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
 		card.runButton.setAriaLabel(label);
 		card.runButton.setTitle(label);
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? triggerSummary ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, starting ? localize('running', "Running") : schedule));
+	}
+
+	setPresentedRunIds(runIds: Iterable<string>): void {
+		this.presentedRunIds.set(new Set(runIds), undefined);
 	}
 
 	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
@@ -1599,8 +1611,6 @@ class AutomationHistorySection extends Disposable {
 		const visibleRuns = runs.filter(run =>
 			sessions.has(run.id)
 			|| !!run.externalResource
-			|| isTemporaryAutomationRun(run)
-			|| (!!run.sessionResource && !!this.sessionsManagementService.getSession(run.sessionResource))
 		);
 		const historyOwners = new Map<string, IAutomationRun>();
 		for (const run of runs) {
@@ -2330,10 +2340,6 @@ function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefine
 	const state = run.externalResource ? session?.status.read(reader) : undefined;
 	const completed = state !== undefined ? state === SessionStatus.Completed || state === SessionStatus.Error : run.status === 'completed' || run.status === 'failed';
 	return completed && !!session && !session.isRead.read(reader);
-}
-
-function isTemporaryAutomationRun(run: IAutomationRun): boolean {
-	return run.status === 'pending' || run.status === 'running';
 }
 
 function formatSchedule(schedule: IAutomationSchedule): string {

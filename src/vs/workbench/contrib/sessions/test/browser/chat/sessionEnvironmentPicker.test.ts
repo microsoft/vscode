@@ -94,6 +94,16 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
+	test('preserves the checked workspace provider across provider registration order', () => {
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud, local], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, LOCAL_AGENT_HOST_PROVIDER_ID, false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local], folder, 'cloud', false, undefined, true)?.id,
+		], ['cloud', 'cloud', 'cloud', 'local', 'local']);
+	});
+
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
 		const localProvider = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');
 		const cloudProvider = provider('cloud', 'cloud');

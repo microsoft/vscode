@@ -272,6 +272,26 @@ suite('ChatResponseAccessibleView', () => {
 		]);
 	});
 
+	test('reads a model router row with the effort and context size its router set, and neither when it set none', () => {
+		const resolved = { id: 'opus', name: 'Claude Opus 5.5' };
+		const item = upcastPartial<IChatResponseViewModel>({
+			isComplete: true,
+			response: upcastPartial<IResponse>({
+				value: [
+					{ kind: 'autoModeResolution', router: 'Daily Driver', resolved, effort: 'medium', contextSize: 1_000_000 },
+					{ kind: 'autoModeResolution', router: 'Daily Driver', resolved, contextSize: 200_000 },
+					{ kind: 'autoModeResolution', router: 'Daily Driver', resolved },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true).map(part => part.text), [
+			'Daily Driver picked Claude Opus 5.5 \u00b7 Medium effort \u00b7 1M',
+			'Daily Driver picked Claude Opus 5.5 \u00b7 200K',
+			'Daily Driver picked Claude Opus 5.5',
+		]);
+	});
+
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
 			assert.strictEqual(getToolSpecificDataDescription(undefined), '');
