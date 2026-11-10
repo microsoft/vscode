@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,7 +26,7 @@ import { ChatPillActionViewItem, IChatPill, withChatPillHoverLabel } from '../..
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatInputPillSource } from '../chatInputPills.js';
-import { createChatResourceContent, getChatResourceContentProvider, IChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
+import { createChatResourceContent, IChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
 import { ChatResourceArea, ChatResourceMode, ChatResourceModesSettingId, getConfiguredChatResourceMode, isChatResourceMode } from './chatResources.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
@@ -277,10 +276,6 @@ export class ChatResourcesControl extends Disposable {
 
 	/** Whether an editor shows the resource, including a diff editor that shows its changes. */
 	private _isOpenInEditor(resource: IChatResource): boolean {
-		const provider = getChatResourceContentProvider(resource);
-		if (provider) {
-			return provider.isOpenInEditor(resource, this._instantiationService);
-		}
 		return this._editorService.editors.some(editor => isEqual(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource.resource));
 	}
 
@@ -293,12 +288,6 @@ export class ChatResourcesControl extends Disposable {
 		const area = this._getArea(resource, undefined);
 		if (area && this._isShown(resource, undefined)) {
 			this._select(area, null);
-		}
-		const provider = getChatResourceContentProvider(resource);
-		if (provider) {
-			// For example a website moves to an editor of the integrated browser, keeping its page.
-			provider.openInEditor(resource, pinned, this._instantiationService).catch(error => this._notificationService.error(error));
-			return;
 		}
 		const options = { pinned };
 		const opened = resource.originalResource
@@ -379,13 +368,10 @@ export class ChatResourcesControl extends Disposable {
 	}
 
 	/**
-	 * Whether a recorded resource exists. Websites always do, and so do resources no file system provides, such as settings,
-	 * because nothing can tell whether they exist.
+	 * Whether a recorded resource exists. Resources no file system provides, such as settings, always do, because nothing can
+	 * tell whether they exist.
 	 */
 	private _observeRecordedExists(resource: URI, store: DisposableStore): IObservable<boolean> {
-		if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
-			return constObservable(true);
-		}
 		const exists = observableValue(this, false);
 		let version = 0;
 		const refresh = async () => {
