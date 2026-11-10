@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as marked from './marked/marked.js';
-import { escapeRegExpCharacters } from './strings.js';
 
 export interface IMarkdownEdit {
 	readonly start: number;
@@ -51,16 +50,33 @@ function childrenOf(token: marked.Token): readonly marked.Token[] {
  * only once each of its line breaks is allowed to be any of them.
  */
 function locate(markdown: string, raw: string, from: number): { start: number; end: number } | undefined {
-	if (!raw.includes('\n')) {
-		const start = markdown.indexOf(raw, from);
-		return start < 0 ? undefined : { start, end: start + raw.length };
+	const firstBreak = raw.indexOf('\n');
+	const head = firstBreak < 0 ? raw : raw.substring(0, firstBreak);
+	// An empty `head` is found at the end of the string forever, so stop there: `raw` is never empty.
+	for (let start = markdown.indexOf(head, from); start >= 0 && start < markdown.length; start = markdown.indexOf(head, start + 1)) {
+		// Compared by hand: a regexp built from `raw` overflows the regexp stack on large blocks.
+		// A `\r\n` always counts as one break, so each break has a single way to match.
+		let end = start + head.length;
+		let i = head.length;
+		for (; i < raw.length; i++) {
+			if (raw[i] !== '\n') {
+				if (markdown[end] !== raw[i]) {
+					break;
+				}
+				end++;
+			} else if (markdown[end] === '\r') {
+				end += markdown[end + 1] === '\n' ? 2 : 1;
+			} else if (markdown[end] === '\n') {
+				end++;
+			} else {
+				break;
+			}
+		}
+		if (i === raw.length) {
+			return { start, end };
+		}
 	}
-	// `\r(?!\n)` gives each line break exactly one way to match. Letting a lone `\r` take the first
-	// half of a `\r\n` would count it as two breaks, and backtracking over those splits is exponential.
-	const pattern = new RegExp(escapeRegExpCharacters(raw).replace(/\n/g, '(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g');
-	pattern.lastIndex = from;
-	const match = pattern.exec(markdown);
-	return match ? { start: match.index, end: match.index + match[0].length } : undefined;
+	return undefined;
 }
 
 /** The text a reader saw, with markdown emphasis and code markers removed. */

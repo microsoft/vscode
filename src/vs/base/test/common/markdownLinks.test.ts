@@ -53,6 +53,21 @@ suite('rewriteMarkdownLinks', () => {
 		assert.strictEqual(rewriteMarkdownLinks(markdown, rewriteToMarker), markdown.replace('[a](./x.txt)', 'REWRITTEN'));
 	});
 
+	test('locates large blocks with LF and CRLF line endings', () => {
+		for (const eol of ['\n', '\r\n']) {
+			const markdown = '```' + eol + ('console.log("fixture");' + eol).repeat(8192) + '```' + eol + eol + '[open](file:///fixture.ts)';
+			assert.strictEqual(rewriteMarkdownLinks(markdown, rewriteToMarker), markdown.replace('[open](file:///fixture.ts)', 'REWRITTEN'));
+		}
+	});
+
+	test('gives up on a blank line it cannot locate', () => {
+		// The lexer drops the tab, so this blank line's source cannot be found. The lookup must stop.
+		for (const eol of ['\n', '\r\n']) {
+			const markdown = 'a' + eol + '\t' + eol + eol + '[x](./y)';
+			assert.strictEqual(rewriteMarkdownLinks(markdown, rewriteToMarker), markdown.replace('[x](./y)', 'REWRITTEN'));
+		}
+	});
+
 	test('keeps tokens the rewriter declines', () => {
 		const markdown = 'See [a](./x.txt) and ![b](./y.png).';
 		assert.strictEqual(rewriteMarkdownLinks(markdown, { rewriteLink: () => undefined }), markdown);
