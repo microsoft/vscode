@@ -1,8 +1,8 @@
 packages:
   - chat-lib
-nodeLinker: hoisted
-# Don't link chat-lib into node_modules: `vsce package` runs `npm list --production`, which fails on
-# a linked package that no dependency requires.
+nodeLinker: isolated
+# Don't hoist chat-lib into node_modules/.pnpm/node_modules: `vsce package` runs
+# `npm list --production`, which fails on a linked package that no dependency requires.
 hoistWorkspacePackages: false
 strictPeerDependencies: false
 autoInstallPeers: false
@@ -27,6 +27,8 @@ pmOnFail: ignore
 skills:
   dirs: []
 allowBuilds:
+  # Only `.esbuild.mts --watch` uses it: the prebuilt binary is enough, without a build from source.
+  '@parcel/watcher@2.5.6': false
   '@playwright/browser-chromium@1.61.1': true
   '@vscode/vsce-sign@2.1.0': true
   esbuild@0.28.1: true

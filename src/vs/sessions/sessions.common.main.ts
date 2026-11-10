@@ -333,8 +333,11 @@ import { IExtensionsWorkbenchService } from '../workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from '../workbench/contrib/extensions/browser/extensionsWorkbenchService.js';
 import { IExtensionRecommendationNotificationService } from '../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { NullExtensionRecommendationNotificationService } from './services/extensionRecommendations/common/extensionRecommendationNotificationService.js';
+import { IExtensionRecommendationsService } from '../workbench/services/extensionRecommendations/common/extensionRecommendations.js';
+import { NullExtensionRecommendationsService } from './services/extensionRecommendations/common/extensionRecommendationsService.js';
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
 registerSingleton(IExtensionRecommendationNotificationService, NullExtensionRecommendationNotificationService, InstantiationType.Delayed);
+registerSingleton(IExtensionRecommendationsService, NullExtensionRecommendationsService, InstantiationType.Delayed);
 
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';

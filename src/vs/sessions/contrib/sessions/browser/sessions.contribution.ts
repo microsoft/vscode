@@ -149,7 +149,7 @@ export const sessionsConfiguration = {
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
 			description: localize('sessions.list.showArchivedByDefault', "Controls whether the Done or Archived section is shown by default in the sessions list. This default is ignored after the corresponding filter is changed."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' }
 		},

@@ -26,6 +26,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -48,6 +49,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
@@ -262,7 +264,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 	PartialUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The unavailable banner below the automation cards names the disconnected Remote build host and has an inline Manage Remotes text link after the message.'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+	}),
+	PartialDisconnectedRemotes: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The unavailable banner names both disconnected hosts, Remote build host and Remote test host, followed by a Manage Remotes text link.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
+	}),
+	NarrowPartialDisconnectedRemotes: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['At a narrow width, the unavailable banner wraps the disconnected hosts message and the Manage Remotes link without clipping either.'],
+		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
 	}),
 	PartialUnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -311,6 +325,9 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
+		[RemoteAgentHostsEnabledSettingId]: true,
+		[ENVIRONMENT_PICKER_SETTING]: true,
+		[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
 	});
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();

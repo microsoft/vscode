@@ -13,7 +13,7 @@ packages:
   - test/smoke
   - test/unit
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false

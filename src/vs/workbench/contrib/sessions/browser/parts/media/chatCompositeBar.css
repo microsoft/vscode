@@ -443,7 +443,7 @@
 }
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
-	background-color: var(--vscode-list-warningForeground);
+	background-color: var(--vscode-agentSessionNeedsInput-foreground);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {

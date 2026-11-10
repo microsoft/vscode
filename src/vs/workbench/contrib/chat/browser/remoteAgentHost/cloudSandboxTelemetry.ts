@@ -309,6 +309,10 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 			durationMs: data.durationMs,
 			pageCount: data.pageCount,
 			listRequestCount: data.listRequestCount,
+			listOperationCount: data.listOperationCount,
+			listOperationFailureCount: data.listOperationFailureCount,
+			taskBatchOperationCount: data.taskBatchOperationCount,
+			taskBatchOperationFailureCount: data.taskBatchOperationFailureCount,
 			taskCount: data.taskCount,
 			sandboxTaskCount: data.sandboxTaskCount,
 			changedSandboxTaskCount: data.changedSandboxTaskCount,
@@ -399,7 +403,7 @@ interface IConnectionOperation {
 	stage: CloudSandboxConnectionStage;
 	preparationStartedAt: number | undefined;
 	preparationMs: number;
-	credentialRequests: number;
+	credentialOperations: number;
 	wakingResponses: number;
 	transportAttempts: number;
 	firstFailure?: { readonly phase: string; readonly code: number | undefined; readonly error: IConnectionTelemetryError };
@@ -457,7 +461,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		const measuredReservationWait = typeof reservationWaitMs === 'number' && Number.isFinite(reservationWaitMs)
 			? Math.max(0, reservationWaitMs) : undefined;
 		return {
-			operation, stage, startedAt, credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
+			operation, stage, startedAt, credentialOperations: 0, wakingResponses: 0, transportAttempts: 0,
 			provisioningMs,
 			reservationWaitMs: operation === 'connect' && this._initialEnvironmentOperation === 'provision'
 				? measuredReservationWait === undefined ? undefined : Math.min(measuredReservationWait, provisioningMs ?? measuredReservationWait)
@@ -547,7 +551,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			if (event === 'issued') {
 				operation = this._operation;
 				if (operation) {
-					operation.credentialRequests++;
+					operation.credentialOperations++;
 				}
 			} else if (operation && operation === this._operation) {
 				operation.wakingResponses++;
@@ -765,7 +769,8 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			preparationMs, connectionMs: durationMs - preparationMs,
 			surface: this._surface, source: this._source, environmentKind: this._environmentKind,
 			taskCreationPath: this._taskCreationPath,
-			credentialRequests: operation.credentialRequests, wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
+			credentialRequests: undefined, credentialOperations: operation.credentialOperations,
+			wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
 			credentialsMs: operation.durations.credentials, relayMs: operation.durations.relay, protocolMs: operation.durations.protocol,
 			authenticationMs: operation.durations.authentication, restorationMs: operation.durations.restoration,
 			firstFailurePhase: operation.firstFailure?.phase, firstFailureCode: operation.firstFailure?.code,
@@ -804,7 +809,8 @@ type CloudSandboxConnectionOutcomeEvent = {
 	connectionMs: number;
 	surface: CloudSandboxConnectionSurface;
 	source: CloudSandboxConnectionSource;
-	credentialRequests: number;
+	credentialRequests: number | undefined;
+	credentialOperations: number;
 	wakingResponses: number;
 	transportAttempts: number;
 	credentialsMs: number;
@@ -836,7 +842,8 @@ export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmen
 	connectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds outside credential preparation, including relay, protocol, authentication, restoration and connection retry backoff. Together with preparationMs equals durationMs, without nested phase overlap.' };
 	surface: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Editor or Agents window, on desktop or web; unknown when not supplied.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Created or existing environment from the caller; does not imply warm or cold compute.' };
-	credentialRequests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential requests handed to the request service during this operation, including failed and cancelled in-flight requests.' };
+	credentialRequests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Legacy credential request-service submissions; omitted for typed-client operations, whose wire attempts use shared GitHub transport telemetry.' };
+	credentialOperations: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential operations submitted to the typed client, including failures and cancellations; not an HTTP attempt count.' };
 	wakingResponses: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Credential requests answered with a pending response during this operation.' };
 	transportAttempts: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Relay connection attempts begun during this operation.' };
 	credentialsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative credential acquisition and waiting time, including partial spans; may overlap authentication.' };
@@ -919,8 +926,12 @@ export interface ICloudSandboxDiscoveryTelemetryData extends Mutable<ICloudSandb
 	mode: 'full' | 'incremental' | 'targeted';
 	outcome: ICloudSandboxDiscoveryResult['kind'] | 'cancelled';
 	durationMs: number;
-	pageCount: number;
-	listRequestCount: number;
+	pageCount?: number;
+	listRequestCount?: number;
+	listOperationCount?: number;
+	listOperationFailureCount?: number;
+	taskBatchOperationCount?: number;
+	taskBatchOperationFailureCount?: number;
 	taskCount: number;
 	sandboxTaskCount: number;
 	changedSandboxTaskCount: number;
@@ -947,6 +958,12 @@ type CloudSandboxDiscoveryEvent = Omit<ICloudSandboxDiscoveryTelemetryData, 'req
 	lastFullAgeMs: number | undefined;
 	queued: boolean | undefined;
 	coalescedRequestCount: number | undefined;
+	pageCount: number | undefined;
+	listRequestCount: number | undefined;
+	listOperationCount: number | undefined;
+	listOperationFailureCount: number | undefined;
+	taskBatchOperationCount: number | undefined;
+	taskBatchOperationFailureCount: number | undefined;
 	checkpointAvailable: boolean | undefined;
 	listPageFailureCount: number | undefined;
 	taskDetailFailureCount: number | undefined;
@@ -964,8 +981,12 @@ export type CloudSandboxDiscoveryClassification = {
 	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Actual full, incremental or targeted API read.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Discovery result, including partial results and cancellation; HTTP success alone is not discovery success.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed client time for this discovery attempt.' };
-	pageCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list responses parsed with a tasks array, including empty arrays; not a count of unique backend pages.' };
-	listRequestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list HTTP attempts issued, including retries and subsequently cancelled requests.' };
+	pageCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Legacy renderer task-list responses parsed with a tasks array; omitted for shared-client reads.' };
+	listRequestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Legacy renderer task-list HTTP attempts, including retries; omitted for shared-client reads, whose wire counts use GitHub transport telemetry.' };
+	listOperationCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Logical task-list operations, including client acquisition failures; each may collect multiple pages and is not an HTTP attempt count.' };
+	listOperationFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed typed task-list operations, including page, schema and continuation failures.' };
+	taskBatchOperationCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Logical task-batch operations, including client acquisition failures; not an HTTP attempt count.' };
+	taskBatchOperationFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed typed task-batch operations, including request and schema failures.' };
 	taskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique task IDs returned by list pages or targeted reads, excluding cached tasks revisited locally.' };
 	sandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique returned tasks identified as sandbox tasks.' };
 	changedSandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Returned sandbox task summaries absent from or different from the client cache at scan start; not an authoritative server change count.' };

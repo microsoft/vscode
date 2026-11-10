@@ -575,6 +575,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 	const rootConfigChange = disposables.add(new Emitter<void>());
 	return {
 		_serviceBrand: undefined,
+		copilotM365EnabledAtStartup: false,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
 		onDidChatConfigChange: Event.None,

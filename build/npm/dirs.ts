@@ -49,9 +49,8 @@ export const separateRoots = [
  * are installed by its `pnpm install`. pnpm uses the nearest `pnpm-workspace.yaml` above a folder,
  * so folders inside a separate root can't be members of the main workspace. `chat-lib` is extracted
  * from the Copilot extension's sources and published as an npm package; its dependencies are
- * Copilot's (see `extract-chat-lib`). `remote/web` holds the dependencies of the web build: the
- * hoisted layout installs them in `remote/node_modules`, and the web build packages them flat (see
- * `getFlatProductionDependencies`).
+ * Copilot's (see `extract-chat-lib`). `remote/web` holds the dependencies of the web build, which
+ * packages them flat (see `getFlatProductionDependencies`).
  */
 export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
 	'build': ['build/rspack', 'build/vite'],
