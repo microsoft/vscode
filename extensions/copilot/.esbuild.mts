@@ -173,7 +173,10 @@ const nodeExtHostBuildOptions = {
 	plugins: [testBundlePlugin, sanityTestBundlePlugin],
 	external: [
 		...baseNodeBuildOptions.external,
-		'vscode'
+		'vscode',
+		// `debug` tries to load `supports-color`, an optional peer that isn't installed: don't bundle
+		// whichever version happens to be reachable. Without it, `debug` uses its basic colors.
+		'supports-color'
 	]
 } satisfies esbuild.BuildOptions;
 

@@ -35,9 +35,9 @@ const suiteDurations = new Map<string, number>([
 ]);
 const defaultSuiteDuration = 20;
 
-// Coupled to the PR workflows: pr-darwin-test.yml runs the PAC proxy suites after the last shard.
+// Coupled to the PR workflows: pr-darwin-test.yml runs the PAC, Kerberos and Basic proxy suites after the last shard.
 // The WSL Dev Container suite runs in its own job instead of a shard (see pr-win32-test.yml).
-const lastShardExtraDuration = process.platform === 'darwin' ? 210 : 0;
+const lastShardExtraDuration = process.platform === 'darwin' ? 315 : 0;
 
 /**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.

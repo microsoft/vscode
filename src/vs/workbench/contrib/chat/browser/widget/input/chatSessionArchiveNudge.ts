@@ -188,8 +188,8 @@ export class ChatSessionArchiveNudge extends Disposable {
 		const sectionLabel = getChatSessionArchivedSectionLabel(wording);
 		this.updateTitle();
 		this.descriptionElement.textContent = this.markAsDone
-			? localize('chat.sessionArchiveNudge.doneOverview', "Mark this session as done to hide it from the sessions list and focus on your remaining tasks.")
-			: localize('chat.sessionArchiveNudge.overview', "Archive this session to hide it from the sessions list and focus on your remaining tasks.");
+			? localize('chat.sessionArchiveNudge.doneOverview', "Mark this session as done to set it aside and focus on your remaining tasks.")
+			: localize('chat.sessionArchiveNudge.overview', "Archive this session to set it aside and focus on your remaining tasks.");
 		this.detailsLabelElement.textContent = localize('chat.sessionArchiveNudge.actionDetails', "What Does \"{0}\" Do?", actionLabel);
 		this.recoveryElement.textContent = this.markAsDone
 			? localize('chat.sessionArchiveNudge.doneRecovery', "The session is not deleted. Ask your agent to find it, or look in the \"{0}\" section of the sessions list. You can restore it anytime.", sectionLabel)

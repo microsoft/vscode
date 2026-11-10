@@ -233,23 +233,18 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-compile
-          key-args: "compile $(node -p process.arch)"
+          key-prefix: pnpm-store-linux
 
       - name: Install build tools
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
       - name: Install Electron headers
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm run preinstall
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
 
@@ -354,24 +349,19 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
-      # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
-      # shared ones.
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      # Reuse the pnpm store that .github/workflows/pr-pnpm-store.yml keeps warm on `main`. Never
+      # save: PR-scoped caches are not shared with other PRs and only evict the shared ones.
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-compile
-          key-args: "compile $(node -p process.arch)"
+          key-prefix: pnpm-store-linux
 
       - name: Install system dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           sudo apt update
           sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -519,7 +509,7 @@ jobs:
   # product build still runs the macOS tests on main (see
   # build/azure-pipelines/darwin/steps/product-build-darwin-test.yml). To run them again, uncomment
   # this job and chat-lib-macos-tests, their entries in the needs of PR Gate, the electron-tests output
-  # of Detect Changes, the macOS jobs of pr-node-modules.yml and pr-workspace-images.yml, and the
+  # of Detect Changes, the macOS jobs of pr-pnpm-store.yml and pr-workspace-images.yml, and the
   # macOS entries of .github/actions/detect-missing-caches, and add the macOS checks back to the tests
   # in build/lib/test.
   # macos-tests:
@@ -591,20 +581,16 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: copilot-node_modules-linux
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+          key-prefix: pnpm-store-copilot-linux
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: pnpm install --frozen-lockfile
 
@@ -689,20 +675,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: copilot-node_modules-linux
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+          key-prefix: pnpm-store-copilot-linux
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: pnpm install --frozen-lockfile
 
@@ -788,20 +770,16 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: copilot-node_modules-windows
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+          key-prefix: pnpm-store-copilot-windows
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: pnpm install --frozen-lockfile
 
