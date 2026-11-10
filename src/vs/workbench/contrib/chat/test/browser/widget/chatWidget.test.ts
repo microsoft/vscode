@@ -1605,6 +1605,7 @@ suite('ChatWidget', () => {
 			setInputVisible: () => { },
 			renderChatSuggestNextWidget: () => { },
 			bodyDimension: { width: 100, height: 100 },
+			_topContentHeight: 0,
 			_inputVisible: true,
 			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
 			listContainer: mainWindow.document.createElement('div'),

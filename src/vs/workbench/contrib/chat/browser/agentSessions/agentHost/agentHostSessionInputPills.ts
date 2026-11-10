@@ -992,7 +992,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
 		const chatResourcesSession = derived(this, reader => subagentChat.read(reader) ? undefined : sessionResource.read(reader));
 		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
-			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources)
+			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.topContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources)
 			: undefined);
 		// Resources with a pill of their own are not listed again; the others offer to pin them.
 		const withPinActions = (sections: readonly IChatPillSection[], reader: IReader): readonly IChatPillSection[] => {
@@ -1155,6 +1155,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 			this._widget.setPersistentContentHeight(height > 0 ? height : undefined);
 		}));
+		this._register(autorun(reader => this._widget.setTopContentHeight(chatResourcesControl.read(reader)?.topHeight.read(reader) ?? 0)));
 	}
 
 	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
