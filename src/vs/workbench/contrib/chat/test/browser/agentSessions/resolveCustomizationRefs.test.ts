@@ -541,6 +541,25 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 	});
 
+	test('includes plugins without contributions VS Code parses, such as Copilot extensions with canvases', async () => {
+		const pluginUri = URI.file('/plugins/canvas-only');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Canvas Only' })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(new FakeBundler()),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Canvas Only' },
+		]);
+	});
+
 	test('forwards a userPromptTransformed-only plugin without prompt files', async () => {
 		const pluginUri = URI.file('/plugins/prompt-transform');
 		const groups = parseHooksJson(URI.joinPath(pluginUri, 'com.github.copilot/hooks/hooks.json'), {
