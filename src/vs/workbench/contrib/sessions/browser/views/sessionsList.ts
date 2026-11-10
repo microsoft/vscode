@@ -5682,6 +5682,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 				session.application.read(reader);
+				session.workspace.read(reader);
+				session.isQuickChat?.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
@@ -5706,6 +5708,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
+		const grouping = this.options.grouping();
+		const inbox = grouping === SessionsGrouping.Inbox;
 		const nextNestedSessionResources = new Set(
 			this.sessions
 				.filter(session => getSessionListChats(session).length > 0)
@@ -5720,7 +5724,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox));
 		// The default only changes what the list shows for archived content that the other filters keep.
 		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
@@ -5738,14 +5742,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		}
+		if (inbox) {
+			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
+		}
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
 		});
 
-		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
-		const inbox = grouping === SessionsGrouping.Inbox;
 		this.updateInboxDemand();
 		this.inboxObserver.clear();
 		if (inbox && this.visible) {
@@ -5854,7 +5859,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!comparison) {
 					continue;
 				}
-				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
+				const comparisonSessions = inbox && this.filters.hasInboxScope
+					? sortedMembersByGroupId.get(group.id)!
+					: getComparisonSessions(comparison, this._sessionsManagementService);
+				if (inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) {
+					continue;
+				}
 				const environmentId = grouping === SessionsGrouping.Environment
 					? comparisonSessions[0]?.environment
 					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
@@ -6289,34 +6299,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 								...rendered, children: [{
 									element: {
 										placeholder: true as const, sectionId: id,
-										label: hasCleared ? localize('inboxEmptyHistory', "No new activity. See Cleared below.") : localize('inboxEmpty', "Your inbox is clear"),
+										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : hasCleared ? localize('inboxEmptyHistory', "No new activity. See Cleared below.") : localize('inboxEmpty', "Your inbox is clear"),
 										hover: hasCleared ? localize('inboxHistoryHelp', "Cleared includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
 									},
 								}]
 							};
 						}
-					} else if (id === SessionInboxSection.OnHold) {
-						const workspaces = new Map<string, { sessions: ISession[]; children: IObjectTreeElement<SessionListItem>[] }>();
-						for (const child of rendered.children ?? []) {
-							const sessions = isSessionItem(child.element) ? [child.element] : isSessionGroupItem(child.element) ? child.element.sessions : [];
-							if (sessions.length === 0) {
-								continue;
-							}
-							const label = sessionWorkspaceLabel(sessions[0]);
-							let workspace = workspaces.get(label);
-							if (!workspace) {
-								workspace = { sessions: [], children: [] };
-								workspaces.set(label, workspace);
-							}
-							workspace.sessions.push(...sessions);
-							workspace.children.push(child);
-						}
-						rendered = {
-							...rendered, children: [...workspaces].sort(([a], [b]) => a.localeCompare(b)).map(([label, workspace]) => {
-								const section: ISessionSection = { id: `${SessionInboxSection.OnHold}:workspace:${label}`, label, sessions: workspace.sessions };
-								return { ...renderSection(section), children: workspace.children };
-							})
-						};
 					}
 					children.push(rendered);
 				}
@@ -6803,6 +6791,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
+		if (this.isInboxLayout() && !this.filters.matchesInboxScope(session)) {
+			throw new Error(localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it."));
+		}
 		this.customViewService.hideCustomView();
 		this.closeFind();
 		const target = { session, archiveAction };

@@ -15,6 +15,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -51,6 +52,7 @@ import { getSessionArchiveOnboardingTargetId, SessionItemCanMergePullRequestCont
 import { getInboxPullRequestMergeOperation } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
@@ -92,6 +94,7 @@ suite('Sessions - View Menu', () => {
 		let workspaceGroupCapped = true;
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
+			onDidUpdate: sessionsChanged.event,
 			isSessionListed: (session, reader) => !session.isAutomation?.read(reader),
 			isExcludeArchived: () => excludeArchived,
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
@@ -110,6 +113,7 @@ suite('Sessions - View Menu', () => {
 		});
 		const notices: ISessionsListNotice[] = [];
 		const host = {
+			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
 			workspaceGroupCappedContextKey: capped,
@@ -176,6 +180,147 @@ suite('Sessions - View Menu', () => {
 			},
 		};
 	}
+
+	test('Inbox scope controls filter the real pinned list, preserve unavailable choices and restore focus', async () => {
+		const local = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
+		const remote = buildTestSession({ id: 'remote', title: 'Remote', workspace: 'app', environment: 'ssh:work' }).session;
+		const sessions = [local, remote];
+		const harness = createListHarness(store, sessions);
+		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+		harness.instantiationService.stub(ISessionsListModelService, model);
+		model.pinSession(local);
+		model.pinSession(remote);
+		const offered: string[][] = [];
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const container = harness.createContainer();
+		const list = store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+			grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+		}));
+		list.layout(400, 320);
+		list.setItemCollapsed({ section: 'pinned' }, false);
+		const connected = observableValue('connected', true);
+		const environments = observableValue<readonly ISessionEnvironment[]>('environments', [{ id: 'ssh:work', label: 'Workstation', isConnected: connected }]);
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments));
+		const workspace = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
+		const environment = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+		const icons = () => [workspace, environment].map(trigger => {
+			const icon = trigger.querySelector('.codicon');
+			return { classes: icon?.className, hidden: icon?.getAttribute('aria-hidden') };
+		});
+		const initialIcons = icons();
+		const rows = () => list.getVisibleSessions().map(session => session.sessionId).sort();
+		const select = (trigger: HTMLElement, label: string) => {
+			trigger.click();
+			const popup = mainWindow.document.querySelector('.action-widget .sessions-new-chat-picker-list');
+			assert.ok(popup);
+			const items = [...popup.querySelectorAll<HTMLElement>('.monaco-list-row .title')];
+			offered.push(items.map(item => item.textContent ?? ''));
+			const item = items.find(item => item.textContent === label);
+			assert.ok(item);
+			item.click();
+		};
+		select(workspace, 'app');
+		await retry(async () => assert.strictEqual(workspace.textContent, 'app'), 10, 20);
+		const selectedWorkspace = { rows: rows(), focused: getActiveElement() === workspace, accessible: workspace.getAttribute('aria-label'), icons: icons() };
+		select(environment, 'Workstation');
+		await retry(async () => assert.strictEqual(environment.textContent, 'Workstation'), 10, 20);
+		const selectedEnvironment = { rows: rows(), workspace: workspace.textContent, focused: getActiveElement() === environment, icons: icons() };
+		connected.set(false, undefined);
+		const disconnected = environment.textContent;
+		environments.set([], undefined);
+		const unavailable = { label: environment.textContent, rows: rows(), scope: list.filters.inboxScope };
+		select(workspace, 'app');
+		select(environment, 'All Environments');
+		await retry(async () => assert.strictEqual(environment.textContent, 'All Environments'), 10, 20);
+		const allEnvironments = { rows: rows(), workspace: workspace.textContent };
+		select(workspace, 'All Workspaces');
+		await retry(async () => assert.strictEqual(workspace.textContent, 'All Workspaces'), 10, 20);
+		assert.deepStrictEqual({
+			offered, initialIcons, selectedWorkspace, selectedEnvironment, disconnected, unavailable, allEnvironments,
+			cleared: {
+				rows: rows(), focused: getActiveElement() === workspace, scoped: list.filters.hasInboxScope,
+				controls: [...scope.element.querySelectorAll('.action-label')].map(control => control.textContent),
+				icons: icons(),
+			},
+		}, {
+			offered: [
+				['All Workspaces', 'app', 'app'],
+				['All Environments', 'This Computer', 'Cloud', 'Workstation'],
+				['All Workspaces', 'app'],
+				['All Environments', 'This Computer', 'Cloud', 'Workstation'],
+				['All Workspaces', 'app', 'app'],
+			],
+			initialIcons: [{ classes: 'codicon codicon-folder-compact', hidden: 'true' }, { classes: 'codicon codicon-globe', hidden: 'true' }],
+			selectedWorkspace: {
+				rows: ['local'], focused: true, accessible: 'Filter Inbox by Workspace: app',
+				icons: [{ classes: 'codicon codicon-folder-compact', hidden: 'true' }, { classes: 'codicon codicon-globe', hidden: 'true' }],
+			},
+			selectedEnvironment: {
+				rows: ['remote'], workspace: 'All Workspaces', focused: true,
+				icons: [{ classes: 'codicon codicon-folder-compact', hidden: 'true' }, { classes: 'codicon codicon-remote-compact', hidden: 'true' }],
+			},
+			disconnected: 'Disconnected: Workstation',
+			unavailable: { label: 'Unavailable: Workstation', rows: ['remote'], scope: { environment: { id: 'ssh:work', label: 'Workstation' }, workspace: undefined } },
+			allEnvironments: { rows: ['remote'], workspace: 'app' },
+			cleared: {
+				rows: ['local', 'remote'], focused: true, scoped: false, controls: ['All Workspaces', 'All Environments'],
+				icons: [{ classes: 'codicon codicon-folder-compact', hidden: 'true' }, { classes: 'codicon codicon-globe', hidden: 'true' }],
+			},
+		});
+	});
+
+	test('Inbox scope dropdowns cancel and close when hidden or disposed', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const container = harness.createContainer();
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([])));
+		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
+		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		open();
+		const opened = {
+			visible: actionWidgetService.isVisible,
+			popup: trigger.getAttribute('aria-haspopup'),
+			expanded: trigger.getAttribute('aria-expanded'),
+			searchFocused: getActiveElement()?.classList.contains('action-list-filter-input'),
+		};
+		actionWidgetService.hide(true);
+		const cancelled = { visible: actionWidgetService.isVisible, expanded: trigger.getAttribute('aria-expanded'), focused: getActiveElement() === trigger, scope: filters.inboxScope };
+		open();
+		scope.setVisible(false);
+		const hidden = { visible: actionWidgetService.isVisible, expanded: trigger.getAttribute('aria-expanded') };
+		scope.setVisible(true);
+		open();
+		scope.dispose();
+		assert.deepStrictEqual({ opened, cancelled, hidden, disposed: { visible: actionWidgetService.isVisible, expanded: trigger.getAttribute('aria-expanded') } }, {
+			opened: { visible: true, popup: 'listbox', expanded: 'true', searchFocused: true },
+			cancelled: { visible: false, expanded: 'false', focused: true, scope: {} },
+			hidden: { visible: false, expanded: 'false' },
+			disposed: { visible: false, expanded: 'false' },
+		});
+	});
+
+	test('Inbox replaces the environment submenu while preserving ordinary choices and scoping applications', () => {
+		const sessions = [buildTestSession({ id: 'remote', title: 'Remote', environment: 'ssh:work' }).session];
+		const menu = createMenu(sessions, [{ id: 'ssh:work', label: 'Workstation' }]);
+		menu.filters.setExcluded({ kind: 'environment', id: 'local' }, true);
+		const ordinary = menu.snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Environment');
+		menu.grouping.set(SessionsGrouping.Inbox);
+		menu.filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+		const inbox = {
+			environmentMenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Environment'),
+			sources: menu.snapshot(Menus.SessionsViewSource).map(item => item.title),
+		};
+		menu.grouping.set(SessionsGrouping.Workspace);
+		menu.setSessions(sessions);
+		assert.deepStrictEqual({ ordinary, inbox, restored: menu.snapshot(Menus.SessionsViewSource).map(item => item.title) }, {
+			ordinary: true,
+			inbox: { environmentMenu: false, sources: ['VS Code (This Computer)'] },
+			restored: ['VS Code (Cloud)', 'VS Code (Workstation)'],
+		});
+	});
 
 	test('keeps Open to the Side without Open in Grid in the session context menu', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionItemOpenIn);

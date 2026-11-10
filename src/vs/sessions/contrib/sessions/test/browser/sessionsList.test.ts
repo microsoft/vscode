@@ -85,7 +85,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -112,7 +112,7 @@ import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
-import { getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -5293,6 +5293,93 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('Inbox scope filters pinned, active and archived sessions as well as attention categories', () => {
+			const workspaceResource = URI.file('/projects/app');
+			const pinned = createTestSession('pinned', { workspaceResource }).session;
+			const otherPinned = createTestSession('other-pinned').session;
+			const remotePinned = createTestSession('remote-pinned', { workspaceResource, environment: 'ssh:work' }).session;
+			const ready = createTestSession('ready', { workspaceResource }).session;
+			const working = createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }).session;
+			const held = createTestSession('held', { workspaceResource }).session;
+			const otherHeld = createTestSession('other-held').session;
+			const archived = createTestSession('archived', { workspaceResource, isArchived: true }).session;
+			const otherArchived = createTestSession('other-archived', { isArchived: true }).session;
+			const activeSession = constObservable<ITestSessionWithChat>({ ...otherPinned, activeChat: otherPinned.mainChat });
+			const items = [pinned, otherPinned, remotePinned, ready, working, held, otherHeld, archived, otherArchived];
+			const harness = createListHarness(disposables, items, { activeSession });
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			for (const session of [pinned, otherPinned, remotePinned]) {
+				model.pinSession(session);
+			}
+			model.setInboxState([held, otherHeld], 'hold');
+			let grouping = SessionsGrouping.Inbox;
+			const container = harness.createContainer();
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(800, 320);
+			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
+			const snapshot = () => list.getTreeSnapshot().flatMap(node => node.type !== 'section' ? [] : [{
+				id: node.id, sessions: node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : []).sort(),
+			}]);
+			list.filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+			const environmentPins = snapshot().find(section => section.id === 'pinned')?.sessions;
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(pinned));
+			const scoped = snapshot();
+			const hiddenActive = list.reveal(otherPinned.resource);
+			const selectedCount = list.getItemRow({ section: 'pinned' })?.getAttribute('aria-label')?.split(', ')[1];
+			assert.throws(() => list.revealArchiveAction(otherPinned), /outside the current Inbox scope/);
+			list.filters.setInboxEnvironment({ id: 'empty-host', label: 'Empty host' });
+			const empty = { sections: snapshot(), text: container.textContent?.includes('No Inbox activity matches this scope.') };
+			grouping = SessionsGrouping.Workspace;
+			list.update();
+			const ordinaryPins = snapshot().find(section => section.id === 'pinned')?.sessions;
+			grouping = SessionsGrouping.Inbox;
+			list.update();
+			const stillScoped = snapshot();
+			list.filters.setInboxWorkspace(undefined);
+			list.filters.setInboxEnvironment(undefined);
+			const resetPins = snapshot().find(section => section.id === 'pinned')?.sessions;
+			assert.deepStrictEqual({ environmentPins, scoped, hiddenActive, selectedCount, empty, ordinaryPins, stillScoped, resetPins, active: activeSession.get().sessionId }, {
+				environmentPins: ['other-pinned', 'pinned'],
+				scoped: [
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
+					{ id: SessionInboxSection.Working, sessions: ['working'] },
+					{ id: SessionInboxSection.OnHold, sessions: ['held'] },
+					{ id: 'archived', sessions: ['archived'] },
+				],
+				hiddenActive: false, selectedCount: '1',
+				empty: { sections: [{ id: SessionInboxSection.ReadyForYou, sessions: [] }], text: true },
+				ordinaryPins: ['other-pinned', 'pinned', 'remote-pinned'],
+				stillScoped: [{ id: SessionInboxSection.ReadyForYou, sessions: [] }],
+				resetPins: ['other-pinned', 'pinned', 'remote-pinned'],
+				active: 'other-pinned',
+			});
+		});
+
+		test('Inbox scope refreshes hidden sessions when workspace metadata hydrates', async () => {
+			const hydrated = createTestSession('hydrating').session;
+			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+			const session = { ...hydrated, workspace };
+			const harness = createListHarness(disposables, [session]);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(400, 320);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(hydrated));
+			const rows = () => list.getVisibleSessions().map(session => session.sessionId);
+			const before = rows();
+			workspace.set(hydrated.workspace.get(), undefined);
+			await retry(async () => assert.deepStrictEqual(rows(), ['hydrating']), 10, 30);
+			workspace.set(undefined, undefined);
+			await retry(async () => assert.deepStrictEqual(rows(), []), 10, 30);
+			assert.deepStrictEqual({ before, scopePreserved: list.filters.hasInboxScope }, { before: [], scopePreserved: true });
+		});
+
 		test('inbox keeps primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
 			const pinned = createTestSession('pinned').session;
 			const ready = createTestSession('ready').session;
@@ -5350,7 +5437,7 @@ suite('Sessions - SessionsList', () => {
 					[SessionInboxSection.ReadyForYou, ['ready']],
 					[SessionInboxSection.Working, ['working']],
 					[SessionInboxSection.ReadyToMerge, ['merge']],
-					[SessionInboxSection.OnHold, []],
+					[SessionInboxSection.OnHold, ['held']],
 					[SessionInboxSection.Done, ['done']],
 				],
 				tabElements: 0,
@@ -5414,7 +5501,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('inbox groups held sessions by workspace without changing their custom membership', () => {
+		test('inbox lists held sessions directly without changing their custom membership', () => {
 			const a = buildTestSession({ id: 'a', title: 'A', workspace: 'Alpha' }).session;
 			const b = buildTestSession({ id: 'b', title: 'B', workspace: 'Beta' }).session;
 			const harness = createListHarness(disposables, [a, b], { groups: [{ id: 'saved', name: 'Saved', createdAt: 1 }], memberships: new Map([['a', 'saved']]) });
@@ -5428,9 +5515,9 @@ suite('Sessions - SessionsList', () => {
 			list.layout(600, 320);
 			list.setHeaderCollapsed(SessionInboxSection.OnHold, false);
 			const held = list.getTreeSnapshot().find(node => node.type === 'section' && node.id === SessionInboxSection.OnHold);
-			const groups = held?.type === 'section' ? held.children.flatMap(node => node.type === 'section' ? [{ id: node.id, sessions: node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : []) }] : []) : [];
-			assert.deepStrictEqual({ groups, membership: harness.instantiationService.get(ISessionGroupsService).getGroupOfSession('a') }, {
-				groups: [{ id: 'inbox:onHold:workspace:Alpha', sessions: ['a'] }, { id: 'inbox:onHold:workspace:Beta', sessions: ['b'] }],
+			const rows = held?.type === 'section' ? held.children.map(node => node.type === 'session' ? node.session.sessionId : node.type) : [];
+			assert.deepStrictEqual({ rows, membership: harness.instantiationService.get(ISessionGroupsService).getGroupOfSession('a') }, {
+				rows: ['a', 'b'],
 				membership: 'saved',
 			});
 		});
@@ -7626,6 +7713,32 @@ suite('Sessions - SessionsList', () => {
 			list.update(true);
 			assert.deepStrictEqual({ waiting, completed: order(), archiveButton: !!container.querySelector('.session-comparison-group .action-label[aria-label="Mark All as Done"]'), archived: harness.managementService.archived }, {
 				waiting: ['group:comparison-group', 'recent'], completed: ['recent', 'group:comparison-group'], archiveButton: false, archived: [],
+			});
+		});
+
+		test('Inbox scope keeps comparison containers but hides nonmatching participants and their attention', () => {
+			const { harness, list, attempt1, attempt2 } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Inbox, undefined, harness => {
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			});
+			attempt2.status.set(SessionStatus.NeedsInput, undefined);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(attempt1.session));
+			const scoped = list.getTreeSnapshot().map(node => node.type === 'session' ? node.session.sessionId : {
+				id: node.id, children: node.children.map(child => child.type === 'session' ? child.session.sessionId : {
+					id: child.id, sessions: child.children.map(row => row.type === 'session' ? row.session.sessionId : row.id),
+				}),
+			});
+			list.filters.setInboxEnvironment({ id: 'empty-host', label: 'Empty host' });
+			assert.deepStrictEqual({
+				scoped,
+				empty: list.getTreeSnapshot().map(node => node.type === 'session' ? node.session.sessionId : [node.id, node.children.length]),
+				membership: harness.instantiationService.get(ISessionGroupsService).getGroupOfSession(attempt2.session.sessionId),
+			}, {
+				scoped: [
+					{ id: SessionInboxSection.ReadyForYou, children: [] },
+					{ id: SessionInboxSection.Working, children: [{ id: 'group:comparison-group', sessions: ['attempt-1'] }] },
+				],
+				empty: [[SessionInboxSection.ReadyForYou, 0]],
+				membership: 'comparison-group',
 			});
 		});
 
