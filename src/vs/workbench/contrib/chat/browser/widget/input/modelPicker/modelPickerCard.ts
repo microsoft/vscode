@@ -160,12 +160,11 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
-/** Whether effort and context controls rendered for one set of options still fit another: the same settings, with the same choices. */
-function configurationControlsMatch(a: IModelCardOptions, b: IModelCardOptions): boolean {
-	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].every(group => {
-		const before = getModelConfigProperty(a.model, a.configurationAccess, group, a.useModelConfigurationSchema);
-		const after = getModelConfigProperty(b.model, b.configurationAccess, group, b.useModelConfigurationSchema);
-		return before?.key === after?.key && equals(before?.schema.enum, after?.schema.enum);
+/** The effort and context settings the card's controls save to, each with its choices, to tell when rendered controls no longer fit. */
+function getConfigurationBindings(options: IModelCardOptions): readonly (readonly unknown[])[] {
+	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].map(group => {
+		const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
+		return property ? [property.key, ...property.schema.enum ?? []] : [];
 	});
 }
 
@@ -199,6 +198,8 @@ export class ModelCard extends DisposableStore {
 		getModelConfigurationSchema: modelId => this._options.configurationAccess.getModelConfigurationSchema?.(modelId),
 	};
 	private _renderPending = false;
+	/** The settings and choices the current controls were rendered with. */
+	private _renderedBindings: readonly (readonly unknown[])[] = [];
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
 	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
@@ -220,7 +221,6 @@ export class ModelCard extends DisposableStore {
 		const alternativeChanged = !routingAlternativesEqual(options.routingAlternatives, this._options.routingAlternatives);
 		const choicesChanged = !modelChoicesEqual(options.modelChoices, this._options.modelChoices) || options.name !== this._options.name || options.description !== this._options.description;
 		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.organizationDefaultModel !== this._options.organizationDefaultModel || options.externalHeader !== this._options.externalHeader || disclosureChanged || alternativeChanged || choicesChanged;
-		const controlsMatch = configurationControlsMatch(this._options, options);
 		if (options.model.identifier !== this._options.model.identifier) {
 			this._configurationChangeVersion++;
 		}
@@ -228,9 +228,8 @@ export class ModelCard extends DisposableStore {
 		if (disclosureChanged) {
 			this._pricingDisclosureListener.value = options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
 		}
-		if (changed || !controlsMatch) {
-			// Controls for other settings or choices could save a value the new model doesn't offer, so they don't wait for their motion.
-			this._renderPreservingFocus(undefined, !controlsMatch);
+		if (changed) {
+			this._renderPreservingFocus();
 		}
 	}
 
@@ -297,11 +296,13 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
-	private _renderPreservingFocus(fallbackGroup?: string, immediate = false): void {
-		if (!immediate && this._renderPending) {
+	private _renderPreservingFocus(fallbackGroup?: string): void {
+		// Controls for other settings or choices could save a value the model no longer offers, so they don't wait for their motion.
+		const controlsFit = equals(this._renderedBindings, getConfigurationBindings(this._options), (a, b) => equals(a, b));
+		if (controlsFit && this._renderPending) {
 			return;
 		}
-		if (!immediate && [...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
+		if (controlsFit && [...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
 			this._renderPending = true;
 			this._renderAfterSelectionAnimation(fallbackGroup).catch(onUnexpectedError);
 			return;
@@ -370,6 +371,7 @@ export class ModelCard extends DisposableStore {
 		this._routingBadge = undefined;
 		this._routingBadgeTier = undefined;
 		this._groupControls.clear();
+		this._renderedBindings = getConfigurationBindings(this._options);
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;

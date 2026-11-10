@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
-import { getModelConfigSummary, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigPropertySchema, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -1405,6 +1405,35 @@ suite('ModelCard', () => {
 			});
 		});
 	}
+
+	test('a refresh after the scope changes its choices during selection motion rebuilds the controls right away', async () => {
+		let effort: IModelConfigPropertySchema = { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' };
+		const values: IStringDictionary<unknown> = {};
+		const result = await createAnimatedCard({
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationSchema: () => ({ properties: { effort } }),
+				setModelConfiguration: async (_modelId, next) => { Object.assign(values, next); },
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const group = element(result.card.element, '[role="radiogroup"]');
+		group.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+		const animations = element(group, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		effort = { ...effort, enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'] };
+		result.card.refresh();
+		const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rebuilt,
+			values,
+			choices: Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll('[role="radio"]'), option => option.textContent),
+			selected: selectedOptions(result.card),
+		}, { rebuilt: true, values: { effort: 'high' }, choices: ['Low', 'Medium', 'High'], selected: ['High'] });
+	});
 
 	test('turning on reduced motion releases a refresh waiting for selection motion', async () => {
 		const result = await createAnimatedCard();
