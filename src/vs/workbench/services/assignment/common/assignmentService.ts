@@ -381,16 +381,12 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	}
 
 	/**
-	 * Resolves the new TAS assignments API URL from the account entitlements `exp` endpoint,
-	 * or `undefined` when no account/endpoint is available.
+	 * Resolves the account's TAS assignments API URL, falling back to the individual endpoint when unavailable.
 	 */
-	private getAssignmentsEndpoint(): string | undefined {
+	private getAssignmentsEndpoint(): string {
 		const account = this.defaultAccountService.currentDefaultAccount;
 		const endpoints = account?.entitlementsData?.endpoints;
-		const exp = endpoints?.exp;
-		if (!exp) {
-			return undefined;
-		}
+		const exp = endpoints?.exp || 'https://exp.individual.githubcopilot.com';
 		return `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
 	}
 
@@ -491,30 +487,24 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.tasSetupDisposables.add(extensionsFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 
-		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
-		// uses dedicated providers that emit the new userParam key names, so the legacy filter
-		// keys never reach it. Its assignments are merged with the legacy provider's results.
+		// Both endpoints remain active; the assignments API uses its own userParam names.
 		const assignmentsEndpoint = this.getAssignmentsEndpoint();
 		this.assignmentsEndpoint = assignmentsEndpoint;
-		let assignmentsFilterProviders: IExperimentationFilterProvider[] | undefined;
-		if (assignmentsEndpoint) {
-			const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
-				this.productService.version,
-				this.productService.nameLong,
-				this.telemetryService.devDeviceId,
-				targetPopulation,
-				this.productService.date ?? '',
-				this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
-			);
-			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
-			assignmentsFilterProviders = [
-				coreAssignmentsFilterProvider,
-				githubAssignmentsFilterProvider,
-				{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
-			];
-		}
+		const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
+			this.productService.version,
+			this.productService.nameLong,
+			this.telemetryService.devDeviceId,
+			targetPopulation,
+			this.productService.date ?? '',
+			this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
+		);
+		const githubAssignmentsFilterProvider = this.tasSetupDisposables.add(this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider));
+		this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
+		const assignmentsFilterProviders: IExperimentationFilterProvider[] = [
+			coreAssignmentsFilterProvider,
+			githubAssignmentsFilterProvider,
+			{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
+		];
 
 		const tasConfig = this.productService.tasConfig!;
 
@@ -541,9 +531,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			assignmentsFilterProviders,
 			// Route the assignments request through the main-process request service so it is
 			// not subject to renderer CORS (parity with how core reaches api.github.com).
-			assignmentsFetch: assignmentsEndpoint
-				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
-				: undefined,
+			assignmentsFetch: (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init)),
 			// TAS polling only updates persistent storage after treatments have been consumed.
 			refetchInterval: 0,
 		});

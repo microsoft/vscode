@@ -36,7 +36,7 @@ suite('WorkbenchAssignmentService polling', () => {
 	const treatmentName = 'config.test.polling';
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Await client readiness and exercise refresh races without public test-only APIs. */
-	function createService(enabled = true) {
+	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn') {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': 'all' });
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -60,18 +60,18 @@ suite('WorkbenchAssignmentService polling', () => {
 		}()));
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const entitlements = new class extends mock<IEntitlementsData>() {
-			override endpoints = { exp: 'https://assignments.example.com' };
+			override endpoints = accountState === 'missingEndpoint' ? undefined : { exp: 'https://assignments.example.com' };
 		}();
 		const account = new class extends mock<IDefaultAccount>() {
 			override readonly entitlementsData = entitlements;
 		}();
 		const tokenChanged = store.add(new Emitter<ICopilotTokenInfo | null>());
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
-			override readonly currentDefaultAccount = account;
+			override currentDefaultAccount: IDefaultAccount | null = accountState === 'signedOut' ? null : account;
 			override readonly onDidChangeDefaultAccount = accountChanged.event;
 			override copilotTokenInfo: ICopilotTokenInfo | null = { sn: '0' };
 			override readonly onDidChangeCopilotTokenInfo = tokenChanged.event;
-			override async getDefaultAccount() { return account; }
+			override async getDefaultAccount() { return this.currentDefaultAccount; }
 		}();
 		instantiationService.stub(IDefaultAccountService, defaultAccountService);
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
@@ -88,12 +88,14 @@ suite('WorkbenchAssignmentService polling', () => {
 
 		let value: string | undefined = 'initial';
 		const requestedFilters: Record<string, string>[] = [];
+		const requestedUrls: (string | undefined)[] = [];
 		let waitForResponse = async () => { };
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions) {
 				assert.ok(options.data);
 				const body: { userParams: Record<string, string> } = JSON.parse(options.data);
 				requestedFilters.push(body.userParams);
+				requestedUrls.push(options.url);
 				const response = {
 					featureVariables: value === undefined ? {} : { [`/vscode/${treatmentName}`]: value },
 					assignmentContext: 'unchanged-context',
@@ -111,7 +113,7 @@ suite('WorkbenchAssignmentService polling', () => {
 			return client;
 		};
 		return {
-			service, ready, errors, requestedFilters,
+			service, ready, errors, requestedFilters, requestedUrls,
 			requests: () => requestedFilters.length,
 			setValue: (next: string | undefined) => { value = next; },
 			setWaitForResponse: (wait: () => Promise<void>) => { waitForResponse = wait; },
@@ -132,8 +134,70 @@ suite('WorkbenchAssignmentService polling', () => {
 				entitlements.endpoints = { exp: 'https://replacement.example.com' };
 				accountChanged.fire(account);
 			},
+			changeAccount: (exp: string | null | undefined) => {
+				entitlements.endpoints = exp ? { exp } : undefined;
+				defaultAccountService.currentDefaultAccount = exp === null ? null : account;
+				accountChanged.fire(defaultAccountService.currentDefaultAccount);
+			},
 		};
 	}
+
+	for (const accountState of ['signedOut', 'missingEndpoint'] as const) {
+		test(`merges individual and legacy treatments when ${accountState}`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls } = createService(true, accountState);
+			try {
+				const client = (await ready())!;
+				// Stub only the legacy provider: Electron's Node HTTP transport cannot fetch the data URL fixture.
+				const legacy = sinon.stub(client['featureProviders']![0], 'getFeatures').resolves({
+					features: [],
+					assignmentContext: 'legacy-context',
+					configs: [{ Id: 'vscode', Parameters: { [treatmentName]: 'legacy', 'config.test.legacyOnly': 'legacy-only' } }],
+				});
+				store.add(toDisposable(() => legacy.restore()));
+				await service['refetchAssignments']();
+				assert.deepStrictEqual({
+					urls: requestedUrls,
+					merged: await service.getTreatment(treatmentName),
+					legacyOnly: await service.getTreatment('config.test.legacyOnly'),
+				}, {
+					urls: [
+						'https://exp.individual.githubcopilot.com/api/v1/assignments',
+						'https://exp.individual.githubcopilot.com/api/v1/assignments',
+					],
+					merged: 'initial',
+					legacyOnly: 'legacy-only',
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
+
+	test('switches from the individual endpoint to the account endpoint and back on sign-out', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, changeAccount, setValue } = createService(true, 'signedOut');
+		try {
+			await ready();
+			const values = [await service.getTreatment(treatmentName)];
+			setValue('signed-in');
+			changeAccount('https://exp.business.githubcopilot.com///');
+			await ready();
+			values.push(await service.getTreatment(treatmentName));
+			setValue('signed-out');
+			changeAccount(null);
+			await ready();
+			values.push(await service.getTreatment(treatmentName));
+			assert.deepStrictEqual({ urls: requestedUrls, values }, {
+				urls: [
+					'https://exp.individual.githubcopilot.com/api/v1/assignments',
+					'https://exp.business.githubcopilot.com/api/v1/assignments',
+					'https://exp.individual.githubcopilot.com/api/v1/assignments',
+				],
+				values: ['initial', 'signed-in', 'signed-out'],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('refreshes consumed values every hour and publishes assignment removal with unchanged context', () => runWithFakedTimers({}, async () => {
 		const { service, ready, requests, setValue } = createService();
@@ -393,7 +457,7 @@ suite('WorkbenchAssignmentService polling', () => {
 	}));
 
 	test('does not start a client or polling when experiments are disabled', () => runWithFakedTimers({}, async () => {
-		const { service, ready, requests } = createService(false);
+		const { service, ready, requests } = createService(false, 'signedOut');
 		try {
 			await ready();
 			await timeout(ASSIGNMENT_REFETCH_INTERVAL * 2);

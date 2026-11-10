@@ -283,8 +283,8 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		let self: MicrosoftExperimentationService | undefined = undefined;
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
 			const wrappedMemento = new ExpMementoWrapper(memento, envService);
-			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
-			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
+			const exp = copilotTokenStore.copilotToken?.endpoints?.exp || 'https://exp.individual.githubcopilot.com';
+			const assignmentsEndpoint = `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
 			// Route both the legacy (GET) and assignments (POST) requests through the extension's
 			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
 			const tasFetch = createTasFetch(fetcherService);
@@ -308,7 +308,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 				],
 				fetch: tasFetch,
 				assignmentsEndpoint,
-				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
+				assignmentsFilterProviders: [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)],
 			});
 		};
 
@@ -316,8 +316,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
-		// The assignments endpoint is sourced from the Copilot token, which may arrive after
-		// this service is created. Recreate the delegate when its `exp` endpoint changes.
+		// Recreate the delegate when the token endpoint changes, including returning to the signed-out fallback.
 		let currentExp = copilotTokenStore.copilotToken?.endpoints?.exp;
 		this._register(copilotTokenStore.onDidStoreUpdate(() => {
 			const token = copilotTokenStore.copilotToken;
