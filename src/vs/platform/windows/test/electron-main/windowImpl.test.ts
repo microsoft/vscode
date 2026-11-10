@@ -22,6 +22,9 @@ import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
 import { getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
 
+const displayBounds = { x: 0, y: 0, width: 1440, height: 900 };
+const workArea = { x: 0, y: 25, width: 1440, height: 875 };
+
 class TestWindow extends BaseWindow {
 	readonly id = 1;
 
@@ -31,6 +34,10 @@ class TestWindow extends BaseWindow {
 
 	override applyState(state: IWindowState, hasMultipleDisplays?: boolean, minimized?: boolean): void {
 		super.applyState(state, hasMultipleDisplays, minimized);
+	}
+
+	protected override getDisplayArea(mode: WindowMode.Maximized | WindowMode.Fullscreen) {
+		return mode === WindowMode.Fullscreen ? displayBounds : workArea;
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -205,6 +212,7 @@ suite('BaseWindow - hidden window mode', () => {
 		const show = sinon.stub();
 		const focus = sinon.stub();
 		const focusWebContents = sinon.stub();
+		const setBounds = sinon.stub();
 		const nativeWindow = upcastPartial<BrowserWindow>({
 			on,
 			removeListener,
@@ -213,18 +221,19 @@ suite('BaseWindow - hidden window mode', () => {
 			maximize,
 			show,
 			focus,
+			setBounds,
 			webContents: upcastPartial<WebContents>({ focus: focusWebContents }),
 		});
 		window.setWin(nativeWindow);
-		return { window, maximize, show, focus, focusWebContents };
+		return { window, maximize, show, focus, focusWebContents, setBounds };
 	}
 
 	for (const hidden of [false, true]) {
-		test(`applyState ${hidden ? 'neither maximizes nor shows' : 'maximizes and shows'} a maximized window (hidden: ${hidden})`, () => {
-			const { window, maximize, show } = createWindow(hidden);
+		test(`applyState ${hidden ? 'sizes to the work area without maximizing or showing' : 'maximizes and shows'} a maximized window (hidden: ${hidden})`, () => {
+			const { window, maximize, show, setBounds } = createWindow(hidden);
 			window.applyState({ mode: WindowMode.Maximized }, false);
 
-			assert.deepStrictEqual([maximize.callCount, show.callCount], hidden ? [0, 0] : [1, 1]);
+			assert.deepStrictEqual([maximize.callCount, show.callCount, setBounds.args], hidden ? [0, 0, [[workArea]]] : [1, 1, []]);
 		});
 
 		test(`focus ${hidden ? 'is ignored' : 'focuses the window'} (hidden: ${hidden})`, () => {
@@ -235,12 +244,12 @@ suite('BaseWindow - hidden window mode', () => {
 		});
 	}
 
-	test('applyState neither maximizes, enters fullscreen nor shows a fullscreen window when hidden', () => {
-		const { window, maximize, show } = createWindow(true);
+	test('applyState sizes a hidden fullscreen window to the display without maximizing, entering fullscreen or showing', () => {
+		const { window, maximize, show, setBounds } = createWindow(true);
 		const setFullScreen = sinon.stub(window as unknown as { setFullScreen(fullscreen: boolean, fromRestore: boolean): void }, 'setFullScreen');
 		window.applyState({ mode: WindowMode.Fullscreen }, false);
 
-		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
+		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount, setBounds.args], [0, 0, 0, [[displayBounds]]]);
 	});
 
 	test('background throttling cannot be re-enabled at runtime when hidden', () => {

@@ -351,8 +351,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
 
-			// maximize() and setFullScreen() would reveal a window that was never shown
+			// maximize() and setFullScreen() would reveal a window that was never shown,
+			// so only give it the size it would have
 			if (isHiddenWindowMode(this.environmentMainService)) {
+				this._win?.setBounds(this.getDisplayArea(state.mode));
 				return;
 			}
 
@@ -379,6 +381,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 			this._win?.minimize();
 		}
+	}
+
+	protected getDisplayArea(mode: WindowMode.Maximized | WindowMode.Fullscreen): electron.Rectangle {
+		const display = this._win ? electron.screen.getDisplayMatching(this._win.getBounds()) : electron.screen.getPrimaryDisplay();
+
+		return mode === WindowMode.Fullscreen ? display.bounds : display.workArea;
 	}
 
 	private representedFilename: string | undefined;
