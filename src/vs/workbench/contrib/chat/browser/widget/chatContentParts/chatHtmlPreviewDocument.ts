@@ -63,18 +63,19 @@ export function createHtmlPreviewDocument(html: string, theme?: { readonly style
 		a[href] { color: var(--vscode-textLink-foreground, LinkText); }
 		:focus-visible { outline: 1px solid var(--vscode-focusBorder, Highlight); outline-offset: 2px; }
 	`;
-	const themeStyle = dom.$('div').style;
+	const documentStyle = dom.$('div').style;
+	documentStyle.overscrollBehavior = 'contain';
 	if (theme) {
 		const variables = new Set([...`${styles}${content}`.matchAll(/var\(\s*--(?<name>[\w-]+)/g)].map(match => match.groups!.name));
 		for (const [name, value] of Object.entries(theme.styles)) {
 			if (variables.has(name)) {
-				themeStyle.setProperty(`--${name}`, String(value));
+				documentStyle.setProperty(`--${name}`, String(value));
 			}
 		}
 	}
 
 	return `<!DOCTYPE html>
-<html${theme ? ` style="${escapeDoubleQuotes(escape(themeStyle.cssText))}"` : ''}>
+<html style="${escapeDoubleQuotes(escape(documentStyle.cssText))}">
 <head>
 	<meta charset="UTF-8">
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
@@ -82,7 +83,7 @@ export function createHtmlPreviewDocument(html: string, theme?: { readonly style
 	<title>${escape(localize('chat.htmlPreview.documentTitle', "HTML Preview"))}</title>
 	<style>${styles}</style>
 </head>
-<body${theme ? ` class="${escapeDoubleQuotes(escape(theme.activeTheme))}"` : ''}>${content}</body>
+<body${theme ? ` class="${escapeDoubleQuotes(escape(theme.activeTheme))}"` : ''}><div class="chat-html-preview-document" style="display: flow-root; overflow-x: auto;">${content}</div></body>
 </html>`;
 }
 

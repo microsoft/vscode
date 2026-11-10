@@ -45,7 +45,7 @@ export type FromWebviewMessage = {
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
 	'drag': WebViewDragEvent;
-	'updated-intrinsic-content-size': { width: number; height: number; horizontalScrollbarHeight?: number };
+	'updated-intrinsic-content-size': { width: number; height: number };
 };
 
 interface UpdateContentEvent {

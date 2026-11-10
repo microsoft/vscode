@@ -78,6 +78,8 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
 import { IEditorPane } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
+import { OverlayWebview } from '../../../../../webview/browser/overlayWebview.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -102,6 +104,7 @@ suite('ChatMarkdownContentPart', () => {
 		return {
 			get(): IDisposableReference<CodeBlockPart> {
 				const element = mainWindow.document.createElement('div');
+				element.tabIndex = 0;
 				const mockPart = {
 					element,
 					get uri() { return undefined; },
@@ -110,7 +113,7 @@ suite('ChatMarkdownContentPart', () => {
 						renderedCodeBlockWidths.push(width);
 					},
 					layout() { },
-					focus() { },
+					focus() { element.focus(); },
 					reset() { },
 					onDidRemount() { },
 				} as unknown as CodeBlockPart;
@@ -1169,7 +1172,17 @@ suite('ChatMarkdownContentPart', () => {
 			override readonly onFatalError = this.fatalError.event;
 			override readonly onDidWheel = Event.None;
 			override readonly onDidDispose = Event.None;
-			override readonly intrinsicContentSize = observableValue<{ width: number; height: number; horizontalScrollbarHeight?: number } | undefined>('preview size', undefined);
+			override readonly onDidFocus = Event.None;
+			override readonly onDidBlur = Event.None;
+			override readonly onDidClickLink = Event.None;
+			override readonly onMessage = Event.None;
+			override readonly onMissingCsp = Event.None;
+			override readonly onDidUpdateState = Event.None;
+			readonly scroll = disposables.add(new Emitter<{ scrollYPercentage: number }>());
+			override readonly onDidScroll = this.scroll.event;
+			override initialScrollProgress = 0;
+			override state: string | undefined;
+			override readonly intrinsicContentSize = observableValue<{ width: number; height: number } | undefined>('preview size', undefined);
 			override setHtml(html: string): void { this.html = html; }
 			override setContextKeyService(): void { }
 			override mountTo(): void { }
@@ -1286,6 +1299,35 @@ suite('ChatMarkdownContentPart', () => {
 			assert.strictEqual(webviews.length, 1);
 		});
 
+		test('leaves invalidly indented closing fences as source, including stopped responses', () => {
+			const results = [false, true].flatMap(complete => [0, 3, 4].map(indentation => {
+				const count = webviews.length;
+				const markdown = '```html-preview\n<h2>Report</h2>\n' + ' '.repeat(indentation) + '```';
+				const context = createRenderContext(complete);
+				if (complete) {
+					Object.assign(context.element, { isCanceled: true });
+				}
+				const part = createMarkdownPart(markdown, context, true, false, options);
+				return { preview: !!part.domNode.querySelector('.chat-html-preview'), created: webviews.length > count };
+			}));
+			assert.deepStrictEqual(results, [true, true, false, true, true, false].map(preview => ({ preview, created: preview })));
+		});
+
+		test('tracks preview-control focus and focuses the source editor in source mode', () => {
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.codeblocks[0].focus();
+			const preview = { focused: part.codeblocks[0].isFocused, toolbar: mainWindow.document.activeElement === action(part, 'Show Source') };
+			action(part, 'Show Source').click();
+			part.codeblocks[0].focus();
+			const source = { focused: part.codeblocks[0].isFocused, editor: part.domNode.querySelector('.chat-html-preview-source')?.contains(mainWindow.document.activeElement) };
+			assert.deepStrictEqual({ preview, source }, {
+				preview: { focused: true, toolbar: true },
+				source: { focused: true, editor: true },
+			});
+		});
+
 		test('preserves the source toggle and webview while the rest of the response streams', () => {
 			const part = createMarkdownPart(fenced(), createRenderContext(false), true, false, options);
 			const sourceButton = action(part, 'Show Source');
@@ -1308,8 +1350,6 @@ suite('ChatMarkdownContentPart', () => {
 			const visibility = disposables.add(new Emitter<boolean>());
 			const part = createMarkdownPart(fenced(), { ...createRenderContext(), onDidChangeVisibility: visibility.event }, false, false, options);
 			const webview = webviews[0].webview;
-			webview.intrinsicContentSize.set({ width: 440, height: 140, horizontalScrollbarHeight: 16 }, undefined);
-			const heightWithScrollbar = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height;
 			webview.intrinsicContentSize.set({ width: 500, height: 100_000 }, undefined);
 			const height = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height;
 			part.onDidRemount();
@@ -1319,14 +1359,13 @@ suite('ChatMarkdownContentPart', () => {
 			visibility.fire(true);
 			part.dispose();
 			assert.deepStrictEqual({
-				heightWithScrollbar,
 				height,
 				loadingHeight,
 				previousDisposed,
 				created: webviews.length,
 				reusedDetachedFrame: webviews.some(view => view.webview.remounts > 0),
 				allDisposed: webviews.every(view => view.webview.disposed),
-			}, { heightWithScrollbar: '156px', height: '600px', loadingHeight: '600px', previousDisposed: true, created: 3, reusedDetachedFrame: false, allDisposed: true });
+			}, { height: '600px', loadingHeight: '600px', previousDisposed: true, created: 3, reusedDetachedFrame: false, allDisposed: true });
 		});
 
 		test('keeps source mode on remount and creates a fresh webview when returning to preview', () => {
@@ -1504,6 +1543,24 @@ suite('ChatMarkdownContentPart', () => {
 			}, { reported: true, disposed: true, retryEnabled: true });
 		});
 
+		test('restores expanded preview scroll after releasing and reclaiming its editor', () => {
+			const service = instantiationService.get(IWebviewService);
+			const createOverlay = stub(service, 'createWebviewOverlay').callsFake(init => instantiationService.createInstance(OverlayWebview, init));
+			disposables.add(toDisposable(() => createOverlay.restore()));
+			instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => mainWindow.document.body });
+			const input = store.add(instantiationService.createInstance(ChatHtmlPreviewEditorInput, '<h1>Long report</h1>', 'scroll-preview'));
+			const owner = {};
+			input.webview.claim(owner, mainWindow, undefined);
+			webviews[0].webview.scroll.fire({ scrollYPercentage: 0.6 });
+			input.webview.release(owner);
+			input.webview.claim(owner, mainWindow, undefined);
+			assert.deepStrictEqual({
+				created: webviews.length,
+				oldDisposed: webviews[0].webview.disposed,
+				restoredScroll: webviews[1].webview.initialScrollProgress,
+			}, { created: 2, oldDisposed: true, restoredScroll: 0.6 });
+		});
+
 		test('exports a sanitized standalone file and opens it through the existing file preview path', async () => {
 			const files = createInMemoryFileService(disposables, Schemas.file);
 			instantiationService.stub(IFileService, files);
@@ -1668,6 +1725,28 @@ suite('ChatMarkdownContentPart', () => {
 			assert.deepStrictEqual(results, fonts.map(font => ({
 				font, foreground: '#d4d4d4', background: '#1e1e1e', attributes: ['style'],
 			})));
+		});
+
+		test('includes the horizontal scrollbar in preview-local content height', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 440px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>html { scrollbar-color: auto; } ::-webkit-scrollbar { height: 16px; width: 16px; }</style><pre>' + ('Wide content '.repeat(30) + '\n').repeat(4) + '</pre>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const document = frame.contentDocument!;
+			frame.style.height = `${Math.max(100, Math.min(600, document.documentElement.offsetHeight))}px`;
+			const content = document.querySelector<HTMLElement>('.chat-html-preview-document')!;
+			assert.deepStrictEqual({
+				rootFitsVertically: document.documentElement.scrollHeight === document.documentElement.clientHeight,
+				rootFitsHorizontally: document.documentElement.scrollWidth === document.documentElement.clientWidth,
+				contentOverflows: content.scrollWidth > content.clientWidth,
+				scrollbarHeight: content.offsetHeight - content.clientHeight,
+				containment: frame.contentWindow!.getComputedStyle(document.documentElement).overscrollBehavior,
+			}, { rootFitsVertically: true, rootFitsHorizontally: true, contentOverflows: true, scrollbarHeight: 16, containment: 'contain' });
 		});
 
 		test('removes active markup, navigations, resource URLs, and webview context while preserving static visuals', () => {

@@ -258,26 +258,6 @@ suite('Webview shell messaging', () => {
 		]);
 	});
 
-	test('reports horizontal scrollbar height separately from intrinsic content height', () => {
-		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
-		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
-		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
-		const reporter = html.match(/const postSize = \(\) => \{[\s\S]*?\r?\n\t+\};/)?.[0];
-		assert.ok(reporter);
-		const sizes: { width: number; height: number; horizontalScrollbarHeight?: number }[] = [];
-		for (const clientHeight of [124, 140]) {
-			new Function('docEl', 'contentWindow', 'hostMessaging', `${reporter}\npostSize();`)(
-				{ offsetWidth: 440, offsetHeight: 140, clientHeight },
-				{ innerHeight: 140 },
-				{ postMessage: (_channel: string, data: typeof sizes[number]) => sizes.push(data) },
-			);
-		}
-		assert.deepStrictEqual(sizes, [
-			{ width: 440, height: 140, horizontalScrollbarHeight: 16 },
-			{ width: 440, height: 140, horizontalScrollbarHeight: 0 },
-		]);
-	});
-
 	for (const command of ['copy', 'cut', 'paste']) {
 		for (const activeRoot of ['body', 'documentElement'] as const) {
 			test(`preserves the document selection for ${command} with ${activeRoot} focused`, () => {

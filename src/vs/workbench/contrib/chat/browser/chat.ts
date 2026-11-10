@@ -193,6 +193,7 @@ export interface IChatCodeBlockInfo {
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
+	readonly isFocused?: boolean;
 	readonly languageId?: string | undefined;
 	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }

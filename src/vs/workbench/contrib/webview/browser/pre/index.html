@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-Oh0nDBvzgv4TrFUNTPIK1MxTWPYpwHCivC5hR9GGQlQ=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-/1tWjWJT6eC5kL5u6bkA5Mv5tlnk/Av2w5FSrdIjUn0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -954,9 +954,6 @@
 			const options = data.options;
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
-			if (options.disableScrollChaining) {
-				newDocument.documentElement.style.overscrollBehavior = 'contain';
-			}
 
 			newDocument.querySelectorAll('a').forEach(a => {
 				if (!a.title) {
@@ -1250,8 +1247,7 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight,
-									horizontalScrollbarHeight: Math.max(0, contentWindow.innerHeight - docEl.clientHeight),
+									height: docEl.offsetHeight
 								});
 							};
 

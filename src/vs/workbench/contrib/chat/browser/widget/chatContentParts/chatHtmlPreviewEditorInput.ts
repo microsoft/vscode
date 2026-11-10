@@ -43,7 +43,7 @@ export class ChatHtmlPreviewEditorInput extends WebviewInput {
 			iconPath: Codicon.preview,
 		}, webviewService.createWebviewOverlay({
 			...options,
-			options: { ...options.options, purpose: WebviewContentPurpose.CustomEditor, enableFindWidget: true },
+			options: { ...options.options, purpose: WebviewContentPurpose.CustomEditor, enableFindWidget: true, tryRestoreScrollPosition: true },
 		}), themeService);
 		this.html = html;
 		this._register(this.webview.onFatalError(error => {

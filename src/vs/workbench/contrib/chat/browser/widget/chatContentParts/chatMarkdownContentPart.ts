@@ -374,6 +374,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								codemapperUri: undefined,
 								isStreamingEdit: false,
 								get uri() { return preview.uri; },
+								get isFocused() { return preview.isFocused; },
 								focus() { preview.focus(); },
 							});
 							return preview.element;

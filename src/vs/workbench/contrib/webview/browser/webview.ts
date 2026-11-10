@@ -102,7 +102,7 @@ export interface WebviewOptions {
 	 */
 	readonly disableServiceWorker?: boolean;
 
-	/** Keep wheel gestures in scrollable content, including at its edges; forward only otherwise-unhandled gestures. */
+	/** Suppress forwarding wheel gestures that belong to scrollable content, including at its edges. */
 	readonly disableScrollChaining?: boolean;
 
 	readonly tryRestoreScrollPosition?: boolean;
@@ -254,9 +254,9 @@ export interface IWebview extends IDisposable {
 	/**
 	 * The natural size of the content inside the webview.
 	 *
-	 * Computed from the document element, with horizontal scrollbar height reported separately for auto-sized consumers.
+	 * This is computed by looking at the size of the webview's the document element.
 	 */
-	readonly intrinsicContentSize: IObservable<{ readonly width: number; readonly height: number; readonly horizontalScrollbarHeight?: number } | undefined>;
+	readonly intrinsicContentSize: IObservable<{ readonly width: number; readonly height: number } | undefined>;
 
 	/**
 	 * Fired when the webview cannot be loaded or is now in a non-functional state.

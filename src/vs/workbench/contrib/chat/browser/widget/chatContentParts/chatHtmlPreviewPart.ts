@@ -40,10 +40,9 @@ export function isHtmlPreviewCodeBlock(languageId: string, raw: string | undefin
 		return false;
 	}
 
-	const lines = raw.trimEnd().split('\n');
-	const opening = /^\s*(?<fence>`{3,}|~{3,})/.exec(lines[0])?.groups?.fence;
-	const closing = lines.at(-1)?.trim();
-	return !!opening && !!closing && lines.length > 1
+	const opening = /^ {0,3}(?<fence>`{3,}|~{3,})/.exec(raw)?.groups?.fence;
+	const closing = /\n {0,3}(?<fence>`{3,}|~{3,}) *(?:\r?\n)*$/.exec(raw)?.groups?.fence;
+	return !!opening && !!closing
 		&& closing.length >= opening.length
 		&& [...closing].every(character => character === opening[0]);
 }
@@ -143,7 +142,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 			this.webviewDisposables.add(autorun(reader => {
 				const size = webview.intrinsicContentSize.read(reader);
 				if (size && Number.isFinite(size.height) && size.height > 0) {
-					const height = Math.max(100, Math.min(600, size.height + (size.horizontalScrollbarHeight ?? 0)));
+					const height = Math.max(100, Math.min(600, size.height));
 					this.partState.height = height;
 					this.previewContainer.style.height = `${height}px`;
 					this.onDidChangeHeight();
@@ -178,6 +177,10 @@ export class ChatHtmlPreviewPart extends Disposable {
 		return this.source.object.uri;
 	}
 
+	get isFocused(): boolean {
+		return this.element.contains(dom.getWindow(this.element).document.activeElement);
+	}
+
 	hasSameContent(text: string): boolean {
 		return this.data.text === text;
 	}
@@ -204,7 +207,7 @@ export class ChatHtmlPreviewPart extends Disposable {
 	}
 
 	focus(): void {
-		if (this.sourceAction.enabled) {
+		if (this.sourceContainer.hidden) {
 			this.toolbar.focus();
 		} else {
 			this.source.object.focus();
