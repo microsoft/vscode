@@ -10,6 +10,7 @@ import { GitErrorCodes } from './typings/git.constants.js';
 import type { PushErrorHandler, Remote, Repository } from './typings/git.d.ts';
 import * as path from 'path';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { getUniqueRemoteName } from './util.js';
 
 
 
@@ -182,7 +183,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		const localName = match ? match[1] : refspec;
 		let remoteName = match ? match[2] : refspec;
 
-		const [octokit, ghRepository] = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Create GitHub fork') }, async progress => {
+		const [octokit, ghRepository, upstreamRemoteName] = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Create GitHub fork') }, async progress => {
 			progress.report({ message: l10n.t('Forking "{0}/{1}"...', owner, repo), increment: 33 });
 
 			const octokit = await getOctokit();
@@ -220,24 +221,30 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 
 			progress.report({ message: l10n.t('Pushing changes...'), increment: 33 });
 
-			// Issue: what if there's already an `upstream` repo?
-			await repository.renameRemote(remote.name, 'upstream');
+			// The repository may already have remotes named `upstream`/`origin`, so
+			// fall back to a suffixed name instead of failing to rename/add the remote.
+			const remoteNames = repository.state.remotes.map(r => r.name);
+			const upstreamRemoteName = getUniqueRemoteName(remoteNames, 'upstream');
+			const originRemoteName = getUniqueRemoteName([
+				...remoteNames.filter(name => name !== remote.name), upstreamRemoteName
+			], 'origin');
 
-			// Issue: what if there's already another `origin` repo?
+			await repository.renameRemote(remote.name, upstreamRemoteName);
+
 			const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 			const remoteUrl = protocol === 'https' ? ghRepository.clone_url : ghRepository.ssh_url;
-			await repository.addRemote('origin', remoteUrl);
+			await repository.addRemote(originRemoteName, remoteUrl);
 
 			try {
-				await repository.fetch('origin', remoteName);
-				await repository.setBranchUpstream(localName, `origin/${remoteName}`);
+				await repository.fetch(originRemoteName, remoteName);
+				await repository.setBranchUpstream(localName, `${originRemoteName}/${remoteName}`);
 			} catch {
 				// noop
 			}
 
-			await repository.push('origin', localName, true);
+			await repository.push(originRemoteName, localName, true);
 
-			return [octokit, ghRepository] as const;
+			return [octokit, ghRepository, upstreamRemoteName] as const;
 		});
 
 		// yield
@@ -281,7 +288,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 						base: ghRepository.default_branch
 					});
 
-					await repository.setConfig(`branch.${localName}.remote`, 'upstream');
+					await repository.setConfig(`branch.${localName}.remote`, upstreamRemoteName);
 					await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
 					await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
 
