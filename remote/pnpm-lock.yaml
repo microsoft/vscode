@@ -20,8 +20,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.30-preview.0
-        version: 1.0.30-preview.0
+        specifier: 1.0.31
+        version: 1.0.31
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -240,52 +240,52 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-mk2Eo2CAqWNx1MfXe86PRAXIZn1jPQ+Nn9wWKLv1caUrZx6MgDAZje3RsjzBFt1z6cPRdNvGuR+5qx5ed4fm7g==}
+  '@github/copilot-sdk-darwin-arm64@1.0.31':
+    resolution: {integrity: sha512-f2j/j32hBY6jmJ4raxDQqh7om+TUrMP9vWDmSPT/6RWOCuVhG9uMcNkR7M6rvBhGnyNTPa/dHvFNwb+jc9V3qg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-Hp8HUQBln7cA/GUOjSnAn7fNI0oUh3eqXj27Jk2ejYf7bf7CNDduZviXMPZVDFU4L/0APEA32SH7UzzuouB1Yw==}
+  '@github/copilot-sdk-darwin-x64@1.0.31':
+    resolution: {integrity: sha512-LDZ2r5U33QWO+MQEQnsYADBbOfEpv/78FWzATVRKeBAb9Gj3xhvkQq3UzUf9CEiqYe1RzWhnJSXnCqAm0I58vA==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-Gbg8nKJOVJeXKPgv0rzv0cB6I8ZHeTBbFqEWRT/WrxwiS2a4vubsIWK5gHAMx+cOVUyl8Cmc0yLfAzuQcOfnEA==}
+  '@github/copilot-sdk-linux-arm64@1.0.31':
+    resolution: {integrity: sha512-W+IOLlx5qIY9i2Mn4TI132zZL/N3/04aORiYnrhQ5/jUqSRFOVhkDbKhSVAWQ/Q0AwtB+3gpXC0ka7s5N7TECw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-43aFjCby/R6acOEbLLnvysUvKX9POTsDbY4kZAcaSrHkiVrnVOLNiEgbvVchXjbZBVsLlFP94EN/ibheCzRHeA==}
+  '@github/copilot-sdk-linux-x64@1.0.31':
+    resolution: {integrity: sha512-VEdvff9vPcfejvewV4ZCGIC44Nyd8zH/6T7gWZB+qWfiAQxZYkluJLN7ECtnSi5w7g+UFdRmPATl3GIXXyztkw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-TKVl1Ts80+rKmG2keG035fZt9BPtRkuVIMjq2Z/l7cpt00J33qQRkI0qms4eiuId+jZxes0gX7zQHT85IVftxA==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.31':
+    resolution: {integrity: sha512-ckO/I7+6f15AAl/Jcesqnx16ktXryobwlmdSYa/qwoRmA43OYO5FdtX9fbWsO0d6wQIyNZzfmTrsaAtTzFx2hA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-KwgkOL7BSasVTJwg297uTpYAhcMsS4DGj+Ty3DiRkW7F576ONW4pJOaJz8/4+EpNKYmhFYaFsNoHIaFQ76posQ==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.31':
+    resolution: {integrity: sha512-5ikcJEbe/i06pVKvgVqpNPU9PxsyiF9U/Pwb4qBSzLMB0JTsGVur2571kIVFwEevrIXZ36qDpK6Y+7/RLNOsQQ==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-AlF+jOYYSkm/Mls4EE5myJ0qUQxVBHEtBFvdPkZ+uqdY3R4mHO1ReeJWsX5dFlsY85kUVF6zS1CuhtXokfgyHQ==}
+  '@github/copilot-sdk-win32-arm64@1.0.31':
+    resolution: {integrity: sha512-LfaSJRo3+Mlp/mLXgPJMHDXzJUKK4h3XqthQm6qZanBQp34TyVZa8+nAadJ06t0R7Po14dZl/GYOAEiIGI9xIA==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-9Jij2EEH2r6gk0ekKhHq/SQzZgDGe3W3VY3+SKs6KmUq6ZG6vzfj9sEN2QDA/ywqqJf7RMesGKTD0A0Y5xTIKw==}
+  '@github/copilot-sdk-win32-x64@1.0.31':
+    resolution: {integrity: sha512-IRJiXxXjtdzNIejwAKmVJDvmIIw+U1+lDMjrGCXuyPkBBNwWP+tetHJuAL/A3bLOarIa/Wt027g9tF8rU5Hw1w==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.30-preview.0':
-    resolution: {integrity: sha512-V2A//9ikl8yygwqb8zffH/Jmmqg2Ra8nOsgjui3VIxp8pSSh/ljpsOF7iH5RKXlCDx/b2YtF+jWa3zRQAHIECg==}
+  '@github/copilot-sdk@1.0.31':
+    resolution: {integrity: sha512-PLspvOp5ZEA89ZxNmSgBmwwGszo3OHJcOFkOrsYhHuWrS8wrJAoorsXOjV10aYgucxRaXrC+TkSH2B1mxeQjCQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@hpke/common@1.10.1':
@@ -668,6 +668,9 @@ packages:
   libsodium@0.8.4:
     resolution: {integrity: sha512-lMcYaRi0zcs7tarATsQUYC7rstliIXZuoq0c6zXSgNtSNtdvBgkSegjWhpMJAXzKX3SUSwIp7+zEsob+j3LuRw==}
 
+  lossless-json@4.3.3:
+    resolution: {integrity: sha512-FGFrGArHsv7BRiYOf37ZRieT9HlKw+Kpu9HvtpYjcoOEo8lqNkjny8A2YAfWNWWQC+9pcLIrLZ+IviKJhaHwGQ==}
+
   lru-cache@11.5.1:
     resolution: {integrity: sha512-RPimw/7aMdv2oqRrxKwvZXcPfwBrn/JZ2xYcY9Hus/6LaS3VOAKVWKWgNLCFSiOm1ESXinjsDlidVU7JlnCN2A==}
     engines: {node: 20 || >=22}
@@ -892,44 +895,45 @@ snapshots:
 
   '@devcontainers/cli@0.88.0': {}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-darwin-arm64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-darwin-x64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-linux-arm64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-linux-x64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-win32-arm64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-win32-x64@1.0.31':
     optional: true
 
-  '@github/copilot-sdk@1.0.30-preview.0':
+  '@github/copilot-sdk@1.0.31':
     dependencies:
       koffi: 3.2.1
+      lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-darwin-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-linux-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-linux-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-win32-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-win32-x64': 1.0.30-preview.0
+      '@github/copilot-sdk-darwin-arm64': 1.0.31
+      '@github/copilot-sdk-darwin-x64': 1.0.31
+      '@github/copilot-sdk-linux-arm64': 1.0.31
+      '@github/copilot-sdk-linux-x64': 1.0.31
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.31
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.31
+      '@github/copilot-sdk-win32-arm64': 1.0.31
+      '@github/copilot-sdk-win32-x64': 1.0.31
 
   '@hpke/common@1.10.1': {}
 
@@ -1291,6 +1295,8 @@ snapshots:
       libsodium: 0.8.4
 
   libsodium@0.8.4: {}
+
+  lossless-json@4.3.3: {}
 
   lru-cache@11.5.1: {}
 
