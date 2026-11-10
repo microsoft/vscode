@@ -11,6 +11,7 @@ import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { fixedChatOwnerRef } from '../../common/agent.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../common/terminalConstants.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -573,6 +574,56 @@ suite('NonPtyShellTerminalStreams', () => {
 				reading: { first: false, second: true },
 				terminal: second,
 				content: '',
+			});
+		});
+
+		test('stops keeping a background shell\'s output outside its terminal once its tool call returns', () => {
+			streams.track('call-39', 'shell');
+			streams.appendChunk('call-39', { text: 'before\n', sequence: 0 });
+			streams.completeToolCall('call-39', asyncStarted('21'), undefined);
+			streams.track('call-40', 'shell');
+			streams.completeToolCall('call-40', detachedStarted('22'), undefined);
+			const line = `${'x'.repeat(999)}\n`;
+			const lines = Math.ceil(AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH / line.length) + 1;
+			for (let sequence = 1; sequence <= lines; sequence++) {
+				streams.appendChunk('call-39', { text: line, sequence });
+				streams.appendDetachedShellOutput('call-40', line);
+			}
+
+			deepStrictEqual({
+				lastSnapshots: ['call-39', 'call-40'].map(toolCallId => (streams as unknown as { _streams: Map<string, { lastSnapshot: string }> })._streams.get(toolCallId)?.lastSnapshot),
+				streamed: channelContent().length,
+			}, {
+				lastSnapshots: ['before\n', ''],
+				streamed: 'before\n'.length + 2 * lines * line.length,
+			});
+		});
+
+		test('settles a detached shell with the exit code reported while its log was read, in any order', () => {
+			const uri = (toolCallId: string) => buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, toolCallId);
+			for (const [toolCallId, shellId] of [['call-41', '23'], ['call-42', '24'], ['call-43', '25'], ['call-44', '26'], ['call-45', '27']]) {
+				streams.track(toolCallId, 'shell');
+				streams.completeToolCall(toolCallId, detachedStarted(shellId), undefined);
+			}
+
+			streams.completeBackgroundShellFromHelperResult('<shellId: 23 completed with exit code 2>');
+			streams.completeBackgroundShellFromHelperResult('<shellId: 25 completed with exit code 2>');
+			streams.completeBackgroundShellFromHelperResult('<shellId: 26 completed with exit code 2>');
+			streams.completeBackgroundShellFromHelperResult('<shellId: 27 completed with exit code 2>');
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			streams.completeBackgroundShellFromHelperResult('<shellId: 24 completed with exit code 2>');
+			streams.completeBackgroundShellFromHelperResult('<command with id: 25 stopped>');
+			const whileReading = [...manager.outputTerminalsFinalized];
+			streams.stopReadingDetachedShell('call-41');
+			streams.stopReadingDetachedShell('call-42');
+			streams.stopReadingDetachedShell('call-43');
+			streams.completeDetachedShell('call-44', undefined);
+			streams.track('call-46', 'shell');
+			streams.completeToolCall('call-46', detachedStarted('27'), undefined);
+
+			deepStrictEqual({ whileReading, finalized: manager.outputTerminalsFinalized }, {
+				whileReading: [],
+				finalized: ['call-41', 'call-42', 'call-43', 'call-44', 'call-45'].map(toolCallId => ({ uri: uri(toolCallId), exitCode: 2 })),
 			});
 		});
 
