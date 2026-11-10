@@ -77,6 +77,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const connectionAvailable = observableValue('test connection availability', false);
 		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
+		const prepareSessionWorktreeCleanup = sinon.stub<[URI], Promise<void>>().resolves();
 		let connectCount = 0;
 		const fire = () => {
 			onDidAction.fire(action);
@@ -99,6 +100,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
 				createdChats.push({ session, chat, options });
 			},
+			prepareSessionWorktreeCleanup,
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -124,7 +126,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			return listeners;
 		};
 		return {
-			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			service, received, listen, fire, onDidChangeConnectionState, createdChats, prepareSessionWorktreeCleanup,
 			setConnectionState: (state: AgentHostClientState) => {
 				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
 				onDidChangeConnectionState.fire(state);
@@ -150,6 +152,18 @@ suite('LocalAgentHostServiceClient events', () => {
 		}();
 		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
 		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
+	});
+
+	test('forwards worktree cleanup preparation to the protocol client and propagates failures', async () => {
+		const { service, prepareSessionWorktreeCleanup } = createService();
+		service.startAgentHost();
+		const session = URI.parse('opaque-session://tenant/exact-id');
+
+		await service.prepareSessionWorktreeCleanup(session);
+		prepareSessionWorktreeCleanup.rejects(new Error('Cannot prepare recovery'));
+		await assert.rejects(service.prepareSessionWorktreeCleanup(session), /Cannot prepare recovery/);
+
+		assert.deepStrictEqual(prepareSessionWorktreeCleanup.args, [[session], [session]]);
 	});
 
 	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
