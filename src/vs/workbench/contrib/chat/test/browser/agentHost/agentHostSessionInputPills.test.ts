@@ -669,19 +669,25 @@ suite('AgentHostSessionInputPills', () => {
 		const before = choices();
 		await harness.menu(pinnedPills().find(pill => pill.textContent === 'Status'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
 		const pressed = () => pinnedPills().filter(pill => pill.classList.contains('chat-pill-checked')).map(pill => pill.textContent);
+		const after = choices();
+		const pressedAfter = pressed();
+		// Unchecking the choice lets the pill open the file in an editor again.
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'Status'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
 
-		assert.deepStrictEqual({ before, after: choices(), pressed: pressed() }, {
+		assert.deepStrictEqual({ before, after, pressed: pressedAfter, unchecked: choices()[2], pressedAfterUncheck: pressed() }, {
 			before: [
-				['plan.md', ['Open in Editor (checked)', 'Show Above Chat Input']],
+				['plan.md', ['Show Above Chat Input']],
 				['Chat settings', []],
-				['Status', ['Open in Editor (checked)', 'Show Above Chat Input']],
+				['Status', ['Show Above Chat Input']],
 			],
 			after: [
-				['plan.md', ['Open in Editor (checked)', 'Show Above Chat Input']],
+				['plan.md', ['Show Above Chat Input']],
 				['Chat settings', []],
-				['Status', ['Open in Editor', 'Show Above Chat Input (checked)']],
+				['Status', ['Show Above Chat Input (checked)']],
 			],
 			pressed: ['Status'],
+			unchecked: ['Status', ['Show Above Chat Input']],
+			pressedAfterUncheck: [],
 		});
 	});
 

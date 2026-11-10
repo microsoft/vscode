@@ -153,7 +153,7 @@ export class ChatResourcesControl extends Disposable {
 
 	/**
 	 * Decorates the entry of a pill of its own (see {@link IStandardChatInputPillSections.presentOwnPill}) that stands for one
-	 * of the chat's files: its context menu offers where the pill opens the file, and a pill that opens it in the chat shows
+	 * of the chat's files: its context menu offers whether the pill shows the file in the chat rather than in an editor; a pill that shows it there shows
 	 * and hides it there.
 	 */
 	presentOwnPill(entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader): IChatPillEntry {
@@ -163,23 +163,18 @@ export class ChatResourcesControl extends Disposable {
 		}
 		const inChat = context.pinned && this._opensInChatFor(entry.id, reader);
 		const shown = inChat && this._shown.read(reader)?.id === entry.id;
-		const choices = [
-			withChatPillHoverLabel(toAction({
-				id: 'chatResources.openInEditor',
-				label: localize('chatResources.openInEditor', "Open in Editor"),
-				class: ThemeIcon.asClassName(Codicon.goToFile),
-				checked: !inChat,
-				run: () => {
-					this._setOpensInChat(entry.id, false);
-					this._openInEditor(resource);
-				},
-			}), localize('chatResources.openInEditorHoverLabel', "Editor")),
+		const actions = [
 			withChatPillHoverLabel(toAction({
 				id: 'chatResources.showAboveInput',
 				label: localize('chatResources.showAboveInput', "Show Above Chat Input"),
 				class: ThemeIcon.asClassName(Codicon.layoutPanel),
 				checked: inChat,
 				run: () => {
+					if (inChat) {
+						// Unchecking it lets the pill open the file in an editor again.
+						this._setOpensInChat(entry.id, false);
+						return;
+					}
 					// Only pinned entries open in the chat, so that the file keeps its pill when the chat records more.
 					context.pin();
 					this._setOpensInChat(entry.id, true);
@@ -189,7 +184,7 @@ export class ChatResourcesControl extends Disposable {
 		];
 		return {
 			...entry,
-			hoverActions: [...entry.hoverActions ?? [], ...choices],
+			hoverActions: [...entry.hoverActions ?? [], ...actions],
 			...(inChat ? {
 				checked: shown,
 				tooltip: shown ? localize('chatResources.hide', "Hide {0}", resource.label) : localize('chatResources.show', "Show {0}", resource.label),
