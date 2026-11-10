@@ -44,39 +44,40 @@ function childrenOf(token: marked.Token): readonly marked.Token[] {
 	return candidate.tokens ?? [];
 }
 
+type Locator = (raw: string, from: number) => { start: number; end: number } | undefined;
+
 /**
- * Finds a token's `raw` source in `markdown` at or after `from`. The lexer turns `\r\n` and `\r`
- * into `\n` before tokenizing, so in a document with other line endings `raw` matches the source
- * only once each of its line breaks is allowed to be any of them.
+ * Returns a lookup for a token's `raw` source in `markdown` at or after a source offset. The lexer
+ * turns `\r\n` and `\r` into `\n` before tokenizing, so the search runs over a copy normalized the
+ * same way, and its offsets are mapped back to the source. Each lookup is one `indexOf`.
  */
-function locate(markdown: string, raw: string, from: number): { start: number; end: number } | undefined {
-	const firstBreak = raw.indexOf('\n');
-	const head = firstBreak < 0 ? raw : raw.substring(0, firstBreak);
-	// An empty `head` is found at the end of the string forever, so stop there: `raw` is never empty.
-	for (let start = markdown.indexOf(head, from); start >= 0 && start < markdown.length; start = markdown.indexOf(head, start + 1)) {
-		// Compared by hand: a regexp built from `raw` overflows the regexp stack on large blocks.
-		// A `\r\n` always counts as one break, so each break has a single way to match.
-		let end = start + head.length;
-		let i = head.length;
-		for (; i < raw.length; i++) {
-			if (raw[i] !== '\n') {
-				if (markdown[end] !== raw[i]) {
-					break;
-				}
-				end++;
-			} else if (markdown[end] === '\r') {
-				end += markdown[end + 1] === '\n' ? 2 : 1;
-			} else if (markdown[end] === '\n') {
-				end++;
-			} else {
-				break;
-			}
-		}
-		if (i === raw.length) {
-			return { start, end };
+function createLocator(markdown: string): Locator {
+	if (!markdown.includes('\r')) {
+		return (raw, from) => {
+			const start = markdown.indexOf(raw, from);
+			return start < 0 ? undefined : { start, end: start + raw.length };
+		};
+	}
+
+	// `toSource[i]` is the source offset of normalized offset `i`; `toNormalized` is its inverse.
+	const toSource = new Int32Array(markdown.length + 1);
+	const toNormalized = new Int32Array(markdown.length + 1);
+	const normalized = markdown.replace(/\r\n?/g, '\n');
+	let n = 0;
+	for (let i = 0; i < markdown.length; i++, n++) {
+		toSource[n] = i;
+		toNormalized[i] = n;
+		if (markdown[i] === '\r' && markdown[i + 1] === '\n') {
+			toNormalized[++i] = n;
 		}
 	}
-	return undefined;
+	toSource[n] = markdown.length;
+	toNormalized[markdown.length] = n;
+
+	return (raw, from) => {
+		const start = normalized.indexOf(raw, toNormalized[from]);
+		return start < 0 ? undefined : { start: toSource[start], end: toSource[start + raw.length] };
+	};
 }
 
 /** The text a reader saw, with markdown emphasis and code markers removed. */
@@ -117,12 +118,12 @@ export interface IMarkdownRewriter {
  * prefixes stripped from `raw`, so the offset lookup fails and the link is left alone. Blocks
  * whose lines start with tabs cannot be located either, as the lexer expands those to spaces.
  */
-function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor: number, rewriter: IMarkdownRewriter, edits: IMarkdownEdit[], codeRanges: { start: number; end: number }[], unlocatable: (marked.Tokens.Link | marked.Tokens.Image)[]): number {
+function collectEdits(tokens: readonly marked.Token[], locate: Locator, cursor: number, rewriter: IMarkdownRewriter, edits: IMarkdownEdit[], codeRanges: { start: number; end: number }[], unlocatable: (marked.Tokens.Link | marked.Tokens.Image)[]): number {
 	for (const token of tokens) {
 		if (!isOpaque(token)) {
 			const children = childrenOf(token);
 			if (children.length) {
-				cursor = collectEdits(children, markdown, cursor, rewriter, edits, codeRanges, unlocatable);
+				cursor = collectEdits(children, locate, cursor, rewriter, edits, codeRanges, unlocatable);
 				continue;
 			}
 		}
@@ -132,7 +133,7 @@ function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor:
 			continue;
 		}
 
-		const range = locate(markdown, raw, cursor);
+		const range = locate(raw, cursor);
 		if (!range) {
 			if (token.type === 'link' || token.type === 'image') {
 				unlocatable.push(token as marked.Tokens.Link | marked.Tokens.Image);
@@ -151,7 +152,7 @@ function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor:
 			} else {
 				// The token survives as written, so anything nested inside it — an image with
 				// its own target inside a link, say — still has to be visited.
-				collectEdits(childrenOf(token), markdown, start, rewriter, edits, codeRanges, unlocatable);
+				collectEdits(childrenOf(token), locate, start, rewriter, edits, codeRanges, unlocatable);
 			}
 		}
 	}
@@ -169,12 +170,12 @@ function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor:
  * title across lines, and cannot mistake a lookalike written in prose or inside a code fence for
  * a definition, because the parser accounted for those.
  */
-function findDefinitionRanges(tokens: readonly marked.Token[], markdown: string): { start: number; end: number }[] {
+function findDefinitionRanges(tokens: readonly marked.Token[], markdown: string, locate: Locator): { start: number; end: number }[] {
 	const ranges: { start: number; end: number }[] = [];
 	let cursor = 0;
 	for (const token of tokens) {
 		const raw = (token as { raw?: string }).raw ?? '';
-		const range = raw ? locate(markdown, raw, cursor) : undefined;
+		const range = raw ? locate(raw, cursor) : undefined;
 		if (!range) {
 			// A block that cannot be placed leaves everything after it unaccounted for, which
 			// would read as one enormous definition. Claim nothing rather than cut live text.
@@ -211,10 +212,11 @@ export function rewriteMarkdownLinks(markdown: string, rewriter: IMarkdownRewrit
 	const edits: IMarkdownEdit[] = [];
 	const codeRanges: { start: number; end: number }[] = [];
 	const unlocatable: (marked.Tokens.Link | marked.Tokens.Image)[] = [];
-	collectEdits(tokens, markdown, 0, rewriter, edits, codeRanges, unlocatable);
+	const locate = createLocator(markdown);
+	collectEdits(tokens, locate, 0, rewriter, edits, codeRanges, unlocatable);
 	edits.push(...(rewriter.additionalEdits?.(markdown, {
 		codeRanges,
-		definitionRanges: findDefinitionRanges(tokens, markdown),
+		definitionRanges: findDefinitionRanges(tokens, markdown, locate),
 		unlocatable,
 	}) ?? []));
 	if (!edits.length) {

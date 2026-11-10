@@ -29,7 +29,7 @@ suite('rewriteMarkdownLinks', () => {
 	test('locates tokens in markdown with CRLF line endings', () => {
 		// The lexer normalizes line endings before tokenizing, so a block's source no longer matches
 		// it verbatim. Searching for it as-is skipped the fence and rewrote the sample inside it.
-		const markdown = '```\r\n[a](./x.txt)\r\n```\r\n\r\n[a](./x.txt)\r\n\r\n[b]: ./y.txt\r\n';
+		const markdown = '```\r\n[a](./x.txt)\r\n```\r\n\r[a](./x.txt)\r\n\r\n[b]: ./y.txt\r\n';
 		let definitions: string[] = [];
 		const rewritten = rewriteMarkdownLinks(markdown, {
 			...rewriteToMarker,
@@ -41,7 +41,7 @@ suite('rewriteMarkdownLinks', () => {
 		assert.deepStrictEqual(
 			{ rewritten, definitions },
 			{
-				rewritten: '```\r\n[a](./x.txt)\r\n```\r\n\r\nREWRITTEN\r\n\r\n[b]: ./y.txt\r\n',
+				rewritten: '```\r\n[a](./x.txt)\r\n```\r\n\rREWRITTEN\r\n\r\n[b]: ./y.txt\r\n',
 				definitions: ['[b]: ./y.txt\r\n'],
 			});
 	});
@@ -60,10 +60,11 @@ suite('rewriteMarkdownLinks', () => {
 		}
 	});
 
-	test('gives up on a blank line it cannot locate', () => {
-		// The lexer drops the tab, so this blank line's source cannot be found. The lookup must stop.
+	test('gives up quickly on a long run of blank lines it cannot locate', () => {
+		// The lexer drops the tab, so this whitespace token's source cannot be found. Rescanning the
+		// blank lines from every offset made this quadratic: seconds for 32,768 lines.
 		for (const eol of ['\n', '\r\n']) {
-			const markdown = 'a' + eol + '\t' + eol + eol + '[x](./y)';
+			const markdown = 'a' + eol + eol.repeat(32768) + '\t' + eol + eol + '[x](./y)';
 			assert.strictEqual(rewriteMarkdownLinks(markdown, rewriteToMarker), markdown.replace('[x](./y)', 'REWRITTEN'));
 		}
 	});
