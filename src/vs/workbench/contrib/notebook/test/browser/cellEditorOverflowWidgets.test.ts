@@ -95,6 +95,8 @@ suite('Notebook cell editor overflow widgets', () => {
 	}
 
 	function createFixture(notebookEditor: IActiveNotebookEditorDelegate, notebookServices: TestInstantiationService, store: DisposableStore, contributionInstantiation: EditorContributionInstantiation) {
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
 		const root = DOM.append(mainWindow.document.body, DOM.$('.notebook-overflow-test'));
 		const overflowRoot = DOM.append(root, DOM.$('.notebook-overflow-root'));
 		store.add(toDisposable(() => root.remove()));
@@ -115,9 +117,9 @@ suite('Notebook cell editor overflow widgets', () => {
 		for (const cell of notebookEditor.getViewModel().viewCells) {
 			assert.ok(cell instanceof CodeCellViewModel || cell instanceof MarkupCellViewModel);
 			const model = store.add(services.get(IModelService).createModel(cell.getText(), null, cell.uri));
-			sinon.stub(cell, 'resolveTextModel').resolves(model);
-			sinon.stub(cell, 'attachTextEditor');
-			sinon.stub(cell, 'detachTextEditor');
+			sandbox.stub(cell, 'resolveTextModel').resolves(model);
+			sandbox.stub(cell, 'attachTextEditor');
+			sandbox.stub(cell, 'detachTextEditor');
 		}
 		const notebookContext = store.add(contextKeyService.createScoped(root));
 		NOTEBOOK_EDITOR_FOCUSED.bindTo(notebookContext).set(true);
