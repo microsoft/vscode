@@ -2283,6 +2283,78 @@ suite('Mission Control WPS', () => {
 		});
 	}
 
+	for (const status of [408, 504]) {
+		for (const retryFails of [false, true]) {
+			test(`registration retry after HTTP ${status} waits for Retry-After and ${retryFails ? 'rejects the final failure' : 'awaits the relay handshake'}`, async () => {
+				const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-registration-retry-'));
+				const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				let service: MissionControlEnvironment | undefined;
+				try {
+					const { key } = signingFixture();
+					const registrations: number[] = [];
+					const socket = new FakeWpsSocket();
+					const socketCreated = new DeferredPromise<void>();
+					let sockets = 0;
+					const environment = {
+						id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
+						webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
+					};
+					service = store.add(new MissionControlEnvironment({
+						userDataPath: path,
+						name: 'Test Machine',
+						fetch: async input => {
+							const url = new URL(input.toString());
+							if (url.pathname.endsWith('/register')) {
+								registrations.push(clock.now - Date.UTC(2026, 9, 2));
+								if (registrations.length === 1) {
+									return Response.json({}, { status, headers: { 'Retry-After': '2' } });
+								}
+								if (retryFails) {
+									return Response.json({}, { status: 403 });
+								}
+							}
+							return Response.json(url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
+						},
+						attach: () => toDisposable(() => { }),
+						onError: () => { },
+						socketFactory: () => {
+							sockets++;
+							socketCreated.complete();
+							return socket;
+						},
+					}));
+					const options: IMissionControlOptions = {
+						baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path],
+					};
+					await assert.rejects(service.configure(options), { statusCode: status });
+					await clock.tickAsync(500);
+					let settled = false;
+					const configuring = service.configure(options).finally(() => { settled = true; });
+					const outcome = retryFails ? assert.rejects(configuring, { statusCode: 403 }) : configuring;
+					await clock.tickAsync(1499);
+					const beforeDeadline = { registrations: [...registrations], sockets, settled };
+					await clock.tickAsync(1);
+					let beforeHandshake: boolean | undefined;
+					if (!retryFails) {
+						await socketCreated.p;
+						beforeHandshake = settled;
+						socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+					}
+					await outcome;
+					assert.deepStrictEqual({ beforeDeadline, registrations, sockets, beforeHandshake, settled }, {
+						beforeDeadline: { registrations: [0], sockets: 0, settled: false },
+						registrations: [0, 2000], sockets: retryFails ? 0 : 1,
+						beforeHandshake: retryFails ? undefined : false, settled: true,
+					});
+				} finally {
+					service?.dispose();
+					clock.restore();
+					await rm(path, { recursive: true });
+				}
+			});
+		}
+	}
+
 	test('failed relay startup marks the registered environment offline with its custom name', async () => {
 		const name = 'headless-build-machine';
 		const path = await mkdtemp(join(tmpdir(), 'mission-control-failed-start-'));
@@ -2843,16 +2915,62 @@ suite('Mission Control WPS', () => {
 		test('credential reconfiguration cannot bypass a token Retry-After', async () => {
 			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
 				await clock.tickAsync(100_000);
-				await service.configure({ ...options, credential: 'replacement-token' });
+				let configured = false;
+				const configuring = service.configure({ ...options, credential: 'replacement-token' }).then(() => { configured = true; });
 				await clock.tickAsync(34_999);
-				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length };
+				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length, configured };
 				await clock.tickAsync(1);
-				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, errors }, {
-					beforeDeadline: { tokens: [90_000], sockets: 1 }, tokens: [90_000, 135_000], sockets: 2,
+				await configuring;
+				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, configured, errors }, {
+					beforeDeadline: { tokens: [90_000], sockets: 1, configured: false }, tokens: [90_000, 135_000], sockets: 2, configured: true,
 					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
 				});
 			}, 120_000, false, {
 				tokenReplies: [{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('withdrawing cancels configuration waiting for a token Retry-After', async () => {
+			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(100_000);
+				const configuring = service.configure({ ...options, credential: 'replacement-token' });
+				await clock.tickAsync(0);
+				await service.configure(undefined, options.accountId);
+				await configuring;
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual({ enabled: service.isEnabled, tokens, sockets: sockets.length, errors }, {
+					enabled: false, tokens: [90_000], sockets: 1,
+					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('retrying unchanged credentials still awaits recovery after a failed token refresh', async () => {
+			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(100_000);
+				const updated = { ...options, credential: 'replacement-token' };
+				const firstFailure = assert.rejects(service.configure(updated), { statusCode: 408 });
+				await clock.tickAsync(35_000);
+				await firstFailure;
+				await clock.tickAsync(500);
+				let configured = false;
+				const configuring = service.configure(updated).then(() => { configured = true; });
+				await clock.tickAsync(1499);
+				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length, configured };
+				await clock.tickAsync(1);
+				await configuring;
+				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, configured, errors }, {
+					beforeDeadline: { tokens: [90_000, 135_000], sockets: 1, configured: false },
+					tokens: [90_000, 135_000, 137_000], sockets: 2, configured: true,
+					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [
+					{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } },
+					{ status: 408, retryAfter: '2', body: {} },
+				],
 			});
 		});
 

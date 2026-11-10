@@ -17,7 +17,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, IConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlOwnerMismatchErrorCode, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -36,6 +36,12 @@ const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
 const environmentNameStorageKey = 'agentHost.missionControl.environmentName';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const missionControlDisableRepositoryMetadata = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
+
+class MissionControlConfigurationError extends Error {
+	constructor(message: string, readonly diagnostic: IConnectionDiagnosticError, cause: unknown) {
+		super(message, { cause });
+	}
+}
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
@@ -307,6 +313,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 		let retryDelay = 0;
 		const token = enablement ? cancelOnDispose(enablement) : CancellationToken.None;
 		while (!this._store.isDisposed && !token.isCancellationRequested && enablement === this._enablement.value) {
+			const available = this._availabilityService.available.get();
+			if (available === false || available !== undefined && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
+				await this._withdraw();
+				return;
+			}
 			const generation = this._generation;
 			try {
 				if (retryDelay) {
@@ -327,7 +338,8 @@ export class MissionControlSharingService extends Disposable implements IMission
 					retryDelay = 0;
 					continue;
 				}
-				const { errorCategory } = getConnectionTelemetryError(getConnectionDiagnosticError(error));
+				const diagnostic = error instanceof MissionControlConfigurationError ? error.diagnostic : getConnectionDiagnosticError(error);
+				const { errorCategory } = getConnectionTelemetryError(diagnostic);
 				if (enablement && retries < 2 && (errorCategory === 'timeout' || errorCategory === 'network' || errorCategory === 'dns')) {
 					this._logService.warn('Retrying GitHub environment connection', error);
 					retryDelay = 500 * 2 ** retries++;
@@ -350,10 +362,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 	private async _configureOnce(interactive: boolean): Promise<void> {
 		const generation = this._generation;
 		const available = this._availabilityService.available.get();
-		if (available === false || available !== undefined && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
-			await this._withdraw();
-			return;
-		}
 		if (!available || !this._enabled || !this._usesMissionControl() || this._entitlement.sentiment.hidden) {
 			return;
 		}
@@ -469,7 +477,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this._logService.warn('GitHub environment connection failed', error);
 			const diagnostic = getConnectionDiagnosticError(error);
 			if (diagnostic.code === MissionControlOwnerMismatchErrorCode) {
-				throw new Error(localize('missionControlSharing.ownerMismatch', "This Agent Host belongs to a different GitHub account. Restart VS Code to share it with another account."), { cause: error });
+				throw new MissionControlConfigurationError(localize('missionControlSharing.ownerMismatch', "This Agent Host belongs to a different GitHub account. Restart VS Code to share it with another account."), diagnostic, error);
 			}
 			const { errorCategory } = getConnectionTelemetryError(diagnostic);
 			let message: string;
@@ -490,7 +498,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				default:
 					message = localize('missionControlSharing.configurationFailed', "Could not set up GitHub environment sharing. See the Agent Host log for details.");
 			}
-			throw new Error(message, { cause: error });
+			throw new MissionControlConfigurationError(message, diagnostic, error);
 		});
 		if (generation === this._generation && !this._store.isDisposed) {
 			this._configured = true;

@@ -568,6 +568,28 @@ suite('Mission Control sharing service', () => {
 		});
 	}));
 
+	test('reports an availability withdrawal failure once without retrying setup', () => runWithFakedTimers({}, async () => {
+		const error = new Error('Withdrawal failed');
+		const { availability, sharing, calls, logService } = fixture({
+			configure: async options => {
+				if (!options) {
+					throw error;
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await timeout(0);
+		const logError = stub(logService, 'error');
+		calls.length = 0;
+		availability.set(false, undefined);
+		await timeout(2000);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, errors: logError.args }, {
+			state: 'disabled',
+			calls: [{ options: undefined, withdrawingAccountId: 'account' }],
+			errors: [['Mission Control configuration failed', error]],
+		});
+	}));
+
 	for (const enabled of [false, true]) {
 		test(`ignores removed settings when registration is ${enabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers({}, async () => {
 			const { calls, starts, sharing } = fixture();
@@ -878,7 +900,11 @@ suite('Mission Control sharing service', () => {
 				if (options) {
 					attempts.push({ delay: Date.now() - started, state: sharing.state.get() });
 					if (attempts.length < 3) {
-						throw new TypeError('fetch failed', { cause: Object.assign(new Error('Network failure'), { code: 'ETIMEDOUT' }) });
+						throw new TypeError('fetch failed', {
+							cause: new Error('Dispatcher failed', {
+								cause: Object.assign(new Error('Network failure'), { code: 'ETIMEDOUT' }),
+							}),
+						});
 					}
 				}
 			},
