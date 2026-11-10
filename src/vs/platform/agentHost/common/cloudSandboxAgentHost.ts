@@ -65,13 +65,6 @@ export function isCloudSandboxPlaceholderTitle(title: string | undefined, sessio
 	return title !== undefined && title === AgentSession.id(session);
 }
 
-/** Prefix of a sealed token envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
-export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
-
-/** Whether {@link token} is a sealed envelope, and so safe to forward over the relay. */
-export function isCloudSandboxSealedToken(token: string | undefined): boolean {
-	return typeof token === 'string' && token.startsWith(CLOUD_SANDBOX_SEALED_TOKEN_PREFIX);
-}
 /** The Mission Control environment id encoded in a cloud sandbox connection address, if any. */
 export function cloudSandboxEnvironmentId(address: string): string | undefined {
 	return address.startsWith(CLOUD_SANDBOX_ADDRESS_PREFIX)
@@ -360,7 +353,7 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
-	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	/** Reports a credential operation submitted to the shared client or a pending response, not physical HTTP dispatch. */
 	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
@@ -463,7 +456,7 @@ export interface ICloudSandboxApiService {
 
 	/**
 	 * Create a sandbox task and bound session, optionally consuming a reservation or reusing an online environment.
-	 * The optional callback reports the HTTP dispatch attempt, after local validation and authentication.
+	 * The optional callback reports submission to the typed client after local validation and authentication, not physical HTTP dispatch.
 	 */
 	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession>;
 
@@ -559,13 +552,16 @@ export class CloudSandboxRequestError extends Error {
 	readonly code: string | undefined;
 	readonly limitedResource: string | undefined;
 	readonly requestId: string | undefined;
+	/** The service may have applied the mutation before returning the failure. */
+	readonly outcome: 'indeterminate' | undefined;
 
-	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata, outcome?: 'indeterminate') {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 		this.code = metadata?.code;
 		this.limitedResource = metadata?.limitedResource;
 		this.requestId = metadata?.requestId;
+		this.outcome = outcome;
 	}
 }
 

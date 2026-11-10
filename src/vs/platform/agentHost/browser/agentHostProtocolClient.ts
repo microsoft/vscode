@@ -37,10 +37,11 @@ import { AgentHostChannelError, AgentHostChannelErrorCode, reportAgentHostChanne
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import type { Credentials } from '../../request/common/request.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
@@ -3433,6 +3434,26 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							throw new Error('Kerberos credential lookup failed');
 						}
 						sendResult({ authorization } satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyKerberosAuthorizationExtensionMethod]['result']);
+						return;
+					}
+					case LookupClientProxyBasicAuthorizationExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not provide proxy credentials for this agent host');
+						}
+						const { proxyUrl, realm, attempt } = lookupClientProxyBasicAuthorizationParamsValidator.validateOrThrow(params);
+						if (!isHttpUrl(proxyUrl)) {
+							throw new Error('Unsupported proxy URL');
+						}
+						if (!Number.isSafeInteger(attempt) || attempt < 1) {
+							throw new Error('Unsupported attempt');
+						}
+						let credentials: Credentials | undefined;
+						try {
+							credentials = await this._clientProxy.lookupBasicAuthorization(proxyUrl, realm, attempt);
+						} catch {
+							throw new Error('Proxy credential lookup failed');
+						}
+						sendResult((credentials ? { username: credentials.username, password: credentials.password } : {}) satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyBasicAuthorizationExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {

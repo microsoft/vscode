@@ -1009,6 +1009,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const elementDisposables = disposables.add(new DisposableStore());
 		container.classList.add('session-chat-item');
 
+		DOM.append(container, $('span.session-attention-indicator', { 'aria-hidden': 'true' }));
 		const titleRow = DOM.append(container, $('.session-chat-title-row'));
 		const iconContainer = DOM.append(titleRow, $('.session-chat-icon'));
 		iconContainer.setAttribute('aria-hidden', 'true');
@@ -1735,6 +1736,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		container.classList.add('session-item');
 
 		DOM.append(container, $('span.session-group-connector', { 'aria-hidden': 'true' }));
+		DOM.append(container, $('span.session-attention-indicator', { 'aria-hidden': 'true' }));
 		const iconContainer = DOM.append(container, $('.session-icon'));
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
@@ -4824,7 +4826,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.resettableStates = [
 			this.filters,
 			// `undefined` follows the archived filter's default setting.
-			resettableValue(() => this._excludeArchivedIsDefault ? undefined : this._excludeArchived, exclude => this.applyExcludeArchived(exclude), true),
+			resettableValue(() => this._excludeArchivedIsDefault ? undefined : this._excludeArchived, exclude => this.applyExcludeArchived(exclude), undefined),
 			resettableValue(() => this.workspaceGroupCapped, capped => this.applyWorkspaceGroupCapped(capped), true),
 			resettableValue(() => this.loadSessionGroupExpansion(), state => this.storeSessionGroupExpansion(state), new Map()),
 			resettableValue(() => this.expandedMoreFolders, expanded => { this.expandedMoreFolders = expanded; }, false),

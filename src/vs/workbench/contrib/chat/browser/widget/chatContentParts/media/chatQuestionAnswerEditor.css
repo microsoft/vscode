@@ -21,12 +21,13 @@
 	width: 100%;
 }
 
-/* Blend the editor into the input; the background layer must stay opaque, so paint it with the input color. */
-.chat-question-answer-editor .monaco-editor {
+/* Outrank session-surface editor colors while keeping Monaco's background layers opaque. */
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor {
 	background-color: transparent;
 }
 
-.chat-question-answer-editor .monaco-editor .monaco-editor-background {
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .margin,
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background);
 }
 
