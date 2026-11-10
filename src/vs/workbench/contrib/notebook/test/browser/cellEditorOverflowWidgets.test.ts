@@ -34,6 +34,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
@@ -69,6 +70,19 @@ suite('Notebook cell editor overflow widgets', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	class DisposableTestInstantiationService extends TestInstantiationService {
+		private readonly childServices = new DisposableStore();
+
+		override createChild(services: ServiceCollection): TestInstantiationService {
+			return this.childServices.add(new DisposableTestInstantiationService(services, false, this, true));
+		}
+
+		override dispose(): void {
+			this.childServices.dispose();
+			super.dispose();
+		}
+	}
 
 	function ownTemplate<T extends BaseCellRenderTemplate>(template: T, store: DisposableStore): T {
 		store.add(toDisposable(() => {
@@ -196,8 +210,9 @@ suite('Notebook cell editor overflow widgets', () => {
 			override registerDragHandle(): void { }
 		};
 		const contextProvider = (container: HTMLElement) => notebookContext.createScoped(container);
-		const codeRenderer = store.add(services.createInstance(CodeCellRenderer, cellNotebookEditor, editors, pool, dnd, contextProvider));
-		const markupRenderer = store.add(services.createInstance(MarkupCellRenderer, cellNotebookEditor, dnd, editors, contextProvider));
+		const rendererServices = store.add(new DisposableTestInstantiationService(new ServiceCollection(), false, services, true));
+		const codeRenderer = store.add(rendererServices.createInstance(CodeCellRenderer, cellNotebookEditor, editors, pool, dnd, contextProvider));
+		const markupRenderer = store.add(rendererServices.createInstance(MarkupCellRenderer, cellNotebookEditor, dnd, editors, contextProvider));
 		return { root, overflowRoot, services, codeRenderer, markupRenderer };
 	}
 
