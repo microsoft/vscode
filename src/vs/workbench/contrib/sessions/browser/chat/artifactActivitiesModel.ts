@@ -84,7 +84,7 @@ export class ArtifactActivitiesModel extends Disposable {
 				this.error = '';
 				this.changed.trigger(undefined);
 			} else if (!this.pages.length && !this.loading && !this.error
-				&& (state.activitiesExpanded || !snapshot.runs.some(run => isVisibleActivity(run, snapshot)))) {
+				&& (state.activitiesExpanded || !snapshot.runs.some(isVisibleActivity))) {
 				// Recent runs that were all hidden would hide the card, so discover older visible history first.
 				void this.loadPage(0);
 			}
@@ -101,7 +101,7 @@ export class ArtifactActivitiesModel extends Disposable {
 				runs.set(run.id, run);
 			}
 		}
-		return [...runs.values()].filter(run => isVisibleActivity(run, snapshot)).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
+		return [...runs.values()].filter(isVisibleActivity).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
 	}
 
 	private item(run: ArtifactRun, snapshot: ArtifactSnapshot): IArtifactActivityViewData {
@@ -136,8 +136,7 @@ export class ArtifactActivitiesModel extends Disposable {
 		this.changed.trigger(undefined);
 		try {
 			// Hidden runs are not shown, so keep paging until a page adds a visible run or history ends.
-			const snapshot = this.snapshot.get();
-			for (let page: IActivityPage | undefined; !page || (page.next && !page.runs.some(run => isVisibleActivity(run, snapshot))); index++) {
+			for (let page: IActivityPage | undefined; !page || (page.next && !page.runs.some(isVisibleActivity)); index++) {
 				const before = index === 0 ? undefined : this.pages[index - 1]?.next;
 				this.retryPage = index;
 				if (index > 0 && !before) {
@@ -257,12 +256,8 @@ export class ArtifactActivitiesModel extends Disposable {
  * A skipped run did nothing, so it is not shown as activity. Neither is a user's click on a general (footer) action,
  * unless its outcome is unknown and must be reconciled from the activity row.
  */
-function isVisibleActivity(run: ArtifactRun, snapshot: ArtifactSnapshot): boolean {
-	if (run.state === 'skipped') {
-		return false;
-	}
-	return run.indeterminate || getArtifactRunInitiator(run) !== 'user' || !snapshot.contributions.some(contribution =>
-		contribution.integrationId === run.integrationId && contribution.view.generalActions.some(action => action.id === run.actionId));
+function isVisibleActivity(run: ArtifactRun): boolean {
+	return run.state !== 'skipped' && (!run.generalAction || run.indeterminate === true || getArtifactRunInitiator(run) !== 'user');
 }
 
 export function artifactRunStateLabel(state: ArtifactRunState): string {

@@ -700,30 +700,29 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('omits user clicks on footer actions but keeps automatic, agent and unreconciled runs of them', async () => {
+		test('omits user clicks on footer actions, even after the integration becomes unavailable, but keeps agent and unreconciled runs', async () => {
 			const f = fixture();
 			const a = f.artifact();
-			const current = a.snapshot.get();
-			a.snapshot.set({
-				...current, contributions: current.contributions.map(contribution => ({
-					...contribution, actions: [...contribution.actions, { id: 'branch', label: 'Copy Branch', iconId: 'git-branch', kind: 'code' }],
-					view: { ...contribution.view, generalActions: [{ id: 'branch', enabled: true }] },
-				})),
-			}, undefined);
 			setActivities(a, [
 				activity(a, 'state', { createdAt: 1 }),
-				activity(a, 'footer', { actionId: 'branch', actionKind: 'code', createdAt: 2 }),
-				activity(a, 'automatic', { actionId: 'branch', actionKind: 'code', source: 'automation', createdAt: 3 }),
-				activity(a, 'agent', { actionId: 'branch', actionKind: 'code', requestedBy: { kind: 'agent', chat: 'artifact-chat:/agent' }, createdAt: 4 }),
-				activity(a, 'unknown', { actionId: 'branch', actionKind: 'code', state: 'interrupted', indeterminate: true, createdAt: 5 }),
+				activity(a, 'footer', { actionId: 'branch', actionKind: 'code', generalAction: true, createdAt: 2 }),
+				activity(a, 'agent', { actionId: 'branch', actionKind: 'code', generalAction: true, requestedBy: { kind: 'agent', chat: 'artifact-chat:/agent' }, createdAt: 3 }),
+				activity(a, 'unknown', { actionId: 'branch', actionKind: 'code', generalAction: true, state: 'interrupted', indeterminate: true, createdAt: 4 }),
 			]);
+			const current = a.snapshot.get();
+			// An unavailable integration retains its runs but no longer offers its general actions.
+			a.snapshot.set({
+				...current, contributions: current.contributions.map(contribution => ({
+					...contribution, view: { ...contribution.view, availability: { kind: 'unavailable', reason: 'Offline' }, stateActions: [], generalActions: [] },
+				})),
+			}, undefined);
 			const panel = await open(f, a);
 			await expand(f, panel);
 			const text = store.add(f.controller.getAccessibilityProvider(AccessibleViewType.View)!).provideContent();
 			assert.deepStrictEqual({
 				rows: rows(panel).length,
-				shown: ['state', 'footer', 'automatic', 'agent', 'unknown'].filter(id => text.includes(`Activity ${id}\n`)),
-			}, { rows: 4, shown: ['state', 'automatic', 'agent', 'unknown'] });
+				shown: ['state', 'footer', 'agent', 'unknown'].filter(id => text.includes(`Activity ${id}\n`)),
+			}, { rows: 3, shown: ['state', 'agent', 'unknown'] });
 		});
 
 		for (const destination of ['turn', 'queued', 'response'] as const) {
