@@ -28,7 +28,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { DialogService } from '../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestHostService, TestLayoutService } from '../../../../../test/browser/workbenchTestServices.js';
-import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../onboarding/browser/onboardingService.js';
 import { runWithOnboardingPresentation } from '../../../../onboarding/browser/onboardingPresentationQueue.js';
 import { resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
@@ -42,15 +42,18 @@ import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentPickerSpotlight, AGENT_PICKER_SPOTLIGHT_ID } from '../../../browser/onboarding/agentPickerSpotlight.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatMode } from '../../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatConfiguration } from '../../../common/constants.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
 suite('AgentPickerSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => Memento.clear(StorageScope.APPLICATION));
 
-	function createHarness(enabled = true) {
+	const custom: IChatMode = { ...ChatMode.Agent, id: 'custom-agent', isBuiltin: false };
+
+	function createHarness(enabled = true, initialCustomModes: readonly IChatMode[] = [custom]) {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentsPickerInAttachContextMenu]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const root = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
@@ -74,10 +77,17 @@ suite('AgentPickerSpotlight', () => {
 		let supported = true;
 		const changed = store.add(new Emitter<IChatWidget>());
 		const buttonChanged = store.add(new Emitter<void>());
+		const modesChanged = store.add(new Emitter<void>());
+		let customModes = initialCustomModes;
+		const modes = observableValue('modes', upcastPartial<IChatModes>({
+			onDidChange: modesChanged.event,
+			get custom() { return customModes; },
+		}));
 		const inputPart: ChatInputPart = Object.create(ChatInputPart.prototype, {
 			inputActionsToolbar: { value: toolbar },
 			executeToolbar: { value: executeToolbar },
 			currentModeObs: { get: () => mode },
+			currentChatModesObs: { get: () => modes },
 			isAgentPickerInAttachContextMenu: { get: () => supported && mode.get() === ChatMode.Agent },
 			attachContextButtonElement: { get: () => button.isConnected ? button : undefined },
 			onDidChangeAttachContextButton: { value: buttonChanged.event },
@@ -95,7 +105,7 @@ suite('AgentPickerSpotlight', () => {
 			override readonly onDidChangeFocusedWidget = Event.None;
 			override getWidgetsByLocations() { return widgets; }
 		}();
-		const spotlight = store.add(new AgentPickerSpotlight(configuration, widgetService));
+		const spotlight = store.add(new AgentPickerSpotlight(configuration, widgetService, TestProductService));
 		const scenario = onboardingScenarioRegistry.getScenario(AGENT_PICKER_SPOTLIGHT_ID) as IOnboardingScenario<ISpotlightPayload>;
 		const signal = scenario.trigger.kind === 'observable' ? scenario.trigger.signal : undefined;
 		const frame = () => new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(button), resolve)));
@@ -110,6 +120,8 @@ suite('AgentPickerSpotlight', () => {
 		};
 		return {
 			configuration, button: button!, mode, scenario, signal, frame, setEnabled, spotlight, root, toolbar,
+			modes,
+			setCustomModes: (value: readonly IChatMode[]) => { customModes = value; modesChanged.fire(); },
 			activations: () => activations,
 			setVisible: (value: boolean) => { visible = value; changed.fire(widget); },
 			setSupported: (value: boolean) => { supported = value; buttonChanged.fire(); },
@@ -121,6 +133,29 @@ suite('AgentPickerSpotlight', () => {
 			},
 		};
 	}
+
+	test('requires a custom agent and follows discovery, removal, and session modes', async () => {
+		const { signal, frame, modes, setCustomModes } = createHarness(true, []);
+		await frame();
+		const empty = signal?.get();
+		setCustomModes([{ ...custom, source: { storage: PromptsStorage.builtIn } }]);
+		await frame();
+		const builtInOnly = signal?.get();
+		setCustomModes([custom]);
+		await frame();
+		const discovered = signal?.get();
+		setCustomModes([]);
+		await frame();
+		const removed = signal?.get();
+		modes.set(upcastPartial<IChatModes>({ custom: [custom], onDidChange: Event.None }), undefined);
+		await frame();
+		const newSession = signal?.get();
+		modes.set(upcastPartial<IChatModes>({ custom: [], onDidChange: Event.None }), undefined);
+		await frame();
+		assert.deepStrictEqual({ empty, builtInOnly, discovered, removed, newSession, emptySession: signal?.get() }, {
+			empty: false, builtInOnly: false, discovered: true, removed: false, newSession: true, emptySession: false,
+		});
+	});
 
 	test('waits for layout and follows setting, mode, visibility, and placement support', async () => {
 		const { button, signal, frame, setEnabled, mode, setVisible, setSupported, removeWidget } = createHarness(false);

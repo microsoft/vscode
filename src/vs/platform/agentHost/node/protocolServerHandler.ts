@@ -17,6 +17,7 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
+import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetScope.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
 import { deepClone, equals, mixin } from '../../../base/common/objects.js';
@@ -3134,7 +3135,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const session = this._ownerOfStorage(content.sessionUri);
+			const contentOwner = gitContent
+				? resolveBranchChangesetScopeForOwner(this._stateManager, content.sessionUri)?.sessionUri ?? content.sessionUri
+				: content.sessionUri;
+			const session = this._ownerOfStorage(contentOwner);
 			if (!session) {
 				return false;
 			}

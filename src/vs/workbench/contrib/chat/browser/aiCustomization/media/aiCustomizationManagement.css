@@ -3292,25 +3292,31 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-textPreformat-foreground, var(--vscode-descriptionForeground));
 }
 
-.plugin-list-widget .plugin-list-item-status {
+.plugin-list-widget .plugin-list-item-status-icon {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	line-height: 18px;
-	padding: 0 var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-circle);
-	color: var(--vscode-badge-foreground);
-	background-color: var(--vscode-badge-background);
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
 }
 
-.plugin-list-widget .plugin-list-item-status.running {
-	color: var(--vscode-editor-background);
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
+.plugin-list-widget .plugin-list-item-status-icon.loading {
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
-.plugin-list-widget .plugin-list-item-status.disabled {
-	color: var(--vscode-badge-foreground);
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
+.monaco-reduce-motion .plugin-list-widget .plugin-list-item-status-icon.loading {
+	animation: none;
+}
+
+.plugin-list-widget .plugin-list-item-status-icon.warning {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.plugin-list-widget .plugin-list-item-status-icon.error {
+	color: var(--vscode-errorForeground);
 }
 
 .plugin-list-widget .plugin-list-item-action {

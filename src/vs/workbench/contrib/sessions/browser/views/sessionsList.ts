@@ -6002,7 +6002,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
-			if (workspaceSections.length > 0) {
+			// With only two workspaces, hiding one behind a "+1 more" row saves no space.
+			if (workspaceSections.length > 2) {
 				const now = Date.now();
 				const isRecent = (section: ISessionSection) =>
 					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);

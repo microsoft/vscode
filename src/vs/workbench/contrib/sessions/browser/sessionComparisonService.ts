@@ -768,10 +768,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (this._reportedAttemptTelemetry.has(key) || completion.elapsedMs === undefined) {
 				continue;
 			}
+			const firstTurnUsage = aggregateChatUsage([requests[0]?.response?.usage]);
 			logSessionComparisonAttemptCompleted(this.telemetryService, {
 				comparisonId: hashSessionIdForTelemetry(comparison.id),
 				attemptIndex,
 				elapsedMs: completion.elapsedMs,
+				inputTokens: firstTurnUsage?.inputTokens,
+				cachedTokens: firstTurnUsage?.cachedTokens,
+				outputTokens: firstTurnUsage?.outputTokens,
+				tokenCountIsComplete: firstTurnUsage?.isComplete ?? false,
 			});
 			this._reportedAttemptTelemetry.add(key);
 			telemetryChanged = true;
