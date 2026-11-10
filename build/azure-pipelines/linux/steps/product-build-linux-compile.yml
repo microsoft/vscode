@@ -60,17 +60,19 @@ steps:
         vscodePlatform: linux
         VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
-  - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX (background)
-
   - template: ../../common/mixin-vscode-capi.yml@self
 
   - script: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
+
+  - template: ../../copilot/builtin-steps.yml@self
+
+  # One Compile job uploads the Copilot source maps, in publishing builds only: CI builds never publish, and the
+  # SDK validation build has no CDN connection.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true)) }}:
+    - template: ../../copilot/upload-sourcemaps-steps.yml@self
 
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
     - script: node build/azure-pipelines/common/extract-telemetry.ts
@@ -88,11 +90,6 @@ steps:
     - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
-
-  - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX
 
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # right before gulp packages it. Non-fatal: falls back to legacy on any problem.

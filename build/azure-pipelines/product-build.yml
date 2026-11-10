@@ -355,17 +355,6 @@ extends:
               # Scheduled and manual builds check every file.
               VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_UBUNTU_POOL }}
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           displayName: Windows X64

@@ -205,11 +205,6 @@ jobs:
         parameters:
           vscodePlatform: alpine
 
-      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX (background)
-
       - template: ../common/mixin-vscode-capi.yml@self
 
       - script: pnpm run gulp core-ci
@@ -217,10 +212,7 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
-      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX
+      - template: ../copilot/builtin-steps.yml@self
 
       - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
         env:

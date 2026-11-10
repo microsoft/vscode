@@ -179,30 +179,9 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-      # The per-OS compile template unconditionally waits (up to 30 min) for a
-      # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
-      # the build. This stage produces it — mirroring product-build.yml. The
-      # platform stages depend on its artifact-published output so they are
-      # skipped when the artifact cannot be produced, but still run if a later
-      # step of the Copilot job fails.
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-              # This is a test-only run; don't push the Copilot extension's source
-              # maps to the CDN.
-              VSCODE_UPLOAD_SOURCEMAPS: false
-
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -217,8 +196,7 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -233,8 +211,7 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
         - stage: macOS
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: AcesShared
             os: macOS
