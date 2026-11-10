@@ -54,6 +54,31 @@ export interface IMissionControlSharingService {
 	setProjectFolders(folders: readonly URI[]): void;
 }
 
+export const IRemoteGitHubEnvironmentSharingService = createDecorator<IRemoteGitHubEnvironmentSharingService>('remoteGitHubEnvironmentSharingService');
+
+export interface IRemoteGitHubEnvironmentShare {
+	/** `enabled` is also reported while the remote is disconnected, because its agent host keeps the registration. */
+	readonly state: 'connecting' | 'enabled' | 'error';
+	readonly environmentId?: string;
+	readonly error?: string;
+}
+
+/**
+ * Shares directly connected remote agent hosts (SSH, WSL, tunnels) as GitHub
+ * environments with this window's GitHub account, so other applications that
+ * support GitHub environments can use them.
+ */
+export interface IRemoteGitHubEnvironmentSharingService {
+	readonly _serviceBrand: undefined;
+	/** Addresses of connected remote agent hosts that can be shared now. */
+	readonly shareable: IObservable<ReadonlySet<string>>;
+	/** Remote agent hosts the user chose to share, keyed by address. */
+	readonly shares: IObservable<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>;
+	/** GitHub environment IDs of shared remote agent hosts, which are already listed by their direct connections. */
+	readonly environmentIds: IObservable<ReadonlySet<string>>;
+	setShared(address: string, shared: boolean): Promise<void>;
+}
+
 export interface IMissionControlHost extends IMissionControlEnvironment {
 	readonly displayName?: string;
 }

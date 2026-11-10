@@ -51,6 +51,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly copiedAddresses: string[] = [];
 	readonly locationChanges: string[] = [];
 	readonly serverUpdates: string[] = [];
+	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
 	copyFailure: Error | undefined;
@@ -103,6 +104,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.serverUpdates.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+	}
+
+	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
+		this.gitHubEnvironmentChanges.push({ id, shared });
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, gitHubEnvironment: shared ? { state: 'enabled' } : undefined } : remote), undefined);
 	}
 
 	async deleteTunnel(id: string): Promise<void> {

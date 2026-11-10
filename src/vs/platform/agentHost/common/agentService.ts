@@ -30,7 +30,7 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { IConnectionDiagnosticError } from './connectionDiagnostics.js';
-import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IAgentHostGitHubEnvironmentRegistration, IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -841,6 +841,9 @@ export interface IAgentHostNetworkFetchResult {
 export interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
 
+	/** Fires when a protocol client registers or unregisters this host as a GitHub environment. */
+	readonly onDidChangeGitHubEnvironmentRegistered: Event<boolean>;
+
 	/** Resolves after the WebSocket listener configured at process startup is bound. */
 	waitForConfiguredWebSocketServer(): Promise<void>;
 
@@ -1578,6 +1581,15 @@ export interface IAgentConnection {
 
 	// ---- Changeset operations -----------------------------------------------
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+
+	// ---- GitHub environment -------------------------------------------------
+	/**
+	 * Registers the host as a GitHub environment owned by the given GitHub
+	 * account, using that account's credential. Registering again refreshes
+	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 */
+	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
 
 	// ---- Filesystem operations ----------------------------------------------
 	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */

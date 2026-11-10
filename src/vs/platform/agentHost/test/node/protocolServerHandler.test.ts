@@ -55,7 +55,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -77,7 +77,8 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
-import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension } from '../../node/protocolServerHandler.js';
+import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension, type IProtocolServerGitHubEnvironment } from '../../node/protocolServerHandler.js';
+import { supportsAgentHostGitHubEnvironment } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
@@ -1773,6 +1774,67 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('serves GitHub environment registration only to direct clients of a configured host', async () => {
+		const calls: string[] = [];
+		const githubEnvironment: IProtocolServerGitHubEnvironment = {
+			async register(accountId, credential) {
+				calls.push(`register ${accountId} ${credential}`);
+				return { environmentId: 'environment', name: 'Remote' };
+			},
+			async unregister(accountId) {
+				calls.push(`unregister ${accountId}`);
+			},
+		};
+		const results = [];
+		for (const connection of ['direct', 'unconfigured', 'relay roots', 'relay transport'] as const) {
+			const connectionServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, connectionServer,
+				{
+					...(connection !== 'unconfigured' ? { githubEnvironment } : {}),
+					...(connection === 'relay roots' ? { relayRoots: ['/workspace'] } : {}),
+				},
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const clientId = `client-github-environment-${connection.replace(' ', '-')}`;
+			const transport = disposables.add(connection === 'relay transport'
+				? new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false)
+				: new MockProtocolTransport());
+			connectionServer.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const initialize = await initialized;
+			assert.ok(hasKey(initialize, { result: true }));
+			const responses = [
+				request(2, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: '' }),
+				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token' }),
+				request(4, UnregisterGitHubEnvironmentExtensionMethod, { accountId: 'account' }),
+			].map((message, index) => {
+				const response = waitForResponse(transport, index + 2);
+				transport.simulateMessage(message);
+				return response;
+			});
+			results.push({
+				connection,
+				supported: supportsAgentHostGitHubEnvironment(initialize.result as InitializeResult),
+				responses: (await Promise.all(responses)).map(response => hasKey(response, { error: true }) ? response.error.code : hasKey(response, { result: true }) ? response.result : undefined),
+			});
+		}
+		const denied = AhpErrorCodes.PermissionDenied;
+		const notFound = JsonRpcErrorCodes.MethodNotFound;
+		assert.deepStrictEqual({ results, calls }, {
+			results: [
+				{ connection: 'direct', supported: true, responses: [JsonRpcErrorCodes.InvalidParams, { environmentId: 'environment', name: 'Remote' }, null] },
+				{ connection: 'unconfigured', supported: false, responses: [denied, denied, denied] },
+				{ connection: 'relay roots', supported: false, responses: [notFound, notFound, notFound] },
+				{ connection: 'relay transport', supported: false, responses: [denied, denied, denied] },
+			],
+			calls: ['register account token', 'unregister account'],
+		});
+	});
 
 	test('collects Agent Host debug logs through the extension request', async () => {
 		const transport = connectClient('client-debug-logs');
