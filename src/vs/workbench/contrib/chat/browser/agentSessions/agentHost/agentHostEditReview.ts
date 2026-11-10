@@ -508,7 +508,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return;
 			}
 			try {
-				const prepared = await this._prepareFile(file, entry.modifiedModel, this._lifetimeToken);
+				const prepared = await this._prepareFile(file, entry.modifiedModel, this._lifetimeToken, entry.originalModel);
 				if (isCurrent()) {
 					await entry.update(file, prepared.original, prepared.edit);
 				}
@@ -604,18 +604,19 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		this._entriesObs.set([...this._entries.values()], undefined);
 	}
 
-	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken): Promise<{ original: string; edit: StringEdit }> {
+	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken, trackedOriginal?: ITextModel): Promise<{ original: string; edit: StringEdit }> {
 		for (let attempt = 0; attempt < 2; attempt++) {
-			if (token.isCancellationRequested || model.isDisposed()) {
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
 			const version = model.getVersionId();
+			const originalVersion = trackedOriginal?.getVersionId();
 			const live = model.getValue();
-			const original = await getReviewedOriginal(file, live, model.getEOL(), this._editorWorkerService);
-			if (token.isCancellationRequested || model.isDisposed()) {
+			const original = await getReviewedOriginal(file, live, model.getEOL(), this._editorWorkerService, trackedOriginal?.getValue());
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
-			if (version !== model.getVersionId()) {
+			if (version !== model.getVersionId() || originalVersion !== trackedOriginal?.getVersionId()) {
 				continue;
 			}
 			if (original === undefined) {
@@ -623,10 +624,10 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			}
 			const edit = await computeEdit(original, live, this._editorWorkerService)
 				?? StringEdit.replace(OffsetRange.ofLength(original.length), live).removeCommonSuffixAndPrefix(original);
-			if (token.isCancellationRequested || model.isDisposed()) {
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
-			if (version === model.getVersionId()) {
+			if (version === model.getVersionId() && originalVersion === trackedOriginal?.getVersionId()) {
 				return { original, edit };
 			}
 		}
@@ -942,15 +943,43 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 }
 
-/** The Working Set baseline with unrecorded, non-conflicting edits applied, or undefined if they cannot be compared precisely. */
-async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService): Promise<string | undefined> {
+/** Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable. */
+async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService, trackedOriginal?: string): Promise<string | undefined> {
+	if (trackedOriginal === live) {
+		return live;
+	}
 	const baseline = withLineEndings(file.baseline, eol);
 	const current = withLineEndings(file.current, eol);
-	if (live === current) {
-		return baseline;
+	let original = baseline;
+	if (live !== current) {
+		const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
+		if (!agent || !user) {
+			return undefined;
+		}
+		original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
 	}
-	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
-	return agent && user ? user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline) : undefined;
+	if (trackedOriginal === undefined || trackedOriginal === original) {
+		return original;
+	}
+	const [pending, adjustments] = await Promise.all([computeEdit(trackedOriginal, live, workerService), computeEdit(trackedOriginal, original, workerService)]);
+	if (!pending || !adjustments) {
+		return undefined;
+	}
+	let pendingIndex = 0;
+	const refinements = adjustments.replacements.filter(adjustment => {
+		while (pendingIndex < pending.replacements.length) {
+			const range = pending.replacements[pendingIndex].replaceRange;
+			if (range.containsRange(adjustment.replaceRange)) {
+				return true;
+			}
+			if (range.endExclusive > adjustment.replaceRange.start) {
+				return false;
+			}
+			pendingIndex++;
+		}
+		return false;
+	});
+	return new StringEdit(refinements).apply(trackedOriginal);
 }
 
 /**

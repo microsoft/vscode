@@ -17,6 +17,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { DiffAlgorithmName, IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
@@ -1282,6 +1283,91 @@ suite('AgentHostEditReview', () => {
 			});
 		});
 	}
+
+	for (const otherAgentEdit of [false, true]) {
+		test(`undo/redo preserves user text adjacent to a removed agent edit (other agent edit: ${otherAgentEdit})`, async () => {
+			const suffix = otherAgentEdit ? 'unchanged\nlast\n' : '';
+			const modifiedSuffix = otherAgentEdit ? 'unchanged\nLAST\n' : '';
+			const baseline = `start\nend\n${suffix}`;
+			const current = `start\nAAA\nend\n${modifiedSuffix}`;
+			const { model } = await useRealTextFiles(current);
+			host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+			await waitForEntries('/dirty.ts');
+			const entry = getEntry('/dirty.ts');
+			await getChanges(entry);
+
+			model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'ZZZ\n')], () => null);
+			model.textEditorModel.pushStackElement();
+			await getChanges(entry);
+			const originalWithUserText = entry.originalModel.getValue();
+
+			model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(2, 1, 3, 1))], () => null);
+			model.textEditorModel.pushStackElement();
+			await getChanges(entry);
+			await model.textEditorModel.undo();
+			await review.resolveEntry(model.resource);
+			await getChanges(entry);
+			await model.textEditorModel.redo();
+			await review.resolveEntry(model.resource);
+
+			assert.deepStrictEqual({
+				originalWithUserText,
+				original: entry.originalModel.getValue(),
+				text: model.textEditorModel.getValue(),
+				changes: await getChanges(entry),
+				dirty: model.isDirty(),
+				invoked: host.invoked,
+				errors,
+			}, {
+				originalWithUserText: `start\nZZZ\nend\n${suffix}`,
+				original: `start\nZZZ\nend\n${suffix}`,
+				text: `start\nZZZ\nend\n${modifiedSuffix}`,
+				changes: otherAgentEdit ? ['[5,6)'] : [],
+				dirty: true,
+				invoked: [],
+				errors: [],
+			});
+		});
+	}
+
+	test('a broad disk reload preserves adjacent user text already tracked in the review baseline', async () => {
+		const baseline = 'first\nstart\nend\nunchanged\nmiddle\nunchanged after\nlast\n';
+		const current = 'first\nstart\nAAA\nend\nunchanged\nMIDDLE\nunchanged after\nlast\n';
+		const { model, files } = await useRealTextFiles(current);
+		host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		await getChanges(entry);
+
+		model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(4, 1), 'ZZZ\n')], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(entry);
+		model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(3, 1, 4, 1))], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(entry);
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+
+		const pulled = 'FIRST\nstart\nZZZ\nend\nunchanged\nMIDDLE\nunchanged after\nLAST\n';
+		await files.writeFile(model.resource, VSBuffer.fromString(pulled));
+		await model.resolve({ forceReadFromFile: true });
+		await review.resolveEntry(model.resource);
+		const afterPull = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+		await model.textEditorModel.undo();
+		await review.resolveEntry(model.resource);
+		const afterUndo = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+		await model.textEditorModel.redo();
+		await review.resolveEntry(model.resource);
+		const afterRedo = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+
+		assert.deepStrictEqual({ afterPull, afterUndo, afterRedo, text: model.textEditorModel.getValue(), dirty: model.isDirty(), errors }, {
+			afterPull: { original: 'FIRST\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nLAST\n', changes: ['[6,7)'] },
+			afterUndo: { original: 'first\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nlast\n', changes: ['[6,7)'] },
+			afterRedo: { original: 'FIRST\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nLAST\n', changes: ['[6,7)'] },
+			text: pulled,
+			dirty: false,
+			errors: [],
+		});
+	});
 
 	for (const spansAgentEdit of [false, true]) {
 		test(`an imprecise disk reload comparison suspends review and recovers after saving (spans agent edit: ${spansAgentEdit})`, async () => {
