@@ -307,13 +307,14 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const withPromptFiles of [false, true]) {
-		test(`leaves SDK plugin installations to local Copilot discovery ${withPromptFiles ? 'with' : 'without'} hydrated prompt files`, async () => {
+		test(`does not forward SDK plugins or stale client disable decisions to local Copilot ${withPromptFiles ? 'with' : 'without'} hydrated prompt files`, async () => {
 			const sdkPlugins = [true, false].map(enabled => makePlugin(URI.file(`/sdk/plugins/${enabled}`), {
 				enabled, mcpServers: 1,
 				copilotCliInstallation: { name: `sdk-${enabled}`, marketplace: 'example' },
 			}));
 			const clientPlugins = ['extension', 'configured-location', 'vscode-managed'].map(name => makePlugin(URI.file(`/client/${name}`), { mcpServers: 1 }));
 			const plugins = [...sdkPlugins, ...clientPlugins];
+			const profileEnablement = new Map(sdkPlugins.map(plugin => [plugin.uri.toString(), false]));
 			const files = new Map<string, readonly IPromptPath[]>(withPromptFiles ? [
 				[`${PromptsType.skill}/${PromptsStorage.plugin}`, plugins.map(plugin => makePromptPath(URI.joinPath(plugin.uri, 'skills', 'example', 'SKILL.md'), PromptsType.skill, PromptsStorage.plugin))],
 			] : []);
@@ -322,7 +323,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				const synced = new FakeBundler();
 				const standalone = new FakeBundler();
 				const refs = await resolveCustomizationRefs(
-					makeFileService(), makePromptsService(files), new FakeSyncProvider(), makeAgentPluginService(plugins),
+					makeFileService(), makePromptsService(files), new FakeSyncProvider(), makeAgentPluginService(plugins, profileEnablement),
 					makeMcpService(), makeConfigurationResolverService(), toBundlers(synced, standalone), sessionType, undefined,
 				);
 				results.push({ refs: refs.map(ref => ref.uri), synced: synced.received, standalone: standalone.received });

@@ -271,6 +271,7 @@ export async function resolveCustomizationRefs(
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
 		if (usesNativeCopilotPlugins && plugin.copilotCliInstallation) {
+			// Native installations use SDK enablement; legacy client decisions are not migrated.
 			return;
 		}
 		const key = plugin.uri.toString();
