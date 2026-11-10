@@ -565,7 +565,7 @@ export function packageCopilotExtensionStream(): Stream {
 	return es.merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
-			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore'), ['@github/copilot/package.json', '@github/copilot/LICENSE.md', '@github/copilot/sdk/**']))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
 	).pipe(util2.setExecutableBit(['**/*.sh']));
 }

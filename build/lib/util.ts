@@ -169,14 +169,15 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
+export function cleanNodeModules(rulePath: string, additionalIncludes: readonly string[] = []): NodeJS.ReadWriteStream {
 	const rules = fs.readFileSync(rulePath, 'utf8')
 		.split(/\r?\n/g)
 		.map(line => line.trim())
 		.filter(line => line && !/^#/.test(line));
 
 	const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
-	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
+	const includes = [...rules.filter(line => /^!/.test(line)).map(line => line.substr(1)), ...additionalIncludes]
+		.map(line => `**/node_modules/${line}`);
 
 	const input = es.through();
 	const output = es.merge(
