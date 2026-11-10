@@ -2570,6 +2570,22 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.ChatCustomizationsLocation]: {
+			type: 'string',
+			enum: ['auto', 'sidebar', 'sessionsHeader', 'chatToolbar', 'chatInput'],
+			enumDescriptions: [
+				nls.localize('chat.customizations.location.auto', "Use the default location for the window and sidebar layout."),
+				nls.localize('chat.customizations.location.sidebar', "Below the Sessions view in the Agents window. Uses the Chat toolbar in editor windows."),
+				nls.localize('chat.customizations.location.sessionsHeader', "At the top left of the Sessions view in the Agents window. Uses the Chat toolbar in editor windows."),
+				nls.localize('chat.customizations.location.chatToolbar', "In the Chat toolbar."),
+				nls.localize('chat.customizations.location.chatInput', "Inside the chat input, after the model pickers and before the voice controls."),
+			],
+			description: nls.localize('chat.customizations.location', "Controls where the Customizations button appears. Explicit choices override the default location."),
+			default: 'auto',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
 		[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],

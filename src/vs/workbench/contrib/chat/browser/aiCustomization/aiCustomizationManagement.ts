@@ -13,6 +13,8 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import type { IChatWidget } from '../chat.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -23,6 +25,7 @@ export const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 
 export type AICustomizationManagementOpenEditorTarget =
 	| AICustomizationManagementSection
+	| { readonly widget: IChatWidget }
 	| {
 		readonly section?: AICustomizationManagementSection;
 		readonly sessionType?: string;
@@ -42,6 +45,11 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
 ): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+	if (target && typeof target === 'object' && hasKey(target, { widget: true })) {
+		pendingSessionType = target.widget.input.pendingDelegationTarget;
+		chatSessionResource = target.widget.viewModel?.sessionResource;
+		target = undefined;
+	}
 	if (isChatViewTitleActionContext(target)) {
 		return { sessionResource: target.sessionResource };
 	}

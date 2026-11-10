@@ -156,6 +156,7 @@ suite('Customizations toolbar', () => {
 				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: [] }); }
 			},
 			disposables.add(new MockContextKeyService()),
+			new TestConfigurationService(),
 		));
 		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === EXTENSIONS_VIEWLET_ID);
 		const keybinding = keybindingsOnLoad[0];
@@ -212,6 +213,7 @@ suite('Customizations toolbar', () => {
 				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: activeHarness.get() === 'vscode' ? [] : [AICustomizationManagementSection.Extensions] }); }
 			},
 			contextKeyService,
+			configurationService,
 		));
 
 		// As the Keyboard Shortcuts editor of editor windows writes them, scoped to the Extensions view container's enablement like the default keybinding there.
