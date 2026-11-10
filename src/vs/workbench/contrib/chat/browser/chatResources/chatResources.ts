@@ -16,15 +16,17 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
  * - `none`: only in the Artifacts list.
  * - `pinned`: with a pill of its own that opens it in an editor, or reveals its editor if it is open.
  * - `embedded`: with a pill of its own that shows it above the chat input.
+ * - `top`: with a pill of its own that shows it at the top of the chat, above the transcript, which gets smaller. Only the
+ *   user, or the agent that recorded the resource, puts a resource there; settings never default to it.
  *
- * The pills of embedded resources act as tabs of the area above the chat input.
+ * The pills of embedded resources, and those of resources at the top, act as tabs of their area.
  */
-export type ChatResourceMode = 'none' | 'pinned' | 'embedded';
+export type ChatResourceMode = 'none' | 'pinned' | 'embedded' | 'top';
 
 /** The modes that show a resource in an area of the chat. */
-export type ChatResourceArea = Extract<ChatResourceMode, 'embedded'>;
+export type ChatResourceArea = Extract<ChatResourceMode, 'embedded' | 'top'>;
 
-const chatResourceModes: readonly ChatResourceMode[] = ['none', 'pinned', 'embedded'];
+const chatResourceModes: readonly ChatResourceMode[] = ['none', 'pinned', 'embedded', 'top'];
 
 export function isChatResourceMode(value: unknown): value is ChatResourceMode {
 	return chatResourceModes.includes(value as ChatResourceMode);
@@ -36,7 +38,8 @@ export const ChatResourceModesSettingId = 'chat.resources.modes';
 /** The mode the user configured for resources whose path matches a glob pattern of {@link ChatResourceModesSettingId}. */
 export function getConfiguredChatResourceMode(modes: Readonly<Record<string, unknown>> | undefined, resource: URI): ChatResourceMode | undefined {
 	for (const [pattern, mode] of Object.entries(modes ?? {})) {
-		if (isChatResourceMode(mode) && (glob.match(pattern, resource.path) || glob.match(pattern, basename(resource)))) {
+		// Showing resources at the top of the chat is always an explicit choice, never a configured default.
+		if (isChatResourceMode(mode) && mode !== 'top' && (glob.match(pattern, resource.path) || glob.match(pattern, basename(resource)))) {
 			return mode;
 		}
 	}
@@ -54,14 +57,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			// Agents learn that they can choose how the chat shows what they record.
 			agentHost: { key: AgentHostChatResourcesConfigKey },
-			markdownDescription: nls.localize('chatResources.enabled', "Whether a chat can show its resources, such as files its agent recorded, with pills of their own or above the chat input."),
+			markdownDescription: nls.localize('chatResources.enabled', "Whether a chat can show its resources, such as files its agent recorded, with pills of their own, above the chat input, or at the top of the chat."),
 			tags: ['experimental'],
 		},
 		[ChatResourceModesSettingId]: {
 			type: 'object',
 			additionalProperties: { type: 'string', enum: ['none', 'pinned', 'embedded'] },
 			default: {},
-			markdownDescription: nls.localize('chatResources.modes', "How a chat shows its resources (such as files the agent recorded), by glob pattern, for example `{ \"*.md\": \"embedded\" }`. `none` lists them under Artifacts, `pinned` gives them a pill that opens them in an editor, and `embedded` gives them a pill that shows them above the chat input. A mode chosen for a single resource overrides this."),
+			markdownDescription: nls.localize('chatResources.modes', "How a chat shows its resources (such as files the agent recorded), by glob pattern, for example `{ \"*.md\": \"embedded\" }`. `none` lists them under Artifacts, `pinned` gives them a pill that opens them in an editor, and `embedded` gives them a pill that shows them above the chat input. Showing a resource at the top of the chat is always chosen for that resource. A mode chosen for a single resource overrides this."),
 			tags: ['experimental'],
 		},
 	},

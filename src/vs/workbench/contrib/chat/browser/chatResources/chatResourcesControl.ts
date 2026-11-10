@@ -41,20 +41,24 @@ export interface IChatResource extends IChatResourceTarget {
 
 /** The transcript height that shown resources leave visible. */
 const MIN_TRANSCRIPT_HEIGHT = 80;
-/** The height a shown resource takes up besides its body: its header, its resize edge, its border, and spacing. */
+/** The height a shown resource takes up besides its body: its header, its resize edge at the top of the chat, its border, and spacing. */
 const SHOWN_RESOURCE_CHROME_HEIGHT = 36;
+/** The height of the pill row below the transcript, which resources at the top of the chat leave room for. */
+const PILL_ROW_HEIGHT = 28;
 const MODE_OVERRIDES_STORAGE_KEY = 'chat.resources.modeOverrides';
 
 /**
  * Shows a chat's resources as the user and agents chose (see {@link ChatResourceMode}): it supplies the pills of
- * resources that have one, and shows the selected resource above the chat input. The pills of the resources shown there
- * act as tabs: one of them is shown at a time, and clicking the shown one hides it.
+ * resources that have one, and shows the selected resource of each area: above the chat input, and at the top of the chat.
+ * The pills of an area's resources act as its tabs: one of them is shown at a time, and clicking the shown one collapses it.
  */
 export class ChatResourcesControl extends Disposable {
 
 	readonly pillSources: IObservable<readonly IChatInputPillSource[]>;
 	/** The height the resource above the chat input takes up, including its spacing. */
 	readonly height: IObservable<number>;
+	/** The height the resource at the top of the chat takes up, which the transcript gives up. */
+	readonly topHeight: IObservable<number>;
 
 	/** The chat's resources that exist. */
 	readonly resources: IObservable<readonly IChatResource[]>;
@@ -66,17 +70,21 @@ export class ChatResourcesControl extends Disposable {
 	private readonly _sizes = new Map<string, ISettableObservable<IChatEmbeddedResourceSize>>();
 	/** The content height each resource last reported, so that showing it again starts at that height rather than jumping to it. */
 	private readonly _contentHeights = new Map<string, ISettableObservable<number | undefined>>();
+	/** Whether a resource at the top of the chat uses the full width of the chat's view, by chat and resource id. */
+	private readonly _fullWidths = new Map<string, ISettableObservable<boolean>>();
 	private readonly _chatKey: IObservable<string | undefined>;
 	private readonly _configuredModes: IObservable<Readonly<Record<string, unknown>> | undefined>;
 	private readonly _shown: Readonly<Record<ChatResourceArea, IObservable<IChatResource | undefined>>>;
 
 	/**
 	 * @param container Receives the resource shown above the chat input as its first child, so it appears above the pills that the container also hosts.
+	 * @param topContainer Receives the resource shown at the top of the chat.
 	 * @param chatElement The chat widget. Shown resources never grow past the top of the element that clips it, and are clipped to it.
 	 * @param recorded Resources recorded for the chat, such as files its agent added as artifacts.
 	 */
 	constructor(
 		container: HTMLElement,
+		topContainer: HTMLElement,
 		chatElement: HTMLElement,
 		sessionResource: IObservable<URI | undefined>,
 		recorded: IObservable<readonly IChatResource[]>,
@@ -90,7 +98,11 @@ export class ChatResourcesControl extends Disposable {
 		super();
 		const element = dom.$('.chat-embedded-resources');
 		container.prepend(element);
-		this._register(toDisposable(() => element.remove()));
+		const topElement = dom.append(topContainer, dom.$('.chat-top-resources'));
+		this._register(toDisposable(() => {
+			element.remove();
+			topElement.remove();
+		}));
 
 		this._modeOverrides = observableValue(this, this._readModeOverrides());
 		this._configuredModes = observableConfigValue<Readonly<Record<string, unknown>> | undefined>(ChatResourceModesSettingId, undefined, configurationService);
@@ -108,29 +120,44 @@ export class ChatResourcesControl extends Disposable {
 			const selected = chat === undefined ? undefined : this._selection.read(reader).get(`${chat}\u0000${area}`);
 			return getShownChatResource(this.resources.read(reader).filter(resource => this.getMode(resource, reader) === area), selected);
 		});
-		this._shown = { embedded: shownIn('embedded') };
+		this._shown = { embedded: shownIn('embedded'), top: shownIn('top') };
 
 		// The resource floats upwards from the pills, over the transcript and whatever else the chat's container shows above the
 		// input (such as the sessions list of an empty chat), so that container's top bounds it. It is looked up when measuring,
 		// because the chat widget may not be attached yet when this control is created.
 		const getBoundary = () => findClippingAncestor(chatElement);
 		const availableSpace = observableValue(this, Number.POSITIVE_INFINITY);
+		const topAvailableSpace = observableValue(this, Number.POSITIVE_INFINITY);
 		const height = observableValue(this, 0);
+		const topHeight = observableValue(this, 0);
+		// A wide chat view centers the chat in a narrower column; a resource at the top can extend over the room beside it.
+		const roomBeside = observableValue<IChatResourceRoomBeside>(this, { left: 0, right: 0 });
 		const layoutObserver = new (dom.getWindow(container).ResizeObserver)(() => {
 			height.set(element.offsetHeight, undefined);
+			topHeight.set(topElement.offsetHeight, undefined);
+			const chatRect = chatElement.getBoundingClientRect();
+			const viewRect = chatElement.parentElement?.getBoundingClientRect() ?? chatRect;
+			const room = { left: Math.max(0, Math.floor(chatRect.left - viewRect.left)), right: Math.max(0, Math.floor(viewRect.right - chatRect.right)) };
+			if (room.left !== roomBeside.get().left || room.right !== roomBeside.get().right) {
+				roomBeside.set(room, undefined);
+			}
+			// The resource at the top takes precedence: it is laid out before the transcript, which leaves its space to it.
+			const inputHeight = container.parentElement?.offsetHeight ?? 0;
+			topAvailableSpace.set(Math.max(0, chatElement.clientHeight - inputHeight - PILL_ROW_HEIGHT - MIN_TRANSCRIPT_HEIGHT), undefined);
 			// While nothing is shown, the element is not laid out; it is measured once it shows a resource.
 			if (element.offsetHeight > 0) {
 				// The bottom edge stays put when the resource resizes, and moves with the chat input, which resizes then.
-				availableSpace.set(Math.max(0, element.getBoundingClientRect().bottom - getBoundary().getBoundingClientRect().top - MIN_TRANSCRIPT_HEIGHT), undefined);
+				availableSpace.set(Math.max(0, element.getBoundingClientRect().bottom - getBoundary().getBoundingClientRect().top - topElement.offsetHeight - MIN_TRANSCRIPT_HEIGHT), undefined);
 			}
 		});
-		for (const observed of [element, chatElement, container.parentElement]) {
+		for (const observed of [element, topElement, chatElement, container.parentElement, chatElement.parentElement]) {
 			if (observed) {
 				layoutObserver.observe(observed);
 			}
 		}
 		this._register(toDisposable(() => layoutObserver.disconnect()));
 		this.height = height;
+		this.topHeight = topHeight;
 
 		const renderArea = (area: ChatResourceArea, areaElement: HTMLElement, space: IObservable<number>) => {
 			const availableHeight = derived(this, reader => space.read(reader) - SHOWN_RESOURCE_CHROME_HEIGHT);
@@ -139,7 +166,7 @@ export class ChatResourcesControl extends Disposable {
 				return shown ? [shown] : [];
 			});
 			const frames = mapObservableArrayCached(this, shownList, (resource, store) =>
-				store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, area, this._getSize(resource, area), this._getContentHeight(resource), availableHeight, getBoundary, {
+				store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, area, this._getSize(resource, area), this._getContentHeight(resource), availableHeight, getBoundary, area === 'top' ? { fullWidth: this._getFullWidth(resource), roomBeside } : undefined, {
 					openInEditor: () => this._openInEditor(resource, true),
 					// Closing hides the resource; its pill shows it again, like a tab.
 					close: () => this._select(area, null),
@@ -149,6 +176,7 @@ export class ChatResourcesControl extends Disposable {
 			}));
 		};
 		renderArea('embedded', element, availableSpace);
+		renderArea('top', topElement, topAvailableSpace);
 
 		const withPills = derived(this, reader => this.resources.read(reader).filter(resource => this.getMode(resource, reader) !== 'none'));
 		this.pillSources = mapObservableArrayCached(this, withPills, (resource, store) => this._createPillSource(resource, store), resource => resource.id);
@@ -181,7 +209,7 @@ export class ChatResourcesControl extends Disposable {
 			run: () => {
 				this._setMode(resource, target);
 				// Choosing the area again shows the resource there, for example while it is hidden or open in an editor.
-				if (target === 'embedded') {
+				if (target === 'embedded' || target === 'top') {
 					this._select(target, resource.id);
 				}
 			},
@@ -193,6 +221,7 @@ export class ChatResourcesControl extends Disposable {
 				run: () => this._openInEditor(resource, true),
 			}),
 			new Separator(),
+			showAction('top', localize('chatResources.showAtTop', "Show at Top of Chat")),
 			showAction('embedded', localize('chatResources.showAboveInput', "Show Above Chat Input")),
 			showAction('pinned', localize('chatResources.showOnlyAsPill', "Show Only as Pill")),
 			new Separator(),
@@ -237,7 +266,7 @@ export class ChatResourcesControl extends Disposable {
 	/** The area that shows the resource when it is selected, if its mode has one. */
 	private _getArea(resource: IChatResource, reader: IReader | undefined): ChatResourceArea | undefined {
 		const mode = this.getMode(resource, reader);
-		return mode === 'embedded' ? mode : undefined;
+		return mode === 'embedded' || mode === 'top' ? mode : undefined;
 	}
 
 	private _isShown(resource: IChatResource, reader: IReader | undefined): boolean {
@@ -286,6 +315,16 @@ export class ChatResourcesControl extends Disposable {
 			this._sizes.set(key, size);
 		}
 		return size;
+	}
+
+	private _getFullWidth(resource: IChatResource): ISettableObservable<boolean> {
+		const key = `${this._chatKey.get()}\u0000${resource.id}`;
+		let fullWidth = this._fullWidths.get(key);
+		if (!fullWidth) {
+			fullWidth = observableValue(this, false);
+			this._fullWidths.set(key, fullWidth);
+		}
+		return fullWidth;
 	}
 
 	private _getContentHeight(resource: IChatResource): ISettableObservable<number | undefined> {
@@ -405,6 +444,18 @@ const CONTENT_HEIGHT_SETTLE_DELAY = 150;
 /** The view follows the content height at the latest this long after the content is shown. */
 const CONTENT_HEIGHT_SETTLE_DEADLINE = 600;
 
+/** The room beside the chat's column in the chat's view, in pixels. */
+interface IChatResourceRoomBeside {
+	readonly left: number;
+	readonly right: number;
+}
+
+/** How wide a resource at the top of the chat is: the chat's column, or the chat's whole view. */
+interface IChatShownResourceWidth {
+	readonly fullWidth: ISettableObservable<boolean>;
+	readonly roomBeside: IObservable<IChatResourceRoomBeside>;
+}
+
 interface IChatShownResourceFrameActions {
 	openInEditor(): void;
 	close(): void;
@@ -413,7 +464,8 @@ interface IChatShownResourceFrameActions {
 /**
  * A resource shown in an area of the chat: a header that offers to open it in an editor, its content as
  * {@link createChatResourceContent} renders it, sized as {@link IChatEmbeddedResourceSize} describes, and a resize edge.
- * The resource is anchored to the pills below it, so its top edge resizes it.
+ * Above the chat input, the resource is anchored to the pills below it, so its top edge, the header, resizes it. At the
+ * top of the chat, it is anchored to the top, so a resize edge below it resizes it.
  */
 class ChatShownResourceFrame extends Disposable {
 
@@ -427,12 +479,14 @@ class ChatShownResourceFrame extends Disposable {
 		private readonly _contentHeight: ISettableObservable<number | undefined>,
 		availableHeight: IObservable<number>,
 		private readonly _getClippingContainer: () => HTMLElement,
+		width: IChatShownResourceWidth | undefined,
 		actions: IChatShownResourceFrameActions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
+		const atTop = area === 'top';
 		const elements = dom.h('.chat-embedded-resource@root', [
 			dom.h('.chat-embedded-resource-header@header', [
 				dom.h('span.chat-embedded-resource-title@title'),
@@ -440,10 +494,15 @@ class ChatShownResourceFrame extends Disposable {
 			]),
 			dom.h('.chat-embedded-resource-body@body'),
 		]);
-		// The resize edge is the edge that moves: the top one.
+		// The resize edge is the edge that moves: the top one above the chat input, the bottom one at the top of the chat.
 		const resizeHandle = dom.$('.chat-embedded-resource-sash', { role: 'separator', 'aria-orientation': 'horizontal' });
-		elements.root.prepend(resizeHandle);
+		if (atTop) {
+			elements.root.append(resizeHandle);
+		} else {
+			elements.root.prepend(resizeHandle);
+		}
 		this.element = elements.root;
+		this.element.classList.toggle('at-top', atTop);
 		this._body = elements.body;
 		elements.title.textContent = _resource.label;
 		this.element.setAttribute('aria-label', _resource.label);
@@ -460,6 +519,9 @@ class ChatShownResourceFrame extends Disposable {
 			return button;
 		};
 		const saveButton = addButton(localize('chatResources.save', "Save"), Codicon.save, () => void this._save());
+		if (width) {
+			this._registerFullWidth(addButton(localize('chatResources.useFullWidth', "Use Full Width"), Codicon.screenFull, () => width.fullWidth.set(!width.fullWidth.get(), undefined)), width);
+		}
 		addButton(localize('chatResources.openInEditorButton', "Open in Editor"), Codicon.goToFile, actions.openInEditor);
 		addButton(localize('chatResources.close', "Close"), Codicon.close, actions.close);
 
@@ -480,8 +542,8 @@ class ChatShownResourceFrame extends Disposable {
 				? localize('chatResources.resizeAutomatic', "Follows its content up to {0}px. Drag to resize, double-click to reset.", size.maxAutomaticHeight)
 				: localize('chatResources.resizeFixed', "Fixed at {0}px. Drag to its content height to follow the content again, double-click to reset.", Math.round(size.fixedHeight));
 		}));
-		// Dragging the top edge up grows the resource.
-		this._register(this._registerResizing(resizeHandle, height, -1));
+		// Dragging moves the edge that is not anchored: up grows the resource above the input, down grows it at the top.
+		this._register(this._registerResizing(resizeHandle, height, atTop ? 1 : -1));
 		void this._render();
 	}
 
@@ -555,6 +617,24 @@ class ChatShownResourceFrame extends Disposable {
 			settleTimer.value = toDisposable(() => clearTimeout(timer));
 		}));
 		return store;
+	}
+
+	/** Extends the resource over the room beside the chat's column while it uses the full width; offered only where there is room. */
+	private _registerFullWidth(button: HTMLElement, width: IChatShownResourceWidth): void {
+		this._register(autorun(reader => {
+			const room = width.roomBeside.read(reader);
+			const hasRoom = room.left + room.right > 0;
+			const fullWidth = width.fullWidth.read(reader) && hasRoom;
+			this.element.style.marginLeft = fullWidth ? `${-room.left}px` : '';
+			this.element.style.marginRight = fullWidth ? `${-room.right}px` : '';
+			button.style.display = hasRoom ? '' : 'none';
+			const label = fullWidth ? localize('chatResources.fitToChat', "Fit to Chat") : localize('chatResources.useFullWidth', "Use Full Width");
+			button.title = label;
+			button.setAttribute('aria-label', label);
+			button.setAttribute('aria-pressed', String(fullWidth));
+			button.classList.remove(...ThemeIcon.asClassNameArray(fullWidth ? Codicon.screenFull : Codicon.screenNormal));
+			button.classList.add(...ThemeIcon.asClassNameArray(fullWidth ? Codicon.screenNormal : Codicon.screenFull));
+		}));
 	}
 
 	private async _save(): Promise<void> {

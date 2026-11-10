@@ -13,7 +13,7 @@ import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEm
 suite('ChatResources', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('configured modes match the path or the file name and ignore invalid modes', () => {
+	test('configured modes match the path or the file name and ignore invalid modes and the top of the chat', () => {
 		const modes = { '*.md': 'embedded', '**/docs/**': 'pinned', '*.txt': 'sideways', '*.html': 'top' };
 		assert.deepStrictEqual([
 			getConfiguredChatResourceMode(modes, URI.file('/repo/PLAN.md')),
