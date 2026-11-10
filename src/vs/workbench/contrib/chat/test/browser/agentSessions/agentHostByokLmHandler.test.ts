@@ -559,6 +559,26 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('chat tells the provider the session context size only while the model offers it', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([['id', {
+				...byokModel('acme', 'sized'),
+				configurationSchema: { properties: { contextSize: { type: 'number', enum: [200000, 968000], default: 968000 } } },
+			}]]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+		const configurationFor = async (contextSize: number | undefined) => {
+			await handler.chat({ vendor: 'acme', modelId: 'sized', input: [], contextSize }, CancellationToken.None);
+			return service.captured?.options.configuration;
+		};
+
+		assert.deepStrictEqual(
+			[await configurationFor(200000), await configurationFor(500000), await configurationFor(undefined)],
+			[{ contextSize: 200000 }, undefined, undefined],
+		);
+	});
+
 	test('forwards tool-result images as ordered data parts of the tool result', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),

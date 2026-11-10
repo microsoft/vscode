@@ -98,10 +98,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					: { type: 'object', properties: { input: { type: 'string' } }, required: ['input'] },
 			}))
 			: undefined;
+		// These override the window's own settings for the model, which the session did not choose.
+		const contextSize = this._offeredContextSize(modelIdentifier, request.contextSize);
+		const configuration = {
+			...(request.reasoningEffort ? { reasoningEffort: request.reasoningEffort } : {}),
+			...(contextSize !== undefined ? { contextSize } : {}),
+		};
 		const options: ILanguageModelChatRequestOptions = {
 			modelOptions: request.modelOptions,
 			includeEncryptedThinking: true,
-			...(request.reasoningEffort ? { configuration: { reasoningEffort: request.reasoningEffort } } : {}),
+			...(Object.keys(configuration).length ? { configuration } : {}),
 			...(tools ? { tools } : {}),
 		};
 
@@ -226,6 +232,12 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			...(schema.enumDescriptions ? { descriptions } : {}),
 			...(typeof schema.default === 'number' && values.includes(schema.default) ? { default: schema.default } : {}),
 		};
+	}
+
+	/** `contextSize` when the model still offers it; the agent host may have resolved it against an older schema. */
+	private _offeredContextSize(modelIdentifier: string, contextSize: number | undefined): number | undefined {
+		const offered = this._languageModelsService.lookupLanguageModel(modelIdentifier)?.configurationSchema?.properties?.contextSize?.enum;
+		return typeof contextSize === 'number' && offered?.includes(contextSize) ? contextSize : undefined;
 	}
 
 	/**

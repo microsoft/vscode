@@ -7,7 +7,8 @@ import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, type IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import { resolveByokContextSize } from '../../common/agentModelConfiguration.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -93,7 +94,23 @@ export interface IByokLmProxyService {
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
+const CONTEXT_SIZE_HEADER = 'x-vscode-byok-context-size';
 const MAX_PENDING_TOOL_CONTINUATIONS = 256;
+
+/**
+ * Provider `headers` recording the context size a session selected for `modelId`. The runtime
+ * sends them back with each request, which is how the proxy learns a session's selection.
+ */
+export function byokContextSizeHeaders(modelId: string, contextSize: number): Record<string, string> {
+	return { [CONTEXT_SIZE_HEADER]: `${contextSize} ${encodeURIComponent(modelId)}` };
+}
+
+/** The size {@link byokContextSizeHeaders} recorded, when it recorded one for `modelId`. */
+export function readByokContextSizeHeader(headers: Readonly<Record<string, string | string[] | undefined>> | undefined, modelId: string): number | undefined {
+	const value = headers?.[CONTEXT_SIZE_HEADER];
+	const [contextSize, model] = typeof value === 'string' ? value.split(' ') : [];
+	return model === encodeURIComponent(modelId) ? Number(contextSize) : undefined;
+}
 
 type PendingToolCallKind = 'function_call' | 'custom_tool_call';
 
@@ -262,9 +279,16 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
+		// The provider is told the size the runtime compacts against, since it may enforce it.
+		const modelId = bridgeRequest.modelId;
+		const contextSize = resolveByokContextSize(
+			this._bridgeRegistry.getModels().find(m => m.vendor === vendor && getByokLmSelectionModelId(m) === modelId)?.contextSizeOptions,
+			readByokContextSizeHeader(req.headers, modelId),
+		);
 		// Match extension-host chat so BYOK providers can derive a stable prompt_cache_key.
 		bridgeRequest = {
 			...bridgeRequest,
+			...(contextSize !== undefined ? { contextSize } : {}),
 			modelOptions: { ...bridgeRequest.modelOptions, _conversationId: sessionId },
 		};
 

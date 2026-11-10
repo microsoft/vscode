@@ -46,7 +46,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
-import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import { byokContextSizeHeaders, IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
@@ -869,7 +869,9 @@ function toSdkCapiSessionOptions(autoTier: string | undefined): Pick<SessionConf
  * `AgentHostByokLmHandler` resolves.
  *
  * The config is per session, so it is also where a model's selected context size
- * is applied: see {@link getByokSessionModelLimits}.
+ * is applied: see {@link getByokSessionModelLimits}. A size other than the model's
+ * default is also recorded in its provider's `headers`, which is how the proxy
+ * knows what to tell the extension.
  *
  * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
  * unit-testable without instantiating the launcher; the launcher passes a
@@ -919,12 +921,19 @@ export async function synthesizeByokSessionConfig(
 		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
 		return {};
 	}
+	// The proxy assumes a model runs at its default size, so only another selection is recorded for it.
+	const selected = byokModels.find(m => getByokLmAgentModelId(m) === model?.id);
+	const selectedContextSize = resolveByokContextSize(selected?.contextSizeOptions, getModelContextSize(model));
+	const headers = selected && selectedContextSize !== undefined && selectedContextSize !== resolveByokContextSize(selected.contextSizeOptions, undefined)
+		? byokContextSizeHeaders(getByokLmSelectionModelId(selected), selectedContextSize)
+		: undefined;
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
 		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
+		...(headers && selected?.vendor === vendor ? { headers } : {}),
 	}));
 	const models: ProviderModelConfig[] = byokModels.map(m => {
 		const limits = getByokSessionModelLimits(m, model);

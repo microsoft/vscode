@@ -47,7 +47,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
+import { byokContextSizeHeaders, ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
@@ -1531,7 +1531,8 @@ suite('synthesizeByokSessionConfig', () => {
 			{ vendor: 'acme', id: 'fixed', modelIdentifier: 'acme/fixed', maxContextWindowTokens: 1_000_000, maxPromptTokens: 968_000, maxOutputTokens: 32_000, contextSizeOptions: { values: [200_000], default: 200_000 } },
 		]));
 		const proxy = countingProxy();
-		const limitsOf = (config: ICopilotByokSessionConfig) => config.models!.map(m => [m.id, m.maxPromptTokens, m.maxContextWindowTokens]);
+		// The provider's headers tell the proxy about a size other than the default; the models carry the limits the runtime applies.
+		const sizingOf = (config: ICopilotByokSessionConfig) => [config.providers![0].headers, ...config.models!.map(m => [m.id, m.maxPromptTokens, m.maxContextWindowTokens])];
 
 		const selectedSmall = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log, { id: 'acme/opus', config: { contextSize: 200_000 } });
 		const selectedFull = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log, { id: 'acme/opus', config: { contextSize: 968_000 } });
@@ -1544,17 +1545,17 @@ suite('synthesizeByokSessionConfig', () => {
 
 		const unchanged = [['haiku', 100_000, 132_000], ['plain', 120_000, 128_000], ['fixed', 968_000, 1_000_000]];
 		assert.deepStrictEqual({
-			selectedSmall: limitsOf(selectedSmall),
-			selectedFull: limitsOf(selectedFull),
-			selectedStale: limitsOf(selectedStale),
-			unselected: limitsOf(unselected),
-			selectedFixed: limitsOf(selectedFixed),
+			selectedSmall: sizingOf(selectedSmall),
+			selectedFull: sizingOf(selectedFull),
+			selectedStale: sizingOf(selectedStale),
+			unselected: sizingOf(unselected),
+			selectedFixed: sizingOf(selectedFixed),
 		}, {
-			selectedSmall: [['opus', 200_000, 232_000], ...unchanged],
-			selectedFull: [['opus', 968_000, 1_000_000], ...unchanged],
-			selectedStale: [['opus', 968_000, 1_000_000], ...unchanged],
-			unselected: [['opus', 968_000, 1_000_000], ...unchanged],
-			selectedFixed: [['opus', 968_000, 1_000_000], ...unchanged],
+			selectedSmall: [byokContextSizeHeaders('opus', 200_000), ['opus', 200_000, 232_000], ...unchanged],
+			selectedFull: [undefined, ['opus', 968_000, 1_000_000], ...unchanged],
+			selectedStale: [undefined, ['opus', 968_000, 1_000_000], ...unchanged],
+			unselected: [undefined, ['opus', 968_000, 1_000_000], ...unchanged],
+			selectedFixed: [undefined, ['opus', 968_000, 1_000_000], ...unchanged],
 		});
 	});
 });

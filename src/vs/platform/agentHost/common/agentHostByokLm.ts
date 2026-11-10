@@ -117,6 +117,12 @@ export interface IByokLmChatRequest {
 	readonly tools?: IByokLmTool[];
 	readonly previousResponseId?: string;
 	readonly reasoningEffort?: string;
+	/**
+	 * The context size the session runs the model at, one of its
+	 * {@link IByokLmContextSizeOptions.values}. Absent when the model offers no
+	 * choice, and from an agent host that predates this field.
+	 */
+	readonly contextSize?: number;
 	readonly modelOptions?: Record<string, unknown>;
 }
 

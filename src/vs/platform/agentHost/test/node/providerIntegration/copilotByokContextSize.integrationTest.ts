@@ -25,7 +25,9 @@ import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js
  * replaces the registration (how `CopilotAgentSession.setModel` applies a
  * mid-session change), and honors it on resume. The limits come from the
  * production `synthesizeByokSessionConfig`, so a change to how a selection is
- * sized fails here, not just in the picker.
+ * sized fails here, not just in the picker. It also sends the provider headers
+ * of that registration with each request, which is how the proxy tells the
+ * extension the same size.
  */
 suite('Agent Host Provider Integration - Copilot BYOK context size', function () {
 
@@ -44,15 +46,19 @@ suite('Agent Host Provider Integration - Copilot BYOK context size', function ()
 	};
 	const selection = (contextSize: number): ModelSelection => ({ id: 'acme/opus', config: { [ContextSizeConfigKey]: contextSize } });
 
-	test('the bundled runtime compacts against the selected context size at launch, after a change, and on resume', async function () {
+	test('the bundled runtime compacts against the selected context size, and the provider is told it, at launch, after a change, and on resume', async function () {
 		this.timeout(180_000);
 
 		const sessionId = 'byok-context-size';
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-context-size-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
+		let providerContextSize: number | undefined;
 		const registration = registry.register('client', {
-			chat: async () => ({ output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }], usage: { inputTokens: 10, outputTokens: 1 } }),
+			chat: async request => {
+				providerContextSize = request.contextSize;
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }], usage: { inputTokens: 10, outputTokens: 1 } };
+			},
 			onDidChangeModels: models.event,
 		});
 		models.fire([model]);
@@ -68,9 +74,10 @@ suite('Agent Host Provider Integration - Copilot BYOK context size', function ()
 		let clientStarted = false;
 		let session: SdkSession | undefined;
 
-		/** Runs one turn and reports the limits the runtime applied to it. */
+		/** Runs one turn and reports the limits the runtime applied to it and the size the provider was told. */
 		const turnLimits = async (session: SdkSession) => {
 			const limits: { tokenLimit?: number; maxPromptTokens?: number } = {};
+			providerContextSize = undefined;
 			const listeners = [
 				session.on('session.usage_info', e => { limits.tokenLimit = e.data.tokenLimit; }),
 				session.on('assistant.usage', e => { limits.maxPromptTokens = e.data.maxPromptTokens; }),
@@ -80,7 +87,7 @@ suite('Agent Host Provider Integration - Copilot BYOK context size', function ()
 			} finally {
 				listeners.forEach(dispose => dispose());
 			}
-			return limits;
+			return { ...limits, providerContextSize };
 		};
 		const configFor = (model: ModelSelection) => synthesizeByokSessionConfig(sessionId, registry, async () => handle, new NullLogService(), model);
 
@@ -101,9 +108,9 @@ suite('Agent Host Provider Integration - Copilot BYOK context size', function ()
 			const afterResume = await turnLimits(session);
 
 			assert.deepStrictEqual({ atLaunch, afterChange, afterResume }, {
-				atLaunch: { tokenLimit: 200_000, maxPromptTokens: 200_000 },
-				afterChange: { tokenLimit: 968_000, maxPromptTokens: 968_000 },
-				afterResume: { tokenLimit: 200_000, maxPromptTokens: 200_000 },
+				atLaunch: { tokenLimit: 200_000, maxPromptTokens: 200_000, providerContextSize: 200_000 },
+				afterChange: { tokenLimit: 968_000, maxPromptTokens: 968_000, providerContextSize: 968_000 },
+				afterResume: { tokenLimit: 200_000, maxPromptTokens: 200_000, providerContextSize: 200_000 },
 			});
 		} finally {
 			try {
