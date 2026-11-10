@@ -23637,6 +23637,193 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const start of ['agent_idle', 'agent_completed', 'shell_completed', 'provider'] as const) {
+			test(`admits steering as soon as ${start} starts a runtime turn without a host send`, async () => {
+				const h = await createHarness();
+				const sends: Array<{ prompt: string; mode?: string }> = [];
+				const turns: string[] = [];
+				const responseTurns: string[] = [];
+				let firstHandoff: boolean | Promise<boolean> = false;
+				const send = stub(h.oldRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push({ prompt: options.prompt, mode: options.mode });
+					return `sdk-steering-${sends.length}`;
+				});
+				const listener = disposables.add(h.agent.onDidChatProgress(signal => {
+					if (signal.kind !== 'action') {
+						return;
+					}
+					if (signal.action.type === ActionType.ChatTurnStarted) {
+						turns.push(signal.action.turnId);
+						if (!signal.action.queuedMessageId) {
+							firstHandoff = h.agent.sendSteeringMessage(h.chat, {
+								id: 'first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
+							});
+						}
+					} else if (signal.action.type === ActionType.ChatResponsePart) {
+						responseTurns.push(signal.action.turnId);
+					}
+				}));
+				try {
+					if (start === 'provider') {
+						h.oldRuntime.emit({
+							id: 'runtime-start', timestamp: new Date().toISOString(), parentId: null,
+							type: 'user.message',
+							data: { content: 'runtime request', messageId: 'runtime-message', turnId: 'runtime-turn' },
+						});
+					} else {
+						h.oldRuntime.emit({
+							id: 'runtime-start', timestamp: new Date().toISOString(), parentId: null,
+							type: 'system.notification',
+							data: {
+								content: 'Background work completed',
+								kind: start === 'shell_completed'
+									? { type: start, shellId: 'shell', exitCode: 0 }
+									: start === 'agent_completed'
+										? { type: start, agentId: 'agent', agentType: 'task', status: 'completed' }
+										: { type: start, agentId: 'agent', agentType: 'task' },
+							},
+						});
+					}
+					const firstAdmitted = await firstHandoff;
+					h.oldRuntime.emit({
+						id: 'runtime-response', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						type: 'assistant.message_delta', data: { messageId: 'runtime-response', deltaContent: 'Still working' },
+					});
+					h.oldRuntime.emit({
+						id: 'steering-echo', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'first steering', messageId: 'sdk-steering-1', turnId: 'runtime-turn', delivery: 'steering' },
+					});
+					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
+					});
+					h.oldRuntime.emit({
+						id: 'steering-response', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						type: 'assistant.message_delta', data: { messageId: 'steering-response', deltaContent: 'Following steering' },
+					});
+					h.oldRuntime.emit({
+						id: 'second-steering-echo', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'second steering', messageId: 'sdk-steering-2', turnId: 'runtime-turn', delivery: 'steering' },
+					});
+					h.oldRuntime.emit({
+						id: 'runtime-idle', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						type: 'session.idle', data: {},
+					});
+					const readyAfterIdle = h.live().hasRunningTurn;
+					h.live().resetTurnState('next-pending-turn');
+					const admittedBeforeNextSend = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'too-early', message: { text: 'not ready', origin: { kind: MessageKind.User } },
+					});
+					assert.deepStrictEqual({
+						admitted: [firstAdmitted, secondAdmitted, admittedBeforeNextSend],
+						responseTurnIndices: responseTurns.map(turnId => turns.indexOf(turnId)),
+						readyAfterIdle,
+						sends,
+					}, {
+						admitted: [true, true, false],
+						responseTurnIndices: [0, 1],
+						readyAfterIdle: false,
+						sends: [
+							{ prompt: 'first steering', mode: 'immediate' },
+							{ prompt: 'second steering', mode: 'immediate' },
+						],
+					});
+				} finally {
+					listener.dispose();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('flushes buffered steering when a notification starts a turn before the preceding admission settles', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			const dispatched = new DeferredPromise<void>();
+			const steeringSent = new DeferredPromise<void>();
+			const sends: Array<{ prompt: string; mode?: string }> = [];
+			let originalSettled = false;
+			const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+				assert.ok(options);
+				sends.push({ prompt: options.prompt, mode: options.mode });
+				if (options.mode === 'immediate') {
+					steeringSent.complete();
+				} else {
+					dispatched.complete();
+					await gate.p;
+				}
+				return '';
+			});
+			const sending = h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context)
+				.then(() => { originalSettled = true; });
+			try {
+				await dispatched.p;
+				h.agent.setPendingMessages(h.chat, {
+					id: 'buffered', message: { text: 'follow up', origin: { kind: MessageKind.User } },
+				}, []);
+				h.newRuntime.emit({
+					id: 'original-idle', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					type: 'session.idle', data: {},
+				});
+				h.newRuntime.emit({
+					id: 'notification', timestamp: new Date().toISOString(), parentId: null,
+					type: 'system.notification',
+					data: { content: 'Agent completed', kind: { type: 'agent_idle', agentId: 'agent', agentType: 'task' } },
+				});
+				const delivered = await raceTimeout(steeringSent.p.then(() => true), 1000);
+				assert.deepStrictEqual({ delivered, originalSettled, sends }, {
+					delivered: true,
+					originalSettled: false,
+					sends: [
+						{ prompt: 'original', mode: undefined },
+						{ prompt: 'follow up', mode: 'immediate' },
+					],
+				});
+			} finally {
+				gate.complete();
+				await sending;
+				send.restore();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const start of ['notification', 'provider'] as const) {
+			test(`rejects steering after aborting a ${start}-started runtime turn`, async () => {
+				const h = await createHarness();
+				try {
+					if (start === 'provider') {
+						h.oldRuntime.emit({
+							id: 'runtime-start', timestamp: new Date().toISOString(), parentId: null,
+							type: 'user.message',
+							data: { content: 'runtime request', messageId: 'runtime-message', turnId: 'runtime-turn' },
+						});
+					} else {
+						h.oldRuntime.emit({
+							id: 'runtime-start', timestamp: new Date().toISOString(), parentId: null,
+							type: 'system.notification',
+							data: { content: 'Agent completed', kind: { type: 'agent_idle', agentId: 'agent', agentType: 'task' } },
+						});
+					}
+					const readyBeforeAbort = h.live().hasRunningTurn;
+					await h.agent.chats.abort(h.chat, h.context);
+					h.oldRuntime.emit({
+						id: 'late-start', timestamp: new Date().toISOString(), parentId: null,
+						type: 'assistant.turn_start', data: { turnId: 'runtime-turn' },
+					});
+					const admittedAfterAbort = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'cancelled-steering', message: { text: 'not sent', origin: { kind: MessageKind.User } },
+					});
+					assert.deepStrictEqual({ readyBeforeAbort, admittedAfterAbort, sends: h.oldRuntime.sendCalls }, {
+						readyBeforeAbort: true, admittedAfterAbort: false, sends: 0,
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
 		for (const promotion of ['user.message', 'session.idle'] as const) {
 			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
 				const h = await createHarness();
