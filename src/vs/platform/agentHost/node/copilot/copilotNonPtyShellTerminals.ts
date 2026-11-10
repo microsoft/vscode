@@ -225,7 +225,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
 	/** Tool call and reported exit code of each exited detached shell whose log is still being read, keyed by shell ID. */
-	private readonly _drainingDetachedShells = new Map<string, { readonly toolCallId: string; exitCode: number | undefined }>();
+	private readonly _drainingDetachedShells = new Map<string, { readonly toolCallId: string; readonly exitCode: number | undefined }>();
 	private _shellTaskReads = 0;
 
 	constructor(
@@ -572,15 +572,13 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _completeBackgroundShell(shellId: string, exitCode: number | undefined, settleDetachedRead: boolean): void {
-		const draining = this._drainingDetachedShells.get(shellId);
-		if (settleDetachedRead) {
-			const drainingStream = draining && this._streams.get(draining.toolCallId);
+		const draining = settleDetachedRead ? this._drainingDetachedShells.get(shellId) : undefined;
+		if (draining) {
 			this._drainingDetachedShells.delete(shellId);
-			if (draining && drainingStream) {
+			const drainingStream = this._streams.get(draining.toolCallId);
+			if (drainingStream) {
 				this._finalize(drainingStream, draining.exitCode);
 			}
-		} else if (draining) {
-			draining.exitCode ??= exitCode;
 		}
 		const toolCallId = this._backgroundShells.get(shellId);
 		if (toolCallId === undefined) {

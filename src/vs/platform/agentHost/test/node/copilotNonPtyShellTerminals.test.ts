@@ -613,13 +613,22 @@ suite('NonPtyShellTerminalStreams', () => {
 				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
 			});
 
-			test('keeps it when the task list reported the exit without a code first', () => {
+			test('keeps the first report when the task list reported the exit without a code', () => {
 				const uri = startDetached('call-42', '24');
 				streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
 				streams.completeBackgroundShellFromHelperResult('<shellId: 24 completed with exit code 2>');
 				streams.stopReadingDetachedShell('call-42');
 
-				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+			});
+
+			test('keeps the first report when a stop result came before the exit code', () => {
+				const uri = startDetached('call-48', '29');
+				streams.completeBackgroundShellFromHelperResult('<command with id: 29 stopped>');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 29 completed with exit code 2>');
+				streams.stopReadingDetachedShell('call-48');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
 			});
 
 			test('keeps it when a stop result without a code follows', () => {
@@ -653,6 +662,15 @@ suite('NonPtyShellTerminalStreams', () => {
 				startDetached('call-47', '28');
 
 				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+			});
+
+			test('does not take the exit code of a new command that reuses the shell ID', () => {
+				const uri = startDetached('call-49', '30');
+				streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+				streams.completeBackgroundShell('30', 5);
+				startDetached('call-50', '30');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
 			});
 		});
 
