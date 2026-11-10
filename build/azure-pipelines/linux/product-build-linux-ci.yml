@@ -23,6 +23,9 @@ jobs:
       VSCODE_ARCH: x64
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
+      sdl:
+        antimalwareScan:
+          scanTimeoutInMinutes: '10'
       outputs:
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/crashes

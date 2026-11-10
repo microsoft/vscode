@@ -1013,7 +1013,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			throw new Error('Missing tool name in tools/call request');
 		}
 
-		return this._mcpToolCallUI.callTool(params.name, params.arguments || {}, token);
+		return this._mcpToolCallUI.callTool(params, token);
 	}
 
 	/**

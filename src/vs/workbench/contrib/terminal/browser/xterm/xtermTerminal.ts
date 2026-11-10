@@ -153,6 +153,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _webglAddonCustomGlyphs?: boolean;
 	private _webglAddonLoading = false;
 	private _webglAddonLoadId = 0;
+	/** The window the WebGL renderer was created in: its canvas loses its context in another window. */
+	private _webglWindow: Window | undefined;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
@@ -761,26 +763,44 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	scrollDownLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(1);
 	}
 
 	scrollDownPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(1);
 	}
 
 	scrollToBottom(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToBottom();
 	}
 
 	scrollUpLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(-1);
 	}
 
 	scrollUpPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(-1);
 	}
 
 	scrollToTop(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToTop();
 	}
 
@@ -952,6 +972,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._webglAddon = new Addon({
 			customGlyphs
 		});
+		this._webglWindow = dom.getWindow(this.raw.element);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -1050,8 +1071,23 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
+	/**
+	 * Recreates the WebGL renderer once the terminal shows in another window than the one it was created in, such as
+	 * after its editor moved to an auxiliary window: the canvas of the renderer loses its context there.
+	 */
+	updateGpuRendererWindow(): void {
+		if (!this._webglAddon || !this.raw.element || dom.getWindow(this.raw.element) === this._webglWindow) {
+			return;
+		}
+		this._disposeOfWebglRenderer();
+		if (this._attached?.options.enableGpu && this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		}
+	}
+
 	private _disposeOfWebglRenderer(): void {
 		this._webglAddonLoadId++;
+		this._webglWindow = undefined;
 		this._webglAddonLoading = false;
 		this._webglAddonCustomGlyphs = undefined;
 		this._webglContextLossListener.clear();

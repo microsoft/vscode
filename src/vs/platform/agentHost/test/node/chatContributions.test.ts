@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
@@ -182,6 +182,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
 
 	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async prepareSessionWorktreeCleanup(): Promise<void> { }
 	async sessionWorktreeCleanup() { return { state: 'unknown' } as const; }
 	async listManagedWorktrees() { return []; }
 	async cleanupManagedWorktree(): Promise<void> { }
@@ -225,27 +226,6 @@ function readEventDataString(data: unknown, key: string): string | undefined {
 	}
 	const record: Record<string, unknown> = { ...data };
 	return typeof record[key] === 'string' ? record[key] : undefined;
-}
-
-class RecordingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-device';
-	readonly firstSessionDate = '2025-01-01';
-	readonly sendErrorTelemetry = false;
-	readonly events: { readonly eventName: string; readonly data: unknown }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
-	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 class FirstMementoContribution extends TestContribution {
@@ -790,7 +770,7 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 	return service;
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean }) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean; readonly database?: TestSessionDatabase }) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
@@ -821,12 +801,14 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase()), disposables), logService);
+	const sessionDataService = createSessionDataService(options?.database ?? new TestSessionDatabase());
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostLocalTurns, localTurns],
+		[ISessionDataService, sessionDataService],
 	), /*strict*/ true));
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SideChatContribution));
@@ -853,7 +835,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	const database = new TestSessionDatabase();
 	const sessionDataService = createSessionDataService(database);
 	const titleController = new RecordingTitleController(undefined, undefined);
-	const telemetryService = new RecordingTelemetryService();
+	const telemetryService = new CapturingTelemetryService();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
@@ -1008,7 +990,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
 	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
-	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
+	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
@@ -1020,7 +1002,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1106,7 +1088,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(IAgentHostChatContributions, service);
 	const titleController = new RecordingTitleController(undefined, undefined);
 	services.set(IAgentHostSessionTitleController, titleController);
-	const telemetryService = new RecordingTelemetryService();
+	const telemetryService = new CapturingTelemetryService();
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -1223,6 +1205,7 @@ suite('AgentHostChatContributions', () => {
 		const failingChat = buildChatUri(session, 'failing-peer');
 		const persisted: { session: string; chat: string; archived: boolean }[] = [];
 		const workspace: { session: string; chat: string; attached: boolean }[] = [];
+		const cleared: { session: string; chat: string | undefined }[] = [];
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error, ...args: unknown[]): void {
@@ -1254,10 +1237,17 @@ suite('AgentHostChatContributions', () => {
 		stateManager.addChat(session, failingChat, creationTimeChatStorageResource(session, failingChat, buildDefaultChatUri(session)));
 		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 		stateManager.dispatchServerAction(failingChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const agent = new class extends MockAgent {
+			clearCanvasContinuity(session: URI, chat?: URI): void {
+				cleared.push({ session: session.toString(), chat: chat?.toString() });
+			}
+		}('test');
+		disposables.add(toDisposable(() => agent.dispose()));
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostProviderService, createTestAgentHostProviderService(() => agent)],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 			[IAgentHostArchivedChatWorkspaceService, {
 				_serviceBrand: undefined,
@@ -1278,6 +1268,7 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual({
 			persisted,
 			workspace,
+			cleared,
 			errors,
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
@@ -1290,6 +1281,10 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: peerChat, attached: false },
 				{ session, chat: peerChat, attached: true },
 				{ session, chat: failingChat, attached: false },
+			],
+			cleared: [
+				{ session, chat: peerChat },
+				{ session, chat: failingChat },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
 			peerRead: true,
@@ -1306,10 +1301,13 @@ suite('AgentHostChatContributions', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		stateManager.createSession({ resource: session, defaultChat: recordedDefault, provider: 'test', title: 'Archive', status: SessionStatus.IsRead, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
 		stateManager.addChat(session, shapedPeer, creationTimeChatStorageResource(session, shapedPeer, stateManager.getDefaultChat(session)));
+		const agent = new MockAgent('test');
+		disposables.add(toDisposable(() => agent.dispose()));
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostProviderService, createTestAgentHostProviderService(() => agent)],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(createSessionDataService()),
 				_serviceBrand: undefined,
@@ -2291,6 +2289,51 @@ suite('AgentHostChatContributions', () => {
 			admitted: [],
 			provisionalTitles: ['Suggested title'],
 		});
+	});
+
+	test('does not handle bang commands from non-user messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const dispositions = [
+			MessageKind.Agent,
+			MessageKind.Tool,
+			MessageKind.Automation,
+			MessageKind.SystemNotification,
+		].map(origin => contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '!echo hi', origin: { kind: origin } },
+		}).kind);
+
+		assert.deepStrictEqual(dispositions, [
+			'accept',
+			'accept',
+			'accept',
+			'accept',
+		]);
+	});
+
+	test('continues to handle rename commands from agent messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const disposition = contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '/rename Agent title', origin: { kind: MessageKind.Agent } },
+		});
+
+		assert.deepStrictEqual(disposition, { kind: 'handled' });
+	});
+
+	test('queue drain forwards agent-originated bang messages', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const action = {
+			...queuedMessage('agent-bang', '!echo hi'),
+			message: { text: '!echo hi', origin: { kind: MessageKind.Agent } },
+		} satisfies PendingMessage & { type: ActionType.ChatPendingMessageSet };
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
+
+		assert.deepStrictEqual(queue.admitted.map(({ message }) => message), [{
+			text: '!echo hi',
+			origin: { kind: MessageKind.Agent },
+		}]);
 	});
 
 	test('queue drain reports queued telemetry source', () => {
@@ -3487,6 +3530,38 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('clears session and cross-provider peer canvas continuity when an unloaded session is archived', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const session = URI.parse(contributions.session);
+		const peer = URI.parse(buildChatUri(session, 'cross-provider'));
+		contributions.stateManager.addChat(contributions.session, peer.toString(), creationTimeChatStorageResource(contributions.session, peer.toString(), buildDefaultChatUri(contributions.session)), { provider: 'peer' });
+		const summary = contributions.stateManager.getSessionSummary(contributions.session);
+		assert.ok(summary);
+		contributions.stateManager.prepareSessionSummariesForListing([summary]);
+		contributions.stateManager.removeSession(contributions.session);
+		const cleared: { provider: string; session: string; chat?: string }[] = [];
+		const sessionProvider = disposables.add(new class extends MockAgent {
+			clearCanvasContinuity(targetSession: URI, chat?: URI): void {
+				cleared.push({ provider: 'session', session: targetSession.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+			}
+		}('session'));
+		const chatProvider = disposables.add(new class extends MockAgent {
+			clearCanvasContinuity(targetSession: URI, chat?: URI): void {
+				cleared.push({ provider: 'chat', session: targetSession.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+			}
+		}('peer'));
+		contributions.providerService.getProviderForSession = () => sessionProvider;
+		contributions.providerService.getProvider = provider => provider === 'peer' ? chatProvider : undefined;
+		contributions.providerService.getProviderForChat = (_session, chat) => chat?.toString() === peer.toString() ? chatProvider : sessionProvider;
+
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
+
+		assert.deepStrictEqual(cleared, [
+			{ provider: 'session', session: contributions.session },
+			{ provider: 'chat', session: contributions.session, chat: peer.toString() },
+		]);
+	});
+
 	test('keeps sandbox selections live without persisting them through session metadata', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const values = {
@@ -3954,6 +4029,37 @@ suite('AgentHostChatContributions', () => {
 		});
 
 		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question'));
+	});
+
+	test('preserves active side-chat context when the source completes during metadata lookup', async () => {
+		const metadataReadStarted = new DeferredPromise<void>();
+		const releaseMetadata = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async getMetadata(key: string): Promise<string | undefined> {
+				metadataReadStarted.complete();
+				await releaseMetadata.p;
+				return super.getMetadata(key);
+			}
+		}();
+		const sideChat = createSideChatContributions(disposables, undefined, undefined, { database });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnStarted('source-turn', 'source question'));
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 'source-turn',
+			part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+		});
+
+		const sending = sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+		await metadataReadStarted.p;
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnComplete('source-turn', 1));
+		await releaseMetadata.complete();
+
+		assert.strictEqual((await sending).message.text, injectSideChatContext('side question', 'partial answer', 'User request:\nsource question'));
 	});
 
 	test('includes only local context after the active side-chat fork anchor', async () => {

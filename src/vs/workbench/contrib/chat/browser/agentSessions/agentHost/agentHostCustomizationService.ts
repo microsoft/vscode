@@ -41,7 +41,7 @@ import type { IAgentFileToolInventoryEntry } from '../../../common/customization
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer } from '../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
@@ -326,6 +326,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					skillBundle: server.children?.length && isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin))
+						? { id: server.id, count: server.children.length } : undefined,
 					displayName: readMcpServerDisplayName(server),
 					connectorName: readMcpServerConnectorName(server),
 					source: readMcpServerSource(server),

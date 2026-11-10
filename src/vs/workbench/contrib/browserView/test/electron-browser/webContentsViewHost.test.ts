@@ -10,6 +10,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -43,6 +45,7 @@ suite('WebContentsViewHost', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 
 		host.setModel(model);
@@ -84,6 +87,7 @@ suite('WebContentsViewHost', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 
 		host.setModel(model);
@@ -98,5 +102,60 @@ suite('WebContentsViewHost', () => {
 			beforeFrame: [true, false],
 			visibleAfterFrame: false,
 		});
+	});
+
+	test('dims the page for overlays only when the setting is enabled', async () => {
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'https://example.test',
+			error: undefined,
+			screenshot: undefined,
+			focused: false,
+			visible: true,
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async () => { },
+			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
+		});
+		const configurationService = new TestConfigurationService({ workbench: { browser: { dimOnOverlay: false } } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+
+		const place = (className: string) => {
+			const element = mainWindow.document.createElement('div');
+			element.className = className;
+			element.style.cssText = 'position:fixed;left:0;top:0;width:100px;height:100px';
+			mainWindow.document.body.appendChild(element);
+			store.add({ dispose: () => element.remove() });
+			return element;
+		};
+		const container = place('test-browser-container');
+		host.onContainerCreated(container);
+		host.setModel(model);
+		host.setVisible(true);
+
+		const menu = place('monaco-menu-container');
+		host.layout();
+		const disabled = host.pauseElement.classList.contains('visible');
+
+		await configurationService.setUserConfiguration('workbench.browser.dimOnOverlay', true);
+		configurationService.onDidChangeConfigurationEmitter.fire({ source: ConfigurationTarget.USER, affectedKeys: new Set(['workbench.browser.dimOnOverlay']), change: { keys: [], overrides: [] }, affectsConfiguration: () => true });
+		const enabled = host.pauseElement.classList.contains('visible');
+
+		menu.remove();
+		host.layout();
+		const cleared = host.pauseElement.classList.contains('visible');
+
+		await configurationService.setUserConfiguration('workbench.browser.dimOnOverlay', false);
+		place('notifications-center');
+		host.layout();
+		const notification = host.pauseElement.classList.contains('visible') && host.pauseElement.classList.contains('show-message');
+
+		assert.deepStrictEqual({ disabled, enabled, cleared, notification }, { disabled: false, enabled: true, cleared: false, notification: true });
 	});
 });

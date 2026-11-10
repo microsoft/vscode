@@ -6,7 +6,7 @@
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
 import Severity from '../../../../../../../base/common/severity.js';
@@ -17,6 +17,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { withSeverityPrefix } from '../../../../../../../platform/notification/common/notification.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { getOrganizationSupportActionLabel } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getLanguageModelProviderDisplayName, getLanguageModelProviderIcon, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
@@ -181,11 +182,27 @@ export function getUnavailableReason(
 	return entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion) ? 'update' : 'admin';
 }
 
+/** The organization's help page, resolved once per picker open. */
+export interface IModelPickerOrganizationSupport {
+	readonly url: string;
+	/** Names the page's host, since the organization rather than VS Code controls it. */
+	readonly tooltip: string;
+}
+
+function createOrganizationSupportLink(label: string, { url, tooltip }: IModelPickerOrganizationSupport): MarkdownString {
+	// Parentheses would end the link destination early, quotes would end its title, and a
+	// backslash would be read as a Markdown escape and dropped from the URL.
+	const destination = url.replace(/\\/g, '%5C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const title = tooltip.replace(/["\\]/g, '\\$&');
+	return new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${destination} "${title}")`);
+}
+
 export function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
 	reason: 'upgrade' | 'update' | 'admin',
 	manageSettingsUrl: string | undefined,
+	organizationSupport: IModelPickerOrganizationSupport | undefined,
 	updateStateType: StateType,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction> {
@@ -195,9 +212,12 @@ export function createUnavailableModelItem(
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
-		description = manageSettingsUrl
-			? new MarkdownString(localize('chat.modelPicker.adminLink', "[Contact your admin]({0})", manageSettingsUrl), { isTrusted: true })
-			: localize('chat.modelPicker.adminDescription', "Contact your admin");
+		const label = getOrganizationSupportActionLabel();
+		description = organizationSupport
+			? createOrganizationSupportLink(label, organizationSupport)
+			: manageSettingsUrl
+				? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
+				: label;
 	}
 
 	let hoverContent: MarkdownString;

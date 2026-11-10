@@ -1,7 +1,7 @@
-# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
-# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+packages:
+  - web
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false
@@ -19,6 +19,8 @@ verifyDepsBeforeRun: false
 pmOnFail: ignore
 skills:
   dirs: []
+ignoredOptionalDependencies:
+  - '@parcel/watcher-*'
 allowBuilds:
   '@parcel/watcher@2.5.6': true
   '@vscode/deviceid@0.1.5': true
