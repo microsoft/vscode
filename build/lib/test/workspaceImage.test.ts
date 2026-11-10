@@ -44,7 +44,7 @@ suite('workspace images', () => {
 			['pr-workspace-images.yml', 'windows'],
 			['pr-linux-test.yml', 'electron-unit-electron'],
 			['pr-win32-test.yml', 'electron-unit'],
-			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests'].map(job => ['pr.yml', job] as const),
+			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests', 'chat-lib-windows-tests'].map(job => ['pr.yml', job] as const),
 		];
 		const builder = download('pr-workspace-images.yml', 'linux');
 		assert.deepEqual(
