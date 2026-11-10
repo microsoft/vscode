@@ -16,6 +16,7 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
+import { sendExperimentExposureTelemetry } from '../common/experimentExposure';
 import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
 import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
 import { createTasFetch } from './tasFetch';
@@ -61,6 +62,9 @@ function readReleaseDate(logService: ILogService, tag: string): string | undefin
 }
 
 const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
+
+/** Posted by tas-client after each assignments endpoint response, with its `DataVersion`. */
+const ASSIGNMENTS_VALIDATION_EVENT = 'assignments-validation';
 
 export enum RelatedExtensionsFilter {
 	CopilotRelatedPluginVersionCppTools = CopilotRelatedPluginVersionPrefix + 'msvscodecpptools',
@@ -281,7 +285,10 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		const version = context.extension.packageJSON['version'];
 		const targetPopulation = getTargetPopulation(envService.isPreRelease());
 		let self: MicrosoftExperimentationService | undefined = undefined;
+		// Only the new assignments endpoint reports a data version, through TAS telemetry.
+		let dataVersion = '';
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
+			dataVersion = '';
 			const wrappedMemento = new ExpMementoWrapper(memento, envService);
 			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
 			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
@@ -294,7 +301,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 				targetPopulation,
 				// Wrapped per generation so a superseded delegate's in-flight fetch cannot write
 				// telemetry (e.g. overwrite `abexp.assignmentcontext`) after being replaced.
-				telemetry: new RevocableExpTelemetry(telemetryService, gate),
+				telemetry: new RevocableExpTelemetry(telemetryService, gate, version => dataVersion = version),
 				memento: wrappedMemento,
 				filterProviders: [
 					new GithubAccountFilterProvider(userInfoStore, logService),
@@ -315,6 +322,13 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		super(delegateFn, context, copilotTokenStore, configurationService, logService);
 
 		self = this; // This is now fully initialized.
+
+		this.enableExposureEvents(() => ({
+			dataVersion,
+			entryPoint: id,
+			trackingId: copilotTokenStore.copilotToken?.getTokenValue('tid'),
+			deviceId: envService.devDeviceId,
+		}), exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
 
 		// The assignments endpoint is sourced from the Copilot token, which may arrive after
 		// this service is created. Recreate the delegate when its `exp` endpoint changes.
@@ -343,6 +357,7 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 	constructor(
 		private readonly _actual: IExperimentationTelemetry,
 		private readonly _gate: RevocationGate,
+		private readonly _onDataVersion: (dataVersion: string) => void,
 	) { }
 
 	setSharedProperty(name: string, value: string): void {
@@ -355,6 +370,10 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 	postEvent(eventName: string, props: Map<string, string>): void {
 		if (this._gate.isRevoked) {
 			return;
+		}
+		if (eventName === ASSIGNMENTS_VALIDATION_EVENT) {
+			const dataVersion = props.get('DataVersion');
+			this._onDataVersion(dataVersion && dataVersion !== 'undefined' ? dataVersion : '');
 		}
 		this._actual.postEvent(eventName, props);
 	}
