@@ -150,7 +150,7 @@ suite('normalizeBrowserViewUrl', () => {
 				'file:///c:/docs/x.html',
 				'file:///home/u/c%3A/x.html',
 				'file:///home/u/x.html',
-			].map(normalizeBrowserViewUrl),
+			].map(url => normalizeBrowserViewUrl(url, true)),
 			[
 				'file:///c:/docs/x.html',
 				'file:///C:/docs/x.html',
@@ -161,6 +161,12 @@ suite('normalizeBrowserViewUrl', () => {
 				'file:///home/u/c%3A/x.html',
 				'file:///home/u/x.html',
 			]);
+	});
+
+	test('leaves file URLs unchanged outside Windows', () => {
+		assert.deepStrictEqual(
+			['file:///c%3A/docs/x.html', 'file:///c:/docs/x.html'].map(url => normalizeBrowserViewUrl(url, false)),
+			['file:///c%3A/docs/x.html', 'file:///c:/docs/x.html']);
 	});
 
 	test('keeps defaulting the scheme', () => {
