@@ -129,6 +129,9 @@ export class TestNativeHostService implements INativeHostService {
 	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
+	async showWindow(options?: INativeHostOptions): Promise<void> { }
+	async hideWindow(options?: INativeHostOptions): Promise<void> { }
+	async setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async updateWindowAccentColor(color: string): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }

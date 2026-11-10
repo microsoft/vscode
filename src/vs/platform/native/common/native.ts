@@ -329,6 +329,13 @@ export interface ICommonNativeHostService {
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
+	/** Shows a window hidden with {@link hideWindow} and focuses it. */
+	showWindow(options?: INativeHostOptions): Promise<void>;
+	/** Hides a window without closing it, such as a floating window that shows again later. */
+	hideWindow(options?: INativeHostOptions): Promise<void>;
+	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
+	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
+
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
