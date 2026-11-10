@@ -15,8 +15,8 @@ Portable clients share contracts and execution policies, but engine state belong
 
 | Consumer | Execution |
 | --- | --- |
-| Desktop workbench and proposed extension API | The [workbench binding](../../workbench/services/github/electron-browser/githubService.ts) routes portable clients to the [shared-process service](electron-utility/githubService.ts). |
-| Web workbench and proposed extension API | The [browser binding](../../workbench/services/github/browser/githubService.ts) executes locally with browser fetch. |
+| Desktop workbench and internal extension module | The [workbench binding](../../workbench/services/github/electron-browser/githubService.ts) routes portable clients to the [shared-process service](electron-utility/githubService.ts). |
+| Web workbench and internal extension module | The [browser binding](../../workbench/services/github/browser/githubService.ts) executes locally with browser fetch. |
 | Standalone Agent Host | The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) uses host-owned credentials and networking, without requiring an attached workbench. |
 
 Legacy renderer clients can still execute locally. Independent engines and browser tabs do not share application-wide request state. Within the shared process, connections share admission and verified-account cooldowns, but private caches and credential callbacks remain connection- and grant-scoped.
@@ -118,18 +118,18 @@ Certificate verification remains enabled by default. The shared-process helper d
 
 Operations needing redirect status and headers, such as Actions log-URL retrieval, are unsupported through the local browser provider because browser fetch exposes opaque redirects.
 
-## Proposed extension API
+## Internal extension module
 
-The [`github` proposal](../../../vscode-dts/vscode.proposed.github.d.ts) exposes only the Gist operations needed by [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts):
+The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception for CommonJS importers, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. It exposes only the Gist operations needed by [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts):
 
-- `vscode.github.getClient(sessionId, token?)`: a disposable GitHub.com client with `gists.get` and `gists.create`.
-- `vscode.github.getAnonymousClient(token?)`: a disposable client with `gists.get` only.
+- `getClient(sessionId, token?)`: a disposable GitHub.com client with `gists.get` and `gists.create`.
+- `getAnonymousClient(token?)`: a disposable client with `gists.get` only.
 
-The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The initial proposal does not accept GitHub Enterprise sessions, raw credentials, or arbitrary HTTP requests. Additional domains can be exposed later as typed client properties.
+The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, or arbitrary HTTP requests. Additional domains can be exposed later as typed client properties.
 
 The [main-thread bridge](../../workbench/api/browser/mainThreadGitHub.ts) enforces extension account access, rechecks it after acquisition and before requests, and invalidates pending/active authenticated clients when the provider is removed. The [extension-host facade](../../workbench/api/common/extHostGitHub.ts) provides cancellation and disposable handles. Desktop calls reach the shared-process service; web calls use the local service, and remote extension hosts reach the same main-thread bridge through RPC. Caller attribution is `extension.<extensionId>`.
 
-Gist results contain only the ID, browser URL, and inline file content with binary/truncation flags. Configuration Editing rejects a truncated or binary first file; raw Gist downloads are not part of this proposal. Creation accepts visibility and named text files; secret gists are unlisted, not private to their creator. Errors use `GitHubError` and cancellation uses `CancellationError`; the proposal defines their public shape.
+Gist results contain only the ID, browser URL, and inline file content with binary/truncation flags. Configuration Editing rejects a truncated or binary first file; raw Gist downloads are not part of this module. Creation accepts visibility and named text files; secret gists are unlisted, not private to their creator. Errors use `GitHubError` and cancellation uses `CancellationError`; the internal typings define their shape.
 
 ## Extending the service
 
@@ -160,6 +160,6 @@ pnpm run build-fast --client-only
 .\scripts\test.bat --run src\vs\platform\github\test\common\githubChannel.test.ts
 ```
 
-On macOS/Linux, use `./scripts/test.sh` with forward-slash paths. Select tests nearest the change: [schemas](test/common/schema.test.ts), [API compatibility](test/common/apiCompatibility.test.ts), [IPC](test/common/githubChannel.test.ts), or [transport](test/node/githubTransport.test.ts). Proposal changes also have [main-thread](../../workbench/api/test/browser/mainThreadGitHub.test.ts), [extension-host](../../workbench/api/test/common/extHostGitHub.test.ts), and [profile integration](../../../../extensions/configuration-editing/src/test/importExportProfiles.test.ts) tests.
+On macOS/Linux, use `./scripts/test.sh` with forward-slash paths. Select tests nearest the change: [schemas](test/common/schema.test.ts), [API compatibility](test/common/apiCompatibility.test.ts), [IPC](test/common/githubChannel.test.ts), or [transport](test/node/githubTransport.test.ts). Changes to the internal module also have [main-thread](../../workbench/api/test/browser/mainThreadGitHub.test.ts), [extension-host](../../workbench/api/test/common/extHostGitHub.test.ts), and [profile integration](../../../../extensions/configuration-editing/src/test/importExportProfiles.test.ts) tests.
 
 Use targeted lint/type checks appropriate to the change; see the [contributor instructions](../../../../.github/copilot-instructions.md) for the repository's validation workflow.
