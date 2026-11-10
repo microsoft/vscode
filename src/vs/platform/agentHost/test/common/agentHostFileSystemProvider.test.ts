@@ -16,6 +16,7 @@ import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, crea
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
@@ -710,6 +711,29 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	// content URIs that have no real parent directory. The diff editor
 	// stats every URI before reading it, so this broke "open diff of a
 	// modified file" entirely. The fix is the scheme allowlist in stat().
+
+	for (const authority of ['local', 'remote']) {
+		test(`opens MCP skill content read-only without filesystem resolution (${authority})`, async () => {
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			const connection = new StubConnection();
+			disposables.add(provider.registerAuthority(authority, connection));
+			const content = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
+			const wrapped = toAgentHostUri(content, authority);
+
+			const stat = await provider.stat(wrapped);
+			const path = await provider.realpath(wrapped);
+			const bytes = await provider.readFile(wrapped);
+
+			assert.deepStrictEqual({
+				type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
+				content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
+				resolved: connection.resolveCalls, listed: connection.listCalls,
+			}, {
+				type: FileType.File, readonly: true, path: '/Friendly', content: 'stub-content',
+				resources: [content.toString()], resolved: [], listed: [],
+			});
+		});
+	}
 
 	test('stat returns File for git-blob: URIs without listing the parent', async () => {
 		const { provider, connection } = setup();

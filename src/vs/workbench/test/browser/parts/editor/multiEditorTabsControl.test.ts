@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -16,6 +17,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -30,10 +34,15 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { createEditorPart, TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { IEditorTransferVeto } from '../../../../browser/parts/editor/editorTransferVeto.js';
+import { IAuxiliaryEditorPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 suite('MultiEditorTabsControl', () => {
+
+	// WebKit mispositions RTL sticky Add controls: https://bugs.webkit.org/show_bug.cgi?id=203120
+	const stickyAddTabDirections = isSafari ? ['ltr'] : ['ltr', 'rtl'];
 
 	let disposables: DisposableStore;
 
@@ -49,10 +58,13 @@ suite('MultiEditorTabsControl', () => {
 	let editorPartsView: IEditorPartsView;
 	let addMenuVisible: boolean;
 	let addMenuChange: Emitter<void>;
+	/** What drags of tabs out of the window did: the editors that moved, the windows created, the vetoes shown. */
+	let newWindowTransfers: string[];
 
 	setup(() => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+		newWindowTransfers = [];
 		addMenuVisible = true;
 		addMenuChange = disposables.add(new Emitter<void>());
 
@@ -94,6 +106,14 @@ suite('MultiEditorTabsControl', () => {
 			override createEditorActions() { return { actions: { primary: [], secondary: [] }, onDidChange: Event.None }; }
 			override relayout() { }
 			override readonly onDidActiveEditorChange = Event.None;
+			override get disposed() { return false; }
+			override moveEditors(editors: { editor: EditorInput }[]): boolean {
+				newWindowTransfers.push(`move ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+				return true;
+			}
+			override copyEditors(editors: { editor: EditorInput }[]): void {
+				newWindowTransfers.push(`copy ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+			}
 		};
 
 		groupsView = new class extends mock<IEditorGroupsView>() {
@@ -107,6 +127,22 @@ suite('MultiEditorTabsControl', () => {
 		editorPartsView = new class extends mock<IEditorPartsView>() {
 			override get count() { return 1; }
 			override getGroup() { return groupView; }
+			override async createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+				newWindowTransfers.push('new window');
+				const targetGroup = new class extends mock<IEditorGroup>() {
+					override readonly id = 4242;
+					override readonly isEmpty = true;
+					override focus(): void { }
+				}();
+				return new class extends mock<IAuxiliaryEditorPart>() {
+					override readonly onWillClose = Event.None;
+					override readonly activeGroup = targetGroup;
+					override readonly groups = [targetGroup];
+				}();
+			}
+			override showTransferVeto(veto: IEditorTransferVeto): void {
+				newWindowTransfers.push(`veto: ${veto.message}`);
+			}
 		};
 
 		container = $('.title.tabs');
@@ -212,6 +248,32 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	/** Drags the tab at `tabIndex` and releases it outside the window, which opens a new window for the dragged editors. */
+	async function dragTabOutOfWindow(tabIndex: number): Promise<void> {
+		const tab = container.querySelectorAll('.tabs-container > .tab')[tabIndex];
+		// Not over a window of the workbench, which tests that dispatch drag events over it may have left behind
+		mainWindow.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true, screenX: 100000, screenY: 100000 }));
+		await timeout(0);
+	}
+
+	test('a tab dragged out of the window moves its editor, while an inactive editor of the group that cannot go stays', async () => {
+		(model.getEditorByIndex(1) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt']);
+	});
+
+	test('a tab dragged out of the window, whose editor cannot go, opens no window', async () => {
+		(model.getEditorByIndex(0) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
+	});
 
 	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
 		const group = connectedGroup();
@@ -431,6 +493,11 @@ suite('MultiEditorTabsControl', () => {
 			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
 			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
 			const activeFillBounds = activeFill.getBoundingClientRect();
+			const activeClip = mainWindow.getComputedStyle(activeFill.parentElement!).clipPath;
+			const clipInsets = activeClip === 'none' ? undefined : activeClip.slice(6, -1).split(' ');
+			const shoulderClipEdge = clipInsets
+				? direction === 'rtl' ? activeFillBounds.left + Number.parseFloat(clipInsets[3]) * zoom : activeFillBounds.right - Number.parseFloat(clipInsets[1]) * zoom
+				: direction === 'rtl' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
 			const activeVisibleWidth = Math.min(activeFillBounds.right, tabs.getBoundingClientRect().right) - Math.max(activeFillBounds.left, boundary);
 			const rtlCapExpected = direction === 'rtl' && activeVisibleWidth > shoulderWidth;
 			const oppositeShoulderOutsideViewport = direction === 'rtl'
@@ -443,15 +510,17 @@ suite('MultiEditorTabsControl', () => {
 					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
 					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
+				activeClipPreservesBodyBoundary: Math.abs(shoulderClipEdge - boundary) < 1 / 32,
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px -8px\)$/);
-					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
+					const inset = expected - (tab.classList.contains('active') && expected + shoulderWidth / zoom <= 8 ? 8 : 0);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px (-?[\d.]+)px\)$/ : /^inset\(-1px (-?[\d.]+)px -1px -8px\)$/);
+					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32;
 				}),
 			};
 		};
 		const results = [];
-		for (const direction of ['ltr', 'rtl']) {
+		for (const direction of stickyAddTabDirections) {
 			for (const zoom of [1, 1.25]) {
 				const root = group.closest<HTMLElement>('.monaco-workbench')!;
 				root.dir = direction;
@@ -480,10 +549,107 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
+	});
+
+	test('Connected active tabs cover the separator when Add Tab clips them', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('test-connected-tab-seam');
+		const probe = mainWindow.document.createElement('style');
+		// Expose the painted surfaces to the browser's stacking-order hit test.
+		probe.textContent = '.test-connected-tab-seam.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after { pointer-events: auto; }';
+		root.appendChild(probe);
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.activeSeam') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const count of [1, 3]) {
+			const editors = openNamedEditors(Array.from({ length: count }, (_, index) => `file${index}.ts`));
+			for (let activeIndex = 0; activeIndex < count; activeIndex++) {
+				model.setActive(editors[activeIndex]);
+				control.openEditor(editors[activeIndex]);
+				for (const direction of stickyAddTabDirections) {
+					root.dir = direction;
+					for (const width of [600, 100, 600]) {
+						await layoutConnectedGroup(group, width);
+						control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) }, { forceRevealActiveTab: true });
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const strip = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+						const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+						fill.style.pointerEvents = 'auto';
+						const add = tabs.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+						if (direction === 'rtl') {
+							tabs.classList.add('scroll');
+							tabs.scrollLeft += active.getBoundingClientRect().right - tabs.getBoundingClientRect().right;
+							tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						}
+						const bounds = fill.getBoundingClientRect();
+						const viewport = tabs.getBoundingClientRect();
+						const left = Math.max(bounds.left, viewport.left, direction === 'rtl' ? add.getBoundingClientRect().right + 8 : viewport.left);
+						const right = Math.min(bounds.right, viewport.right, direction === 'ltr' ? add.getBoundingClientRect().left - 8 : viewport.right);
+						const hit = mainWindow.document.elementFromPoint((left + right) / 2, strip.getBoundingClientRect().bottom - 0.5);
+						results.push({
+							count, activeIndex, direction, width,
+							clipped: !!active.style.clipPath,
+							stacking: mainWindow.getComputedStyle(active).zIndex,
+							visible: right > left,
+							seamOwner: hit === fill ? 'activeFill' : hit?.className,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, clipped: result.width === 100, stacking: result.width === 100 ? '1' : 'auto', visible: true, seamOwner: 'activeFill',
+		})));
+	});
+
+	test('fractional terminal tabs retain a natural shoulder when its gutter fits beside Add Tab', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.fractionalShoulder') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120.25, tabSizingFixedMaxWidth: 120.25, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		openNamedEditors(['first.ts', 'middle.ts', 'last.ts']);
+		const results = [];
+		for (const direction of stickyAddTabDirections) {
+			root.dir = direction;
+			for (const zoom of [1, 1.25]) {
+				root.style.zoom = String(zoom);
+				await layoutConnectedGroup(group, 600);
+				await layoutConnectedGroup(group, 300);
+				const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+				tabs.classList.add('scroll');
+				const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+				tabs.scrollLeft += direction === 'rtl'
+					? active.getBoundingClientRect().right - tabs.getBoundingClientRect().right
+					: tabs.scrollWidth;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+				const shoulder = mainWindow.getComputedStyle(fill, direction === 'rtl' ? '::before' : '::after');
+				const insets = mainWindow.getComputedStyle(active).clipPath;
+				const clip = insets === 'none' ? undefined : insets.slice(6, -1).split(' ');
+				const naturalEdge = direction === 'rtl' ? fill.getBoundingClientRect().left : fill.getBoundingClientRect().right;
+				const clipEdge = clip ? naturalEdge + (direction === 'rtl' ? Number.parseFloat(clip[3]) : -Number.parseFloat(clip[1])) * zoom : undefined;
+				results.push({
+					direction, zoom, shoulder: shoulder.content,
+					completeCurve: clipEdge === undefined || (direction === 'rtl' ? naturalEdge - clipEdge : clipEdge - naturalEdge) >= Number.parseFloat(shoulder.width) * zoom - 1 / 32,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shoulder: '""', completeCurve: true })));
 	});
 
 	test('scrolling Add clipping reads every tab before changing clip styles', async () => {
@@ -2485,6 +2651,38 @@ suite('MultiEditorTabsControl', () => {
 			capColor: 'rgb(255, 170, 0)',
 			borders: ['0px', '0px', '0px', '0px'],
 			ariaSelected: 'true',
+		});
+	});
+
+	test('Connected tabs join the surface their part sets where the active tab meets its editor, as the theme joins them to the editor, also in an unfocused group; a theme accent below the active tab stays', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		const read = async (colors: { [id: string]: string }, active = true) => {
+			themeService.setTheme(new TestColorTheme(colors));
+			control.setActive(active);
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 600);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			return {
+				belowActiveTab: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-border-bottom-container')!).backgroundColor,
+				title: mainWindow.getComputedStyle(group.querySelector<HTMLElement>(':scope > .title')!).backgroundColor,
+			};
+		};
+
+		assert.deepStrictEqual({
+			joinsEditor: await read({ 'tab.activeBorder': '#121314', 'editor.background': '#121314' }),
+			accent: await read({ 'tab.activeBorder': '#22d3ee', 'editor.background': '#121314' }),
+			unfocusedJoinsEditor: await read({ 'tab.activeBorder': '#22d3ee', 'tab.unfocusedActiveBorder': '#12131480', 'editor.background': '#121314' }, false),
+			unfocusedAccent: await read({ 'tab.activeBorder': '#121314', 'tab.unfocusedActiveBorder': '#22d3ee', 'editor.background': '#121314' }, false),
+		}, {
+			joinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			accent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+			unfocusedJoinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			unfocusedAccent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
 		});
 	});
 
@@ -4560,6 +4758,28 @@ suite('MultiEditorTabsControl', () => {
 			['closeOthers', 'close'],
 			['close', 'close']
 		]);
+	});
+
+	test('runs the Add Tab entries with the group of its tabs bar, so that they act on that group rather than on the active one', async () => {
+		const ran: unknown[][] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(_id: string, ...args: unknown[]): Promise<R> { ran.push(args); return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.context') });
+
+		container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		const [entry] = shownMenu?.getActions() ?? [];
+		await entry?.run(shownMenu?.getActionsContext?.());
+
+		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

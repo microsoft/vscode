@@ -40,7 +40,7 @@ const treeSitterGrammars: string[] = [
 
 const REPO_ROOT = path.join(__dirname, '..');
 
-async function platformDir(): Promise<string> {
+async function platformDir(): Promise<string | undefined> {
 	const distPath = 'dist/src/_internal/platform';
 	const srcPath = 'src/_internal/platform';
 	if (await fileExists(path.join(REPO_ROOT, distPath))) {
@@ -48,7 +48,7 @@ async function platformDir(): Promise<string> {
 	} else if (await fileExists(path.join(REPO_ROOT, srcPath))) {
 		return srcPath;
 	} else {
-		throw new Error('Could not find the source directory for tokenizer files');
+		return undefined;
 	}
 }
 
@@ -59,6 +59,12 @@ function treeSitterWasmDir(): string {
 
 async function main() {
 	const platform = await platformDir();
+	if (!platform) {
+		// chat-lib is a member of Copilot's pnpm workspace, so every install of Copilot runs this
+		// script, also before `extract-chat-lib` created the sources. There is nothing to copy yet.
+		console.log('chat-lib: no sources yet (run `pnpm run extract-chat-lib` in extensions/copilot), skipping postinstall.');
+		return;
+	}
 	const vendoredTiktokenFiles = [`${platform}/tokenizer/node/cl100k_base.tiktoken`, `${platform}/tokenizer/node/o200k_base.tiktoken`];
 	const wasm = treeSitterWasmDir();
 

@@ -16,7 +16,7 @@ import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../platf
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 /**
  * Phone presentation of {@link IContextMenuService}: every context menu — from

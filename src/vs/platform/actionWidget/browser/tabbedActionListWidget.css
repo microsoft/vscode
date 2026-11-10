@@ -19,9 +19,17 @@
 }
 
 .action-widget .tabbed-action-list-tabbar {
+	position: relative;
 	display: flex;
 	align-items: center;
 	padding: 0 0 4px;
+}
+
+/* Drops from the bar over the list, on the same layer as the list's own submenu panel. */
+.action-widget .tabbed-action-list-tabbar > .tabbed-action-list-overflow-menu {
+	position: absolute;
+	top: 100%;
+	z-index: 50;
 }
 
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio {
@@ -32,6 +40,21 @@
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button {
 	border: none;
 	border-radius: 4px;
+}
+
+/* Tabs that can move into the overflow menu take their content's width rather than sharing out the
+ * bar's. Kept below a consumer's own tab sizing in specificity. */
+.can-overflow-tabs .monaco-custom-radio > .monaco-button {
+	width: auto;
+}
+
+/* Lays the overflow button and other strip actions out beside the tabs, on the same row. */
+.can-overflow-tabs > .tabbed-action-list-tabstrip {
+	display: flex;
+	flex: 0 1 auto;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
 }
 
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button:not(.active) {

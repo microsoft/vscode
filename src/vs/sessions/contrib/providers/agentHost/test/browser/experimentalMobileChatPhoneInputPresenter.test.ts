@@ -65,25 +65,26 @@ import { IPreferencesService } from '../../../../../../workbench/services/prefer
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { NullLanguageModelsService } from '../../../../../../workbench/contrib/chat/test/common/languageModels.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionModelsSnapshot } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionModelsSnapshot } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ExperimentalMobileChatPhoneInputPresenterContribution } from '../../browser/mobile/experimentalMobileChatPhoneInputPresenter.js';
-import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
+import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { ModelPicker } from '../../../../chat/browser/modelPicker.js';
-import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
-import { createModelSelectionState, normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
+import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { createModelSelectionState, normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { ISessionContext, SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
-import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
-import { MobileAgentHostModePicker } from '../../browser/mobile/mobileAgentHostModePicker.js';
-import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
-import { AgentHostSessionConfigPickerContribution } from '../../browser/agentHostSessionConfigPicker.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { stubSessionHosts } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
+import { MobileAgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
+import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { AgentHostSessionConfigPickerContribution } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 
@@ -103,6 +104,8 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		readonly sourceAgentUri?: string;
 		readonly mapAgentHostResource?: (uri: URI) => URI;
 		readonly sandbox?: boolean;
+		readonly unpublishedDraft?: boolean;
+		readonly inputHostKind?: SessionHostKind.Composer | SessionHostKind.AutomationDialog;
 	} = {}) {
 		const container = dom.append(mainWindow.document.body, dom.$('div.phone-layout'));
 		store.add(toDisposable(() => container.remove()));
@@ -150,16 +153,23 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			chatResource: URI.parse('chat:/one'),
 			modelId: models[0].identifier,
 		};
-		const activeChat = observableValue<IChat>('chat', upcastPartial<IChat>({ resource: context.chatResource }));
-		const selectedAgent = observableValue<{ id: string; kind: string } | undefined>('agent', options.selectedAgentUri ? { id: options.selectedAgentUri, kind: 'agent' } : undefined);
-		const inputSession = constObservable(upcastPartial<IActiveSession>({
-			...context,
-			resource: URI.parse('session:/one'),
-			activeChat,
+		const mainChat = upcastPartial<IChat>({
+			resource: context.chatResource,
 			modelId: derived(reader => currentModel.read(reader)?.identifier),
+		});
+		const activeChat = observableValue<IChat>('chat', mainChat);
+		const selectedAgent = observableValue<{ id: string; kind: string } | undefined>('agent', options.selectedAgentUri ? { id: options.selectedAgentUri, kind: 'agent' } : undefined);
+		const inputSession = constObservable(upcastPartial<ISession>({
+			providerId: context.providerId,
+			sessionId: context.sessionId,
+			sessionType: context.sessionType,
+			resource: URI.parse('session:/one'),
+			mainChat: constObservable(mainChat),
+			chats: activeChat.map(chat => chat === mainChat ? [chat] : [mainChat, chat]),
 			status: constObservable(SessionStatus.Untitled),
 			mode: selectedAgent,
 		}));
+		const inputSource = { session: inputSession, chat: activeChat };
 		const configChanged = store.add(new Emitter<string>());
 		let config: ResolveSessionConfigResult | undefined = options.approvals ? {
 			schema: {
@@ -177,7 +187,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		let configSaveBarrier: DeferredPromise<void> | undefined;
 		const configProvider = {
 			getSessionConfig: () => config,
-			getCreateSessionConfig: () => options.cloud ? config?.values : undefined,
+			getCreateSessionConfig: () => options.cloud || options.unpublishedDraft ? config?.values : undefined,
 			isSessionConfigResolving: () => resolving,
 			onDidChangeSessionConfig: configChanged.event,
 			setSessionConfigValue: async (_id: string, chat: URI, key: string, value: unknown) => {
@@ -205,7 +215,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			getModelsSnapshot: () => upcastPartial<ISessionModelsSnapshot>({ models }),
 			getModelPickerOptions: () => ({ showAutoModel: true, useGroupedModelPicker: false, showFeatured: false, showUnavailableFeatured: false, showManageModelsAction: false }),
 			getAutomationModelConfiguration: () => assert.fail('A live picker must not use automation configuration'),
-			getSessions: () => [inputSession.get()],
+			getSessions: () => options.unpublishedDraft ? [] : [inputSession.get()],
 			getCustomAgents: () => [customAgent],
 			getCustomizations: () => options.customAgentContainer === 'plugin'
 				? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///agents', name: 'Plugin', clientId: 'foreign', children: [customAgent] }]
@@ -239,11 +249,22 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			[IContextKeyService, contextKeys],
 			[ICommandService, upcastPartial<ICommandService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container })],
-			[ISessionsService, upcastPartial<ISessionsService>({ activeSession: inputSession, visibleSessions: constObservable([inputSession.get()]) })],
+			[ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) })],
+			[ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				getSessionForChatResource: resource => {
+					for (const session of provider.getSessions()) {
+						const chat = session.chats.get().find(chat => extUri.isEqual(resource, chat.resource));
+						if (chat) {
+							return { session, chat };
+						}
+					}
+					return undefined;
+				},
+			})],
 			[ILifecycleService, store.add(new TestLifecycleService())],
 			[IManagedSettingsService, upcastPartial<IManagedSettingsService>({ onDidChangeManagedSettings: Event.None })],
 			[IAgentHostService, upcastPartial<IAgentHostService>({})],
-			[ISessionsProvidersService, getSingletonServiceDescriptors().find(([id]) => id === ISessionsProvidersService)![1].ctor],
+			[ISessionsProvidersService, SessionsProvidersService],
 			[IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri })],
 			[IChatPetService, upcastPartial<IChatPetService>({})],
 			[ILanguageModelsService, new class extends NullLanguageModelsService {
@@ -270,7 +291,6 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			[IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService())],
 			[IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({})],
 			[IChatEntitlementService, entitlementService],
-			[ISessionContext, new SessionContext(inputSession)],
 			[IPreferencesService, upcastPartial<IPreferencesService>({})],
 			[IChatSessionsService, new MockChatSessionsService()],
 			[IActionViewItemService, getSingletonServiceDescriptors().find(([id]) => id === IActionViewItemService)![1].ctor],
@@ -288,6 +308,15 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 				},
 			})],
 		]);
+		const { mainHost, sessionHostService } = stubSessionHosts(instantiationService, store);
+		const inputHost = upcastPartial<ISessionHost>({
+			...inputSource,
+			id: 'input-host',
+			kind: options.inputHostKind ?? SessionHostKind.Composer,
+			parent: mainHost,
+		});
+		const inputHostRegistration = store.add(sessionHostService.registerHost(inputHost));
+		instantiationService.stub(ISessionHost, inputHost);
 		store.add(instantiationService.get(ISessionsProvidersService).registerProvider(provider));
 		const presenter = instantiationService.get(IChatPhoneInputPresenter);
 		const enabledBefore = presenter.enabled.get();
@@ -336,10 +365,11 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			container, presenter, contribution, enabledBefore, delegates, session, open, close, currentSheet, row, writes, access, currentModel,
 			switchChat: () => {
 				context = { ...context, chatResource: URI.parse('chat:/two') };
-				activeChat.set(upcastPartial<IChat>({ resource: context.chatResource }), undefined);
+				activeChat.set(upcastPartial<IChat>({ resource: context.chatResource, modelId: derived(reader => currentModel.read(reader)?.identifier) }), undefined);
 			},
 			configWrites, errors, dialogService, configurationService, newChatModelPicker, instantiationService,
-			inputSession,
+			inputSession, inputSource,
+			unregisterInputHost: () => inputHostRegistration.dispose(),
 			models, resolving, agentWrites,
 			holdConfigSave: (barrier: DeferredPromise<void>) => { configSaveBarrier = barrier; },
 			updateConfig: (next: ResolveSessionConfigResult) => { config = next; configChanged.fire(context.sessionId); },
@@ -407,11 +437,11 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 					trigger.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true }));
 					trigger.dispatchEvent(new mainWindow.MouseEvent('mousedown', { button: 0, bubbles: true }));
 				} else if (control === 'mode') {
-					const picker = store.add(instantiationService.createInstance(MobileAgentHostModePicker, harness.inputSession));
+					const picker = store.add(instantiationService.createInstance(MobileAgentHostModePicker, harness.inputSource));
 					trigger = picker.render(dom.append(toolbar, dom.$('div')));
 					trigger.click();
 				} else if (control === 'permissions') {
-					const delegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, harness.inputSession));
+					const delegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, harness.inputSource));
 					const picker = store.add(instantiationService.createInstance(MobilePermissionPicker, delegate));
 					const host = dom.append(toolbar, dom.$('div'));
 					picker.render(host);
@@ -594,6 +624,84 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		});
 	}
 
+	for (const { hostKind, delegates } of [
+		{ hostKind: SessionHostKind.Composer, delegates: false },
+		{ hostKind: SessionHostKind.AutomationDialog, delegates: false },
+		{ hostKind: SessionHostKind.Composer, delegates: true },
+	] as const) {
+		test(`unpublished ${hostKind} draft keeps configuration scoped to its input (${delegates ? 'delegates' : 'session'})`, async () => {
+			const harness = createHarness(2, {
+				unpublishedDraft: true, inputHostKind: hostKind, approvals: true, speed: true, customAgents: true,
+			});
+			const request: ChatPhoneInputPresenterRequest = delegates ? {
+				...harness.delegates,
+				modeDelegate: { ...harness.delegates.modeDelegate, sessionResource: () => harness.inputSource.chat.get().resource },
+			} : harness.session;
+			const closed = harness.open(request);
+			try {
+				harness.row('Allow all').click();
+				await harness.waitForSelection();
+				harness.row('Plan').click();
+				await harness.waitForSelection();
+				harness.row('Planner').click();
+				await harness.waitForSelection();
+				harness.row('Fast').click();
+				await harness.waitForSelection();
+				harness.row('High').click();
+				await harness.waitForSelection();
+				assert.deepStrictEqual({
+					config: harness.configWrites,
+					agents: harness.agentWrites,
+					agentChecked: harness.row('Planner').getAttribute('aria-current'),
+					model: harness.currentModel.get()?.identifier,
+					modelConfiguration: harness.writes,
+					errors: harness.errors,
+				}, {
+					config: [{ key: 'approvalMode', value: 'allow-all' }, { key: 'mode', value: 'plan' }],
+					agents: [{ uri: 'file:///agents/planner.agent.md', name: 'Planner' }],
+					agentChecked: 'true',
+					model: 'copilot:model-0-fast',
+					modelConfiguration: [{ model: 'copilot:model-0-fast', values: { effort: 'high' } }],
+					errors: [],
+				});
+			} finally {
+				harness.close();
+				await closed;
+			}
+		});
+	}
+
+	test('a disposed draft input cannot apply a pending permission confirmation', async () => {
+		const harness = createHarness(2, { unpublishedDraft: true, approvals: true });
+		const closed = harness.open(harness.session);
+		try {
+			harness.row('Allow all').click();
+			harness.unregisterInputHost();
+			await harness.waitForSelection();
+			assert.deepStrictEqual({ writes: harness.configWrites, errors: harness.errors }, { writes: [], errors: [] });
+		} finally {
+			harness.close();
+			await closed;
+		}
+	});
+
+	test('a running input configures its own chat when the host shows another chat', async () => {
+		const harness = createHarness(2, { approvals: true });
+		const targetChat = harness.inputSource.chat.get();
+		harness.inputSource.chat.set({ ...targetChat, resource: URI.parse('chat:/other') }, undefined);
+		const closed = harness.open({
+			...harness.delegates,
+			modeDelegate: { ...harness.delegates.modeDelegate, sessionResource: () => targetChat.resource },
+		});
+		harness.row('Allow all').click();
+		await harness.waitForSelection();
+		harness.close();
+		await closed;
+		assert.deepStrictEqual({ writes: harness.configWrites, errors: harness.errors }, {
+			writes: [{ key: 'approvalMode', value: 'allow-all' }], errors: [],
+		});
+	});
+
 	for (const outcome of ['cancel', 'changed chat', 'changed policy'] as const) {
 		test(`permission ${outcome} does not write or show an unconfirmed checkmark`, async () => {
 			const harness = createHarness(2, { cloud: true, approvals: true, confirmPermissions: outcome !== 'cancel' });
@@ -740,7 +848,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		const action = store.add(new Action('running.model', 'Model'));
 		const item = harness.presenter.createActionViewItem!(action, {
 			...harness.delegates.modeDelegate,
-			sessionResource: () => harness.inputSession.get().activeChat.get().resource,
+			sessionResource: () => harness.inputSource.chat.get().resource,
 		}, { ...harness.delegates.modelDelegate, modelConfiguration: editorAccess })!;
 		store.add(item);
 		item.render(dom.append(harness.container, dom.$('div')));

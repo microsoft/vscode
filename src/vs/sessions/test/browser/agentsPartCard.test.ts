@@ -5,7 +5,7 @@
 
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/editorPart.css';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../browser/parts/mobile/mobileChatShell.css';
 import assert from 'assert';
 import sinon from 'sinon';
@@ -19,11 +19,11 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
 import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
-import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
 import { PanelPart } from '../../browser/parts/panelPart.js';
 import { AuxiliaryBarPart } from '../../browser/parts/auxiliaryBarPart.js';
 
@@ -48,7 +48,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.classList.toggle('phone-layout', phone);
 		container.classList.toggle('modern-ui-compact', compact && !phone);
 
-		const card = append(container, $('.agents-part-card'));
+		const card = append(container, $('.agents-part-card.agents-card-surface'));
 		card.style.transition = 'none';
 
 		return { container, card };
@@ -106,7 +106,7 @@ suite('Sessions - Agents Part Card', () => {
 			const { container, card } = createCard(true, true);
 			container.classList.add('sash-grip-test-theme');
 			container.style.color = 'var(--vscode-modernSash-gripForeground)';
-			card.classList.add('part', 'sessionspart');
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 			const themeStyle = append(mainWindow.document.head, $('style'));
 			store.add(toDisposable(() => themeStyle.remove()));
 
@@ -118,8 +118,8 @@ suite('Sessions - Agents Part Card', () => {
 			append(view, $('.part.panel'));
 
 			const sashes = [
-				append(card, $('.monaco-sash.vertical.agents-grid-gap-sash')),
-				append(card, $('.monaco-sash.horizontal.agents-grid-gap-sash')),
+				append(card, $('.monaco-sash.vertical.part-grid-gap-sash')),
+				append(card, $('.monaco-sash.horizontal.part-grid-gap-sash')),
 				append(container, $('.monaco-sash.vertical.sessions-side-pane-divider')),
 				append(sashContainer, $('.monaco-sash.horizontal')),
 			];
@@ -156,7 +156,7 @@ suite('Sessions - Agents Part Card', () => {
 			container.classList.add('modern-ui-tabs', 'dock-detail-panel');
 			container.classList.toggle('modern-ui-connected-editor-tabs', connectedEditorTabs);
 			container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, showTabs === 'multiple');
-			card.classList.add('part', 'sessionspart');
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 			const row = append(container, $('.monaco-grid-view'));
 			row.style.display = 'flex';
 			const sessionAllocation = append(row, $('.session-allocation'));
@@ -279,7 +279,7 @@ suite('Sessions - Agents Part Card', () => {
 		const { container, card } = createCard(true, true, true);
 		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, 'panel-alignment-justify');
 		container.classList.remove('phone-layout');
-		card.classList.add('part', 'sessionspart');
+		card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 		const row = append(container, $('.monaco-grid-view'));
 		row.style.display = 'flex';
 		row.style.width = '800px';
@@ -641,7 +641,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
 		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
 		container.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
-		card.classList.add('part', 'sessionspart');
+		card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 		const session = append(card, $('.session-view'));
 		const grid = append(container, $('.monaco-grid-view'));
 		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
@@ -731,7 +731,7 @@ suite('Sessions - Agents Part Card', () => {
 			container.classList.add('modern-ui-tabs');
 			container.classList.toggle('modern-ui-connected-editor-tabs', connected);
 			container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
-			card.classList.add('part', 'sessionspart');
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 			card.style.width = '500px';
 			card.style.height = '400px';
 			const grid = append(container, $('.monaco-grid-view'));
@@ -846,11 +846,14 @@ suite('Sessions - Agents Part Card', () => {
 				agentWorkbenchLayoutService: {
 					isEditorPaneVisible: () => false,
 				},
+				hostLayoutService: {
+					sidePane: { isEditorPaneVisible: () => false },
+				},
 				layoutContents: (width: number, height: number) => {
 					contentLayouts.push({ width, height });
 					return { contentSize: { width, height } };
 				},
-				_gridWidget: { layout: layoutGrid },
+				layoutContent: (width: number, height: number) => layoutGrid(width, height),
 				_layoutNode: layoutGrid,
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;

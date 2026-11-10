@@ -15,7 +15,7 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 /** What the phone needs to know about a shown widget until it closes. */
 interface IShownWidget {

@@ -13,12 +13,12 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { MobileHostDrawerHeaderViewItem } from './mobileHostDrawerHeaderViewItem.js';
 import { MobileHostPlaceChipViewItem } from './mobileHostPlaceChipViewItem.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { MobileAgentHostFilterService } from './mobileAgentHostFilterService.js';
 
 registerSingleton(IAgentHostFilterService, MobileAgentHostFilterService, InstantiationType.Delayed);

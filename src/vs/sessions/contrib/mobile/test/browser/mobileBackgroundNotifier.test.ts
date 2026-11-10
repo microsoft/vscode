@@ -11,9 +11,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IMobileNotificationHost, MobileBackgroundNotifier } from '../../browser/mobileBackgroundNotifier.js';
 
 class TestNotification extends EventTarget {

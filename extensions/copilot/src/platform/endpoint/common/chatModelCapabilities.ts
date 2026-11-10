@@ -69,6 +69,10 @@ const HIDDEN_FAMILY_I_HASHES: string[] = [
 	'93160c45252a00e9594f286d814b5af7cef4e10b59a8b58cbf01d603631027ca'
 ];
 
+const HIDDEN_MODEL_L_HASHES: string[] = [
+	'4f455aa4c594be22df24bbbd0d2f4f0e5ec3ea294deaac8884e83fa0276f6984',
+];
+
 
 /**
  * Per-model capability override. Lets advanced users (and evals) alias an
@@ -164,22 +168,57 @@ export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) 
 	return matchesGptModelFamily(family, 'gpt-5.3-codex');
 }
 
-export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
-	const matches = (value: string): boolean => {
-		const normalized = value.toLowerCase();
-		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code') || normalized.includes('kimi-k3');
-	};
-
-	if (typeof model === 'string') {
-		return matches(model);
-	}
-
-	return matches(model.family) || matches(getModelId(model));
+interface IKimiVersion {
+	readonly major: number;
+	readonly minor: number;
 }
 
-/** Kimi K3 requires preserved thinking across user turns as well as tool calls. */
+/**
+ * The Kimi version named by a model id or family, for example `kimi-k2.7-code` (2.7),
+ * `accounts/fireworks/models/kimi-k2p6` (2.6) or Moonshot's bare `k3-256k` alias (3.0).
+ * Hashed model ids resolve to the K3 version whose behavior they share.
+ */
+function parseKimiVersion(value: string): IKimiVersion | undefined {
+	if (HIDDEN_MODEL_L_HASHES.includes(getCachedSha256Hash(value.toLowerCase()))) {
+		return { major: 3, minor: 0 };
+	}
+	const match = /(?:^|[^a-z\d])kimi-k(?<major>\d+)(?:[.p](?<minor>\d+))?(?=$|[^a-z\d])/i.exec(value)
+		?? /(?:^|\/)k(?<major>3)(?:\.(?<minor>\d+))?(?=$|[-:])/i.exec(value);
+	if (!match?.groups) {
+		return undefined;
+	}
+	return { major: Number(match.groups.major), minor: Number(match.groups.minor ?? 0) };
+}
+
+/**
+ * Whether the model is Kimi `major.minor` or newer.
+ */
+function isKimiVersionAtLeast(model: LanguageModelChat | IChatEndpoint | string, major: number, minor: number): boolean {
+	const values = typeof model === 'string' ? [model] : [model.family, getModelId(model)];
+	return values.some(value => {
+		const version = parseKimiVersion(value);
+		return !!version && (version.major > major || (version.major === major && version.minor >= minor));
+	});
+}
+
+/**
+ * Kimi K2.6 and newer, including future versions. Older Kimi models have not been
+ * evaluated with the Kimi prompt and edit tools.
+ */
+export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	return isKimiVersionAtLeast(model, 2, 6);
+}
+
+/**
+ * Kimi K3 and newer, including future versions, which share the K3 chat template.
+ */
+export function isKimiK3PlusFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	return isKimiVersionAtLeast(model, 3, 0);
+}
+
+/** Kimi K3 and newer require preserved thinking across user turns as well as tool calls. */
 export function modelSupportsThinkingContentInHistory(model: LanguageModelChat | IChatEndpoint): boolean {
-	return [model.family, getModelId(model)].some(value => /(?:^|\/)(?:kimi-)?k3(?:$|[-:])/i.test(value));
+	return isKimiK3PlusFamily(model);
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {

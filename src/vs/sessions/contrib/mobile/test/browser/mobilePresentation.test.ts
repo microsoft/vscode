@@ -5,45 +5,84 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { AbstractChatView, IChatViewOptions } from '../../../../browser/parts/chatView.js';
+import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { AbstractChatView, IChatViewOptions } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from '../../../../browser/parts/mobile/contributions/mobileDiffView.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsListPresentation, SessionNameKind } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../sessions/browser/views/sessionsList.js';
-import { ChatViewFactory } from '../../../chat/browser/chatView.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
+import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
 
 suite('Mobile presentation composition', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
+	test('separate chat windows cannot be activated by mobile consumers', async () => {
+		const windows = new MobileNullChatWindowService();
+		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
+		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
+	});
+
+	test('new-session headers retain the instantiation scope of their own view', () => {
+		const container = dom.append(document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const factory = new MobileChatViewFactory();
+		const views = [false, true].map(isNewChatInSession => {
+			const scope = store.add(new TestInstantiationService());
+			const createInstance = sinon.stub(scope, 'createInstance');
+			createInstance.onFirstCall().returns(upcastPartial<AbstractChatView>({}));
+			createInstance.onSecondCall().returns(upcastPartial<MenuWorkbenchToolBar>({
+				getItemsLength: () => 1,
+				onDidChangeMenuItems: Event.None,
+				dispose: () => { },
+			}));
+			factory.createNewChatView(isNewChatInSession, {}, scope);
+			const options = createInstance.firstCall.args.at(-1) as IChatViewOptions;
+			return { createInstance, options };
+		});
+		for (const { options } of views) {
+			const before = dom.append(container, dom.$('div'));
+			store.add(options.renderNewSessionHeader!(container, before));
+		}
+		assert.deepStrictEqual(views.map(({ createInstance }) => ({
+			calls: createInstance.callCount,
+			headerConstructor: createInstance.secondCall.args[0],
+		})), views.map(() => ({ calls: 2, headerConstructor: MenuWorkbenchToolBar })));
+	});
+
 	for (const mobile of [false, true]) {
 		test(`all chat views receive entry-owned input options (${mobile})`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const createInstance = sinon.stub(instantiationService, 'createInstance').returns(upcastPartial<AbstractChatView>({}));
-			const factory = mobile ? new MobileChatViewFactory(instantiationService) : new ChatViewFactory(instantiationService);
+			const factory = mobile ? new MobileChatViewFactory() : new ChatViewFactory();
 			assert.deepStrictEqual(factory.inputEditorOptions, mobile ? { fontSize: 16, lineHeight: 24 } : undefined);
 			const options: IChatViewOptions = { renderChatPet: false };
-			factory.createNewChatView(false, options);
-			factory.createNewChatView(true, options);
-			factory.createChatView(undefined, options);
+			factory.createNewChatView(false, options, instantiationService);
+			factory.createNewChatView(true, options, instantiationService);
+			factory.createChatView(instantiationService, options);
 			const passedOptions = createInstance.getCalls().map(call => call.args.at(-1) as IChatViewOptions);
 			assert.deepStrictEqual(passedOptions.map(value => ({
 				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, header: typeof value.renderNewSessionHeader, pet: value.renderChatPet,
-			})), Array.from({ length: 3 }, () => ({
+			})), Array.from({ length: 3 }, (_, index) => ({
 				input: mobile ? { fontSize: 16, lineHeight: 24 } : undefined,
-				icon: mobile ? false : undefined, header: mobile ? 'function' : 'undefined', pet: false,
+				icon: mobile ? false : undefined, header: mobile && index < 2 ? 'function' : 'undefined', pet: false,
 			})));
 		});
 	}

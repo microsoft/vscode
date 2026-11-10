@@ -31,10 +31,9 @@ import { IChatDashboardService } from '../../browser/chatDashboardService.js';
 import { ExperimentalMobileTitlebarPart } from '../../browser/mobile/experimentalMobileTitlebarPart.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from '../../browser/parts/mobile/contributions/mobileChangesView.js';
 import { MobileTitlebarPart } from '../../browser/parts/mobile/mobileTitlebarPart.js';
-import { IsNewChatSessionContext } from '../../common/contextkeys.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionFileChange } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function query<T extends HTMLElement>(container: ParentNode, selector: string): T {
 	const element = container.querySelector<T>(selector);
@@ -62,12 +61,14 @@ async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof M
 	const chat = new class extends mock<IChat>() {
 		override readonly changes = changes;
 	}();
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ISession>() {
 		override readonly title = title;
-		override readonly activeChat = constObservable(chat);
+		override readonly status = constObservable(SessionStatus.Completed);
 	}();
-	const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	instantiationService.stub(ISessionsService, { activeSession });
+	const activeSession = observableValue<ISession | undefined>('activeSession', undefined);
+	stubSessionHosts(instantiationService, store, {
+		session: activeSession.map(session => session && { session, chat }),
+	});
 	instantiationService.stub(IDefaultAccountService, {
 		onDidChangeDefaultAccount: Event.None,
 		getDefaultAccount: async () => null,

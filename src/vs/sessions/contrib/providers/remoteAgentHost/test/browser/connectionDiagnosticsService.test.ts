@@ -28,10 +28,12 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } 
 import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { ConnectionDiagnosticsService } from '../../browser/connectionDiagnosticsService.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../browser/connectionDiagnostics.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { ConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
+// Registers the commands that the tests run
+import '../../browser/remoteAgentHostActions.js';
 
 suite('ConnectionDiagnosticsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js
 import { autorun, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { SideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
-import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { MobileTitlebarPart } from '../parts/mobile/mobileTitlebarPart.js';
 
 /** Title and account-sheet presentation for the experimental mobile workbench. */
@@ -20,7 +20,7 @@ export class ExperimentalMobileTitlebarPart extends MobileTitlebarPart {
 		const titleContext = observableSignalFromEvent(this, Event.filter(this.contextKeyService.onDidChangeContext, event => event.affectsSome(titleKeys)));
 		this._register(autorun(reader => {
 			titleContext.read(reader);
-			const session = this.sessionsService.activeSession.read(reader);
+			const session = this.mainWindowHost.session.read(reader);
 			const title = session?.title.read(reader);
 			if (SideBarVisibleContext.getValue(this.contextKeyService)) {
 				this.setTitle(localize('mobileTopBar.sessions', "Sessions"));

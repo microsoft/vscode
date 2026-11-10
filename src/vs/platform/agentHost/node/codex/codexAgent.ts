@@ -90,7 +90,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { decodeCodexChat, encodeCodexChat, type ICodexPersistedChat } from './codexChatBacking.js';
-import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -2658,8 +2658,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!triple) {
 			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
 		}
-		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
+		const binaryPath = await resolveCodexBinaryPath(root, codexTarget, triple);
 		try {
 			await fs.promises.access(binaryPath, fs.constants.X_OK);
 		} catch (err) {
@@ -4121,7 +4120,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._subagentsByThreadId.has(childThreadId)) {
 				continue;
 			}
-			const subSession = this._createSubagentSession(session, childThreadId);
+			const subSession = this._createSubagentSession(session, childThreadId, model);
 			const spawningChild = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
 			const hostTurnId = spawningChild?.hostTurnId ?? this._hostTurnId(session, params.turnId);
 			const owner = this._turnDiffOwner(session) ?? session;
@@ -4156,7 +4155,18 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * fresh map/turn state and approval registry so the child's events don't
 	 * collide with the parent's.
 	 */
-	private _createSubagentSession(parent: ICodexSession, childThreadId: string): ICodexSession {
+	private _createSubagentSession(parent: ICodexSession, childThreadId: string, childModelId?: string): ICodexSession {
+		let model = parent.model;
+		if (childModelId) {
+			// An explicit child model is a bare id from Codex. Carry the parent's effective provider, but do not inherit the parent model's config as the child's settings.
+			let modelProvider = CODEX_COPILOT_MODEL_PROVIDER;
+			if (parent.materializedModelProvider !== undefined) {
+				modelProvider = parent.materializedModelProvider;
+			} else if (parent.model) {
+				modelProvider = parseCodexModelSelection(parent.model).modelProvider;
+			}
+			model = { id: toCodexModelSelectionId(modelProvider, childModelId) };
+		}
 		const clientToolSet = new ActiveClientToolSet();
 		return {
 			sessionId: parent.sessionId,
@@ -4190,7 +4200,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedModelProvider: parent.materializedModelProvider,
 			hasNativeHistory: parent.hasNativeHistory,
 			firstTurnSent: true,
-			model: parent.model,
+			model,
 			agent: parent.agent,
 			customizationDirectory: undefined,
 			currentTurnId: undefined,
@@ -8743,6 +8753,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					server: serverName,
 					tool,
 					arguments: (params ? params['arguments'] : undefined) as JsonValue,
+					// eslint-disable-next-line local/code-no-untyped-meta-access -- Forward opaque MCP request metadata without interpreting it.
+					_meta: params?.['_meta'] as JsonValue | undefined,
 				});
 			}
 			case 'resources/read': {

@@ -19,7 +19,7 @@ import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../
 import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../../chat/common/constants.js';
+import { NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { mobileConfigurationDefaults } from '../../browser/mobileConfigurationDefaults.js';
 import '../../../chat/browser/chat.contribution.js';
 

@@ -31,8 +31,9 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../../browser/agentsWindowMenus.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AgentHostFilterContribution } from '../../browser/hostFilter.contribution.js';
 import { MobileAgentHostFilterContribution } from '../../browser/mobileHostFilter.contribution.js';
 
@@ -165,7 +166,7 @@ suite('AgentHostFilterContribution', () => {
 	});
 
 	test('full and experimental mobile contributions use separate menu placements', () => {
-		const menus = [Menus.SidebarAgentHost, Menus.MobileTitleBarCenter, Menus.MobileSessionsDrawerHeader, Menus.NewSessionPlace];
+		const menus = [Menus.SidebarAgentHost, AgentsWindowMenus.MobileTitleBarCenter, Menus.MobileSessionsDrawerHeader, Menus.NewSessionPlace];
 		assert.deepStrictEqual(menus.map(menu => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.map(item => item.command.id)
@@ -208,7 +209,7 @@ suite('AgentHostFilterContribution', () => {
 	for (const { name, menu, triggerSelector, sheetSelector, refreshSelector, controls } of [
 		{
 			name: 'full web responsive picker',
-			menu: Menus.MobileTitleBarCenter,
+			menu: AgentsWindowMenus.MobileTitleBarCenter,
 			triggerSelector: '.agent-host-filter-dropdown',
 			sheetSelector: '.host-picker-sheet',
 			refreshSelector: '.host-picker-sheet-action',

@@ -17,7 +17,7 @@ import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHo
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
-import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
+import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 suite('AgentHost canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

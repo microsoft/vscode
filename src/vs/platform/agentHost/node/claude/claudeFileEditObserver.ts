@@ -74,6 +74,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			sessionUri,
 			() => owner.get().toString(),
 			CLAUDE_AGENT_PROVIDER_ID,
+			undefined,
 		));
 	}
 

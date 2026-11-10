@@ -21,11 +21,11 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../menus.js';
+import { AgentsWindowMenus } from '../../agentsWindowMenus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
@@ -47,9 +47,9 @@ import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
  * (home/empty) screen is visible:
  *
  *  - **Welcome hidden** → shows the active session title (live, from
- *    {@link ISessionsService.activeSession}).
+ *    the session the main window's host shows).
  *  - **Welcome visible** → shows whatever is contributed to the
- *    {@link Menus.MobileTitleBarCenter} menu. On web, the host filter
+ *    {@link AgentsWindowMenus.MobileTitleBarCenter} menu. On web, the host filter
  *    contribution appends its host dropdown + connection button there.
  *
  * The switch is driven entirely by the menu: when the toolbar has no
@@ -104,10 +104,13 @@ export class MobileTitlebarPart extends Disposable {
 	// latest set without re-deriving it on each tap.
 	private latestChanges: readonly ISessionFileChange[] = [];
 
+	/** The host of the window, the main window: phones have one. */
+	protected readonly mainWindowHost: ISessionHost;
+
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService protected readonly sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -119,6 +122,7 @@ export class MobileTitlebarPart extends Disposable {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
+		this.mainWindowHost = getMainWindowHost(sessionHostService);
 
 		this.element = document.createElement('div');
 		this.element.className = 'mobile-top-bar';
@@ -247,13 +251,12 @@ export class MobileTitlebarPart extends Disposable {
 			}
 		};
 		this._register(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
-			this.latestChanges = session?.activeChat.read(reader).changes.read(reader) ?? [];
+			this.latestChanges = this.mainWindowHost.chat.read(reader)?.changes.read(reader) ?? [];
 			renderChangesPill();
 		}));
 
 		// Mount the center toolbar (host filter widget on web welcome, etc.)
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, Menus.MobileTitleBarCenter, {
+		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, AgentsWindowMenus.MobileTitleBarCenter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'mobileTitlebar.center',
 			toolbarOptions: { primaryGroup: () => true },
@@ -310,7 +313,7 @@ export class MobileTitlebarPart extends Disposable {
 
 	protected registerTitleListener(): void {
 		this._register(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
+			const session = this.mainWindowHost.session.read(reader);
 			const title = session?.title.read(reader);
 			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
 		}));
@@ -569,7 +572,7 @@ export class MobileTitlebarPart extends Disposable {
 	}
 
 	private getSheetActions(): IAction[] {
-		const menu = this.menuService.createMenu(Menus.AccountMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(AgentsWindowMenus.AccountMenu, this.contextKeyService);
 		const rawActions: IAction[] = [];
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();

@@ -84,6 +84,19 @@ export const enum BrowserViewSharingState {
 	Unavailable = 'unavailable',
 }
 
+/** Adds the default scheme used for browser navigation. */
+export function normalizeBrowserViewUrl(url: string): string {
+	// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
+	if (/^localhost(:|\/|$)/i.test(url)) {
+		url = 'http://' + url;
+	} else if (!URL.parse(url)?.protocol) {
+		// No scheme — default to http://; sites typically upgrade to https://.
+		url = 'http://' + url;
+	}
+
+	return url;
+}
+
 /** Whether a browser URL belongs to the same destination host as the target URL. */
 export function browserViewUrlMatches(candidateUrl: string | undefined, targetUrl: string, includeBlank = false): boolean {
 	const target = URL.parse(targetUrl);
@@ -419,8 +432,13 @@ export interface IBrowserViewWorkbenchService {
 	 * redirected to the main editor area so the browser docks instead of opening
 	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
 	 * specific group) are left untouched.
+	 *
+	 * @param sourceWindowId The window the open was requested from, such as a link
+	 * in a page of that window: without an explicit or configured placement, the
+	 * browser opens in that window's active group rather than in the one of the
+	 * window that appears to have focus.
 	 */
-	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a
@@ -883,15 +901,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
 		this._onWillNavigate.fire(url);
 
-		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
-		if (/^localhost(:|\/|$)/i.test(url)) {
-			url = 'http://' + url;
-		} else if (!URL.parse(url)?.protocol) {
-			// No scheme — default to http://; sites typically upgrade to https://.
-			url = 'http://' + url;
-		}
-
-		return this.browserViewService.loadURL(this.id, url);
+		return this.browserViewService.loadURL(this.id, normalizeBrowserViewUrl(url));
 	}
 
 	async goBack(): Promise<void> {

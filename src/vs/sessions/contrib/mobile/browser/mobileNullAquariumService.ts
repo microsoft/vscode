@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../base/common/observable.js';
-import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
+import { IAquariumService, IMountedToggleHandle } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 
 /**
  * Phone implementation of {@link IAquariumService}. The aquarium is a desktop

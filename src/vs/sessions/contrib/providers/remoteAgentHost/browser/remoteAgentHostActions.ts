@@ -39,33 +39,21 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remo
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { SessionsCategories } from '../../../../common/categories.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
-import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { confirmTunnelDeletion, runServerUpgrade } from './remoteHostOptions.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { confirmTunnelDeletion, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-
-/** Action / command IDs registered by this file. */
-export const RemoteAgentHostCommandIds = {
-	addRemoteAgentHost: 'sessions.remoteAgentHost.add',
-	connectViaSSH: 'workbench.action.sessions.connectViaSSH',
-	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
-	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
-	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
-	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
-	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
-	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
-} as const;
+import { RemoteAgentHostCommandIds } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -672,7 +660,7 @@ async function promptForRemoteFolder(
 
 	provider.showInEnvironmentPicker?.();
 	await sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {

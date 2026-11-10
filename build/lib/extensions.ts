@@ -17,7 +17,7 @@ import * as util2 from './util.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
-import { getProductionDependencies } from './dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
@@ -461,10 +461,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 		result = localExtensionsStream;
 	} else {
 		// also include shared production node modules
-		const dependenciesStreams = getSharedExtensionDependencyFolders().map(({ folder, destination }) =>
-			gulp.src([`${folder}/**`, `!${folder}/**/{test,tests}/**`], { base: folder })
-				.pipe(rename(p => p.dirname = path.posix.join(destination, p.dirname!.split(path.sep).join('/'))))
-		);
+		const dependenciesStreams = getSharedExtensionDependencyFolders().map(({ folder, destination }) => getSharedExtensionDependencyStream(folder, destination));
 
 		if (dependenciesStreams.length) {
 			result = es.merge(
@@ -483,29 +480,80 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 	);
 }
 
+const sharedTypeScriptDestination = 'extensions/node_modules/typescript';
+const unusedTypeScriptLibFiles = new Set([
+	'tsc.js',
+	'_tsc.js',
+	'tsc6.js',
+	'_tsc6.js',
+	'typescriptServices.js',
+	'_typescriptServices.js',
+]);
+
+/**
+ * Whether the built-in extensions need the file at `relativePath` (a path with `/` separators,
+ * relative to the package folder) of the TypeScript that they share. They use only `package.json`
+ * and the files in `lib`, and of those neither the compiler (`tsc`), nor the `typescriptServices`
+ * bundle, nor the type declarations other than the standard library's, `typescript.d.ts` and
+ * `protocol.d.ts`. `.moduleignore` leaves out more of them when the product is packaged.
+ */
+export function isPackagedTypeScriptFile(relativePath: string): boolean {
+	const [first, second, ...rest] = relativePath.split('/');
+	if (relativePath === '' || (first === 'package.json' && second === undefined)) {
+		return true;
+	}
+	if (first !== 'lib') {
+		return false;
+	}
+	if (second === undefined || rest.length > 0) {
+		return true;
+	}
+	if (unusedTypeScriptLibFiles.has(second)) {
+		return false;
+	}
+	return !second.endsWith('.d.ts') || second === 'lib.d.ts' || /^lib\..*\.d\.ts$/.test(second) || second === 'protocol.d.ts' || second === 'typescript.d.ts';
+}
+
 /**
  * Returns the production dependencies of `extensions/package.json` (shared by the built-in
  * extensions) with their destination in the build: `extensions/node_modules/...`. They are a
  * member of the pnpm workspace, so a dependency can be hoisted to the root `node_modules`; such a
- * folder keeps its path relative to that `node_modules`.
+ * folder keeps its path relative to that `node_modules`. `folder` holds the files of the package
+ * (in pnpm's virtual store with the isolated linker).
  */
 function getSharedExtensionDependencyFolders(): { folder: string; destination: string }[] {
 	const extensionsNodeModules = path.join(root, 'extensions', 'node_modules');
 	const rootNodeModules = path.join(root, 'node_modules');
 	const result = new Map<string, string>();
-	for (const folder of getProductionDependencies('extensions/')) {
+	for (const { folder, source } of getProductionDependencies('extensions/')) {
 		const relative = folder.startsWith(extensionsNodeModules + path.sep) ? path.relative(extensionsNodeModules, folder) : path.relative(rootNodeModules, folder);
 		if (relative.startsWith('..')) {
 			throw new Error(`Unexpected location of a shared extension dependency: ${folder}`);
 		}
 		const destination = path.posix.join('extensions', 'node_modules', relative.split(path.sep).join('/'));
 		const existing = result.get(destination);
-		if (existing && existing !== folder) {
-			throw new Error(`Shared extension dependencies ${existing} and ${folder} would both be packaged at ${destination}`);
+		if (existing && existing !== source) {
+			throw new Error(`Shared extension dependencies ${existing} and ${source} would both be packaged at ${destination}`);
 		}
-		result.set(destination, folder);
+		result.set(destination, source);
 	}
 	return [...result].map(([destination, folder]) => ({ folder: path.relative(root, folder).split(path.sep).join('/'), destination }));
+}
+
+/**
+ * Returns the files of a shared extension dependency, read from `folder` and placed at
+ * `destination`. The files are moved rather than renamed, so that the filters that follow match
+ * their packaged path, and not the folder of the package in pnpm's virtual store (`.pnpm`).
+ */
+export function getSharedExtensionDependencyStream(folder: string, destination: string): Stream {
+	return gulp.src([`${folder}/**`, `!${folder}/**/{test,tests}/**`], { base: folder })
+		.pipe(filter(file => destination !== sharedTypeScriptDestination || isPackagedTypeScriptFile(file.relative.split(path.sep).join('/'))))
+		.pipe(es.mapSync((file: File) => {
+			const relative = file.relative;
+			file.base = file.cwd;
+			file.path = path.join(file.cwd, destination, relative);
+			return file;
+		}));
 }
 
 /**
@@ -525,11 +573,12 @@ export function packageCopilotExtensionStream(): Stream {
 	);
 
 	const productionDependencies = getProductionDependencies('extensions/copilot');
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	return es.merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
 	).pipe(util2.setExecutableBit(['**/*.sh']));

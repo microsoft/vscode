@@ -10,6 +10,7 @@ import { autorun, constObservable, derived, IObservable } from '../../../../../.
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -38,19 +39,20 @@ import { getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, MO
 import { buildSpeedVariants } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerVariants.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
-import { getSessionConfigProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem, MOBILE_PICKER_SHEET_CONFIRM } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
-import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
+import { getSessionConfigProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { showMobilePickerSheet, IMobilePickerSheetItem, MOBILE_PICKER_SHEET_CONFIRM } from '../../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 import { ExperimentalMobileChatInputActionViewItem } from './experimentalMobileChatInputActionViewItem.js';
-import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
-import { ISessionAgentRef } from '../../../../../services/sessions/common/session.js';
-import { getAgentHostAgentPickerState, setAgentHostAgent } from '../agentHostAgentSelection.js';
+import { PermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
+import { IChat, ISession, ISessionAgentRef } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { getAgentHostAgentPickerState, setAgentHostAgent } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentSelection.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when
@@ -144,7 +146,8 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
@@ -194,10 +197,11 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		this._openSheet.value = store;
 		const cancellation = new CancellationTokenSource();
 		store.add(toDisposable(() => cancellation.dispose(true)));
-		const provider = sessionContext && this._sessionsProvidersService.getProvider(sessionContext.providerId);
+		const provider = sessionContext && this._sessionsProvidersService.getProvider(sessionContext.providerId, sessionContext.sessionId);
 		const isCurrent = () => !cancellation.token.isCancellationRequested
 			&& matchesChatPhoneInputTarget(target, this._getSessionContext(request), this._uriIdentityService)
-			&& (!sessionContext || this._sessionsProvidersService.getProvider(sessionContext.providerId) === provider);
+			&& (!sessionContext || this._getSessionSource(sessionContext.chatResource, sessionContext) !== undefined)
+			&& (!sessionContext || this._sessionsProvidersService.getProvider(sessionContext.providerId, sessionContext.sessionId) === provider);
 		const configProvider = provider && getSessionConfigProvider(provider);
 		const itemsChanged = store.add(new Emitter<void>());
 		const permissionStore = store.add(new DisposableStore());
@@ -229,10 +233,14 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 				const config = sessionContext && configProvider?.getSessionConfig(sessionContext.sessionId, sessionContext.chatResource);
 				if (sessionContext && getSessionApprovalProperty(config?.schema)) {
 					if (!permissionPicker) {
-						permissionDelegate = permissionStore.add(this._instantiationService.createInstance(AgentHostPermissionPickerDelegate, constObservable({
-							...sessionContext,
-							activeChat: constObservable({ resource: sessionContext.chatResource }),
-						})));
+						const source = this._getSessionSource(sessionContext.chatResource, sessionContext);
+						if (!source) {
+							throw new Error(localize('chatPhoneInput.sessionUnavailable', "This chat is no longer available."));
+						}
+						permissionDelegate = permissionStore.add(this._instantiationService.createInstance(AgentHostPermissionPickerDelegate, {
+							session: constObservable(source.session),
+							chat: constObservable(source.chat),
+						}));
 						permissionPicker = permissionStore.add(this._instantiationService.createInstance(PermissionPicker, permissionDelegate));
 					}
 				} else {
@@ -323,7 +331,7 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		session: IChatPhoneInputSessionContext | undefined,
 		registerAction: RegisterChatPhonePickerAction,
 	): IChatPhoneSheet | undefined {
-		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		if (session && rawProvider) {
 			return this._buildSessionSheet(session, rawProvider, request, registerAction);
 		}
@@ -346,7 +354,7 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		const resolving = configProvider?.isSessionConfigResolving(session.sessionId, session.chatResource).get() === true;
 		if (isAgentHostProvider(provider) && provider.setAgent) {
 			const { agents, toPickerUri } = getAgentHostAgentPickerState(session.sessionId, provider);
-			const selectedAgent = toPickerUri(provider.getSessions().find(candidate => candidate.sessionId === session.sessionId)?.mode.get()?.id);
+			const selectedAgent = toPickerUri(this._getSessionSource(session.chatResource, session)?.session.mode.get()?.id);
 			if (agents.length) {
 				items.push({
 					id: registerAction({ kind: 'agent', agent: undefined }),
@@ -666,7 +674,7 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		if (!matchesChatPhoneInputTarget(target, session, this._uriIdentityService)) {
 			return;
 		}
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const configProvider = provider && getSessionConfigProvider(provider);
 
 		switch (action.kind) {
@@ -740,7 +748,7 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 				break;
 			case 'agent':
 				if (session && provider && isAgentHostProvider(provider) && provider.setAgent && !provider.isSessionConfigResolving(session.sessionId, session.chatResource).get()) {
-					const currentSession = provider.getSessions().find(candidate => candidate.sessionId === session.sessionId);
+					const currentSession = this._getSessionSource(session.chatResource, session)?.session;
 					const agentUri = action.agent?.uri;
 					const agent = agentUri ? getAgentHostAgentPickerState(session.sessionId, provider).agents.find(candidate => candidate.uri === agentUri) : undefined;
 					if (currentSession && (!action.agent || agent)) {
@@ -758,14 +766,27 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		return request.modelDelegate ?? (session && this._phonePresenter.getSessionModelPicker(session)?.modelDelegate);
 	}
 
+	private _getSessionSource(chatResource: URI, context?: IChatPhoneInputSessionContext): { session: ISession; chat: IChat } | undefined {
+		const matchesSession = (session: ISession) => !context || session.providerId === context.providerId && session.sessionId === context.sessionId;
+		// Draft composers and automation dialogs are excluded from getHostOfChat.
+		for (const host of this._sessionHostService.hosts.get()) {
+			const session = host.session.get();
+			const chat = host.chat.get();
+			if (session && chat && matchesSession(session) && this._uriIdentityService.extUri.isEqual(chat.resource, chatResource)) {
+				return { session, chat };
+			}
+		}
+		const source = this._sessionsManagementService.getSessionForChatResource(chatResource);
+		return source && matchesSession(source.session) ? source : undefined;
+	}
+
 	private _getSessionContext(request: ChatPhoneInputPresenterRequest): IChatPhoneInputSessionContext | undefined {
 		if (request.kind === 'session') {
 			return request.getSessionContext();
 		}
 		const resource = request.modeDelegate.sessionResource();
-		return resource ? createChatPhoneInputSessionContext(this._sessionsService.visibleSessions.get().find(session =>
-			session && this._uriIdentityService.extUri.isEqual(session.activeChat.get().resource, resource),
-		)) : undefined;
+		const source = resource && this._getSessionSource(resource);
+		return source ? createChatPhoneInputSessionContext(source.session, source.chat) : undefined;
 	}
 }
 

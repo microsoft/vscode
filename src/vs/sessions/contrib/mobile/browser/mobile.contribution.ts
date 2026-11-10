@@ -11,18 +11,22 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { IAquariumService } from '../../aquarium/browser/aquariumOverlay.js';
+import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { WindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvasService.js';
 import { MobileActionWidgetService } from './mobileActionWidgetService.js';
 import { MobileContextMenuService } from './mobileContextMenuService.js';
 import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
+import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
-import { ISessionsListPresentation } from '../../../services/presentation/browser/sessionsListPresentation.js';
-import { ISessionRepositoryPicker } from '../../../services/presentation/browser/sessionRepositoryPicker.js';
+import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
 import { MobileSessionsListPresentation } from './mobileSessionsListPresentation.js';
 import { MobileRepositoryPicker } from './mobileRepositoryPicker.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { MobileChatViewFactory } from './mobileChatViewFactory.js';
 import { IChatEditPresentationService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
@@ -63,6 +67,8 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
+registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
+registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
 registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Delayed);

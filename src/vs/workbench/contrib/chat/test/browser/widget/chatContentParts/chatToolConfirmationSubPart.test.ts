@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -22,12 +23,13 @@ import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { ToolConfirmationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { renderToolConfirmationFeedback } from '../../../../browser/widget/chatContentParts/toolInvocationParts/toolConfirmationFeedback.js';
 import { IChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolConfirmationFeedback, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
@@ -35,7 +37,7 @@ import { IChatWidgetService } from '../../../../browser/chat.js';
 suite('ToolConfirmationSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function renderConfirmation(message: string | MarkdownString, rawInput?: object, disclaimer?: MarkdownString, terminalData?: IChatTerminalToolInvocationData) {
+	function renderConfirmation(message: string | MarkdownString, rawInput?: object, disclaimer?: MarkdownString, terminalData?: IChatTerminalToolInvocationData, feedback?: IToolConfirmationFeedback) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ILanguageModelToolsService, { getTool: () => undefined });
 		instantiationService.stub(ILanguageModelToolsConfirmationService, { getPreConfirmActions: () => [] });
@@ -85,7 +87,7 @@ suite('ToolConfirmationSubPart', () => {
 			contentIndex: 0,
 		});
 		const invocation = new ChatToolInvocation({
-			confirmationMessages: { title: terminalData ? 'Run in terminal?' : 'Allow tool call?', message, disclaimer },
+			confirmationMessages: { title: terminalData ? 'Run in terminal?' : 'Allow tool call?', message, disclaimer, feedback },
 			toolSpecificData: terminalData ?? (rawInput ? { kind: 'input', rawInput, editable: false } : undefined),
 		}, {
 			id: 'rename_chat',
@@ -97,7 +99,7 @@ suite('ToolConfirmationSubPart', () => {
 		const part = store.add(terminalData
 			? instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, invocation, terminalData, context, renderer, editorPool, () => 500, 0)
 			: instantiationService.createInstance(ToolConfirmationSubPart, invocation, context, renderer, editorPool, () => 500, 0));
-		return { part, renderedInputs };
+		return { part, renderedInputs, invocation };
 	}
 
 	function messageText(part: { readonly domNode: HTMLElement }): string | undefined {
@@ -209,5 +211,47 @@ suite('ToolConfirmationSubPart', () => {
 			message: messageText(part),
 			disclaimer: part.domNode.querySelector('.disclaimer')?.textContent?.trim(),
 		}, { message: reason, disclaimer: 'A disclaimer.' });
+	});
+	const feedback: IToolConfirmationFeedback = { label: 'Help improve the reviewer (optional)', placeholder: 'What should it have understood?', description: 'It does not change the decision.' };
+	const terminalData: IChatTerminalToolInvocationData = { kind: 'terminal', commandLine: { original: 'echo review-me' }, language: 'bash', editable: false };
+
+	for (const terminal of [false, true]) {
+		test(`offers optional feedback right above the buttons only when requested (${terminal ? 'terminal' : 'generic'})`, () => {
+			const placement = (withFeedback: boolean) => {
+				const { part } = renderConfirmation('Review this tool call.', undefined, undefined, terminal ? terminalData : undefined, withFeedback ? feedback : undefined);
+				const field = part.domNode.querySelector('.chat-confirmation-feedback');
+				return { field: !!field, beforeButtons: field?.nextElementSibling?.classList.contains('chat-confirmation-widget-buttons') ?? false };
+			};
+			assert.deepStrictEqual({ requested: placement(true), absent: placement(false) }, {
+				requested: { field: true, beforeButtons: true },
+				absent: { field: false, beforeButtons: false },
+			});
+		});
+	}
+
+	test('keeps a feedback draft on the live invocation across renders, named and described for assistive technologies', () => {
+		const { invocation } = renderConfirmation('Review this tool call.');
+		const disposables = store.add(new DisposableStore());
+		const first = renderToolConfirmationFeedback(disposables, invocation, feedback);
+		const input = first.querySelector('input');
+		assert.ok(input);
+		input.value = 'Reading this file is fine.';
+		input.dispatchEvent(new mainWindow.Event('input'));
+		const rendered = renderToolConfirmationFeedback(disposables, invocation, feedback);
+		assert.deepStrictEqual({
+			draft: invocation.confirmationFeedback,
+			restored: rendered.querySelector('input')?.value,
+			name: input.getAttribute('aria-label'),
+			description: first.querySelector(`#${input.getAttribute('aria-describedby')}`)?.textContent,
+			visibleLabelHidden: first.querySelector('.chat-confirmation-feedback-label')?.getAttribute('aria-hidden'),
+			serialized: JSON.stringify(invocation.toJSON()).includes('Reading this file is fine.'),
+		}, {
+			draft: 'Reading this file is fine.',
+			restored: 'Reading this file is fine.',
+			name: feedback.label,
+			description: feedback.description,
+			visibleLabelHidden: 'true',
+			serialized: false,
+		});
 	});
 });

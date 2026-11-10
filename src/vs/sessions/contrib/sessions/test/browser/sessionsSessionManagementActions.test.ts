@@ -31,21 +31,22 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
-import { Menus } from '../../../../browser/menus.js';
+import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
+import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -96,7 +97,7 @@ suite('Sessions - Session management actions', () => {
 	test('read and unread commands target list selection or explicit context, never an unrelated active session', async () => {
 		const first = createTestSession('First').session;
 		const second = createTestSession('Second').session;
-		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const harness = createActionHarness([first, second], active);
 		const noSelection = createActionHarness([], active);
 		const noListFocus = createActionHarness(undefined, active);
@@ -144,7 +145,7 @@ suite('Sessions - Session management actions', () => {
 		const parent = createTestSession('Parent').session;
 		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
 		const second = upcastPartial<IChat>({ resource: URI.parse('test:/second') });
-		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const selected = [{ session: parent, chat: peer }, { session: parent, chat: second }];
 		const harness = createActionHarness([], active, selected[0], undefined, false, { focusedChats: selected });
 		const calls: { sessionId: string; chat: string; read: boolean }[] = [];
@@ -361,7 +362,7 @@ suite('Sessions - Session management actions', () => {
 
 	function createActionHarness(
 		focusedSessions: readonly ISession[] | undefined,
-		activeSession: IActiveSession | undefined,
+		activeSession: ITestSessionWithChat | undefined,
 		focusedChat?: ISessionChatItem,
 		focusedGroupChat?: IChat,
 		renameFocusedTab = false,
@@ -399,9 +400,10 @@ suite('Sessions - Session management actions', () => {
 		const getViewWithId = <T extends IView>(id: string): T | null => id === SessionsViewId ? sessionsView as unknown as T : null;
 
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId }));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: constObservable<ITestSessionWithChat | undefined>(activeSession ? upcastPartial<ITestSessionWithChat>(activeSession) : undefined),
 		}));
+		stubSessionHostsFromSessionsService(instantiationService);
 		const sessionView = activeSession ? upcastPartial<SessionView>({
 			getSession: () => activeSession,
 			getFocusedChat: () => focusedGroupChat,
@@ -418,7 +420,8 @@ suite('Sessions - Session management actions', () => {
 			},
 		}) : undefined;
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getSessionView(sessionId: string | undefined): SessionView | undefined {
+			override getSessionView(session: string | ISession | undefined): SessionView | undefined {
+				const sessionId = typeof session === 'string' ? session : session?.sessionId;
 				return sessionView?.getSession()?.sessionId === sessionId ? sessionView : undefined;
 			}
 			override getFocusedSessionView(): SessionView | undefined {
@@ -445,7 +448,7 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, dialogService, playedSignals, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, dialogService, playedSignals, sessionView, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
 
 	test('archives active sessions without confirmation', async () => {
@@ -487,7 +490,7 @@ suite('Sessions - Session management actions', () => {
 
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;
-		const listActiveSession = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const listActiveSession = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const listHarness = createActionHarness([listSession], listActiveSession);
 		const base = createTestSession('Explore Jitter Issue').session;
 		const mainChat = base.mainChat.get();
@@ -499,7 +502,7 @@ suite('Sessions - Session management actions', () => {
 			interactivity: constObservable(ChatInteractivity.Full),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		});
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...base,
 			chats: constObservable([mainChat, peerChat]),
 			mainChat: constObservable(mainChat),
@@ -522,7 +525,9 @@ suite('Sessions - Session management actions', () => {
 		await renameSessionHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatTabHarness.instantiationService);
-		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true });
+		// A tab's menu passes its pane's host, which names the pane whose title edits inline.
+		const [, , tabPaneContext] = stubPaneHost(chatTabMenuHarness.instantiationService, { grid: true, session: activeSession, view: chatTabMenuHarness.sessionView });
+		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true }, undefined, tabPaneContext);
 		await renameChatHandler(nestedChatHarness.instantiationService);
 		await archiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));

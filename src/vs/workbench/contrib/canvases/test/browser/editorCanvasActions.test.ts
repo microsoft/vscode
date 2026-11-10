@@ -20,7 +20,8 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
 import { ChatNewCanvasMenuId, OPEN_EDITOR_CANVAS_COMMAND_ID, registerEditorCanvasActions, REOPEN_EDITOR_CANVAS_COMMAND_ID } from '../../browser/editorCanvasActions.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasReopenTarget, ICanvasService } from '../../common/canvas.js';
+import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasDefinition, ICanvasReopenTarget, ICanvasService } from '../../common/canvas.js';
+import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('EditorCanvasActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -156,6 +157,7 @@ suite('EditorCanvasActions', () => {
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === ChatNewCanvasMenuId);
 		const initialItems = getItems();
+		const initialGroupTitles = initialItems.map(item => MenuRegistry.getMenuGroup(ChatNewCanvasMenuId, item.group ?? '')?.title);
 		const initialSubmenus = getSubmenus();
 		const initialCommandIds = initialItems.map(item => item.command.id);
 		for (const item of initialItems) {
@@ -196,6 +198,7 @@ suite('EditorCanvasActions', () => {
 			submenuGroups: initialSubmenus.map(item => item.group),
 			initialTitles: initialItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: initialItems.map(item => item.group),
+			groupTitles: initialGroupTitles,
 			requiresChat: initialItems.map(item => item.when?.serialize().includes(ChatContextKeys.enabled.key)),
 			listCalls,
 			opened,
@@ -213,8 +216,9 @@ suite('EditorCanvasActions', () => {
 		}, {
 			submenuTitles: ['Canvas'],
 			submenuGroups: ['z_canvas'],
-			initialTitles: ['Counter (Project Counter)', 'Counter (User Counter)', 'Preview'],
-			groups: ['1_available', '1_available', '2_open'],
+			initialTitles: ['Preview', 'Counter (Project Counter)', 'Counter (User Counter)'],
+			groups: ['1_running', '2_available', '2_available'],
+			groupTitles: ['Running', 'Available', 'Available'],
 			requiresChat: [true, true, true],
 			listCalls: 4,
 			opened: [{
@@ -224,7 +228,7 @@ suite('EditorCanvasActions', () => {
 			revealed: ['agent-host-canvas:/project-counter', 'agent-host-canvas:/user-counter'],
 			reopened: ['agent-host-canvas:/preview'],
 			unchangedSubmenuRetained: true,
-			refreshedTitles: ['Chart', 'Counter', 'Preview'],
+			refreshedTitles: ['Counter', 'Preview', 'Chart'],
 			uninitializedItems: 0,
 			uninitializedSubmenus: 0,
 			disabledItems: 0,

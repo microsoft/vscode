@@ -22,7 +22,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInputOptions, IPickOptions, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { QuickInputService } from '../../../../workbench/services/quickinput/browser/quickInputService.js';
-import { IMobilePickerSheetItem, showMobileContentSheet, showMobilePickerSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetItem, showMobileContentSheet, showMobilePickerSheet } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 const $ = dom.$;
 

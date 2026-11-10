@@ -138,6 +138,7 @@ export class ForkConversationAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const forkedTitlePrefix = localize('chat.forked.titlePrefix', "Forked: ");
+		const canOpenFork = this._captureForkNavigation(accessor);
 
 		// When invoked via /fork slash command, args[0] is a URI (sessionResource).
 		// Fork at the last request in that session.
@@ -149,10 +150,10 @@ export class ForkConversationAction extends Action2 {
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
 			if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
 				try {
-					if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined, options)) {
+					if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined, options, canOpenFork)) {
 						return;
 					}
-					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService, options);
+					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService, options, canOpenFork);
 				} catch (error) {
 					await this._handleForkPromptError(error, sourceSessionResource, instantiationService, options);
 					throw error;
@@ -194,7 +195,7 @@ export class ForkConversationAction extends Action2 {
 			const newSessionResource = modelRef.object.sessionResource;
 			setTimeout(async () => {
 				try {
-					await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource);
+					await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, undefined, canOpenFork);
 				} finally {
 					modelRef.dispose();
 				}
@@ -257,10 +258,10 @@ export class ForkConversationAction extends Action2 {
 				}
 			}
 			try {
-				if (await this._tryForkAsChat(instantiationService, sessionResource, request, options)) {
+				if (await this._tryForkAsChat(instantiationService, sessionResource, request, options, canOpenFork)) {
 					return;
 				}
-				return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService, options);
+				return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService, options, canOpenFork);
 			} catch (error) {
 				await this._handleForkPromptError(error, sessionResource, instantiationService, options);
 				throw error;
@@ -327,13 +328,21 @@ export class ForkConversationAction extends Action2 {
 		// Navigate to the new session in the chat view pane
 		try {
 			const newSessionResource = modelRef.object.sessionResource;
-			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, options);
+			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, options, canOpenFork);
 		} finally {
 			modelRef.dispose();
 		}
 	}
 
-	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, _options?: IForkConversationOptions): Promise<void> {
+	/** Captures whether the invoking surface still permits navigation after the fork completes. */
+	protected _captureForkNavigation(_accessor: ServicesAccessor): () => boolean {
+		return () => true;
+	}
+
+	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, _options?: IForkConversationOptions, canOpenFork: () => boolean = () => true): Promise<void> {
+		if (!canOpenFork()) {
+			return;
+		}
 		await instantiationService.invokeFunction(async accessor => {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionReason: 'currentSession' });
@@ -347,13 +356,13 @@ export class ForkConversationAction extends Action2 {
 	 * implementation does nothing and returns `false`, so the standard
 	 * session-creating fork path runs.
 	 */
-	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _options?: IForkConversationOptions): Promise<boolean> {
+	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _options?: IForkConversationOptions, _canOpenFork?: () => boolean): Promise<boolean> {
 		return false;
 	}
 
 	private readonly pendingForks = new Set<{ readonly key: string; readonly context: object | undefined; readonly promise: Promise<void> }>();
 
-	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options?: IForkConversationOptions) {
+	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options: IForkConversationOptions | undefined, canOpenFork: () => boolean) {
 		const title = options?.title?.trim() || undefined;
 		const forkOptions: IChatSessionForkOptions | undefined = title || options?.initialMessage
 			? { ...(title ? { title } : {}), ...(options?.initialMessage ? { initialMessage: options.initialMessage } : {}), ...(options?.sourceRequestId ? { sourceRequestId: options.sourceRequestId } : {}) }
@@ -371,7 +380,7 @@ export class ForkConversationAction extends Action2 {
 			const cts = new CancellationTokenSource();
 			try {
 				const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token, forkOptions);
-				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource, options);
+				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource, options, canOpenFork);
 				if (openForkedSessionImmediately || options?.initialMessage) {
 					try {
 						await open();

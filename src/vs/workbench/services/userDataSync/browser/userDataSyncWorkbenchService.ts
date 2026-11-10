@@ -25,6 +25,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../lifecycle/common/unattendedRestart.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { UserDataSyncStoreClient } from '../../../../platform/userDataSync/common/userDataSyncStoreService.js';
@@ -123,8 +124,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
+
+		// Shutting down while Settings Sync is turned on asks whether to cancel it
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.turnOnSyncCancellationToken ? 'settingsSync.turningOn' : undefined
+		}));
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);

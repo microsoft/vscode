@@ -13,7 +13,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { isImplicitlyConnectedHost } from './mobileAgentHostFilterService.js';
 import { describeComputerStatus, MobileHostPickerSheet } from './mobileHostPickerSheet.js';
 
