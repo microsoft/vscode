@@ -743,6 +743,31 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 	});
 
+	test('waits for an active pointer selection to settle when enabled', async () => {
+		const { controller, beginPointerSelection, finishPointerSelection, setSelection, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			showOnSelection: false,
+		});
+
+		beginPointerSelection();
+		setSelection('hello world');
+		controller.setShowOnSelection(true);
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
 	test('shows the enhanced action menu after pointer selection settles', async () => {
 		const {
 			controller,
@@ -1760,6 +1785,59 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'the overlay must stay visible so the user can retry');
 		assert.strictEqual(notificationService.notifications.length, 1);
 		assert.strictEqual(notificationService.notifications[0].severity, Severity.Error);
+	});
+
+	test('preserves pending submission tracking when automatic selection UI is disabled', async () => {
+		let rejectCreate!: (error: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		let createCalls = 0;
+		const { controller, setSelection, notificationService } = setup({
+			enhancedSelectionMenu: true,
+			createSideChatInSession: async () => {
+				createCalls++;
+				return pending;
+			},
+		});
+		setSelection('hello world');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+		submitViaClick(controller, 'keep this question');
+
+		controller.setShowOnSelection(false);
+		controller.setShowOnSelection(true);
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+		dispatchKey(inputTextArea(controller), 'Enter');
+		const pendingState = {
+			busy: isInputBusy(controller),
+			disabled: inputTextArea(controller).disabled,
+			visible: inputDomNode(controller).style.display !== 'none',
+			createCalls,
+		};
+
+		rejectCreate(new Error('boom'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			pendingState,
+			busyAfterFailure: isInputBusy(controller),
+			disabledAfterFailure: inputTextArea(controller).disabled,
+			questionAfterFailure: inputTextArea(controller).value,
+			visibleAfterFailure: inputDomNode(controller).style.display !== 'none',
+			createCalls,
+			notifications: notificationService.notifications,
+		}, {
+			pendingState: {
+				busy: true,
+				disabled: true,
+				visible: true,
+				createCalls: 1,
+			},
+			busyAfterFailure: false,
+			disabledAfterFailure: false,
+			questionAfterFailure: 'keep this question',
+			visibleAfterFailure: true,
+			createCalls: 1,
+			notifications: [{ severity: Severity.Error, message: 'The side chat could not be created.' }],
+		});
 	});
 
 	test('same-chat setChat (e.g. a status/interactivity update) preserves a visible draft', () => {

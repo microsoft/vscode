@@ -275,9 +275,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 		this._showOnSelection = showOnSelection;
 		if (showOnSelection) {
-			this._applySelectionChange();
+			this._onSelectionChange();
 		} else {
-			this._dismiss(true);
+			this._dismiss();
 		}
 	}
 
