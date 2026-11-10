@@ -27,7 +27,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { migratedCopilotCliResource } from '../copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 //#region Session Opener Registry
@@ -173,6 +173,7 @@ function createFallbackAgentSession(resource: URI): IAgentSession {
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	const twin = migratedCopilotCliResource(resource);
 	// A superseded legacy resource is redirected (and adopted) before anything
@@ -180,7 +181,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	const migratedSession = await resolveMigratedSessionForOpen(accessor, resource);
 	if (migratedSession) {
 		resource = migratedSession.resource;
-	} else if (twin && instantiationService.invokeFunction(accessor => (!accessor.get(IAgentSessionsService).getSession(resource) || !accessor.get(IChatSessionsService).getChatSessionContribution?.(resource.scheme)))) {
+	} else if (twin && (!instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource)) || !await canOpenLegacyCopilotCliResource(chatSessionsService, resource))) {
 		resource = twin;
 	}
 
@@ -222,6 +223,7 @@ export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService,
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
 
@@ -233,7 +235,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 		const migratedSession = await resolveMigratedSessionForOpen(accessor, session.resource);
 		if (migratedSession) {
 			session = migratedSession;
-		} else if (twin && instantiationService.invokeFunction(accessor => !accessor.get(IChatSessionsService).getChatSessionContribution?.(session.resource.scheme))) {
+		} else if (twin && !await canOpenLegacyCopilotCliResource(chatSessionsService, session.resource)) {
 			session = { ...session, resource: twin, providerType: getChatSessionType(twin) };
 		}
 	}

@@ -33,7 +33,7 @@ import { IAgentHostActiveClientService } from '../../../../chat/browser/agentSes
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
@@ -153,11 +153,12 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// keeps the original `undefined` behavior while the extension-host provider
 		// is still registered; once retired, seed and redirect to the twin so it still resolves.
 		const isStillAdoptable = sessionKey ? readSessionEhcliAdoptable(this._getSessionMetadataByKey(sessionKey)) : adoptable;
-		const legacyProviderRegistered = this._chatSessionsService.getChatSessionContribution?.(resource.scheme) !== undefined;
+		const needsTwinSeed = !!(twin && rawId && sessionKey && !this._sessionCache.has(sessionKey));
+		const legacyProviderRegistered = (isStillAdoptable || needsTwinSeed) && await canOpenLegacyCopilotCliResource(this._chatSessionsService, resource);
 		if (isStillAdoptable && legacyProviderRegistered) {
 			return undefined;
 		}
-		if (twin && rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+		if (needsTwinSeed && rawId) {
 			if (legacyProviderRegistered) {
 				return undefined;
 			}

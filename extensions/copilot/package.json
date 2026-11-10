@@ -5522,7 +5522,7 @@
         },
         {
           "command": "agents.github.copilot.cli.deleteSessions",
-          "when": "!github.copilot.chat.cli.legacyProviderDisabled"
+          "when": "config.github.copilot.chat.cli.legacyProvider.enabled && !github.copilot.chat.cli.legacyProviderDisabled"
         },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
@@ -6571,7 +6571,7 @@
         "order": 1,
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
-        "when": "config.github.copilot.chat.backgroundAgent.enabled && !github.copilot.chat.cli.legacyProviderDisabled",
+        "when": "config.github.copilot.chat.backgroundAgent.enabled && config.github.copilot.chat.cli.legacyProvider.enabled && !github.copilot.chat.cli.legacyProviderDisabled",
         "supportsAutoModel": true,
         "requiresCopilotSignIn": true,
         "capabilities": {

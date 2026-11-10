@@ -15204,7 +15204,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		testWithExternalSessionClock('legacy migration starts discovery when the provider registry is already backfilled', async () => {
+		testWithExternalSessionClock('legacy migration starts discovery after startup settles when the provider registry is already backfilled', async () => {
 			const database = new TransientRegistryWriteDatabase();
 			await database.markProviderBackfilled('copilot');
 			const svc = createExternalSessionService(createSessionDataService(), database);
@@ -15212,16 +15212,21 @@ suite('AgentService (node dispatcher)', () => {
 			const external = agent.addSession('backfilled-legacy-discovery', Date.now());
 
 			registerTestAgentProvider(svc, agent);
+			const startsBeforeStartupComplete = agent.discoveryStarts;
+			svc.markStartupComplete();
+			await svc.listSessions();
 			// Registration awaits real database I/O, which the faked clock does not drive: wait for it rather than for a number of ticks.
 			await agent.discoveryStarted.p;
 			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
+				startsBeforeStartupComplete,
 				discoveryStarts: agent.discoveryStarts,
 				providerBackfilled: await svc.isProviderRegistryBackfilled('copilot'),
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
 				visible: await svc.listSessions(),
 			}, {
+				startsBeforeStartupComplete: 0,
 				discoveryStarts: 1,
 				providerBackfilled: true,
 				registered: [external.toString()],

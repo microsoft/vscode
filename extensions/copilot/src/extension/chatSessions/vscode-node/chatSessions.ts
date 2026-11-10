@@ -130,7 +130,9 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const legacyProviderEnabled = instantiationService.invokeFunction(accessor =>
 			accessor.get(IConfigurationService).getExperimentBasedConfig(ConfigKey.Advanced.CLILegacyProviderEnabled, accessor.get(IExperimentationService))
 		);
-		// Set on every activation: an extension host restart without a window reload keeps context keys.
+		// The `when` clauses check the setting, which VS Code resolves at startup including its
+		// experiment. This context key carries the value the extension acts on, so the two cannot
+		// disagree. It is set on every activation: an extension host restart without a window reload keeps context keys.
 		void vscode.commands.executeCommand('setContext', 'github.copilot.chat.cli.legacyProviderDisabled', !legacyProviderEnabled);
 		if (!legacyProviderEnabled) {
 			// The `copilotcli` session type is hidden; its sessions are migrated to the agent host when opened.

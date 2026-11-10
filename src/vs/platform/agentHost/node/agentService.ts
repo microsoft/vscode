@@ -2121,15 +2121,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _setupChatDiscoveryForProvider(provider: IAgent): void {
-		if (provider.ensureChatAdopted) {
-			this._startChatDiscovery(provider, 'the provider migrates legacy chats');
-		} else {
-			this._runWhenStartupSettled(`external session discovery for ${provider.id}`, () => {
-				if (!this._hidesAllExternalSessions(this._getExternalSessionsMode())) {
-					this._startChatDiscovery(provider, 'Agent Host startup settled with external sessions enabled');
-				}
-			});
-		}
+		// Legacy migration discovers even when external sessions are hidden, but like
+		// external discovery it waits for startup so it never competes with the first list.
+		this._runWhenStartupSettled(`chat discovery for ${provider.id}`, () => {
+			if (provider.ensureChatAdopted) {
+				this._startChatDiscovery(provider, 'Agent Host startup settled for a provider that migrates legacy chats');
+			} else if (!this._hidesAllExternalSessions(this._getExternalSessionsMode())) {
+				this._startChatDiscovery(provider, 'Agent Host startup settled with external sessions enabled');
+			}
+		});
 	}
 
 	private _onDidRegisterProvider(provider: IAgent): void {

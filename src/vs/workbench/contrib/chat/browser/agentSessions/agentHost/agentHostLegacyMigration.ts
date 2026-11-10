@@ -16,6 +16,20 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+
+/**
+ * Whether the extension-host Copilot CLI provider can still open a legacy resource that was
+ * not adopted. Before the Copilot extension activates its contribution can look available
+ * although the extension will not register the provider, so an available contribution is
+ * confirmed by resolving it. That waits only where opening the legacy resource would wait anyway.
+ */
+export async function canOpenLegacyCopilotCliResource(chatSessionsService: IChatSessionsService, resource: URI): Promise<boolean> {
+	if (!chatSessionsService.getChatSessionContribution?.(resource.scheme)) {
+		return false;
+	}
+	return chatSessionsService.canResolveChatSession ? chatSessionsService.canResolveChatSession(resource.scheme) : true;
+}
 
 /**
  * How long an adoption probe may take before falling back to the legacy resource.
