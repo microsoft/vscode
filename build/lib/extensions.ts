@@ -579,9 +579,12 @@ export function packageCopilotExtensionStream(): Stream {
  * Builds the Copilot extension and packages it into {@link copilotVsixPath}. Its `package` script
  * packages the extension from a staging folder that `pnpm deploy` creates, because `vsce` can't list
  * the production dependencies in pnpm's layout (see `extensions/copilot/script/build/packageVsix.ts`).
+ * The build writes the source maps of the bundles to `dist-sourcemaps`, which the VSIX excludes; the
+ * product build uploads them (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`).
  */
 async function buildCopilotVsix(extensionPath: string): Promise<void> {
-	await spawnAsync(process.execPath, ['.esbuild.mts'], extensionPath, false);
+	fs.rmSync(path.join(extensionPath, 'dist-sourcemaps'), { recursive: true, force: true });
+	await spawnAsync(process.execPath, ['.esbuild.mts', '--sourcemaps'], extensionPath, false);
 
 	fs.rmSync(path.dirname(copilotVsixPath), { recursive: true, force: true });
 	fs.mkdirSync(path.dirname(copilotVsixPath), { recursive: true });

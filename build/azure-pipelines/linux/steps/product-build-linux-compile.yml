@@ -69,6 +69,11 @@ steps:
 
   - template: ../../copilot/builtin-steps.yml@self
 
+  # One Compile job uploads the Copilot source maps, in publishing builds only: CI builds never publish, and the
+  # SDK validation build has no CDN connection.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true)) }}:
+    - template: ../../copilot/upload-sourcemaps-steps.yml@self
+
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
     - script: node build/azure-pipelines/common/extract-telemetry.ts
       displayName: Generate lists of telemetry events
