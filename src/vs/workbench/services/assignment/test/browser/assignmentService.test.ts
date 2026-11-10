@@ -7,10 +7,11 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ICopilotTokenInfo, IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IRequestOptions } from '../../../../../base/parts/request/common/request.js';
+import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -34,9 +35,18 @@ import { WorkbenchAssignmentService } from '../../common/assignmentService.js';
 suite('WorkbenchAssignmentService polling', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const treatmentName = 'config.test.polling';
+	const signedOutEndpoints = [
+		'https://exp.enterprise.githubcopilot.com/api/v1/assignments',
+		'https://exp.business.githubcopilot.com/api/v1/assignments',
+		'https://exp.individual.githubcopilot.com/api/v1/assignments',
+	];
+
+	function response(status: number, body: string): IRequestContext {
+		return { res: { headers: {}, statusCode: status }, stream: bufferToStream(VSBuffer.fromString(body)) };
+	}
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Await client readiness and exercise refresh races without public test-only APIs. */
-	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn') {
+	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn', options: { endpoint?: string; plan?: string; enterprise?: boolean; accountReady?: DeferredPromise<void> } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': 'all' });
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -60,18 +70,35 @@ suite('WorkbenchAssignmentService polling', () => {
 		}()));
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const entitlements = new class extends mock<IEntitlementsData>() {
-			override endpoints = accountState === 'missingEndpoint' ? undefined : { exp: 'https://assignments.example.com' };
+			override endpoints = accountState === 'missingEndpoint' ? undefined : { exp: options.endpoint ?? 'https://assignments.example.com' };
+			override copilot_plan = options.plan ?? 'individual';
+			override access_type_sku = 'pro';
+			override analytics_tracking_id = 'account-user';
+			override is_staff = false;
 		}();
+		const authenticationProvider = { id: options.enterprise ? 'github-enterprise' : 'github', name: 'GitHub', enterprise: options.enterprise ?? false };
 		const account = new class extends mock<IDefaultAccount>() {
+			override readonly sessionId = 'account-session';
+			override readonly authenticationProvider = authenticationProvider;
+			override readonly enterprise = authenticationProvider.enterprise;
 			override readonly entitlementsData = entitlements;
 		}();
 		const tokenChanged = store.add(new Emitter<ICopilotTokenInfo | null>());
+		let refreshAccount = () => { };
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
 			override currentDefaultAccount: IDefaultAccount | null = accountState === 'signedOut' ? null : account;
 			override readonly onDidChangeDefaultAccount = accountChanged.event;
 			override copilotTokenInfo: ICopilotTokenInfo | null = { sn: '0' };
 			override readonly onDidChangeCopilotTokenInfo = tokenChanged.event;
-			override async getDefaultAccount() { return this.currentDefaultAccount; }
+			override async getDefaultAccount() {
+				await options.accountReady?.p;
+				return this.currentDefaultAccount;
+			}
+			override getDefaultAccountAuthenticationProvider() { return authenticationProvider; }
+			override async refresh() {
+				refreshAccount();
+				return this.currentDefaultAccount;
+			}
 		}();
 		instantiationService.stub(IDefaultAccountService, defaultAccountService);
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
@@ -83,6 +110,7 @@ suite('WorkbenchAssignmentService polling', () => {
 			override readonly onDidChangeEntitlement = entitlementChanged.event;
 			override sku = 'pro';
 			override isInternal = false;
+			override copilotTrackingId = 'stale-chat-user';
 		}();
 		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
 
@@ -90,12 +118,16 @@ suite('WorkbenchAssignmentService polling', () => {
 		const requestedFilters: Record<string, string>[] = [];
 		const requestedUrls: (string | undefined)[] = [];
 		let waitForResponse = async () => { };
+		let respond: ((options: IRequestOptions, token: CancellationToken) => Promise<IRequestContext>) | undefined;
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
-			override async request(options: IRequestOptions) {
+			override async request(options: IRequestOptions, token: CancellationToken) {
 				assert.ok(options.data);
 				const body: { userParams: Record<string, string> } = JSON.parse(options.data);
 				requestedFilters.push(body.userParams);
 				requestedUrls.push(options.url);
+				if (respond) {
+					return respond(options, token);
+				}
 				const response = {
 					featureVariables: value === undefined ? {} : { [`/vscode/${treatmentName}`]: value },
 					assignmentContext: 'unchanged-context',
@@ -113,10 +145,12 @@ suite('WorkbenchAssignmentService polling', () => {
 			return client;
 		};
 		return {
-			service, ready, errors, requestedFilters, requestedUrls,
+			service, ready, errors, requestedFilters, requestedUrls, entitlements,
 			requests: () => requestedFilters.length,
 			setValue: (next: string | undefined) => { value = next; },
 			setWaitForResponse: (wait: () => Promise<void>) => { waitForResponse = wait; },
+			setResponse: (next: typeof respond) => { respond = next; },
+			setRefreshAccount: (refresh: () => void) => { refreshAccount = refresh; },
 			changeFilters: (kind: 'sku' | 'token' | 'staff', updated: boolean) => {
 				if (kind === 'token') {
 					defaultAccountService.copilotTokenInfo = { sn: updated ? '1' : '0' };
@@ -124,10 +158,13 @@ suite('WorkbenchAssignmentService polling', () => {
 				} else {
 					if (kind === 'sku') {
 						chatEntitlementService.sku = updated ? 'business' : 'pro';
+						entitlements.access_type_sku = chatEntitlementService.sku;
 					} else {
 						chatEntitlementService.isInternal = updated;
+						entitlements.is_staff = updated;
 					}
 					entitlementChanged.fire();
+					accountChanged.fire(defaultAccountService.currentDefaultAccount);
 				}
 			},
 			changeEndpoint: () => {
@@ -142,8 +179,92 @@ suite('WorkbenchAssignmentService polling', () => {
 		};
 	}
 
+	test('waits for account discovery before the first treatment or assignments request', () => runWithFakedTimers({}, async () => {
+		const accountReady = new DeferredPromise<void>();
+		const { service, ready, requestedUrls, requestedFilters, changeAccount } = createService(true, 'signedOut', { accountReady });
+		try {
+			let resolved = false;
+			const treatment = service.getTreatment(treatmentName).then(value => {
+				resolved = true;
+				return value;
+			});
+			await timeout(1);
+			const pending = { requests: requestedUrls.length, resolved };
+			changeAccount('https://exp.business.githubcopilot.com');
+			await accountReady.complete();
+			await ready();
+			assert.deepStrictEqual({ pending, value: await treatment, urls: requestedUrls, trackingIds: requestedFilters.map(filters => filters.copilottrackingid) }, {
+				pending: { requests: 0, resolved: false },
+				value: 'initial',
+				urls: ['https://exp.business.githubcopilot.com/api/v1/assignments'],
+				trackingIds: ['account-user'],
+			});
+		} finally {
+			service.dispose();
+			await accountReady.complete();
+		}
+	}));
+
+	for (const endpoint of ['https://exp.individual.githubcopilot.com', 'https://exp.business.githubcopilot.com']) {
+		test(`clears account filters and refetches on sign-out from ${endpoint}`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls, requestedFilters, changeAccount, entitlements } = createService(true, 'signedIn', { endpoint });
+			entitlements.access_type_sku = '';
+			try {
+				await ready();
+				changeAccount(null);
+				await ready();
+				assert.deepStrictEqual({
+					urls: requestedUrls,
+					identity: requestedFilters.map(filters => ({ tid: filters.copilottrackingid, sku: filters.github_core_copilotsku })),
+				}, {
+					urls: [`${endpoint}/api/v1/assignments`, signedOutEndpoints[0]],
+					identity: [{ tid: 'account-user', sku: undefined }, { tid: undefined, sku: undefined }],
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
+
+	for (const { accountState, plan, enterprise } of [
+		{ accountState: 'missingEndpoint', plan: 'business', enterprise: false },
+		{ accountState: 'missingEndpoint', plan: 'enterprise', enterprise: false },
+		{ accountState: 'missingEndpoint', plan: 'unknown', enterprise: false },
+		{ accountState: 'missingEndpoint', plan: 'individual', enterprise: true },
+	] as const) {
+		test(`does not use public fallback for ${accountState}, ${plan}, enterprise=${enterprise}`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls } = createService(true, accountState, { plan, enterprise });
+			try {
+				await ready();
+				assert.deepStrictEqual(requestedUrls, []);
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
+
+	test('retries account discovery when a managed account has no explicit endpoint', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, changeAccount, setRefreshAccount } = createService(true, 'missingEndpoint', { plan: 'enterprise' });
+		try {
+			await ready();
+			let discoveries = 0;
+			setRefreshAccount(() => {
+				discoveries++;
+				changeAccount('https://exp.enterprise.githubcopilot.com');
+			});
+			await timeout(ASSIGNMENT_REFETCH_INTERVAL);
+			await ready();
+			assert.deepStrictEqual({ discoveries, urls: requestedUrls }, {
+				discoveries: 1,
+				urls: ['https://exp.enterprise.githubcopilot.com/api/v1/assignments'],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
+
 	for (const accountState of ['signedOut', 'missingEndpoint'] as const) {
-		test(`merges individual and legacy treatments when ${accountState}`, () => runWithFakedTimers({}, async () => {
+		test(`merges new TAS and legacy treatments when ${accountState}`, () => runWithFakedTimers({}, async () => {
 			const { service, ready, requestedUrls } = createService(true, accountState);
 			try {
 				const client = (await ready())!;
@@ -160,10 +281,7 @@ suite('WorkbenchAssignmentService polling', () => {
 					merged: await service.getTreatment(treatmentName),
 					legacyOnly: await service.getTreatment('config.test.legacyOnly'),
 				}, {
-					urls: [
-						'https://exp.individual.githubcopilot.com/api/v1/assignments',
-						'https://exp.individual.githubcopilot.com/api/v1/assignments',
-					],
+					urls: Array(2).fill(accountState === 'signedOut' ? signedOutEndpoints[0] : signedOutEndpoints[2]),
 					merged: 'initial',
 					legacyOnly: 'legacy-only',
 				});
@@ -173,13 +291,13 @@ suite('WorkbenchAssignmentService polling', () => {
 		}));
 	}
 
-	test('switches from the individual endpoint to the account endpoint and back on sign-out', () => runWithFakedTimers({}, async () => {
+	test('switches between discovered and account routing even on the same host', () => runWithFakedTimers({}, async () => {
 		const { service, ready, requestedUrls, changeAccount, setValue } = createService(true, 'signedOut');
 		try {
 			await ready();
 			const values = [await service.getTreatment(treatmentName)];
 			setValue('signed-in');
-			changeAccount('https://exp.business.githubcopilot.com///');
+			changeAccount('https://exp.enterprise.githubcopilot.com///');
 			await ready();
 			values.push(await service.getTreatment(treatmentName));
 			setValue('signed-out');
@@ -188,14 +306,175 @@ suite('WorkbenchAssignmentService polling', () => {
 			values.push(await service.getTreatment(treatmentName));
 			assert.deepStrictEqual({ urls: requestedUrls, values }, {
 				urls: [
-					'https://exp.individual.githubcopilot.com/api/v1/assignments',
-					'https://exp.business.githubcopilot.com/api/v1/assignments',
-					'https://exp.individual.githubcopilot.com/api/v1/assignments',
+					signedOutEndpoints[0],
+					'https://exp.enterprise.githubcopilot.com/api/v1/assignments',
+					signedOutEndpoints[0],
 				],
 				values: ['initial', 'signed-in', 'signed-out'],
 			});
 		} finally {
 			service.dispose();
+		}
+	}));
+
+	for (const failure of ['network', 'http', 'json', 'schema', 'timeout'] as const) {
+		test(`signed-out discovery advances after ${failure} failure and reuses a valid empty response`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls, requestedFilters, setResponse } = createService(true, 'signedOut', { enterprise: true });
+			let aborted = false;
+			setResponse(async (options, token) => {
+				if (options.url === signedOutEndpoints[0]) {
+					switch (failure) {
+						case 'network': throw new Error('Blocked');
+						case 'http': return response(403, 'Forbidden');
+						case 'json': return response(200, '<html>Blocked</html>');
+						case 'schema': return response(200, '{"featureVariables":[],"assignmentContext":""}');
+						case 'timeout': {
+							return new Promise<IRequestContext>((_resolve, reject) => {
+								const listener = token.onCancellationRequested(() => {
+									aborted = true;
+									listener.dispose();
+									reject(new Error('Aborted'));
+								});
+								store.add(listener);
+							});
+						}
+					}
+				}
+				return response(200, '{"featureVariables":{},"assignmentContext":""}');
+			});
+			try {
+				await ready();
+				await service['refetchAssignments']();
+				assert.deepStrictEqual({
+					urls: requestedUrls,
+					identities: requestedFilters.map(filters => filters.copilottrackingid),
+					value: await service.getTreatment(treatmentName),
+					aborted,
+				}, {
+					urls: [signedOutEndpoints[0], signedOutEndpoints[1], signedOutEndpoints[1]],
+					identities: [undefined, undefined, undefined],
+					value: undefined,
+					aborted: failure === 'timeout',
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
+
+	for (const winner of [0, 1, 2, undefined] as const) {
+		test(`staggers discovery and cancels outstanding work with ${winner === undefined ? 'a shared deadline' : `winner ${winner}`}`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls, setResponse } = createService(true, 'signedOut');
+			const starts: number[] = [];
+			const cancelled: (string | undefined)[] = [];
+			setResponse(async (options, token) => {
+				starts.push(Date.now());
+				if (winner !== undefined && options.url === signedOutEndpoints[winner]) {
+					return response(200, '{"featureVariables":{},"assignmentContext":""}');
+				}
+				return new Promise<IRequestContext>((_resolve, reject) => {
+					const listener = store.add(token.onCancellationRequested(() => {
+						cancelled.push(options.url);
+						listener.dispose();
+						reject(new Error('Aborted'));
+					}));
+				});
+			});
+			try {
+				await ready();
+				const elapsed = Date.now() - starts[0];
+				await timeout(1000);
+				const count = winner === undefined ? 3 : winner + 1;
+				assert.deepStrictEqual({
+					urls: requestedUrls,
+					starts: starts.map(start => start - starts[0]),
+					elapsed,
+					cancelled,
+				}, {
+					urls: signedOutEndpoints.slice(0, count),
+					starts: [0, 250, 500].slice(0, count),
+					elapsed: winner === undefined ? 10_000 : winner * 250,
+					cancelled: signedOutEndpoints.slice(0, winner ?? 3),
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
+
+	test('a late successful loser cannot replace the remembered winner', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, setResponse } = createService(true, 'signedOut');
+		const late = new DeferredPromise<IRequestContext>();
+		setResponse(async options => options.url === signedOutEndpoints[0]
+			? late.p
+			: response(200, '{"featureVariables":{},"assignmentContext":""}'));
+		try {
+			await ready();
+			await late.complete(response(200, '{"featureVariables":{},"assignmentContext":""}'));
+			await timeout(0);
+			await service['refetchAssignments']();
+			assert.deepStrictEqual(requestedUrls, [signedOutEndpoints[0], signedOutEndpoints[1], signedOutEndpoints[1]]);
+		} finally {
+			service.dispose();
+			await late.complete(response(503, 'Unavailable'));
+		}
+	}));
+
+	test('tries each signed-out host once, retries after total failure, and replaces a failed preferred host', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, setResponse, changeAccount } = createService(true, 'signedOut');
+		let workingEndpoint: string | undefined;
+		setResponse(async options => options.url === workingEndpoint
+			? response(200, '{"featureVariables":{},"assignmentContext":""}')
+			: response(503, 'Unavailable'));
+		try {
+			await ready();
+			workingEndpoint = signedOutEndpoints[2];
+			await timeout(ASSIGNMENT_REFETCH_INTERVAL);
+			await ready();
+			workingEndpoint = signedOutEndpoints[1];
+			await service['refetchAssignments']();
+			await service['refetchAssignments']();
+			const discovered = requestedUrls.slice();
+			changeAccount(signedOutEndpoints[2].replace('/api/v1/assignments', ''));
+			await ready();
+			assert.deepStrictEqual({ discovered, signedIn: requestedUrls.slice(discovered.length) }, {
+				discovered: [
+					...signedOutEndpoints, ...signedOutEndpoints,
+					signedOutEndpoints[2], signedOutEndpoints[0], signedOutEndpoints[1], signedOutEndpoints[1],
+				],
+				signedIn: [signedOutEndpoints[2]],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('stops anonymous discovery when sign-in supersedes an in-flight attempt', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, requestedFilters, setResponse, changeAccount } = createService(true, 'signedOut');
+		const pending = new DeferredPromise<IRequestContext>();
+		const started = new DeferredPromise<void>();
+		setResponse(async () => {
+			await started.complete();
+			return pending.p;
+		});
+		try {
+			const initial = ready();
+			await started.p;
+			setResponse(undefined);
+			changeAccount('https://exp.individual.githubcopilot.com');
+			await ready();
+			await pending.complete(response(503, 'Unavailable'));
+			await initial;
+			assert.deepStrictEqual({
+				urls: requestedUrls,
+				identities: requestedFilters.map(filters => filters.copilottrackingid),
+			}, {
+				urls: [signedOutEndpoints[0], signedOutEndpoints[2]],
+				identities: [undefined, 'account-user'],
+			});
+		} finally {
+			service.dispose();
+			await pending.complete(response(503, 'Unavailable'));
 		}
 	}));
 

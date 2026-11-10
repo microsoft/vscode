@@ -23,6 +23,9 @@ export interface ICopilotTokenStore {
 	onDidStoreUpdate: Event<void>;
 	githubEnterpriseUri: URI | undefined;
 	readonly onDidChangeGitHubEnterpriseUri: Event<void>;
+	/** Unknown until session discovery completes; token absence alone does not establish sign-out. */
+	authenticationState: 'unknown' | 'signedIn' | 'signedOut';
+	readonly onDidChangeAuthenticationState: Event<void>;
 }
 
 export class CopilotTokenStore extends Disposable implements ICopilotTokenStore {
@@ -33,6 +36,19 @@ export class CopilotTokenStore extends Disposable implements ICopilotTokenStore 
 	private _githubEnterpriseUri: URI | undefined;
 	private readonly _onDidChangeGitHubEnterpriseUri = this._register(new Emitter<void>());
 	readonly onDidChangeGitHubEnterpriseUri = this._onDidChangeGitHubEnterpriseUri.event;
+	private _authenticationState: ICopilotTokenStore['authenticationState'] = 'unknown';
+	private readonly _onDidChangeAuthenticationState = this._register(new Emitter<void>());
+	readonly onDidChangeAuthenticationState = this._onDidChangeAuthenticationState.event;
+
+	get authenticationState(): ICopilotTokenStore['authenticationState'] {
+		return this._authenticationState;
+	}
+	set authenticationState(state: ICopilotTokenStore['authenticationState']) {
+		if (state !== this._authenticationState) {
+			this._authenticationState = state;
+			this._onDidChangeAuthenticationState.fire();
+		}
+	}
 
 	get githubEnterpriseUri(): URI | undefined {
 		return this._githubEnterpriseUri;
@@ -48,9 +64,9 @@ export class CopilotTokenStore extends Disposable implements ICopilotTokenStore 
 		return this._copilotToken;
 	}
 	set copilotToken(token: CopilotToken | undefined) {
-		const oldToken = this._copilotToken?.token;
+		const oldToken = this._copilotToken;
 		this._copilotToken = token;
-		if (oldToken !== token?.token) {
+		if (oldToken !== token) {
 			this._onDidStoreUpdate.fire();
 		}
 	}

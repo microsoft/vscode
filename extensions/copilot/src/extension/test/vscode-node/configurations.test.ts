@@ -25,7 +25,9 @@ suite('Configuration Defaults', () => {
 			copilotToken: undefined,
 			onDidStoreUpdate: Event.None,
 			githubEnterpriseUri: undefined,
-			onDidChangeGitHubEnterpriseUri: Event.None
+			onDidChangeGitHubEnterpriseUri: Event.None,
+			authenticationState: 'unknown',
+			onDidChangeAuthenticationState: Event.None
 		});
 	});
 
