@@ -106,9 +106,9 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	return undefined;
 }
 
-export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider): ISessionCreationEnvironment | undefined {
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider, preserveProvider = false): ISessionCreationEnvironment | undefined {
 	const local = environments.find(environment => environment.kind === 'local');
-	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
+	if (folderUri?.scheme === Schemas.file && !containerRequested && local && !preserveProvider) {
 		return local;
 	}
 	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? ''))

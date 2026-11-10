@@ -370,7 +370,8 @@ export class NewChatWidget extends Disposable {
 			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider);
+				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider,
+					this._workspacePicker?.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;

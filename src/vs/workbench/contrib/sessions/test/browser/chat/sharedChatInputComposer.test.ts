@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -77,6 +78,7 @@ suite('SharedChatInputComposer', () => {
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
+			domNode: dom.$('div'),
 			getInput: () => {
 				assert.ok(widget.input, 'Cannot read the disposed widget input');
 				return text;
@@ -198,6 +200,36 @@ suite('SharedChatInputComposer', () => {
 				});
 			});
 		}
+	}
+
+	for (const moveFocus of [false, true]) {
+		test(`restores actual editor focus after rejection without stealing it from another control (${moveFocus})`, async () => {
+			const root = dom.append(dom.getActiveWindow().document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editor = dom.append(root, dom.$<HTMLTextAreaElement>('textarea'));
+			const otherControl = dom.append(root, dom.$('button'));
+			const { composer, widget, state } = createComposer({
+				sendResult: false,
+				onSend: () => {
+					if (moveFocus) {
+						otherControl.focus();
+					}
+				},
+			});
+			widget.domNode = root;
+			Object.assign(widget.input!, {
+				hasFocus: () => dom.getWindow(editor).document.activeElement === editor,
+				setInputEnabled: (enabled: boolean) => { editor.disabled = !enabled; },
+				focus: () => editor.focus(),
+			});
+			editor.focus();
+
+			const sent = await composer.submit(true);
+
+			assert.deepStrictEqual({ sent, input: state().input.text, focused: dom.getWindow(root).document.activeElement === (moveFocus ? otherControl : editor) }, {
+				sent: false, input: 'Build it', focused: true,
+			});
+		});
 	}
 
 	for (const background of [false, true]) {

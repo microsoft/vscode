@@ -1054,6 +1054,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostVisible: this.options.hostVisible,
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
+		const hadFocus = widget.input.hasFocus();
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
@@ -1124,6 +1125,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._userInteractionSource.clear();
 			if (isInputAlive()) {
 				widget.input.setInputEnabled(true);
+				if (!sent && hadFocus && this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false) {
+					const targetWindow = dom.getWindow(widget.domNode);
+					if (targetWindow.document.activeElement === targetWindow.document.body || widget.input.hasFocus()) {
+						widget.input.focus();
+					}
+				}
 			}
 			this._sending.set(false, undefined);
 		}
