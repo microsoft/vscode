@@ -146,6 +146,78 @@ suite('SessionsListModelService', () => {
 
 	// -- Inbox --
 
+	test('historical unread completions only bypass the cutoff when modified today locally', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const cases = [
+			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
+			{ id: 'midnight-unread', updatedAt: new Date(2026, 0, 1), isRead: false, historical: true },
+			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
+			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
+			{ id: 'last-year-unread', updatedAt: new Date(2025, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'after-cutoff-yesterday', updatedAt: new Date(2025, 11, 31, 23), isRead: false, historical: false },
+		];
+		sessions.push(...cases.map(({ id, updatedAt, isRead }) => ({
+			...createSession(id, SessionStatus.Completed, { updatedAt }),
+			isRead: constObservable(isRead),
+			lastTurnEnd: constObservable(new Date(2025, 11, 31)),
+		})));
+		attention.set(new Map(cases.map(({ id, historical }) => [id, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
+		}])), undefined);
+		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
+			['yesterday-unread', 'done'],
+			['midnight-unread', undefined],
+			['today-unread', undefined],
+			['today-read', 'done'],
+			['last-month-unread', 'done'],
+			['last-year-unread', 'done'],
+			['after-cutoff-yesterday', undefined],
+		]);
+	}));
+
+	test('historical unread completions react to modification and read changes across reload', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const isRead = observableValue('historicalRead', false);
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
+		const session = { ...createSession('historical'), isRead, updatedAt };
+		sessions.push(session);
+		attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}]]), undefined);
+		const states: (string | undefined)[] = [];
+		const observer = disposables.add(autorun(reader => states.push(service.getInboxState(session, reader)?.kind)));
+		updatedAt.set(new Date(2026, 0, 1, 11), undefined);
+		isRead.set(true, undefined);
+		isRead.set(false, undefined);
+		observer.dispose();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ states, restored: service.getInboxState(session)?.kind }, {
+			states: ['done', undefined, 'done', undefined], restored: undefined,
+		});
+	}));
+
+	test('explicit triage of historical unread completions survives reload', () => {
+		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
+			...createSession(id), isRead: constObservable(false),
+		})));
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		const undoDismiss = service.setInboxState([sessions[0]], 'done');
+		const dismissed = service.getInboxState(sessions[0])?.kind;
+		undoDismiss();
+		const undone = service.getInboxState(sessions[0])?.kind;
+		service.setInboxState([sessions[0]], 'done');
+		service.setInboxState([sessions[1]], 'hold');
+		service.setInboxState([sessions[2]], Date.now() + 60_000);
+		service.setInboxState([sessions[3]], 'untilActivity');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ dismissed, undone, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			dismissed: 'done', undone: undefined, restored: ['done', 'hold', 'snoozed', 'untilActivity'],
+		});
+	});
+
 	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
 		sessions.push(session);

@@ -174,7 +174,7 @@ export class SessionsView extends ViewPane {
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private navigationShortcutsVisible = false;
 	private readonly customizationsLocation: IObservable<ChatCustomizationsLocation>;
-	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
+	private currentGrouping: SessionsGrouping | undefined;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
@@ -241,7 +241,7 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
+			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) && this.currentGrouping === undefined) {
 				this.groupingContextKey?.set(this.grouping);
 				this.sessionsControl?.update(true);
 				this.updateHeaderLayout();
@@ -1005,7 +1005,7 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 			},
 		];
-		if (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) && !this.chatEntitlementService.sentiment.hidden) {
+		if (!this.chatEntitlementService.sentiment.hidden) {
 			items.push({
 				id: SessionsGrouping.Inbox,
 				label: localize('inboxMode', "Inbox Mode"),
@@ -1027,9 +1027,9 @@ export class SessionsView extends ViewPane {
 	}
 
 	get grouping(): SessionsGrouping {
-		return this.currentGrouping === SessionsGrouping.Inbox && !this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
-			? SessionsGrouping.Workspace
-			: this.currentGrouping;
+		return this.currentGrouping ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
+			? SessionsGrouping.Inbox
+			: SessionsGrouping.Workspace);
 	}
 
 	get sorting(): SessionsSorting {
@@ -1041,14 +1041,11 @@ export class SessionsView extends ViewPane {
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {
-		if (grouping === SessionsGrouping.Inbox && !this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
-			throw new Error(localize('inboxModeDisabled', "Enable {0} to use Inbox Mode.", SESSIONS_LIST_INBOX_ENABLED_SETTING));
-		}
 		if (this.currentGrouping === grouping) {
 			return;
 		}
 
-		const preserveCollapseState = this.currentGrouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
+		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
 		this.currentGrouping = grouping;
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.groupingContextKey?.set(this.currentGrouping);

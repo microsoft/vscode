@@ -7,6 +7,7 @@ import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $, getActiveElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,7 +16,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
@@ -23,7 +24,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuHandler } from '../../../../../platform/contextview/browser/contextMenuHandler.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -33,6 +34,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -43,6 +45,7 @@ import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/co
 import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
@@ -185,9 +188,10 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('inbox mode is offered only when the experimental setting and AI are enabled', async () => {
+	test('inbox mode is always offered with AI enabled regardless of the default setting', async () => {
 		const { snapshot, configurationService, contextKeyService } = createMenu();
-		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Inbox Mode');
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Inbox Mode' && item.enabled);
 		const initial = offered();
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
 		const enabled = offered();
@@ -196,7 +200,7 @@ suite('Sessions - View Menu', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
-			initial: false, enabled: true, hiddenAI: false, disabled: false,
+			initial: true, enabled: true, hiddenAI: false, disabled: true,
 		});
 	});
 
@@ -337,6 +341,52 @@ suite('Sessions - View Menu', () => {
 		const multi = snapshot();
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ available, multi, hidden: snapshot() }, { available: [true], multi: [false], hidden: [] });
+	});
+
+	test('inbox merge toolbar follows actual selection and ignores unrelated selected rows', async () => {
+		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
+		const changeset = upcastPartial<ISessionChangeset>({
+			isEnabled: constObservable(true),
+			operations: constObservable([{ id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle }]),
+		});
+		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable([changeset]) }) };
+		const others = ['first', 'second'].map(id => buildTestSession({ id, title: id }).session);
+		const harness = createListHarness(store, [session, ...others]);
+		harness.instantiationService.stub(ISessionsListModelService, store.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		const attention = new Map<string, IInboxSessionAttention>([[session.sessionId, { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false }]]);
+		harness.instantiationService.stub(IInboxNotificationsService, upcastPartial<IInboxNotificationsService>({
+			sessionAttention: constObservable(attention), acquireSessionAttention: () => toDisposable(() => { }),
+		}));
+		const context = store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(context).set(true);
+		SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
+		harness.instantiationService.stub(IContextKeyService, context);
+		harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
+		const list = store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(600, 400);
+		list.reveal(session.resource);
+		const button = () => list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-title-toolbar [aria-label="Merge Pull Request"]')!;
+		const select = async (sessions: readonly ISession[]) => {
+			assert.ok(list.setSelectedItems(sessions.map(session => ({ session: session.resource }))));
+			await timeout(100);
+			return button().getAttribute('aria-disabled') === 'true';
+		};
+		const single = await select([session]);
+		const multiple = await select([session, others[0]]);
+		button().click();
+		await timeout(0);
+		const blockedCalls = harness.commandService.calls.filter(call => call.commandId === 'sessionsViewPane.inboxMergePullRequest');
+		const unrelated = await select(others);
+		const restored = await select([session]);
+		button().click();
+		await timeout(0);
+		const calls = harness.commandService.calls.filter(call => call.commandId === 'sessionsViewPane.inboxMergePullRequest');
+		assert.deepStrictEqual({ single, multiple, unrelated, restored, blockedCalls, calls }, {
+			single: false, multiple: true, unrelated: false, restored: false, blockedCalls: [],
+			calls: [{ commandId: 'sessionsViewPane.inboxMergePullRequest', args: [[session]] }],
+		});
 	});
 
 	test('inbox snooze handles cancellation, timed presets, and validated custom dates', async () => {
@@ -571,6 +621,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: true },
+				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			environmentShow: [
 				{ title: 'Recent', group: '1_show', checked: false },
@@ -586,6 +637,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: false },
+				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },

@@ -4630,6 +4630,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private stickyShowMoreItem: ISessionShowMore | undefined;
 	private pendingOpenRequest: IListOpenRequest | undefined;
 	protected readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
+	private readonly selectedSessions: IObservable<readonly ISession[]>;
 	private readonly navigationList: WorkbenchList<ISessionSection> | undefined;
 	private navigationSections: readonly ISessionSection[] = [];
 	private sessions: ISession[] = [];
@@ -4954,6 +4955,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getAdditionalContextKeys: (session, reader) => [
 					[SessionItemInboxStateContext.key, this.isInboxLayout() ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : ''],
 					[SessionItemCanMergePullRequestContext.key, this.canMergeInboxPullRequest(session, reader)],
+					[SessionItemIsMultiSelectionContext.key, this.getMultiSelectedSessions(session, reader).length > 1],
 				],
 				getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 				inlineRename: true,
@@ -5315,6 +5317,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 		this.tree = createTree(this.primaryContainer, localize('sessionsPrimaryList', "Sessions"));
+		this.selectedSessions = observableFromEvent(this, this.tree.onDidChangeSelection,
+			() => this.getSelection().filter((item): item is ISession => !!item && isSessionItem(item)));
 		this.findController = this._register(new SessionsListFindController(this.tree, this.searchFilter, this.contextViewService, {
 			isSearching: () => this.searchFilter.isSearching,
 			// Showing no chats of a session that has some makes its row stand for the whole session.
@@ -6186,10 +6190,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
+			const savedCollapsed = this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined);
+			if (savedCollapsed !== undefined) {
+				defaultCollapsed = inbox
+					? savedCollapsed ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded
+					: savedCollapsed;
+			}
 			return {
 				element: section as SessionListItem,
 				collapsible: section.id !== SessionInboxSection.ReadyForYou && (!sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0),
-				collapsed: resolveCollapsed(section, this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed),
+				collapsed: resolveCollapsed(section, defaultCollapsed),
 				children: sectionChildren,
 			};
 		};
@@ -6729,11 +6739,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
 			}
 		}
-		if (tree.getRelativeTop(chatItem) === null) {
-			tree.reveal(chatItem, 0.5);
-		}
+		this.revealActiveItem(chatItem);
 		tree.setFocus([chatItem]);
 		tree.setSelection([chatItem]);
+	}
+
+	private revealActiveItem(element: SessionListItem): void {
+		const tree = this.getTree(element);
+		if (tree.getRelativeTop(element) !== null) {
+			return;
+		}
+		const previousSuspendCollapseStatePersistence = this.suspendCollapseStatePersistence;
+		this.suspendCollapseStatePersistence ||= this.isInboxLayout();
+		try {
+			tree.reveal(element, 0.5);
+		} finally {
+			this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
+		}
 	}
 
 	/**
@@ -6799,9 +6821,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							}
 						}
 					}
-					if (tree.getRelativeTop(session) === null) {
-						tree.reveal(session, 0.5);
-					}
+					this.revealActiveItem(session);
 					tree.setFocus([session]);
 					tree.setSelection([session]);
 					return true;
@@ -8372,8 +8392,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	private getMultiSelectedSessions(session: ISession): ISession[] {
-		const selection = this.getSelection().filter((s): s is ISession => !!s && isSessionItem(s));
+	private getMultiSelectedSessions(session: ISession, reader?: IReader): ISession[] {
+		const selection = this.selectedSessions.read(reader);
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
 	}
 
