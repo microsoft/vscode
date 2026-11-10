@@ -9356,8 +9356,8 @@ suite('AgentSideEffects', () => {
 				actions: envelopes.map(({ channel, action }) => ({
 					channel: channel === defaultChatUri ? 'parent' : 'subagent',
 					type: action.type,
-					...(hasKey(action, { confirmationTitle: true }) ? { confirmationTitle: action.confirmationTitle } : {}),
-					...(hasKey(action, { confirmed: true }) ? { confirmed: action.confirmed } : {}),
+					...(action.type === ActionType.ChatToolCallReady && action.confirmationTitle !== undefined ? { confirmationTitle: action.confirmationTitle } : {}),
+					...(action.type === ActionType.ChatToolCallReady && action.confirmed !== undefined ? { confirmed: action.confirmed } : {}),
 				})),
 				status: inner?.kind === ResponsePartKind.ToolCall ? inner.toolCall.status : undefined,
 				responses: agent.respondToPermissionCalls,
