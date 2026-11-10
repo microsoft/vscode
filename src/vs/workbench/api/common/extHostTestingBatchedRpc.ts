@@ -11,22 +11,22 @@ import { TestMessageType } from '../../contrib/testing/common/testTypes.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { MainThreadTestingShape, TestRunUpdate } from './extHost.protocol.js';
 
-/** Batches ordered updates for one test run, owning queued buffers until delivery. */
+/** Batches ordered test run updates, flushing when the run or controller changes. */
 export class BatchedTestRunRpc extends Disposable {
 	private pendingUpdates: TestRunUpdate[] = [];
 	private pendingSize = 0;
 	private controllerId: string | undefined;
+	private runId: string | undefined;
 	private readonly scheduler = this._register(new RunOnceScheduler(() => this.flush(), 0));
 
 	constructor(
 		private readonly proxy: Pick<MainThreadTestingShape, '$applyTestRunUpdates'>,
-		private readonly runId: string,
 	) {
 		super();
 	}
 
 	/** Queues an update, flushing when either the payload or entry limit is reached. */
-	public add(controllerId: string, update: TestRunUpdate): void {
+	public add(controllerId: string, runId: string, update: TestRunUpdate): void {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -60,10 +60,11 @@ export class BatchedTestRunRpc extends Disposable {
 			size = JSON.stringify(update).length;
 		}
 
-		if (this.controllerId !== controllerId || this.pendingSize + size > 64 * 1024) {
+		if (this.controllerId !== controllerId || this.runId !== runId || this.pendingSize + size > 64 * 1024) {
 			this.flush();
 		}
 		this.controllerId = controllerId;
+		this.runId = runId;
 		this.pendingUpdates.push(update);
 		this.pendingSize += size;
 		if (this.pendingUpdates.length >= 1024 || this.pendingSize >= 64 * 1024) {
@@ -80,7 +81,7 @@ export class BatchedTestRunRpc extends Disposable {
 			const updates = this.pendingUpdates;
 			this.pendingUpdates = [];
 			this.pendingSize = 0;
-			this.proxy.$applyTestRunUpdates(this.controllerId!, this.runId, new SerializableObjectWithBuffers(updates));
+			this.proxy.$applyTestRunUpdates(this.controllerId!, this.runId!, new SerializableObjectWithBuffers(updates));
 		}
 	}
 

@@ -960,13 +960,13 @@ suite('ExtHost Testing', () => {
 		};
 		const rpc = new TestRPCProtocol();
 		rpc.set(MainContext.MainThreadTesting, receiver);
-		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting), 'run'));
+		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting)));
 		const bytes = new Uint8Array([0x00, 0xff, 0xe2]);
-		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
 		bytes.fill(0);
-		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: 'after' });
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: 'after' });
 		batchedRpc.dispose();
-		batchedRpc.add('ctrl', { type: 'output', taskId: 'task', output: 'ignored' });
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: 'ignored' });
 		await rpc.sync();
 		assert.deepStrictEqual({ batches, output: receiver.$appendOutputToRun.args }, {
 			batches: [['output', 'output']],
@@ -980,10 +980,10 @@ suite('ExtHost Testing', () => {
 
 	test('flushes controller boundaries in call order within a shared run', () => {
 		const proxy = mockObject<MainThreadTestingShape>()();
-		const rpc = ds.add(new BatchedTestRunRpc(proxy, 'run'));
-		rpc.add('first', { type: 'output', taskId: 'one', output: 'one' });
-		rpc.add('second', { type: 'output', taskId: 'two', output: 'two' });
-		rpc.add('first', { type: 'output', taskId: 'three', output: 'three' });
+		const rpc = ds.add(new BatchedTestRunRpc(proxy));
+		rpc.add('first', 'run', { type: 'output', taskId: 'one', output: 'one' });
+		rpc.add('second', 'run', { type: 'output', taskId: 'two', output: 'two' });
+		rpc.add('first', 'run', { type: 'output', taskId: 'three', output: 'three' });
 		rpc.flush();
 		assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([controllerId, runId, updates]) => ({ controllerId, runId, taskIds: updates.value.map((update: TestRunUpdate) => update.type === 'tests' ? undefined : update.taskId) })), [
 			{ controllerId: 'first', runId: 'run', taskIds: ['one'] },
@@ -1300,6 +1300,51 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.hasRunningTasks, false);
 		});
 
+
+		for (const flush of ['timer', 'task end', 'result disposal'] as const) {
+			test(`preserves interleaved independent run updates on ${flush}`, () => {
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, { ...req }, 'second', true);
+				const one = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const two = single.root.children.get('id-a')!.children.get('id-ab')!;
+				const three = single.root.children.get('id-a')!;
+				first.started(one);
+				second.started(two);
+				first.started(three);
+				if (flush === 'timer') {
+					clock.tick(0);
+				} else if (flush === 'task end') {
+					first.end();
+				} else {
+					c.disposeTestRun(proxy.$startedExtensionTestRun.firstCall.args[0].id);
+				}
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.args.map(args => args[2]), [one, two, three].map(test => TestId.fromExtHostTestItem(test, 'ctrlId').toString()));
+				second.passed(two, 1);
+				clock.tick(0);
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.lastCall.args.slice(2), [TestId.fromExtHostTestItem(two, 'ctrlId').toString(), TestResultState.Passed, 1]);
+				first.end();
+				second.end();
+			});
+		}
+
+		test('flushes pending updates without visiting historical trackers', () => {
+			for (let i = 0; i < 256; i++) {
+				c.createTestRun(ext, 'ctrlId', single, { ...req }, `previous ${i}`, true).end();
+			}
+			const historicalFlushes = [...c.trackers].map(tracker => sinon.spy(tracker, 'flushUpdates'));
+			const active = c.createTestRun(ext, 'ctrlId', single, req, 'active', true);
+			const test = single.root.children.get('id-a')!;
+			active.started(test);
+			c.flushUpdates();
+			c.markTestRetired(undefined);
+			clock.tick(0);
+			assert.deepStrictEqual({
+				historicalFlushes: historicalFlushes.reduce((sum, spy) => sum + spy.callCount, 0),
+				updates: proxy.$updateTestStateInRun.args.map(args => args[2]),
+				batches: proxy.$applyTestRunUpdates.callCount,
+			}, { historicalFlushes: 0, updates: [TestId.fromExtHostTestItem(test, 'ctrlId').toString()], batches: 1 });
+			active.end();
+		});
 
 		for (const flush of ['timer', 'task end', 'result disposal'] as const) {
 			test(`preserves interleaved profile updates on ${flush}`, () => {
@@ -1748,11 +1793,11 @@ suite('ExtHost Testing', () => {
 				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 				const runs = [controller.createTestRun(new TestRunRequestImpl()), controller.createTestRun(new TestRunRequestImpl())];
 				try {
-					runs[0].started(item);
-					runs[1].passed(item, 1);
 					const calls: string[] = [];
 					proxy.$applyTestRunUpdates.callsFake(() => calls.push('updates'));
 					proxy.$markTestRetired.callsFake(() => calls.push('retire'));
+					runs[0].started(item);
+					runs[1].passed(item, 1);
 					controller.invalidateTestResults(invalidateAll ? undefined : [item]);
 					assert.deepStrictEqual({ calls, ids: proxy.$markTestRetired.firstCall.args }, {
 						calls: ['updates', 'updates', 'retire'],

@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { hash } from '../../../base/common/hash.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -897,7 +897,7 @@ class TestRunTracker extends Disposable {
 	}
 
 	private addUpdate(update: TestRunUpdate): void {
-		this.batchedRpc.add(this.dto.controllerId, update);
+		this.batchedRpc.add(this.dto.controllerId, this.dto.id, update);
 	}
 
 	public flushUpdates(): void {
@@ -918,7 +918,7 @@ class TestRunTracker extends Disposable {
 export class TestRunCoordinator extends Disposable {
 	private readonly tracked = new Map<vscode.TestRunRequest, TestRunTracker>();
 	private readonly trackedById = new Map<string, TestRunTracker>();
-	private readonly batchedRpcs = this._register(new DisposableMap<string, BatchedTestRunRpc>());
+	private readonly batchedRpc: BatchedTestRunRpc;
 
 	public get trackers() {
 		return this.tracked.values();
@@ -929,6 +929,7 @@ export class TestRunCoordinator extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
+		this.batchedRpc = this._register(new BatchedTestRunRpc(proxy));
 	}
 
 	/**
@@ -945,11 +946,9 @@ export class TestRunCoordinator extends Disposable {
 		this.proxy.$markTestRetired(testIds);
 	}
 
-	/** Publishes updates from every request, including profiles sharing a run ID. */
+	/** Publishes the pending batch without scanning historical trackers. */
 	public flushUpdates(): void {
-		for (const tracker of this.tracked.values()) {
-			tracker.flushUpdates();
-		}
+		this.batchedRpc.flush();
 	}
 
 	/**
@@ -964,7 +963,6 @@ export class TestRunCoordinator extends Disposable {
 			}
 		}
 		this.trackedById.delete(runId);
-		this.batchedRpcs.deleteAndDispose(runId);
 	}
 
 	/**
@@ -1025,21 +1023,18 @@ export class TestRunCoordinator extends Disposable {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IExtensionDescription, token?: CancellationToken) {
-		let batchedRpc = this.batchedRpcs.get(dto.id);
-		if (!batchedRpc) {
-			batchedRpc = new BatchedTestRunRpc(this.proxy, dto.id);
-			this.batchedRpcs.set(dto.id, batchedRpc);
-		}
-		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, batchedRpc, token);
+		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, this.batchedRpc, token);
 		this.tracked.set(req, tracker);
 		this.trackedById.set(tracker.id, tracker);
 		return tracker;
 	}
 
 	public override dispose(): void {
-		for (const runId of this.batchedRpcs.keys()) {
-			this.disposeTestRun(runId);
+		for (const tracker of this.tracked.values()) {
+			tracker.dispose();
 		}
+		this.tracked.clear();
+		this.trackedById.clear();
 		super.dispose();
 	}
 }
