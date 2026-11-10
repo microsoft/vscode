@@ -606,7 +606,8 @@ suite('ChatEntitlementService', () => {
 		return store.add(new ChatEntitlementService(
 			instantiationService,
 			productService,
-			new class extends mock<IWorkbenchEnvironmentService>() { },
+			// A remote authority keeps the service set up in browser test runs, where `isWeb` is true.
+			new class extends mock<IWorkbenchEnvironmentService>() { override readonly remoteAuthority = 'test-remote'; },
 			contextKeyService,
 			new TestConfigurationService(),
 			NullTelemetryService,
