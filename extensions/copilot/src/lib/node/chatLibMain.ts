@@ -111,6 +111,7 @@ import { IRequestLogger } from '../../platform/requestLogger/common/requestLogge
 import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../platform/simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../platform/snippy/common/snippyService';
+import { ExperimentExposureTracker, exposureSurfaceForEditor, sendExperimentExposureGHTelemetry } from '../../platform/telemetry/common/experimentExposure';
 import { IExperimentationService, TreatmentsChangeEvent } from '../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService, TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties } from '../../platform/telemetry/common/telemetry';
 import { eventPropertiesToSimpleObject } from '../../platform/telemetry/common/telemetryData';
@@ -645,10 +646,14 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 
 	private readonly waitFor: Promise<void>;
 	private readonly resolveWaitFor: () => void;
+	private readonly _exposureTracker: ExperimentExposureTracker | undefined;
 
 	constructor(
 		waitForTreatmentVariables: boolean | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService telemetryService?: ITelemetryService,
+		@IEnvService envService?: IEnvService,
+		@IInstantiationService instantiationService?: IInstantiationService,
 	) {
 		super();
 		if (waitForTreatmentVariables) {
@@ -661,6 +666,24 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 			this.waitFor = Promise.resolve();
 			this.resolveWaitFor = () => { };
 		}
+
+		const surface = envService ? exposureSurfaceForEditor(envService.getEditorInfo().name) : undefined;
+		if (surface && telemetryService && envService) {
+			this._exposureTracker = new ExperimentExposureTracker(
+				surface,
+				gate => this.variables[gate],
+				() => ({
+					// Hosts pass treatment variables without the assignment's data version.
+					dataVersion: '',
+					entryPoint: envService.getEditorPluginInfo().name,
+					// Resolved lazily: the authentication service may depend on this service.
+					trackingId: instantiationService?.invokeFunction(accessor => accessor.get(IAuthenticationService).copilotToken?.getTokenValue('tid')),
+					// chat-lib has no device ID the host's ExP assignment is known to use.
+					deviceId: undefined,
+				}),
+				exposure => sendExperimentExposureGHTelemetry(telemetryService, exposure),
+			);
+		}
 	}
 
 	async hasTreatments(): Promise<void> {
@@ -668,7 +691,9 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		return this.variables[name] as T | undefined;
+		const value = this.variables[name];
+		this._exposureTracker?.onRead(name, value);
+		return value as T | undefined;
 	}
 
 	async setCompletionsFilters(_filters: Map<string, string>): Promise<void> { }
