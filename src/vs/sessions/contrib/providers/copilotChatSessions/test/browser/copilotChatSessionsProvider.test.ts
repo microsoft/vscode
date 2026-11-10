@@ -39,7 +39,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, type ICloudSandboxCreateSessionRequest, type ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ConfigPropertySchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -57,7 +57,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
-import { createSessionViewTestServices, createTestActiveSession } from '../../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../../test/browser/sessionViewTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
@@ -80,9 +80,9 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { SessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { ITestShownChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -2669,7 +2669,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('shared model selection captures raw Cloud models for automation drafts', async () => {
 			const { provider, configurationService, rawModel } = await createAutomationProvider();
 			const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
-			const session = disposables.add(new VisibleSession(draft, draft.mainChat.get()));
+			const session: ITestShownChat = { session: draft, chat: draft.mainChat.get() };
 			const providers = upcastPartial<ISessionsProvidersService>({
 				onDidChangeProviders: Event.None,
 				getProvider: <T extends ISessionsProvider>(id: string) => {
@@ -2678,7 +2678,7 @@ suite('CopilotChatSessionsProvider', () => {
 				},
 			});
 			const selection = disposables.add(new SessionModelSelection(
-				constObservable(session), { modelConfiguration: true }, providers,
+				testChatSourceOf(constObservable(session)), { modelConfiguration: true }, providers,
 				disposables.add(new TestStorageService()), configurationService, disposables.add(new NullLogService()),
 			));
 			const selected = selection.selectModel(rawModel);
@@ -3524,12 +3524,12 @@ suite('CopilotChatSessionsProvider', () => {
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 				stubSessionsHostLayout(instantiationService);
 				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
-				view.openSession({
+				view.openPane(testPaneOf({
 					...createTestActiveSession(draft.sessionId, false),
 					...draft,
 					isCreated: draft.status.map(status => status !== SessionStatus.Untitled),
 					activeChat: draft.mainChat,
-				}, {});
+				}), {});
 				const composer = chatViews[0];
 				composer.input.value = 'Review this file';
 				const removed: string[] = [];

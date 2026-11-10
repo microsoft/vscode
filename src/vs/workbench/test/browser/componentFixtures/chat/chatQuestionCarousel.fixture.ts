@@ -18,6 +18,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
+import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatQuestionCarousel.css';
 
 function createCarousel(questions: IChatQuestion[], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -53,8 +54,8 @@ function createOptions(overrides: Partial<IChatQuestionCarouselOptions> = {}): I
 	};
 }
 
-function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void): void {
-	const { container, disposableStore } = context;
+function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void, host: HTMLElement = context.container): void {
+	const { disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -78,49 +79,73 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 		)
 	);
 
-	container.style.width = '400px';
-	container.style.padding = '8px';
-	container.classList.add('interactive-session');
+	host.style.width = '400px';
+	host.style.padding = '8px';
+	host.classList.add('interactive-session');
 
 	// The CSS uses `.interactive-session .interactive-input-part > .chat-question-carousel-widget-container`
 	// for most layout rules, so we need those wrapper elements.
 	const inputPart = dom.$('.interactive-input-part');
 	const widgetContainer = dom.$('.chat-question-carousel-widget-container');
 	inputPart.appendChild(widgetContainer);
-	container.appendChild(inputPart);
+	host.appendChild(inputPart);
 
 	widgetContainer.appendChild(part.domNode);
 	afterRender?.(part);
 }
 
+function renderAgentSessionsCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel): void {
+	context.container.classList.add('monaco-workbench');
+	const sessionsSurface = dom.append(context.container, dom.$('.sessions-chat-surface'));
+	const content = dom.append(sessionsSurface, dom.$('.content'));
+	renderCarousel(context, carousel, false, {}, undefined, content);
+}
+
+interface ICarouselLayout {
+	readonly card: HTMLElement;
+	readonly title: HTMLElement;
+	readonly body: HTMLElement;
+	readonly content: HTMLElement;
+	readonly answers: HTMLElement;
+	readonly maxHeight: number;
+}
+
 async function renderLayoutCarousel(
 	context: ComponentFixtureContext,
 	carousel: IChatQuestionCarousel,
-	expectedLayout: (header: HTMLElement, input: HTMLElement, availableHeight: number) => boolean,
+	expectedLayout: (layout: ICarouselLayout) => boolean,
 	afterRender?: (part: ChatQuestionCarouselPart) => void,
 ): Promise<void> {
 	renderCarousel(context, carousel, false, {}, afterRender);
 	const card = context.container.querySelector<HTMLElement>('.chat-question-carousel-container')!;
-	const header = card.querySelector<HTMLElement>('.chat-question-header-row')!;
-	const input = card.querySelector<HTMLElement>('.chat-question-input-container')!;
+	const title = card.querySelector<HTMLElement>('.chat-question-title-row')!;
+	const body = card.querySelector<HTMLElement>('.chat-question-body-scrollable')!;
+	const content = body.querySelector<HTMLElement>('.chat-question-input-container')!;
+	const answers = content.querySelector<HTMLElement>('.chat-question-answers')!;
 	const footer = card.querySelector<HTMLElement>('.chat-question-footer-row')!;
 	const validation = card.querySelector<HTMLElement>('.chat-question-validation-message')!;
 	let previousLayout = '';
 	await waitForFixtureCondition(() => {
-		const availableHeight = Math.min(420, dom.getWindow(card).innerHeight * 0.45) - footer.offsetHeight - validation.offsetHeight;
-		const layout = [card.clientHeight, header.clientHeight, header.scrollHeight, header.scrollTop, input.clientHeight, input.scrollHeight, input.scrollTop, footer.offsetHeight, validation.offsetHeight].join(',');
+		const layoutState = {
+			card, title, body, content, answers,
+			maxHeight: Math.min(420, dom.getWindow(card).innerHeight * 0.45),
+		};
+		const layout = [card.clientHeight, title.clientHeight, body.clientHeight, content.clientHeight, content.scrollHeight, content.scrollTop, footer.offsetHeight, validation.offsetHeight].join(',');
 		const stable = layout === previousLayout;
 		previousLayout = layout;
-		return stable && header.style.maxHeight !== '' && input.style.maxHeight !== '' &&
+		const bodyLaidOut = body.clientHeight > 0 || card.classList.contains('chat-question-carousel-collapsed');
+		return stable && bodyLaidOut &&
 			footer.getBoundingClientRect().bottom <= card.getBoundingClientRect().bottom &&
-			expectedLayout(header, input, availableHeight);
+			expectedLayout(layoutState);
 	}, 'Question carousel did not reach the expected height allocation');
 }
 
-function hasEqualScrollableSections(header: HTMLElement, input: HTMLElement, availableHeight: number): boolean {
-	return Math.abs(header.clientHeight - availableHeight / 2) <= 1 &&
-		Math.abs(input.clientHeight - availableHeight / 2) <= 1 &&
-		header.scrollHeight > header.clientHeight && input.scrollHeight > input.clientHeight;
+function hasOverflowingBody({ card, content, maxHeight }: ICarouselLayout): boolean {
+	return card.offsetHeight >= maxHeight - 1 && content.scrollHeight > content.clientHeight;
+}
+
+function hasFullyVisibleBody({ content }: ICarouselLayout): boolean {
+	return content.scrollHeight === content.clientHeight;
 }
 
 // ============================================================================
@@ -178,6 +203,81 @@ const markdownLinksQuestion: IChatQuestion = {
 	].join('\n')),
 };
 
+// Boolean schema fields from MCP elicitation and the agent host are emitted as a required true/false single select.
+const booleanOptions: IChatQuestion['options'] = [
+	{ id: 'true', label: 'True', value: 'true' },
+	{ id: 'false', label: 'False', value: 'false' },
+];
+
+const deleteBranchesQuestion: IChatQuestion = {
+	id: 'delete-branches',
+	type: 'singleSelect',
+	title: 'Delete these 14 branches?',
+	options: booleanOptions,
+	allowFreeformInput: false,
+	required: true,
+};
+
+const experimentGateQuestion: IChatQuestion = {
+	id: 'experiment-gate',
+	type: 'singleSelect',
+	title: 'Gate the new layout behind an experiment?',
+	description: 'Users in the control group keep the current layout until the experiment concludes.',
+	options: booleanOptions,
+	allowFreeformInput: false,
+	required: true,
+};
+
+const rolloutQuestion: IChatQuestion = {
+	id: 'rollout',
+	type: 'singleSelect',
+	title: 'Rollout strategy',
+	options: [
+		{ id: 'canary', label: 'Canary rollout', value: 'canary' },
+		{ id: 'staged', label: 'Staged rollout', value: 'staged' },
+		{ id: 'all', label: 'Everyone at once', value: 'all' },
+	],
+	allowFreeformInput: false,
+};
+
+const telemetryQuestion: IChatQuestion = {
+	id: 'telemetry',
+	type: 'multiSelect',
+	title: 'Telemetry to collect',
+	options: [
+		{ id: 'exposure', label: 'Exposure events', value: 'exposure' },
+		{ id: 'interaction', label: 'Interaction events', value: 'interaction' },
+		{ id: 'performance', label: 'Performance timings', value: 'performance' },
+	],
+	allowFreeformInput: false,
+};
+
+const longContextMessage = [
+	'I found several merged feature branches and a few stale ones that have not been touched in months. Before I continue, I want to make sure the cleanup is safe for the whole team.',
+	'The change touches the release pipeline, the nightly build configuration, and the shared tooling scripts. Each of these is consumed by other repositories, so a mistake here could block unrelated work until it is reverted.',
+	'Here is what the proposed change would do:',
+	[
+		'- Rename `build/lib/release.ts` to `build/lib/publish.ts` and update every import of `releaseVersion()`',
+		'- Replace the `--legacy-publish` flag in `scripts/nightly.sh` with the new `--channel` option',
+		'- Remove the deprecated `product.json#quality` fallback used by `getProductQuality()`',
+		'- Regenerate the lockfile so `pnpm-lock.yaml` matches the updated workspace manifests',
+	].join('\n'),
+	'None of these steps can be undone automatically once the changes are pushed. If you are unsure, I can open a draft pull request first so the team can review it before anything is merged.',
+].join('\n\n');
+
+const longContextQuestion: IChatQuestion = {
+	id: 'proceed',
+	type: 'singleSelect',
+	title: 'Proceed?',
+	options: [
+		{ id: 'apply', label: 'Apply the changes directly to the main branch and push them right away', value: 'apply' },
+		{ id: 'draft', label: 'Open a draft pull request so the whole team can review the changes first', value: 'draft' },
+		{ id: 'split', label: 'Split the work into smaller pull requests, one for each affected area', value: 'split' },
+		{ id: 'cancel', label: 'Do not make any changes and keep the repository exactly as it is today', value: 'cancel' },
+	],
+	allowFreeformInput: true,
+};
+
 const harnessSwitchQuestions: IChatQuestion[] = [{
 	id: 'reason',
 	type: 'singleSelect',
@@ -214,9 +314,9 @@ const deploymentDescription = [
 	'Choose the approach that gives the team the best balance of safety and delivery speed.',
 ].join('\n\n');
 
-function createDeploymentCarousel(optionCount: number, description: string | undefined = deploymentDescription, describeFirstOption = false): ChatQuestionCarouselData {
+function createDeploymentCarousel(optionCount: number, description: string | undefined = deploymentDescription): ChatQuestionCarouselData {
 	const labels = [
-		describeFirstOption ? 'Canary rollout - Recommended' : 'Canary rollout',
+		'Canary rollout',
 		'Blue-green deployment',
 		'Rolling update',
 		'Manual approval',
@@ -258,9 +358,50 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion])),
 	}),
 
+	AgentSessionsSingleSelectQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The custom answer editor is a single, uniform input surface without an inset panel-colored editor area or gutters.'],
+		virtualTime: { enabled: false },
+		render: context => renderAgentSessionsCarousel(context, createCarousel([singleSelectQuestion])),
+	}),
+
 	MultiSelectQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([multiSelectQuestion])),
+	}),
+
+	BooleanQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => {
+			const carousel = createCarousel([deleteBranchesQuestion]);
+			carousel.message = new MarkdownString([
+				'These branches have already been merged into `main`:',
+				'',
+				'- `connor/fix-terminal-links`',
+				'- `connor/chat-carousel-fixtures`',
+				'- `alex/update-codicons`',
+			].join('\n'));
+			renderCarousel(context, carousel);
+		},
+	}),
+
+	MultiStepWithBoolean: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderCarousel(context, createCarousel([
+			experimentGateQuestion,
+			rolloutQuestion,
+			telemetryQuestion,
+		])),
+	}),
+
+	LongContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => {
+			const carousel = createCarousel([longContextQuestion]);
+			carousel.message = new MarkdownString(longContextMessage);
+			renderCarousel(context, carousel);
+		},
 	}),
 
 	MultipleQuestions: defineComponentFixture({
@@ -272,11 +413,11 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		])),
 	}),
 
-	EqualHeightOverflow: defineComponentFixture({
+	LongBodyOverflow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['Long question details and answers each occupy half the available content height, with the navigation footer below them.'],
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(12), hasEqualScrollableSections),
+		expectedVisualDescriptions: ['The pinned title is followed by a single scrolling body containing the long question details and all answers, with the navigation footer below it.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(12), hasOverflowingBody),
 	}),
 
 	CarouselMessageOverflow: defineComponentFixture({
@@ -285,52 +426,23 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		render: context => {
 			const carousel = createDeploymentCarousel(12, '');
 			carousel.message = new MarkdownString(deploymentDescription);
-			return renderLayoutCarousel(context, carousel, hasEqualScrollableSections);
+			return renderLayoutCarousel(context, carousel, hasOverflowingBody);
 		},
-	}),
-
-	AnswersFitWithin55Percent: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['All four answers are visible without scrolling. They use slightly more than half of the content height, leaving the long details independently scrollable.'],
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(4, deploymentDescription, true), (header, input, availableHeight) =>
-			header.scrollHeight > header.clientHeight &&
-			input.clientHeight > availableHeight / 2 && input.clientHeight <= availableHeight * 0.55 + 1 &&
-			input.scrollHeight === input.clientHeight),
-	}),
-
-	AnswersExceed55Percent: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['The added fifth answer would not fit within 55 percent, so both long sections share the content height equally and the answers scroll.'],
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(5, deploymentDescription, true), (header, input, availableHeight) =>
-			input.scrollHeight > availableHeight * 0.55 && hasEqualScrollableSections(header, input, availableHeight)),
 	}),
 
 	AnswersBorrowUnusedHeight: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['The short question header leaves most of the card available to the seven fully visible answers.'],
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(7, ''), (header, input, availableHeight) =>
-			header.clientHeight < availableHeight / 2 && header.scrollHeight === header.clientHeight &&
-			input.clientHeight > availableHeight / 2 && input.scrollHeight === input.clientHeight),
-	}),
-
-	DetailsBorrowUnusedHeight: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['The two short answers leave more than half of the content height available to the question details.'],
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2), (header, input, availableHeight) =>
-			header.clientHeight > availableHeight / 2 && input.clientHeight < availableHeight / 2 &&
-			input.scrollHeight === input.clientHeight),
+		expectedVisualDescriptions: ['With no question details, the card is available to the seven fully visible answers without scrolling.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(7, ''), layout =>
+			hasFullyVisibleBody(layout) && layout.answers.offsetHeight > layout.maxHeight / 2),
 	}),
 
 	CompactQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2, ''), (header, input, availableHeight) =>
-			header.scrollHeight === header.clientHeight && input.scrollHeight === input.clientHeight &&
-			header.clientHeight + input.clientHeight < availableHeight),
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2, ''), layout =>
+			hasFullyVisibleBody(layout) && layout.card.offsetHeight < layout.maxHeight),
 	}),
 
 	CollapsedQuestions: defineComponentFixture({
@@ -339,7 +451,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		render: context => {
 			const carousel = createDeploymentCarousel(12);
 			carousel.draftCollapsed = true;
-			return renderLayoutCarousel(context, carousel, (header, input) => header.clientHeight > 0 && input.clientHeight === 0);
+			return renderLayoutCarousel(context, carousel, ({ title, content }) => title.clientHeight > 0 && content.clientHeight === 0);
 		},
 	}),
 
@@ -353,8 +465,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			description: deploymentDescription,
 			detailedMessage: new MarkdownString('Provide a release owner before continuing.'),
 			required: true,
-		}], false), (header, input) =>
-			header.clientHeight > 0 && input.clientHeight > 0 &&
+		}], false), ({ title, content }) =>
+			title.clientHeight > 0 && content.clientHeight > 0 &&
 			context.container.querySelector<HTMLElement>('.chat-question-validation-message')!.offsetHeight > 0,
 			part => {
 				const submit = part.domNode.querySelector<HTMLElement>('.chat-question-submit-button');

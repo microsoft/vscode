@@ -602,8 +602,12 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
 	$computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$setLanguageStatus(handle: number, status: ILanguageStatusDto): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ILanguageStatusDto extends Omit<ILanguageStatus, 'detail'> {
+	readonly detail: string;
 }
 
 export interface ISyntaxHighlightingTokenDto {

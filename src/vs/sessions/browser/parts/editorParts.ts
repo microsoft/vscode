@@ -16,10 +16,11 @@ import { EditorParts as EditorPartsBase } from '../../../workbench/browser/parts
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { GroupDirection, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopMainEditorPart } from './desktopEditorPart.js';
-import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 
 export class EditorParts extends EditorPartsBase {
 
@@ -34,9 +35,10 @@ export class EditorParts extends EditorPartsBase {
 		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IDialogService dialogService: IDialogService,
 	) {
 		const mainWindowInstantiationService = createMainWindowInstantiationService(instantiationService);
-		super(mainWindowInstantiationService, storageService, themeService, auxiliaryWindowService, contextKeyService, lifecycleService);
+		super(mainWindowInstantiationService, storageService, themeService, auxiliaryWindowService, contextKeyService, lifecycleService, dialogService);
 		this._register(mainWindowInstantiationService);
 	}
 

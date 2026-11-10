@@ -429,6 +429,50 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('matches marketplace plugin separators consistently', async () => {
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async browsePluginMarketplace() {
+					return [
+						{ name: 'handy-commands', description: 'Useful commands' },
+						{ name: 'other-plugin', description: 'Something else' },
+					];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const marketplace = {
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: false,
+			available: true,
+		};
+		const queries = ['handy-commands', 'handy commands', 'handy_commands', 'handy.commands', 'handy/commands'];
+		const results = await Promise.all(queries.map(async query => {
+			const page = await provider.queryMarketplace(frontendSession, marketplace, { query }, CancellationToken.None);
+			return page.items.map(item => item.displayName);
+		}));
+
+		assert.deepStrictEqual(results, queries.map(() => ['handy-commands']));
+	});
+
 	test('projects SDK catalog searches and featured plugin browse results', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');

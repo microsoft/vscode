@@ -187,7 +187,7 @@ function Remove-SmokeDistribution {
 		if ($registered.ExitCode -ne 0 -or $names -contains $Distribution) {
 			$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
 			New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
-			(Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--user', 'root', '--exec', '/bin/sh', '-c', 'docker info; cat /var/log/docker.log 2>/dev/null' -TimeoutSeconds 60).Output |
+			(Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--user', 'root', '--exec', '/bin/sh', '-c', 'docker info; docker network inspect bridge --format "Docker bridge: {{range .IPAM.Config}}{{.Subnet}} {{end}}"; ip -4 route; cat /var/log/docker.log 2>/dev/null' -TimeoutSeconds 60).Output |
 				Out-File -FilePath (Join-Path $logDirectory 'docker.log') -Encoding utf8
 			Invoke-WslExe -ArgumentList '--terminate', $Distribution -TimeoutSeconds 60 | Out-Null
 			$unregister = Invoke-WslExe -ArgumentList '--unregister', $Distribution -TimeoutSeconds 120
@@ -363,9 +363,14 @@ bind mount. With -Pull, pulls the image first; otherwise the distribution must a
 function Start-SmokeDocker([switch] $Pull) {
 	$image = if ($Pull) { "docker pull $devContainerImage" } else { "docker image inspect --format '{{index .RepoDigests 0}}' $devContainerImage" }
 	# Docker's default nftables backend needs matches that older WSL2 kernels lack; legacy iptables works with all of them.
+	# dockerd keeps the subnet of its default bridge in /var/lib/docker/network and reuses it. A prepared distribution
+	# brings the subnet that dockerd chose on the machine that prepared it, usually 172.17.0.0/16, and WSL can put this
+	# machine's NAT network inside it, such as 172.17.16.0/20. Containers then cannot reach the resolver or the host.
+	# Without the stored network, dockerd picks a subnet that does not overlap the routes of this machine.
 	Invoke-Wsl @"
 update-alternatives --set iptables /usr/sbin/iptables-legacy
 update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+rm -rf /var/lib/docker/network
 start-stop-daemon --start --background --make-pidfile --pidfile /run/vscode-smoke-docker.pid --startas /bin/sh -- -c 'exec /usr/bin/dockerd > /var/log/docker.log 2>&1'
 for attempt in `$(seq 1 60); do
 	if docker info > /dev/null 2>&1; then break; fi

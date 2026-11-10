@@ -16,7 +16,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { observableValue } from '../../../../../base/common/observable.js';

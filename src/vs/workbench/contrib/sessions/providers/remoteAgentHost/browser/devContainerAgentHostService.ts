@@ -7,10 +7,10 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { raceCancellationError, raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { getComparisonKey } from '../../../../../../base/common/resources.js';
+import { basename, getComparisonKey } from '../../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue, runOnChange, waitForState } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -261,26 +261,6 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
 	}
 
-	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[] {
-		return [...this._storedConnections.values()].map(connection => ({
-			workspaceUri: URI.parse(connection.workspaceUri),
-			name: connection.name,
-		}));
-	}
-
-	addWorkspace(workspaceUri: URI, name: string): void {
-		this._ensureProvider(workspaceUri, name);
-		this._storeConnection(workspaceUri, name);
-		this._onDidChangeAvailability.fire();
-	}
-
-	async removeWorkspace(workspaceUri: URI): Promise<void> {
-		await this.disconnect(workspaceUri);
-		const key = getComparisonKey(workspaceUri);
-		this._removeStoredConnection(key);
-		this._removeProvider(key);
-	}
-
 	getSandboxSupported(workspaceUri: URI): boolean | undefined {
 		return this._knownSandboxSupport.get(getComparisonKey(workspaceUri));
 	}
@@ -486,6 +466,19 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		};
 	}
 
+	/** Names the container, and the source host for a remote source, in place of the container provider's label in its workspace labels. */
+	private _workspaceHostLabel(workspaceUri: URI): IObservable<string> {
+		return observableFromEvent(this, Event.any<unknown>(this._remoteAgentHostService.onDidChangeConfiguredEntries, this._remoteAgentHostService.onDidChangeDisplayName), () => {
+			const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
+			if (!entry) {
+				return localize('devContainerAgentHost.workspaceHost', "Dev Container");
+			}
+			const address = getEntryAddress(entry);
+			const host = this._remoteAgentHostService.getDisplayNameOverride(address) ?? (entry.name || address);
+			return localize('devContainerAgentHost.workspaceHostOnSource', "Dev Container on {0}", host);
+		});
+	}
+
 	private _ensureProvider(workspaceUri: URI, name: string, address = devContainerAddress(workspaceUri)): RemoteAgentHostSessionsProvider {
 		const key = getComparisonKey(workspaceUri);
 		const existing = this._providers.get(key);
@@ -497,16 +490,19 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const connectOnDemand = async () => {
 			await this._ensureConnection(workspaceUri, CancellationToken.None);
 		};
+		// Names the container like its workspaces, so groupings that show the environment, not the workspace, still say Dev Container.
+		const workspaceHostLabel = this._workspaceHostLabel(workspaceUri);
+		const providerLabel = (hostLabel: string) => `${basename(workspaceUri)} [${hostLabel}]`;
 		const provider = store.add(this._createProvider({
 			address,
-			name,
+			name: providerLabel(workspaceHostLabel.get()),
 			devContainerSourceWorkspaceUri: workspaceUri,
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- keys the Dev Container worktree scope by the source host filesystem URI before connecting
 			devContainerWorktreeScope: findDevContainerSample(workspaceUri) ? undefined : getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
 				: undefined,
-			omitHostFromWorkspaceLabel: true,
+			workspaceHostLabel,
 			devContainerLifecycle: {
 				connect: connectOnDemand,
 				stop: () => this._stopContainer(key),
@@ -517,6 +513,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			showConnectionLog: () => this.showLog(workspaceUri),
 		}));
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		store.add(runOnChange(workspaceHostLabel, hostLabel => provider.setLabel(providerLabel(hostLabel))));
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		store.add(provider.onDidChangeSessions(event => {
 			if (event.added.length > 0) {

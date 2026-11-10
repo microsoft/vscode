@@ -46,6 +46,9 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -448,6 +451,57 @@ suite('ChatTipService', () => {
 				assert.ok(/\s"[^"]+"$/.test(match[1]), `Expected command link in ${tip.id} to include a descriptive title: ${match[0]}`);
 			}
 		}
+	});
+
+	test('background send tip is experimental and limited to new sessions with AI enabled in the Agents window', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(tip?.when);
+		const enabled = contextKeyService.createKey<boolean>(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, false);
+		const agentsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const aiEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, true);
+		const created = contextKeyService.createKey<boolean>('sessionIsCreated', false);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+		enabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		agentsWindow.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		agentsWindow.set(true);
+		created.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		created.set(false);
+		aiEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		assert.deepStrictEqual(eligibility, [false, true, false, false, false]);
+	});
+
+	test('background send tip resolves the configured shortcut and remains useful when unbound', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(tip);
+		const messages = ['Ctrl+Enter', undefined].map(label => tip.buildMessage({
+			keybindingService: upcastPartial<IKeybindingService>({
+				lookupKeybinding: commandId => commandId === SEND_IN_BACKGROUND_COMMAND_ID && label
+					? upcastPartial<ResolvedKeybinding>({ getLabel: () => label })
+					: undefined,
+			}),
+			experimentalTipMessages: new Map(),
+		}).value);
+		const link = `command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify([SEND_IN_BACKGROUND_COMMAND_ID]))}`;
+		assert.deepStrictEqual(messages, [
+			`Use Send in Background (Ctrl+Enter) to start a new session without opening it. [Customize the shortcut](${link} "Open Keyboard Shortcuts").`,
+			`Use Send in Background to start a new session without opening it. [Customize the shortcut](${link} "Open Keyboard Shortcuts").`,
+		]);
+	});
+
+	test('removes the background send tip after the command is used', () => {
+		testDisposables.add(CommandsRegistry.registerCommand(SEND_IN_BACKGROUND_COMMAND_ID, () => { }));
+		contextKeyService.createKey(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, true);
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey('sessionIsCreated', false);
+		const service = createService();
+		assert.ok(findTipById(service, 'tip.sendInBackground'));
+		commandExecutedEmitter.fire({ commandId: SEND_IN_BACKGROUND_COMMAND_ID, args: [] });
+		assertTipNeverShown(service, 'tip.sendInBackground');
 	});
 
 	test('btw tip is controlled by its experiment setting and limited to active side-chat sessions in the Agents window', () => {

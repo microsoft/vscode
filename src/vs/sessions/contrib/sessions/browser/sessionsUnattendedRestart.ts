@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IUnattendedRestartService } from '../../../../workbench/services/lifecycle/common/unattendedRestart.js';
-import { isActiveSessionStatus, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isActiveSessionStatus, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /**

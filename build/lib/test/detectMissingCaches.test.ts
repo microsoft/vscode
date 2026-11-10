@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { FAILSAFE_SCHEMA, load } from 'js-yaml';
@@ -64,8 +64,8 @@ function getRunner(job: IJob, name: string) {
 }
 
 suite('Detect missing caches', () => {
-	test('the jobs match pr-node-modules.yml', () => {
-		const workflow = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml');
+	test('the jobs match pr-pnpm-store.yml', () => {
+		const workflow = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-pnpm-store.yml');
 		const jobs: Record<string, ICacheWarmingJob> = {};
 		const gates: Record<string, string | undefined> = {};
 		for (const [name, job] of Object.entries(workflow.jobs)) {
@@ -79,12 +79,13 @@ suite('Detect missing caches', () => {
 				.replaceAll('$(node -p process.arch)', runner.arch);
 			const step = (uses: string) => job.steps.find(step => step.uses === uses);
 
-			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
+			// Only the job that saves a store keeps it warm; others restore it to install the dependencies.
+			const pnpmStore = step('./.github/actions/save-pnpm-store') ? step('./.github/actions/restore-pnpm-store')?.with : undefined;
 			const electron = step('./.github/actions/setup-electron')?.with;
 			const playwright = step('./.github/actions/restore-playwright')?.with;
 			jobs[name] = {
 				os: runner.os,
-				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
+				...pnpmStore ? { pnpmStore: { prefix: pnpmStore['key-prefix'], args: [runner.platform, runner.arch] } } : {},
 				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
@@ -103,7 +104,7 @@ suite('Detect missing caches', () => {
 	test('the action and the caches job forward an output for each job', () => {
 		// The runner only loads the action when the workflow runs on main, so parse it here.
 		const action = loadYaml<{ outputs: Record<string, { value: string }> }>('.github/actions/detect-missing-caches/action.yml');
-		const workflow = loadYaml<{ jobs: { caches: { outputs: Record<string, string> } } }>('.github/workflows/pr-node-modules.yml');
+		const workflow = loadYaml<{ jobs: { caches: { outputs: Record<string, string> } } }>('.github/workflows/pr-pnpm-store.yml');
 		const expected = Object.fromEntries(Object.keys(cacheWarmingJobs).map(name => [name, `\${{ steps.detect.outputs.${name} }}`]));
 		assert.deepStrictEqual({
 			action: Object.fromEntries(Object.entries(action.outputs).map(([name, output]) => [name, output.value])),
@@ -118,19 +119,20 @@ suite('Detect missing caches', () => {
 			.filter(step => step.uses?.startsWith('actions/cache'))
 			.map(step => ({ key: step.with?.key, path: step.with?.path, enableCrossOsArchive: step.with?.enableCrossOsArchive }));
 		const commands = (steps: readonly IStep[], pattern: RegExp) => steps.flatMap(step => step.run?.split('\n').filter(line => pattern.test(line)).map(line => line.trim()) ?? []);
-		const compile = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml').jobs.compile.steps;
+		const compile = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-pnpm-store.yml').jobs.compile.steps;
 		assert.deepStrictEqual({
-			nodeModules: [...caches(loadActionSteps('restore-node-modules')), ...caches(loadActionSteps('save-node-modules')), ...commands(loadActionSteps('restore-node-modules'), /computeNodeModulesCacheKey/)],
+			pnpmStore: [...caches(loadActionSteps('restore-pnpm-store')), ...caches(loadActionSteps('save-pnpm-store')), ...commands(loadActionSteps('restore-pnpm-store'), /computePnpmStoreCacheKey/)],
 			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
 			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
 			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
 			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
-			nodeModules: [
-				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
-				{ key: '${{ env.NODE_MODULES_CACHE_KEY }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
-				'mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
-				'node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
+			pnpmStore: [
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/pnpmstorebase\') }}-${{ hashFiles(\'.build/pnpmstorelockfiles\') }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
+				{ key: '${{ env.PNPM_STORE_CACHE_KEY }}', path: '.build/pnpm-store', enableCrossOsArchive: undefined },
+				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
+				'node build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
 			],
 			electron: [
 				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
@@ -157,9 +159,27 @@ suite('Detect missing caches', () => {
 		});
 	});
 
+	test('the cache paths have no `..` segments', () => {
+		// actions/cache/save only warns about such a path and saves nothing, so its cache stays missing.
+		const files = [
+			...readdirSync(path.join(repositoryRoot, '.github/workflows')).filter(name => name.endsWith('.yml')).map(name => `.github/workflows/${name}`),
+			...readdirSync(path.join(repositoryRoot, '.github/actions')).map(name => `.github/actions/${name}/action.yml`),
+		];
+		const cachePaths = files.flatMap(file => {
+			const { jobs, runs } = loadYaml<{ jobs?: Record<string, { steps?: IStep[] }>; runs?: { steps?: IStep[] } }>(file);
+			return [...Object.values(jobs ?? {}).flatMap(job => job.steps ?? []), ...runs?.steps ?? []]
+				.filter(step => step.uses?.startsWith('actions/cache'))
+				.flatMap(step => step.with?.path?.split('\n').map(line => line.trim()).filter(line => line) ?? []);
+		});
+		assert.deepStrictEqual({
+			pnpmStore: cachePaths.includes('.build/pnpm-store'),
+			withParentSegments: cachePaths.filter(cachePath => cachePath.split(/[\\/]/).includes('..')),
+		}, { pnpmStore: true, withParentSegments: [] });
+	});
+
 	test('the Electron cache versions match the cache paths on the runners of the jobs', () => {
 		// The detector derives each version from its own copy of the cache path, so check it against the runners.
-		const { jobs } = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml');
+		const { jobs } = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-pnpm-store.yml');
 		const electronJobs = Object.keys(cacheWarmingJobs).filter(name => cacheWarmingJobs[name].electron);
 		const actual = Object.fromEntries(electronJobs.map(name => [name, getCaches(cacheWarmingJobs[name], readRepositoryFile).find(cache => cache.key.startsWith('electron-download-v1-'))?.version]));
 		const expected = Object.fromEntries(electronJobs.map(name => {
@@ -179,7 +199,7 @@ suite('Detect missing caches', () => {
 			const index = steps.findIndex(step => step.name === 'Move the workspace to a Dev Drive');
 			return { before: steps.slice(0, index).map(step => step.name), run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
 		};
-		const { before: warmerBefore, ...warmer } = devDrive('.github/workflows/pr-node-modules.yml', 'windows');
+		const { before: warmerBefore, ...warmer } = devDrive('.github/workflows/pr-pnpm-store.yml', 'windows');
 		const { before: testsBefore, ...tests } = devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit');
 		assert.deepStrictEqual(
 			{ warmerBefore, testsBefore, tests },

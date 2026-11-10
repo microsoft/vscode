@@ -27,7 +27,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IChat, ISession, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';

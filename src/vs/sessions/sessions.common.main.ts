@@ -333,8 +333,11 @@ import { IExtensionsWorkbenchService } from '../workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from '../workbench/contrib/extensions/browser/extensionsWorkbenchService.js';
 import { IExtensionRecommendationNotificationService } from '../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { NullExtensionRecommendationNotificationService } from './services/extensionRecommendations/common/extensionRecommendationNotificationService.js';
+import { IExtensionRecommendationsService } from '../workbench/services/extensionRecommendations/common/extensionRecommendations.js';
+import { NullExtensionRecommendationsService } from './services/extensionRecommendations/common/extensionRecommendationsService.js';
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
 registerSingleton(IExtensionRecommendationNotificationService, NullExtensionRecommendationNotificationService, InstantiationType.Delayed);
+registerSingleton(IExtensionRecommendationsService, NullExtensionRecommendationsService, InstantiationType.Delayed);
 
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
@@ -466,6 +469,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/sessionsPartContent.registration.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsServices.registration.js';

@@ -11,8 +11,7 @@ import { autorun, derived, derivedObservableWithCache, IObservable, IReader, obs
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
-import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
@@ -37,15 +36,15 @@ function isSameRemoteConnectionStatus(a: SessionRemoteConnectionStatus | undefin
 }
 
 type ConnectAttempt =
-	| { readonly kind: 'active'; readonly session: IActiveSession; readonly message: string | undefined; readonly statusBefore: SessionRemoteConnectionStatus | undefined }
-	| { readonly kind: 'failed'; readonly session: IActiveSession; readonly statusBefore: SessionRemoteConnectionStatus | undefined };
+	| { readonly kind: 'active'; readonly session: ISession; readonly message: string | undefined; readonly statusBefore: SessionRemoteConnectionStatus | undefined }
+	| { readonly kind: 'failed'; readonly session: ISession; readonly statusBefore: SessionRemoteConnectionStatus | undefined };
 
 /**
  * Connection presentation and recovery state for the session rendered by a chat group.
  */
 export class SessionRemoteConnection extends Disposable {
 
-	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
+	private readonly _session = observableValue<ISession | undefined>(this, undefined);
 	private readonly _attempt = observableValue<ConnectAttempt | undefined>(this, undefined);
 	private readonly _connectionAttemptObserved = observableValue(this, false);
 	private readonly _inputReceived = observableValue(this, false);
@@ -65,14 +64,14 @@ export class SessionRemoteConnection extends Disposable {
 	 * instance latches independently — and providers collapse the duplicates:
 	 * `connect()` joins an in-flight dial rather than starting a second one.
 	 */
-	private readonly _autoConnected = observableValue<IActiveSession | undefined>(this, undefined);
+	private readonly _autoConnected = observableValue<ISession | undefined>(this, undefined);
 	/**
 	 * The session a connect has already been started for, however it ended. Distinguishes a host
 	 * that has never been dialled — where the action reads as "Connect" — from one that was tried
 	 * and did not come up, where it reads as "Retry". Latched separately from {@link _attempt},
 	 * which clears once an attempt settles and so cannot answer "has this been tried at all".
 	 */
-	private readonly _connectAttempted = observableValue<IActiveSession | undefined>(this, undefined);
+	private readonly _connectAttempted = observableValue<ISession | undefined>(this, undefined);
 	/**
 	 * Whether the host should be started without waiting for a click. Gated on a
 	 * stopped host the provider can start, and on not having tried yet — one
@@ -80,7 +79,7 @@ export class SessionRemoteConnection extends Disposable {
 	 */
 	private readonly _autoConnectPending = derived(this, reader => {
 		const session = this._session.read(reader);
-		const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const status = this._getEffectiveStatus(reader);
 		if (!session || !provider || !isAgentHostProvider(provider) || !provider.connect || !provider.autoConnect) {
 			return false;
@@ -103,7 +102,7 @@ export class SessionRemoteConnection extends Disposable {
 	 * Keyed by session only to guard future reuse: a ChatGroupView is currently
 	 * created per session, so the cache cannot outlive the session it belongs to.
 	 */
-	private readonly _reconnectingSince = derivedObservableWithCache<{ readonly session: IActiveSession; readonly since: number } | undefined>(this, (reader, last) => {
+	private readonly _reconnectingSince = derivedObservableWithCache<{ readonly session: ISession; readonly since: number } | undefined>(this, (reader, last) => {
 		const session = this._session.read(reader);
 		const status = this._getEffectiveStatus(reader);
 		const attempt = this._attempt.read(reader);
@@ -190,7 +189,7 @@ export class SessionRemoteConnection extends Disposable {
 		}));
 	}
 
-	setSession(session: IActiveSession | undefined): void {
+	setSession(session: ISession | undefined): void {
 		this._progressListener.clear();
 		// One transaction: these writes notify autoruns synchronously, and
 		// clearing the gates while the previous session is still selected would
@@ -221,7 +220,7 @@ export class SessionRemoteConnection extends Disposable {
 			this._attempt.set(undefined, undefined);
 		}
 
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.connect) {
 			this._logService.info(`[SessionRemoteConnection] connect: ${session.providerId} cannot connect on demand`);
 			return;
@@ -269,7 +268,7 @@ export class SessionRemoteConnection extends Disposable {
 		this.connect();
 	}
 
-	private async _runConnect(session: IActiveSession, statusBefore: SessionRemoteConnectionStatus | undefined, connect: () => Promise<void>): Promise<void> {
+	private async _runConnect(session: ISession, statusBefore: SessionRemoteConnectionStatus | undefined, connect: () => Promise<void>): Promise<void> {
 		try {
 			await connect();
 			this._logService.info(`[SessionRemoteConnection] connect resolved, status=${session.remoteConnectionStatus?.get()?.kind}`);
@@ -281,7 +280,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 	}
 
-	private _finishAttempt(session: IActiveSession): void {
+	private _finishAttempt(session: ISession): void {
 		const attempt = this._attempt.get();
 		if (attempt?.kind !== 'active' || attempt.session !== session) {
 			return;
@@ -291,7 +290,7 @@ export class SessionRemoteConnection extends Disposable {
 		this._attempt.set(undefined, undefined);
 	}
 
-	private _failAttempt(session: IActiveSession, statusBefore: SessionRemoteConnectionStatus | undefined): void {
+	private _failAttempt(session: ISession, statusBefore: SessionRemoteConnectionStatus | undefined): void {
 		const attempt = this._attempt.get();
 		if (attempt?.kind !== 'active' || attempt.session !== session) {
 			return;
@@ -329,7 +328,7 @@ export class SessionRemoteConnection extends Disposable {
 		};
 	}
 
-	private _getRemoteHostConnectProgress(session: IActiveSession, status: SessionRemoteConnectionStatus | undefined, labels: IAgentHostConnectionLabels, reader: IReader): string | undefined {
+	private _getRemoteHostConnectProgress(session: ISession, status: SessionRemoteConnectionStatus | undefined, labels: IAgentHostConnectionLabels, reader: IReader): string | undefined {
 		const attempt = this._attempt.read(reader);
 		if (attempt?.kind !== 'active' || attempt.session !== session || status?.kind === 'connected') {
 			return undefined;
@@ -355,7 +354,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		if (status?.kind === 'connected') {
@@ -437,7 +436,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		const progressMessage = this._getRemoteHostConnectProgress(session, status, labels, reader);
@@ -514,7 +513,7 @@ export class SessionRemoteConnection extends Disposable {
 	 * attempt the user never made, and for hosts that must be resumed rather than merely reached,
 	 * the first dial is a deliberate choice rather than a recovery.
 	 */
-	private _connectActionLabel(session: IActiveSession, reader: IReader): string {
+	private _connectActionLabel(session: ISession, reader: IReader): string {
 		return this._connectAttempted.read(reader) === session
 			? localize('sessionRemoteHost.retry', "Retry")
 			: localize('sessionRemoteHost.connect', "Connect");

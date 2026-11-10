@@ -390,6 +390,150 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
+	const revisionScenarios: { name: string; revisions: readonly string[]; inserted: number; retained: number; gap?: number; userEdit?: boolean }[] = [
+		...[500, 1500].flatMap(gap => [false, true].map(userEdit => ({
+			name: `full replacement, ${gap}ms gap, unrelated user edit=${userEdit}`,
+			revisions: ['A'.repeat(100), 'B'.repeat(100)], inserted: 200, retained: 100, gap, userEdit,
+		}))),
+		{ name: 'three revisions', revisions: ['A'.repeat(100), 'B'.repeat(100), 'C'.repeat(100)], inserted: 300, retained: 100 },
+		{ name: 'partial replacement', revisions: ['A'.repeat(100), 'A'.repeat(50) + 'B'.repeat(50)], inserted: 150, retained: 100 },
+		{ name: 'shorter replacement', revisions: ['A'.repeat(100), 'B'.repeat(40)], inserted: 140, retained: 40 },
+		{ name: 'disjoint insertion', revisions: ['A'.repeat(100), 'A'.repeat(100) + 'B'.repeat(100)], inserted: 200, retained: 200 },
+		{ name: 'deletion', revisions: ['A'.repeat(100), ''], inserted: 100, retained: 0 },
+		{ name: 'no-op', revisions: ['A'.repeat(100), 'A'.repeat(100)], inserted: 100, retained: 100 },
+		{ name: 'return to earlier text', revisions: ['A'.repeat(100), 'B'.repeat(100), 'A'.repeat(100)], inserted: 300, retained: 100 },
+		{ name: 'unobserved intermediate revision', revisions: ['B'.repeat(100)], inserted: 100, retained: 100 },
+	];
+	for (const scenario of revisionScenarios) {
+		test(`counts each observed revision in both focus windows: ${scenario.name}`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, 'original\nsecond');
+			try {
+				await timeout(10);
+				const userEdit = scenario.userEdit ?? false;
+				for (const [index, revision] of scenario.revisions.entries()) {
+					const before = context.document.value.get().value;
+					context.document.applyEdit(diskReloadEdit(before, revision + before.slice(before.indexOf('\n'))));
+					await timeout(scenario.gap ?? 10);
+					if (index === 0 && userEdit) {
+						const text = context.document.value.get().value;
+						context.document.applyEdit(StringEditWithReason.replace(
+							OffsetRange.emptyAt(text.indexOf('\n') + 1), 'U', EditSources.cursor({ kind: 'type' }),
+						));
+						await timeout(10);
+					}
+				}
+				context.fireFocusTimer(10 * 60 * 1000);
+				context.fireFocusTimer(20 * 60 * 1000);
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					details: context.allDetails.map(event => ({
+						mode: event.mode,
+						source: event.origin === 'agentHost' ? 'agent' : 'user',
+						inserted: event.deltaModifiedCount,
+						retained: event.modifiedCount,
+						total: event.totalModifiedCount,
+					})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`)),
+					stats: context.allStats.map(event => ({
+						mode: event.mode, agent: event.agentHostModifiedCount,
+						external: event.externalModifiedCount, total: event.totalModifiedCharacters,
+					})).sort((a, b) => a.mode.localeCompare(b.mode)),
+				}, {
+					details: ['10minFocusWindow', '20minFocusWindow'].flatMap(mode => [
+						{ mode, source: 'agent', inserted: scenario.inserted, retained: scenario.retained, total: scenario.retained + (userEdit ? 1 : 0) },
+						...(userEdit ? [{ mode, source: 'user', inserted: 1, retained: 1, total: scenario.retained + 1 }] : []),
+					]),
+					stats: ['10minFocusWindow', '20minFocusWindow'].map(mode => ({
+						mode, agent: scenario.retained, external: 0, total: scenario.retained + (userEdit ? 1 : 0),
+					})),
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	test('emits fully overwritten focus sources with their original model and chat', () => runWithFakedTimers({}, async () => {
+		const sources = ['first', 'second'].map(id => EditSources.agentHostChatApplyEdits({
+			modelId: `model-${id}`, sessionId: `session-${id}`, agentSessionId: `owner-${id}`,
+			chatSessionId: `chat-${id}`, requestId: `turn-${id}`, harness: 'copilotcli',
+		}));
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after.startsWith('A') ? 'first' : 'second',
+			isSuppressed: () => true,
+			getResolution: id => ({ id, source: sources[id === 'first' ? 0 : 1] }),
+			release: () => { },
+		};
+		const context = setup(undefined, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => undefined,
+		});
+		try {
+			await timeout(10);
+			context.document.applyEdit(diskReloadEdit('hello', 'A'.repeat(100)));
+			await timeout(10);
+			context.document.applyEdit(diskReloadEdit('A'.repeat(100), 'B'.repeat(100)));
+			await timeout(10);
+			context.fireFocusTimer(10 * 60 * 1000);
+			context.fireFocusTimer(20 * 60 * 1000);
+			await timeout(10);
+			assert.deepStrictEqual(context.allDetails.map(event => ({
+				mode: event.mode, model: event.modelId, chat: event.chatSessionId,
+				inserted: event.deltaModifiedCount, retained: event.modifiedCount,
+			})).sort((a, b) => `${a.mode}:${a.model}`.localeCompare(`${b.mode}:${b.model}`)), ['10minFocusWindow', '20minFocusWindow'].flatMap(mode => [
+				{ mode, model: 'model-first', chat: 'chat-first', inserted: 100, retained: 0 },
+				{ mode, model: 'model-second', chat: 'chat-second', inserted: 100, retained: 100 },
+			]));
+		} finally {
+			context.disposables.dispose();
+			await timeout(10);
+		}
+	}));
+
+	test('resets the ten-minute denominator without resetting the twenty-minute window', () => runWithFakedTimers({}, async () => {
+		const correlation = new TestExternalEditCorrelation();
+		correlation.resolve(EditSources.agentHostChatApplyEdits({
+			modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+		}));
+		const context = setup(undefined, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => undefined,
+		});
+		try {
+			await timeout(10);
+			context.document.applyEdit(diskReloadEdit('hello', 'A'.repeat(100)));
+			await timeout(10);
+			context.fireFocusTimer(10 * 60 * 1000);
+			await timeout(10);
+			context.document.applyEdit(diskReloadEdit('A'.repeat(100), 'B'.repeat(100)));
+			await timeout(10);
+			context.fireFocusTimer(10 * 60 * 1000);
+			context.fireFocusTimer(20 * 60 * 1000);
+			await timeout(10);
+			assert.deepStrictEqual(context.allDetails.map(event => ({
+				mode: event.mode, inserted: event.deltaModifiedCount, retained: event.modifiedCount,
+			})), [
+				{ mode: '10minFocusWindow', inserted: 100, retained: 100 },
+				{ mode: '10minFocusWindow', inserted: 100, retained: 100 },
+				{ mode: '20minFocusWindow', inserted: 200, retained: 100 },
+			]);
+		} finally {
+			context.disposables.dispose();
+			await timeout(10);
+		}
+	}));
+
 	for (const scenario of ['separated hunks', 'user revert', 'later disjoint edits'] as const) {
 		test(`counts only changed characters in both focus windows: ${scenario}`, () => runWithFakedTimers({}, async () => {
 			const visible = observableValue('visible', true);

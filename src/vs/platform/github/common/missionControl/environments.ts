@@ -6,6 +6,14 @@
 import { ApiQueryOptions, ApiRequestOptions } from '../client/request.js';
 import type { ActivationContext, EnvironmentKind } from './missionControl.js';
 
+/** Prefix of a sealed environment credential envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
+export const SEALED_ENVIRONMENT_TOKEN_PREFIX = 'copilot-sealed.v1.';
+
+/** Whether a token has the sealed environment credential envelope prefix. */
+export function isSealedEnvironmentToken(token: string | undefined): boolean {
+	return typeof token === 'string' && token.startsWith(SEALED_ENVIRONMENT_TOKEN_PREFIX);
+}
+
 /** The operational state of an environment. */
 export type EnvironmentStatus = 'online' | 'offline' | 'waking' | 'degraded' | 'draining';
 
@@ -43,10 +51,36 @@ export interface AdvertisedEncryptionKey {
 	readonly key_id: string;
 	/** The key's trust domain, such as auth-token. */
 	readonly use: string;
-	/** The sealing scheme, currently x25519-sealedbox. */
+	/** The sealing algorithm advertised by the host. */
 	readonly algorithm: string;
 	/** The recipient public key encoded in standard padded base64. */
 	readonly public_key: string;
+}
+
+/** An identity credential that must be sealed before transmission to an environment host. */
+export interface EnvironmentIdentityToken {
+	/** The unsealed identity credential; must not be logged or persisted. */
+	readonly token: string;
+	/** Absolute expiry as an RFC 3339 timestamp, when supplied. */
+	readonly expires_at?: string;
+	/** Remaining token lifetime in seconds, when supplied. */
+	readonly expires_in?: number;
+}
+
+/** Parameters for sealing a caller-provided credential to an environment's host key. */
+export interface SealEnvironmentTokenRequest {
+	/** The unsealed credential; must not be logged, persisted, or sent over the relay. */
+	readonly token: string;
+	/** Optional resource URL to bind to the sealed credential. */
+	readonly resource?: string;
+}
+
+/** An opaque sealed credential and the public key advertised by its recipient. */
+export interface SealedEnvironmentToken {
+	/** The opaque credential envelope to forward to the host; must not be logged or persisted. */
+	readonly encrypted_github_token: string;
+	/** The recipient's advertised public key used to seal the credential. */
+	readonly host_encryption_key: AdvertisedEncryptionKey;
 }
 
 /** Named group identifiers for the daemon's environment-scoped channels. */
@@ -185,7 +219,7 @@ export type ConnectEnvironmentOptions = ApiQueryOptions<EnvironmentConnectionQue
 }>;
 
 /** Connection credentials (200) or a pending environment wake operation (202). */
-export type EnvironmentConnectResult =
+export type EnvironmentConnectResult = (
 	| {
 		/** Credentials were successfully minted. */
 		readonly status: 200;
@@ -199,9 +233,13 @@ export type EnvironmentConnectResult =
 		readonly data: WakingResponse;
 		/** The Retry-After delay in seconds, omitted if the service supplied no delay. */
 		readonly retryAfterSeconds?: number;
-	};
+	}
+) & {
+	/** The server's request identifier for correlating connection diagnostics. */
+	readonly requestId?: string;
+};
 
-/** Operations for listing environments and requesting connection credentials. */
+/** Environment discovery, lifecycle, and credential operations. */
 export interface IEnvironmentsClient {
 	/** POST /agents/environments/tokens: mint a short-lived identity credential for host authentication. */
 	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken>;
@@ -212,16 +250,15 @@ export interface IEnvironmentsClient {
 	/** GET /agents/environments/{environment_id}: read an environment owned by the authenticated account. */
 	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment>;
 
+	/** DELETE /agents/environments/{environment_id}: delete an owned environment; missing environments reject with HTTP 404. */
+	delete(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+
+	/** POST /agents/environments/{environment_id}/seal-token: seal a credential through the approved credential gateway without replay or caching. */
+	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<SealedEnvironmentToken>;
+
 	/** GET /agents/environments/{environment_id}/connect: request credentials for a new logical client connection, or report that the environment is waking. */
 	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult>;
 
 	/** GET /agents/environments/{environment_id}/reconnect: refresh an existing client's credentials, or report that the environment is waking. */
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult>;
-}
-
-/** An identity credential that must be sealed before transmission to an environment host. */
-export interface EnvironmentIdentityToken {
-	readonly token: string;
-	readonly expires_at?: string;
-	readonly expires_in?: number;
 }

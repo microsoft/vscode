@@ -18,21 +18,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
-
-export interface ICanvas {
-	readonly resource: URI;
-	readonly instanceId: string | undefined;
-	readonly title: string;
-	readonly status?: string;
-	readonly source: URI | undefined;
-	/** Owning extension identifier, when the host reports it. */
-	readonly extensionId?: string;
-	/** Provider-local canvas type identifier, when the host reports it. */
-	readonly canvasId?: string;
-}
 
 /** Where a registered canvas definition was contributed from. */
 export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
@@ -59,16 +48,6 @@ export interface ICanvasDefinitionProvider {
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
 }
 
-export interface ICanvasOwner {
-	readonly providerId: string;
-	readonly session: URI;
-	readonly chat: URI;
-}
-
-export interface ICanvasReference extends ICanvasOwner {
-	readonly canvas: URI;
-}
-
 export interface ICanvasReopenTarget {
 	readonly reference: ICanvasReference;
 	readonly canvas: ICanvas;
@@ -86,6 +65,8 @@ export interface ICanvasContext {
 	 * the owner's host cannot close canvases.
 	 */
 	readonly closeCanvas?: (canvas: ICanvas) => Promise<void>;
+	/** Whether the owner's canvases open without taking focus or the active tab, as their chat is not the focused one. */
+	readonly background?: boolean;
 }
 
 export interface ICanvasOpenRequest {
@@ -171,9 +152,10 @@ export interface ICanvasContextService {
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined;
 	/**
 	 * Whether `group`, outside the main window, presents canvases of `owner`, such as a window that shows the owning
-	 * chat. Without it, only groups of the main window present canvases, beside their owning chat.
+	 * chat. Without it, only groups of the main window present canvases, beside their owning chat. With `reader`, a
+	 * change of the answer runs the reader again, so that canvases close in groups that no longer present them.
 	 */
-	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup): boolean;
+	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup, reader?: IReader): boolean;
 	/**
 	 * Whether canvases of `owner` show outside the per-owner editor working sets, such as in a window that shows the
 	 * owning chat, so that they show while another owner's working set applies. Presentation reads this with `reader`
@@ -184,8 +166,8 @@ export interface ICanvasContextService {
 }
 
 /** Whether `group` can present canvases of `owner`: a group of the main window, or one its context service allows. */
-export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined): boolean {
-	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group) === true;
+export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined, reader?: IReader): boolean {
+	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group, reader) === true;
 
 }
 
@@ -212,14 +194,6 @@ export interface ICanvasService {
 	 * loads the next source in place.
 	 */
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
-}
-
-export function canvasOwnerKey(owner: ICanvasOwner): string {
-	return `${owner.providerId}\u0000${owner.session.toString()}\u0000${owner.chat.toString()}`;
-}
-
-export function getCanvasReferenceKey(reference: ICanvasReference): string {
-	return `${canvasOwnerKey(reference)}\u0000${reference.canvas.toString()}`;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {
@@ -399,7 +373,16 @@ export class CanvasInput extends EditorInput {
 		const group = this.editorGroupsService.getGroup(targetGroup);
 		return group && canPresentCanvasInGroup(this.reference, group, this.editorGroupsService, this.contextService)
 			? true
-			: localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
+			: this.getMoveVeto();
+	}
+
+	override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the owning conversation's
+		return this.getMoveVeto();
+	}
+
+	private getMoveVeto(): string {
+		return localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
 	}
 
 	get serializationId(): string | undefined {

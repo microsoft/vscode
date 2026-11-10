@@ -72,6 +72,7 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 	const agentDir = getAgentDir(args.sdk);
 
 	const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-sdk-pkg-'));
+	const cleanUp = [stagingDir];
 	try {
 		// Copy the pinned package.json + package-lock.json into the scratch
 		// dir. `npm ci` errors out if a node_modules is already present, so
@@ -86,9 +87,10 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		if (libc) {
 			npmEnv.npm_config_libc = libc;
 		}
-		npmCi(stagingDir, npmEnv);
-
 		const nodeModulesDir = path.join(stagingDir, 'node_modules');
+		// npm's debug logs go next to the staging dir, not into it, so they never end up in the tarball.
+		const npmLogsDir = `${stagingDir}-npm-logs`;
+		cleanUp.push(npmLogsDir);
 
 		// The SDK ships its native binary in a per-platform package declared as
 		// an *optional* dependency (e.g. `@openai/codex-linux-x64`). npm does not
@@ -96,12 +98,22 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		// registry hiccup can leave the base package present but the native
 		// package missing — which would silently produce a binary-less tarball
 		// and upload it to the (immutable, content-addressed) CDN path, failing
-		// only at runtime for end users. Fail loud here instead.
+		// only at runtime for end users. Fail loud here instead, but only after
+		// retrying the install, since the skipped download is usually transient.
 		// See https://github.com/microsoft/vscode/pull/323881.
-		const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
-		if (missingNativeDep) {
-			throw new Error(`[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`);
-		}
+		await installWithRetry({
+			install: () => npmCi(stagingDir, npmEnv, npmLogsDir),
+			isRetryableError: error => error instanceof NpmCiExitError,
+			findProblem: () => {
+				const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
+				if (!missingNativeDep) {
+					return undefined;
+				}
+				printNpmLogLines(npmLogsDir, missingNativeDep);
+				return `[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`;
+			},
+			reset: () => fs.rmSync(nodeModulesDir, { recursive: true, force: true }),
+		});
 
 		chmodPlatformBinaries(nodeModulesDir, args.sdk, args.sdkTarget);
 
@@ -119,7 +131,9 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		console.log(`[${SCRIPT}] Wrote ${tgzPath} (${sizeBytes} bytes, sha256=${sha256})`);
 		return { tgzPath, sha256, sdkVersion, sizeBytes };
 	} finally {
-		fs.rmSync(stagingDir, { recursive: true, force: true });
+		for (const dir of cleanUp) {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
 	}
 }
 
@@ -276,7 +290,74 @@ function verifySdkLoads(stagingDir: string, entry: string, context: string): voi
 	}
 }
 
-function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
+/** Delays before the second and third install attempts. */
+export const INSTALL_RETRY_DELAYS_MS: readonly number[] = [10_000, 30_000];
+
+export interface IInstallWithRetryOptions {
+	/** Runs the install; throws when it fails. */
+	readonly install: () => void;
+	/** Whether an error thrown by `install` is worth retrying. Other errors fail on the first attempt. */
+	readonly isRetryableError: (error: unknown) => boolean;
+	/** Describes what the install left broken, or returns `undefined` when the result is complete. */
+	readonly findProblem: () => string | undefined;
+	/** Clears a failed install before the next attempt. */
+	readonly reset: () => void;
+	readonly delaysMs?: readonly number[];
+	readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Runs `install` until it succeeds and `findProblem` finds nothing, retrying a
+ * failed or incomplete install after each delay. Throws the last problem when
+ * every attempt fails.
+ */
+export async function installWithRetry(options: IInstallWithRetryOptions): Promise<void> {
+	const delaysMs = options.delaysMs ?? INSTALL_RETRY_DELAYS_MS;
+	const sleep = options.sleep ?? (ms => new Promise<void>(resolve => setTimeout(resolve, ms)));
+	for (let attempt = 1; ; attempt++) {
+		let problem: string | undefined;
+		try {
+			options.install();
+			problem = options.findProblem();
+		} catch (error) {
+			if (!options.isRetryableError(error)) {
+				throw error;
+			}
+			problem = error instanceof Error ? error.message : String(error);
+		}
+		if (problem === undefined) {
+			return;
+		}
+		const delay = delaysMs[attempt - 1];
+		if (delay === undefined) {
+			throw new Error(problem);
+		}
+		console.warn(`[${SCRIPT}] Install attempt ${attempt} of ${delaysMs.length + 1} failed: ${problem} Retrying in ${delay / 1000}s.`);
+		options.reset();
+		await sleep(delay);
+	}
+}
+
+/** Prints the lines of npm's latest debug log that mention `packageName`, which say why npm skipped it. */
+function printNpmLogLines(logsDir: string, packageName: string): void {
+	let files: string[];
+	try {
+		files = fs.readdirSync(logsDir).filter(file => file.endsWith('.log')).sort();
+	} catch {
+		return;
+	}
+	const latest = files.at(-1);
+	if (!latest) {
+		return;
+	}
+	const lines = fs.readFileSync(path.join(logsDir, latest), 'utf8').split(/\r?\n/).filter(line => line.includes(packageName));
+	console.warn(`[${SCRIPT}] npm debug log lines for '${packageName}' (${latest}):`);
+	for (const line of lines.slice(-40)) {
+		console.warn(`  ${line}`);
+	}
+}
+
+function npmCi(workDir: string, env: NodeJS.ProcessEnv, logsDir: string): void {
 	// `npm ci` rather than `npm install`: installs the exact graph from the
 	// committed package-lock.json without resolving versions, which is what
 	// makes the tarball bytes reproducible across runs.
@@ -295,7 +376,7 @@ function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
 	//      refuses to spawn .cmd/.bat without it.
 	const isWindows = process.platform === 'win32';
 	const npm = isWindows ? 'npm.cmd' : 'npm';
-	const result = spawnSync(npm, ['ci', '--ignore-scripts', '--omit=peer'], {
+	const result = spawnSync(npm, ['ci', '--ignore-scripts', '--omit=peer', isWindows ? `--logs-dir="${logsDir}"` : `--logs-dir=${logsDir}`], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
@@ -305,9 +386,12 @@ function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
 		throw new Error(`[${SCRIPT}] npm ci failed to spawn: ${result.error.message}`);
 	}
 	if (result.status !== 0) {
-		throw new Error(`[${SCRIPT}] npm ci exited ${result.status}`);
+		throw new NpmCiExitError(`[${SCRIPT}] npm ci exited ${result.status}`);
 	}
 }
+
+/** `npm ci` ran but exited non-zero, for example after a network timeout. */
+class NpmCiExitError extends Error { }
 
 /**
  * Builds the gzipped tar via node-tar. Same library on every host, so the

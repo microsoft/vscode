@@ -44,13 +44,16 @@ import { ToolDataSource } from '../../../../chat/common/tools/languageModelTools
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../../browser/chat/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
+import { ISessionGridPane } from '../../../../../services/sessions/browser/sessionGridPane.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,7 +109,8 @@ suite('Session Artifacts', () => {
 		const downloadedResources: URI[] = [];
 		const savedImages: { resource: URI; data: string }[] = [];
 		const executedCommands: { id: string; args: unknown[] }[] = [];
-		const activatedSessions: (IActiveSession | undefined)[] = [];
+		const activatedSessions: (ISession | undefined)[] = [];
+		const paneHost = upcastPartial<ISessionHost>({ parent: undefined });
 		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
@@ -129,7 +133,7 @@ suite('Session Artifacts', () => {
 				gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo },
 			}],
 		});
-		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+		const session = observableValue<ITestSessionWithChat | undefined>('session', new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = 'provider:session';
 			override readonly resource = chatResource;
 			override readonly mainChat = constObservable(upcastPartial<IChat>({ resource: chatResource }));
@@ -165,10 +169,10 @@ suite('Session Artifacts', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async acquireArtifactIntegration(_session: IActiveSession, artifactId: string) {
+				override async acquireArtifactIntegration(_session: ITestSessionWithChat, artifactId: string) {
 					return withIntegrations ? { object: upcastPartial<IArtifactModel>({ snapshot: constObservable(typeof integrations === 'function' ? integrations(artifactId) : integratedSnapshot(artifactId, 'integration')) }), dispose() { } } : undefined;
 				}
-				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
+				override async removeSessionArtifact(_session: ITestSessionWithChat, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
 						throw removalError;
@@ -227,7 +231,13 @@ suite('Session Artifacts', () => {
 					return undefined;
 				}
 			}(),
-			upcastPartial<ISessionsService>({ setActive: session => { activatedSessions.push(session); } }),
+			upcastPartial<ISessionsService>({
+				gridHost: upcastPartial<ISessionHost>({}),
+				// The pane of the grid the artifacts' host is in, which shows the session.
+				getPaneOfHost: host => host === paneHost ? upcastPartial<ISessionGridPane>({ session }) : undefined,
+				activatePane: pane => { activatedSessions.push(pane?.session.get()); },
+			}),
+			paneHost,
 		));
 		return {
 			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads,
@@ -1081,6 +1091,32 @@ suite('Session Artifacts', () => {
 				references: ['active', 'docs'],
 			},
 			inBrowser: { artifacts: ['step'], references: ['active', 'docs'] },
+		});
+	});
+
+	test('lists references in the references pill whatever their group ID, even when an artifact with a pill of its own presents the same resource', async () => {
+		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
+		const snapshots: Record<string, ArtifactSnapshot> = {
+			experiment: integratedSnapshot('experiment', 'experiments', { resourceKey: 'experiment' }),
+			experimentLink: integratedSnapshot('experimentLink', 'experiments', { resourceKey: 'experiment' }),
+			scorecard: integratedSnapshot('scorecard', 'experiments', { resourceKey: 'step' }),
+			otherScorecard: integratedSnapshot('otherScorecard', 'experiments', { resourceKey: 'step' }),
+			commit: integratedSnapshot('commit', undefined, { resourceKey: 'commit' }),
+		};
+		const { presentation } = createPresentation(Object.keys(snapshots).map(id => site(id, id === 'experiment')),
+			undefined, undefined, undefined, false, undefined, false, id => snapshots[id]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			integrated: presentation.integratedEntries.get().map(entry => entry.id),
+			ownPills: derived(reader => Object.keys(snapshots).filter(id => presentation.hasOwnPill(id, reader))).get(),
+			...visibleEntries(presentation),
+		}, {
+			integrated: ['experiment'],
+			ownPills: ['experiment'],
+			artifacts: [],
+			// References bound to the same resource as each other show once.
+			references: ['experimentLink', 'scorecard', 'commit'],
 		});
 	});
 

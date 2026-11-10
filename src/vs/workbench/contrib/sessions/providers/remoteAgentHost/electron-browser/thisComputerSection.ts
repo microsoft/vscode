@@ -48,7 +48,7 @@ export class ThisComputerSection extends Disposable {
 	private readonly status: HTMLElement;
 	private readonly policy: HTMLElement;
 	private readonly policyText = localize('thisComputer.policyDisabled', "GitHub Environments is disabled by your organization. Contact your administrator.");
-	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other clients access agents and folders on this computer.");
+	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other devices use agents and folders on this computer. Files and tools stay here.");
 	private methods: readonly RemoteConnectionsMethod[] = [];
 	private itemsKey: string | undefined;
 	/** The method the user chose while it is being applied, so the control does not snap back meanwhile. */
@@ -64,7 +64,7 @@ export class ThisComputerSection extends Disposable {
 	) {
 		super();
 		const state = this._register(instantiationService.createInstance(RemoteConnectionsState));
-		this.sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, state, () => commandService.executeCommand(TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID)));
+		this.sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, state, () => commandService.executeCommand(TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID), 'remotesEditor'));
 
 		const titleId = generateUuid();
 		this.domNode = dom.append(container, dom.$('section.remotes-this-computer', { 'aria-labelledby': titleId }));
@@ -85,7 +85,7 @@ export class ThisComputerSection extends Disposable {
 
 		const controls = dom.append(this.domNode, dom.$('.remotes-this-computer-controls'));
 		const methodLabelId = generateUuid();
-		dom.append(controls, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.remoteConnections', "Remote Connections")));
+		dom.append(controls, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.allowConnectionsHere', "Allow Connections Here")));
 		// Choosing a method starts or stops sharing, so arrow keys only move focus.
 		this.radio = this._register(new Radio({ items: [], arrowKeyBehavior: 'focus' }));
 		this.radio.domNode.setAttribute('aria-labelledby', methodLabelId);

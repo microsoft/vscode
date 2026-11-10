@@ -48,8 +48,8 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { confirmTunnelDeletion, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -669,6 +669,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
 			shortTitle: localize2('connectViaSSHShort', "SSH..."),
+			tooltip: localize2('connectViaSSHTooltip', "Connect to a computer over SSH"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -1113,6 +1114,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
 			shortTitle: localize2('connectViaTunnelShort', "Dev Tunnels..."),
+			tooltip: localize2('connectViaTunnelTooltip', "Connect to a computer shared through a dev tunnel"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -1283,6 +1285,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaWSL,
 			title: localize2('connectViaWSL', "Connect to Remote Agent Host via WSL"),
 			shortTitle: localize2('connectViaWSLShort', "WSL..."),
+			tooltip: localize2('connectViaWSLTooltip', "Run sessions in a WSL distribution on this computer"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.terminalLinux,
