@@ -241,8 +241,20 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 	}
 
 	// Without this, a server that dies during a run leaves the page waiting for it until the CI step times out.
-	serverProcess.on('exit', (code, signal) => {
+	serverProcess.on('exit', async (code, signal) => {
 		if (!serverStopRequested) {
+			// The last stderr output can arrive after 'exit'. Wait for the pipe to close, but not for long: a process the
+			// server started can keep it open.
+			if (serverProcess.stderr && !serverProcess.stderr.closed) {
+				const stderr = serverProcess.stderr;
+				await new Promise<void>(resolve => {
+					const timer = setTimeout(resolve, 2000);
+					stderr.once('close', () => {
+						clearTimeout(timer);
+						resolve();
+					});
+				});
+			}
 			console.error(`Server exited unexpectedly (code: ${code}, signal: ${signal}). See server-exit-diagnostics.log in '${serverLogsPath}'.`);
 			if (serverStderr) {
 				console.error(`Last server stderr output:\n${serverStderr}`);
