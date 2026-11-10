@@ -751,15 +751,26 @@ suite('Sessions chat window provider', () => {
 			const groups = new class extends mock<IEditorGroupsService>() {
 				override getScopedInstantiationService() { return windowInstantiationService; }
 			}();
-			const grid = store.add(new ChatWindowGrid(host, { main: part(), chat: part() }, constObservable(ChatWindowLayoutMode.SideBySide), provider.look.gap, undefined, undefined, undefined, groups));
-			const strip = store.add(provider.chrome.createStrip!(window, append(host, $('.chat-window-strip')), windowInstantiationService)!);
+			const stripElement = append(host, $('.chat-window-strip'));
+			const strip = store.add(provider.chrome.createStrip!(window, stripElement, windowInstantiationService)!);
+			const activityBar = append(stripElement, $('.menu-activity-bar.session-activity-bar.docked'));
+			activityBar.classList.toggle('size-compact', getSessionActivityBarSize(storage) === MenuActivityBarSize.Compact);
+			const grid = store.add(new ChatWindowGrid(host, {
+				main: part(), chat: part(),
+				strip: { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
+			}, constObservable(ChatWindowLayoutMode.SideBySide), provider.look.gap, undefined, undefined, undefined, groups));
 			const read = () => {
 				grid.setOuterInsets(provider.look.outerInsets!.get());
 				grid.layout(1000, 600);
 				const surface = connected ? '.editor-group-container' : '.part-grid-card';
 				const chat = host.querySelector<HTMLElement>(`[data-part-grid-cell="chat"] ${surface}`)!.getBoundingClientRect();
 				const main = host.querySelector<HTMLElement>(`[data-part-grid-cell="main"] ${surface}`)!.getBoundingClientRect();
-				return { gap: main.left - chat.right, insets: provider.look.outerInsets!.get(), strip: strip.size.get() };
+				const bar = activityBar.getBoundingClientRect();
+				const stripCard = stripElement.closest('.part-grid-card')!.getBoundingClientRect();
+				return {
+					gap: main.left - chat.right, insets: provider.look.outerInsets!.get(), strip: strip.size.get(),
+					activityBar: { width: bar.width, insideCard: bar.left >= stripCard.left && bar.right <= stripCard.right, gap: bar.left - main.right },
+				};
 			};
 			const snapshots = [read()];
 			const update = async (key: string, value: unknown) => {
@@ -777,9 +788,16 @@ suite('Sessions chat window provider', () => {
 			workbench.classList.add('modern-ui-compact');
 			snapshots.push(read());
 			const stripWidth = MenuActivityBar.getWidth(false, getSessionActivityBarSize(storage));
+			const compactStripWidth = MenuActivityBar.getWidth(true, getSessionActivityBarSize(storage));
 			assert.deepStrictEqual(snapshots, [
-				...[16, 0, 1, 7, 4].map(gap => ({ gap, insets: { top: 0, right: 4, bottom: 4, left: 4 }, strip: stripWidth + gap })),
-				{ gap: 0, insets: { top: 0, right: 0, bottom: 0, left: 0 }, strip: MenuActivityBar.getWidth(true, getSessionActivityBarSize(storage)) },
+				...[16, 0, 1, 7, 4].map(gap => ({
+					gap, insets: { top: 0, right: 4, bottom: 4, left: 4 }, strip: stripWidth + gap,
+					activityBar: { width: stripWidth, insideCard: true, gap },
+				})),
+				{
+					gap: 0, insets: { top: 0, right: 0, bottom: 0, left: 0 }, strip: compactStripWidth,
+					activityBar: { width: compactStripWidth, insideCard: true, gap: 0 },
+				},
 			]);
 		});
 	}
