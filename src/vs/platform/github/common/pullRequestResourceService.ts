@@ -832,9 +832,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._logService.debug(`[PullRequestResourceService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
 		for (const entry of [...this._entries]) {
 			if (!event.credential || sameAccount(event.credential.account, entry.ref)) {
-				if (event.reason === 'replacement' || event.reason === 'authentication') {
+				if (event.reason === 'replacement' || event.reason === 'authentication' || event.reason === 'reauthorization') {
 					for (const fragment of fragments) {
 						const current = fragmentState(entry.snapshot.get(), fragment);
+						// A reauthorized credential keeps what it already observed; only failed fragments may now succeed.
+						if (event.reason === 'reauthorization' && current.status !== 'error') {
+							continue;
+						}
 						this._setFragmentState(entry, fragment, {
 							...current,
 							status: current.value ? 'stale' : 'missing',

@@ -673,6 +673,19 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual(f.authenticationRequests, []);
 	}));
 
+	test('clears sign-in once the pull request loads again even while another fragment keeps failing', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } });
+		const availability = () => f.model.snapshot.get().contributions[0].view.availability;
+		const refused = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'loading', complete: false } }, undefined);
+		const loading = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'overloaded', message: 'GitHub request capacity exceeded' } } }, undefined);
+		const settled = availability();
+		const signIn = { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' };
+		assert.deepStrictEqual({ refused, loading, settled, requests: f.authenticationRequests.length }, { refused: signIn, loading: signIn, settled: { kind: 'available' }, requests: 1 });
+	}));
+
 	test('keeps CI visible for open/draft PRs and comments only when qualifying threads remain', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {

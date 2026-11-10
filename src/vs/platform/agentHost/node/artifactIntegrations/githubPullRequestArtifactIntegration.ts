@@ -123,7 +123,9 @@ class GitHubPullRequestArtifactResource extends Disposable {
 			const failure = firstCredentialFailure(snapshot, pullRequestFragments);
 			if (failure) {
 				this.requireAuthentication(failure);
-			} else if (pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' && snapshot[fragment].complete)) {
+			} else if (snapshot.core.status === 'ready' && pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' || snapshot[fragment].status === 'error')) {
+				// Every fragment answered since the refusal and GitHub accepted the credential for the pull request;
+				// a fragment that keeps failing for another reason, such as an overloaded queue, must not hold sign-in.
 				this.authenticationError.set(undefined, undefined);
 				this.requestedAuthentication = false;
 			}

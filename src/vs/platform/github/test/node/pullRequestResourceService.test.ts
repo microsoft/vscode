@@ -144,6 +144,10 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 		this._onDidInvalidate.fire({ credential: this.credential, reason });
 	}
 
+	reauthorize(): void {
+		this._onDidInvalidate.fire({ credential: this.credential, reason: 'reauthorization' });
+	}
+
 	dispose(): void {
 		this._onDidInvalidate.dispose();
 	}
@@ -508,6 +512,34 @@ suite('PullRequestResourceService', () => {
 		clock.flushDue();
 		await flushAsync();
 		assert.strictEqual(queries.calls.length, 0);
+		subscription.dispose();
+	});
+
+	test('reauthorization retries only the fragments the credential failed', async () => {
+		const { clock, credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.handlers.set('checks', () => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		await assert.rejects(subscription.refresh('checks'));
+		queries.handlers.delete('checks');
+		queries.calls.length = 0;
+
+		credentials.reauthorize();
+		clock.flushDue();
+		await flushAsync();
+
+		const snapshot = subscription.resource.snapshot.get();
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			core: snapshot.core.status,
+			checks: { status: snapshot.checks.status, error: snapshot.checks.error },
+			credentialAborted: credentials.credential.signal.aborted,
+		}, {
+			calls: ['checks'],
+			core: 'ready',
+			checks: { status: 'ready', error: undefined },
+			credentialAborted: false,
+		});
 		subscription.dispose();
 	});
 
