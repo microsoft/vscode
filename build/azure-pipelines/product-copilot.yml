@@ -40,22 +40,24 @@ jobs:
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
 
-      - ${{ if or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true)) }}:
-        # NOTICE generation needs a snapshot before packaging; the parallel Quality scan can finish later.
-        - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-          displayName: Component Detection (Copilot)
-          inputs:
-            sourceScanPath: $(Build.SourcesDirectory)/extensions/copilot
-            alertWarningLevel: Medium
-          continueOnError: true
-
-        - task: notice@0
-          inputs:
-            outputfile: $(Build.SourcesDirectory)/extensions/copilot/ThirdPartyNotices.txt
-            outputformat: text
-          continueOnError: true
-          retryCountOnTaskFailure: 5
-          displayName: Generate NOTICE file
+      # The NOTICE generation is disabled: it scanned extensions/copilot, whose dependencies are now in
+      # the root pnpm-lock.yaml with those of the rest of the repository.
+      # - ${{ if or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true)) }}:
+      #   # NOTICE generation needs a snapshot before packaging; the parallel Quality scan can finish later.
+      #   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+      #     displayName: Component Detection (Copilot)
+      #     inputs:
+      #       sourceScanPath: $(Build.SourcesDirectory)/extensions/copilot
+      #       alertWarningLevel: Medium
+      #     continueOnError: true
+      #
+      #   - task: notice@0
+      #     inputs:
+      #       outputfile: $(Build.SourcesDirectory)/extensions/copilot/ThirdPartyNotices.txt
+      #       outputformat: text
+      #     continueOnError: true
+      #     retryCountOnTaskFailure: 5
+      #     displayName: Generate NOTICE file
 
       - script: |
           set -e
