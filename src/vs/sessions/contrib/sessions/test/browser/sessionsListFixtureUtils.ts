@@ -720,7 +720,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() { }());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = constObservable(URI.parse('copilot:/fixture'));
-				override getActiveDescriptor() { return undefined; }
+				override getActiveDescriptor() { return { id: 'copilot', label: 'Copilot', icon: Codicon.copilot }; }
 			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() { }());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() { }());
