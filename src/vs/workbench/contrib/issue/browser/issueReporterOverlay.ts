@@ -81,12 +81,14 @@ function getFallbackIssueTitle(description: string): string {
 
 type IssueReporterPreviewClickedEvent = {
 	layout: IssueReporterLayout;
+	automaticScreenshot: boolean;
 };
 
 type IssueReporterPreviewClickedClassification = {
 	owner: 'Giuspepe';
 	comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
 	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layout of the issue reporter: quick or guided.' };
+	automaticScreenshot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot that the quick layout attaches when a report opens is still attached, edited or not.' };
 };
 
 export interface IIssueReporterDiagnosticsState {
@@ -1747,7 +1749,11 @@ export class IssueReporterOverlay {
 			return;
 		}
 		if (!resolveIssueReporterTarget(this.data, product)?.external) {
-			this.telemetryService.publicLog2<IssueReporterPreviewClickedEvent, IssueReporterPreviewClickedClassification>('issueReporter.previewClicked', { layout: this.input.layout });
+			const automaticScreenshot = this.input.automaticScreenshot;
+			this.telemetryService.publicLog2<IssueReporterPreviewClickedEvent, IssueReporterPreviewClickedClassification>('issueReporter.previewClicked', {
+				layout: this.input.layout,
+				automaticScreenshot: !!automaticScreenshot && this.attachments.some(attachment => attachment.id === automaticScreenshot.id),
+			});
 		}
 		this.didAttemptSubmit = true;
 		const hasIssueSource = this.selectedIssueSource !== undefined;
@@ -2629,7 +2635,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private hasUserInput(): boolean {
-		return this.input.hasContentChanges || this.getOccupiedAttachmentSlots() > 0;
+		// The quick layout's automatic screenshot is no user input until the user edits it.
+		return this.input.hasContentChanges || this.attachments.some(attachment => attachment !== this.input.automaticScreenshot);
 	}
 
 	markPreviewOpened(): void {

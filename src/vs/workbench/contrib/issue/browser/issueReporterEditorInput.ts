@@ -84,6 +84,12 @@ export class IssueReporterEditorInput extends EditorInput {
 	private attachments: readonly IssueReporterAttachment<IScreenshot>[] | undefined;
 	private readonly importedFiles = this._register(new DisposableMap<string>());
 
+	/**
+	 * The screenshot of the window the user was in, which the quick layout attaches when the report
+	 * opens. An edit replaces the attachment, so while it is attached unchanged it is no user input.
+	 */
+	automaticScreenshot: IssueReporterAttachment<IScreenshot> | undefined;
+
 	get savedAttachments(): readonly IssueReporterAttachment<IScreenshot>[] | undefined {
 		return this.attachments;
 	}
@@ -129,7 +135,7 @@ export class IssueReporterEditorInput extends EditorInput {
 		this._register(toDisposable(() => this.descriptionInput.remove()));
 
 		this.closeHandler = {
-			showConfirm: () => this.hasUserInputFn?.() ?? (this.hasContentChanges || !!this.savedAttachments?.length),
+			showConfirm: () => this.hasUserInputFn?.() ?? (this.hasContentChanges || !!this.savedAttachments?.some(attachment => attachment !== this.automaticScreenshot)),
 			confirm: async () => {
 				const { confirmed } = await this.dialogService.confirm({
 					message: localize('discardIssue', "Discard issue report?"),

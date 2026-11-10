@@ -100,8 +100,11 @@ export interface IScreenshotToolService {
 	/** Lets the user click to capture the window or a browser page, or drag to capture an area. */
 	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
 
-	/** Captures the whole window, including its layers, without letting the user select. */
-	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
+	/**
+	 * Captures the whole window, including its layers, without letting the user select. With
+	 * `afterRepaint`, it first lets the window repaint, so UI that just closed is not captured.
+	 */
+	captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined>;
 
 	/**
 	 * Opens an attached screenshot in a dialog above the window, where changes apply as they are made.

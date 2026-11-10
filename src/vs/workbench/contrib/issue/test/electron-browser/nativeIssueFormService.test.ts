@@ -272,7 +272,8 @@ suite('NativeIssueFormService reporter windows', () => {
 				return controls.screenshotGate?.p;
 			}
 		});
-		instantiation.stub(IScreenshotToolService, createTestScreenshotToolService(store, false).service);
+		const screenshotTool = createTestScreenshotToolService(store, false).service;
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IContextViewService, { getContextViewElement: () => $('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: $('div'), dispose: () => { } }) });
@@ -336,7 +337,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
 		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry,
+			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry, screenshotTool,
 			shutdown: async (reason: ShutdownReason) => {
 				if (reason === ShutdownReason.QUIT) {
 					windows.forEach(window => window.blockNativeClose = true);
@@ -371,16 +372,27 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	});
 
-	test('opens each new report in the layout of the setting, after logging its experiment trigger', async () => {
+	test('opens each new report in the layout of the setting, and in the quick layout attaches the window it covers', async () => {
 		const reports = [];
+		const window = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
 		for (const layout of [undefined, 'quick', 'guided']) {
-			const { service, configuration, inputs, telemetry } = createService('editor');
+			const { service, configuration, inputs, telemetry, screenshotTool } = createService('editor');
+			screenshotTool.windowImage = window;
 			await configuration.setUserConfiguration('issueReporter.wizard.layout', layout);
 			await service.openReporter(data());
-			reports.push({ layout: inputs().map(input => input.layout), triggers: telemetry.triggers });
+			reports.push({
+				layout: inputs().map(input => input.layout),
+				attached: inputs().map(input => input.savedAttachments?.map(attachment => attachment.kind === 'screenshot' && attachment === input.automaticScreenshot ? attachment.screenshot : attachment)),
+				tool: screenshotTool.requests,
+				triggers: telemetry.triggers,
+			});
 		}
 		const triggers = ['config.issueReporter.wizard.layout'];
-		assert.deepStrictEqual(reports, [{ layout: ['guided'], triggers }, { layout: ['quick'], triggers }, { layout: ['guided'], triggers }]);
+		assert.deepStrictEqual(reports, [
+			{ layout: ['guided'], attached: [undefined], tool: [], triggers },
+			{ layout: ['quick'], attached: [[window]], tool: ['captureWindow'], triggers },
+			{ layout: ['guided'], attached: [undefined], tool: [], triggers },
+		]);
 	});
 
 	for (const isSessionsWindow of [false, true]) {

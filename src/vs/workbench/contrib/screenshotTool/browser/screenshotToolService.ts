@@ -31,8 +31,8 @@ import { ScreenshotAnnotationEditor, ScreenshotAnnotationEditorMode } from './sc
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
 import { createScreenshotToolImage, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolService, ScreenshotToolActiveContext, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface } from './screenshotTool.js';
 
-/** How long the window gets to repaint without the overlay before it is captured. */
-const OVERLAY_REMOVAL_DELAY = 100;
+/** How long the window gets to repaint, without the overlay or UI that just closed, before it is captured. */
+const REPAINT_DELAY = 100;
 
 /** How many screenshots attached to chat stay editable, which bounds the memory their originals take. */
 const MAX_EDITABLE_ATTACHMENTS = 10;
@@ -187,9 +187,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined> {
+	async captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined> {
 		try {
-			return (await this.captureWindowArea(targetWindow, undefined, false))?.image;
+			return (await this.captureWindowArea(targetWindow, undefined, !!options?.afterRepaint))?.image;
 		} catch (error) {
 			this.logService.error('[ScreenshotTool] Capturing the window failed:', error);
 			return undefined;
@@ -333,9 +333,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	}
 
 	/** Captures the window or an area of it, painting layers that the window capture misses over it. */
-	private async captureWindowArea(targetWindow: CodeWindow, area: IScreenshotRect | undefined, afterOverlay: boolean): Promise<Omit<ICapture, 'mode'> | undefined> {
-		if (afterOverlay) {
-			await timeout(OVERLAY_REMOVAL_DELAY);
+	private async captureWindowArea(targetWindow: CodeWindow, area: IScreenshotRect | undefined, afterRepaint: boolean): Promise<Omit<ICapture, 'mode'> | undefined> {
+		if (afterRepaint) {
+			await timeout(REPAINT_DELAY);
 		}
 		const bounds: IScreenshotRect = { x: 0, y: 0, width: targetWindow.innerWidth, height: targetWindow.innerHeight };
 		const target = area ?? bounds;

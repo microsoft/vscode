@@ -17,7 +17,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { addDisposableListener, EventType, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -39,6 +39,8 @@ import { IssueReporterController } from './issueReporterController.js';
 import { localize } from '../../../../nls.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IScreenshotToolService } from '../../screenshotTool/browser/screenshotTool.js';
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
@@ -92,6 +94,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
 		this._register(lifecycleService.onBeforeShutdown(event => {
@@ -179,7 +182,17 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			}
 		}
 
-		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data, this.getReporterLayout());
+		const layout = this.getReporterLayout();
+		// The quick layout attaches what the user was looking at, so it is captured before the reporter covers it.
+		const screenshot = layout === 'quick' ? await this.screenshotToolService.captureWindow(getActiveWindow(), { afterRepaint: true }) : undefined;
+		if (this._store.isDisposed) {
+			return;
+		}
+		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data, layout);
+		if (screenshot) {
+			input.automaticScreenshot = { id: generateUuid(), kind: 'screenshot', screenshot: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height } };
+			input.savedAttachments = [input.automaticScreenshot];
+		}
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
 		let reporterWindow: ReporterWindow | undefined;
 		try {

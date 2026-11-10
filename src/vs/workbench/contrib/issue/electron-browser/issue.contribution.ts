@@ -84,7 +84,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['quick', 'guided'],
 			enumDescriptions: [
-				localize('issueReporter.wizard.layout.quick', "Ask for screenshots and a description. The target and category keep their defaults, the title is generated from the description when it is left empty, and diagnostics are one choice."),
+				localize('issueReporter.wizard.layout.quick', "Ask for screenshots and a description, and attach a screenshot of the current window when a report opens. The target and category keep their defaults, the title is generated from the description when it is left empty, and diagnostics are one choice."),
 				localize('issueReporter.wizard.layout.guided', "Ask for screenshots and a description first, then for the target, category, title, and each kind of diagnostics, with guidance along the way."),
 			],
 			default: 'guided',

@@ -164,7 +164,7 @@ suite('IssueReporterOverlay', () => {
 			menu?.onHide?.(false);
 			await action.run();
 		};
-		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+		return { overlay, input, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
 	}
 
 	function insertNativeText(editor: HTMLTextAreaElement, text: string): void {
@@ -275,9 +275,9 @@ suite('IssueReporterOverlay', () => {
 			focusedDescription: true,
 			submitted: ['A title'],
 			events: [
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
 			],
 		});
 	});
@@ -286,7 +286,7 @@ suite('IssueReporterOverlay', () => {
 		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
 			const { preview, telemetry } = createReporter();
 			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
-			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } }]);
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } }]);
 		});
 	}
 
@@ -301,7 +301,7 @@ suite('IssueReporterOverlay', () => {
 		preview.click();
 		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
 			ignored: [],
-			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } }],
+			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } }],
 		});
 	});
 
@@ -1306,6 +1306,22 @@ suite('IssueReporterOverlay', () => {
 				{ experiments: false, category: false },
 				{ experiments: true, category: false },
 			]);
+		});
+
+		test('the automatic screenshot of the quick layout is no unsaved input until it is edited', () => {
+			const { overlay, input, container, preview, telemetry } = createReporter({}, { layout: 'quick' });
+			input.automaticScreenshot = capturedScreenshot('automatic');
+			overlay.restoreAttachments([input.automaticScreenshot]);
+			const untouched = overlay.hasUnsavedChanges();
+			preview.click();
+			container.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
+			closeAnnotation(container, 'Save');
+			preview.click();
+			assert.deepStrictEqual({ untouched, edited: overlay.hasUnsavedChanges(), events: telemetry.events.map(event => event.data) }, {
+				untouched: false,
+				edited: true,
+				events: [{ layout: 'quick', automaticScreenshot: true }, { layout: 'quick', automaticScreenshot: true }],
+			});
 		});
 	});
 
