@@ -117,9 +117,9 @@ export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSu
 
 /**
  * Latest `open_canvas` request per instance for a completed history. The reducer never mutates a `turns` array or a completed turn in place
- * (every change allocates a new array), so the result is keyed by array identity and each new array is rebuilt once.
+ * (every change allocates a new array), so the result is keyed by array identity. The backward scan is resumable and stops once the requested instances are resolved.
  */
-const completedOpenRequests = new WeakMap<readonly Turn[], ReadonlyMap<string, ICanvasOpenRequest>>();
+const completedOpenRequests = new WeakMap<readonly Turn[], { readonly requests: Map<string, ICanvasOpenRequest>; nextTurnIndex: number }>();
 
 function collectOpenRequests(turn: Turn | ActiveTurn, requests: Map<string, ICanvasOpenRequest>, instances: ReadonlySet<string> | undefined): void {
 	const parts = turn.responseParts;
@@ -156,14 +156,15 @@ function getOpenRequests(chat: ChatState | undefined, canvases: readonly ICanvas
 	if (requests.size < instances.size) {
 		let completed = completedOpenRequests.get(chat.turns);
 		if (!completed) {
-			const all = new Map<string, ICanvasOpenRequest>();
-			for (let turnIndex = chat.turns.length - 1; turnIndex >= 0; turnIndex--) {
-				collectOpenRequests(chat.turns[turnIndex], all, undefined);
-			}
-			completedOpenRequests.set(chat.turns, completed = all);
+			completedOpenRequests.set(chat.turns, completed = { requests: new Map(), nextTurnIndex: chat.turns.length - 1 });
+		}
+		// Resume the backward scan only as far as needed to resolve the current instances.
+		const isResolved = (instanceId: string) => requests.has(instanceId) || completed.requests.has(instanceId);
+		while (completed.nextTurnIndex >= 0 && !Array.from(instances).every(isResolved)) {
+			collectOpenRequests(chat.turns[completed.nextTurnIndex--], completed.requests, undefined);
 		}
 		for (const instanceId of instances) {
-			const request = completed.get(instanceId);
+			const request = completed.requests.get(instanceId);
 			if (request && !requests.has(instanceId)) {
 				requests.set(instanceId, request);
 			}

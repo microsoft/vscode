@@ -224,13 +224,20 @@ suite('AgentHost canvases', () => {
 		} as ToolCallCompletedState);
 		let completedReads = 0;
 		const completedParts: ResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: createCall('first', 'preview', ToolCallStatus.Completed) }];
+		let olderReads = 0;
+		const older = upcastPartial<Turn>({
+			id: 'older', get responseParts() {
+				olderReads++;
+				return [];
+			},
+		});
 		const completed = upcastPartial<Turn>({
 			id: 'turn', get responseParts() {
 				completedReads++;
 				return completedParts;
 			},
 		});
-		const turns = [completed];
+		const turns = [older, completed];
 		const createChat = (activeTurn?: ActiveTurn) => upcastPartial<ChatState>({ resource: owner.chat.toString(), turns, activeTurn });
 		const chat = observableValue<ChatState | undefined>('chat', createChat());
 		const references = constObservable([{ resource: resource.toString() }, { resource: uiResource.toString() }]);
@@ -245,14 +252,47 @@ suite('AgentHost canvases', () => {
 		chat.set(createChat(streaming('ab')), undefined);
 		chat.set(createChat(upcastPartial<ActiveTurn>({ id: 'active', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCall('second', 'ui-opened', ToolCallStatus.Running) }] })), undefined);
 
-		assert.deepStrictEqual({ requests, completedReads }, {
+		assert.deepStrictEqual({ requests, completedReads, olderReads }, {
 			requests: [
 				['turn\u0000first', undefined, undefined],
 				['turn\u0000first', 'active\u0000second', true],
 			],
 			completedReads: 1,
+			olderReads: 1,
 		});
 	});
+
+	test('stops scanning completed history once the requested instances are resolved', () => {
+		let olderReads = 0;
+		const older = upcastPartial<Turn>({
+			id: 'older', get responseParts() {
+				olderReads++;
+				return [];
+			},
+		});
+		const newest = upcastPartial<Turn>({
+			id: 'newest', responseParts: [{
+				kind: ResponsePartKind.ToolCall, toolCall: {
+					toolCallId: 'open', toolName: 'open_canvas', status: ToolCallStatus.Completed, success: true, toolInput: JSON.stringify({ instanceId: 'preview' }),
+				} as ToolCallCompletedState,
+			}],
+		});
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override getSubscription<T extends StateComponents>(_kind: T, _channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const value = state as ComponentToState[T];
+				return {
+					object: { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
+					dispose: () => { },
+				};
+			}
+		}();
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [older, newest] }));
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService())).createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+
+		assert.deepStrictEqual({ id: context.openRequests?.get().get('preview')?.id, olderReads }, { id: 'newest\u0000open', olderReads: 0 });
+	});
+
 	test('projects live metadata while leaving transient sources out of channel identity', () => {
 		const canvas = new AgentHostCanvas(resource, state, new NullLogService());
 		assert.deepStrictEqual({ resource: canvas.resource.toString(), title: canvas.title, source: canvas.source?.toString() }, {
