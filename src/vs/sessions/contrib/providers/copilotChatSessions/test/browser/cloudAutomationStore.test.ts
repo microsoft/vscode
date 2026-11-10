@@ -520,8 +520,10 @@ suite('CloudAutomationStore', () => {
 			discardAutomationSession: () => { discarded++; currentSession.set(undefined, undefined); },
 		});
 		const draft = disposables.add(new AutomationSessionDraftSynchronizer(sessions, async () => true, error => errors.push(error)));
+		const targetAvailability: boolean[] = [];
 		disposables.add(autorun(reader => {
 			const target = provider.configuration.getWorkspaceTarget(workspace).read(reader);
+			targetAvailability.push(target.workspace !== undefined);
 			draft.update(target.workspace ? {
 				kind: 'workspace', folderUri: target.workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent',
 				sessionConfiguration: { sessionTemplate: { modelId: 'saved-model' } },
@@ -533,12 +535,20 @@ suite('CloudAutomationStore', () => {
 		await provider.refresh({ background: true });
 		await draft.waitForSync();
 		const afterBackground = { created, discarded, configuration: await draft.getSessionConfiguration(), errors };
+		targetAvailability.length = 0;
 		await provider.refresh();
 		await timeout(0);
 		await draft.waitForSync();
-		assert.deepStrictEqual({ afterBackground, manualRefreshRecheckedTarget: discarded > 0 }, {
+		assert.deepStrictEqual({
+			afterBackground,
+			manualRefreshRecheckedTarget: targetAvailability.includes(false) && targetAvailability.at(-1) === true,
+			afterManual: await draft.getSessionConfiguration(),
+			available: draft.availability.get(),
+		}, {
 			afterBackground: { created: 1, discarded: 0, configuration: { kind: 'captured', configuration: { sessionTemplate: { modelId: 'unsaved-model' } } }, errors: [] },
 			manualRefreshRecheckedTarget: true,
+			afterManual: { kind: 'captured', configuration: { sessionTemplate: { modelId: 'unsaved-model' } } },
+			available: 'available',
 		});
 	});
 
