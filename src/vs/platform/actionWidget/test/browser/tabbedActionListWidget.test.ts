@@ -763,6 +763,71 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('rebuilding preserves toggle focus without preventing Search from focusing its input', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let comparison = false;
+		let search = false;
+		const show = () => widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', checked: comparison, preserveFocus: true, run: () => { comparison = !comparison; show(); } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { search = true; show(); } },
+			],
+			createActionList: () => ({ items: [action('model')], listOptions: { showFilter: search, focusFilterOnOpen: search } }),
+			delegate: { onSelect: () => assert.fail('The toolbar must not select a model'), onHide: () => { } },
+		});
+		show();
+		const button = (id: string) => contextView.getContextViewElement().querySelector<HTMLButtonElement>(`[data-id="${id}"]`)!;
+		const enter = () => new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		button('comparison').focus();
+		const states = [];
+		for (let i = 0; i < 2; i++) {
+			button('comparison').dispatchEvent(enter());
+			states.push({ comparison, focused: getWindow(button('comparison')).document.activeElement === button('comparison') });
+		}
+		button('search').focus();
+		button('search').dispatchEvent(enter());
+		const popup = contextView.getContextViewElement();
+		assert.deepStrictEqual({ states, searchFocused: getWindow(popup).document.activeElement === popup.querySelector('input') }, {
+			states: [{ comparison: true, focused: true }, { comparison: false, focused: true }],
+			searchFocused: true,
+		});
+	});
+
+	test('Space dismisses the header hint without accepting the focused row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const selected: string[] = [];
+		let dismissals = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [action('model')],
+				listOptions: {
+					headerText: 'Changing models resets the prompt cache.',
+					headerDismiss: () => { dismissals++; },
+				},
+			}),
+			delegate: { onSelect: item => { selected.push(item.id); }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const dismiss = popup.querySelector<HTMLElement>('.action-list-header-dismiss')!;
+		dismiss.focus();
+		dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			dismissals, selected, visible: widget.isVisible,
+			headerVisible: !!popup.querySelector('.action-list-header'),
+			listFocused: getWindow(popup).document.activeElement === popup.querySelector('.monaco-list'),
+		}, {
+			dismissals: 1, selected: [], visible: true, headerVisible: false, listFocused: true,
+		});
+	});
+
 	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
 		const { widget, contextView } = createWidget(disposables);
 		const changes: boolean[] = [];

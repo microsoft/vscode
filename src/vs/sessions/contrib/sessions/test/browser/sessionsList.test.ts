@@ -21,7 +21,7 @@ import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isMacintosh, OS } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -7432,7 +7432,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 		const comparisonConfiguration = [
-			'Original comparison settings', 'Repository: ~/workspace', 'Isolation: Separate worktrees',
+			'Original comparison settings', `Repository: ${isWindows ? '\\workspace' : '~/workspace'}`, 'Isolation: Separate worktrees',
 			'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Copilot · Balance',
 			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
 		].join('\n');
