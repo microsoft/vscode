@@ -28,14 +28,44 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ChatCustomizationsTelemetry } from '../../../browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 
 suite('Chat customizations hover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionResource = URI.parse('agent-host-copilotcli:/session');
 
-	function createHover(hiddenSections: string[] = [], loaded: Promise<void> = Promise.resolve(), widgets: readonly IChatWidget[] = [], hasWorkspace = true, attention: { servers?: readonly AgentHostMcpServer[]; migration?: ICustomizationMigrationHint } = {}) {
+	function createHover(hiddenSections: string[] = [], loaded: Promise<void> = Promise.resolve(), widgets: readonly IChatWidget[] = [], hasWorkspace = true, attention: { servers?: readonly AgentHostMcpServer[]; migration?: ICustomizationMigrationHint; isSessionsWindow?: boolean } = {}) {
 		const observed: string[] = [];
 		const scoped: string[] = [];
+		const events: { name: string; data?: ITelemetryData }[] = [];
+		const opened: { link: URI | string; options?: OpenOptions }[] = [];
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsLocation]: 'chatInput' });
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(name?: string, data?: ITelemetryData): void {
+				if (name) {
+					events.push({ name, data });
+				}
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly isSessionsWindow = attention.isSessionsWindow ?? false;
+		}());
+		const openerService = new class extends mock<IOpenerService>() {
+			override async open(link: URI | string, options?: OpenOptions): Promise<boolean> {
+				opened.push({ link, options });
+				return true;
+			}
+		}();
 		let scopeDisposed = false;
 		const hover = new ChatCustomizationsHover(
 			new class extends mock<IAICustomizationItemsModel>() {
@@ -84,8 +114,10 @@ suite('Chat customizations hover', () => {
 				override async computeMigrationHint() { return attention.migration; }
 			},
 			store.add(new InMemoryStorageService()),
+			instantiationService,
+			openerService,
 		);
-		return { hover, observed, scoped, scopeDisposed: () => scopeDisposed };
+		return { hover, observed, scoped, events, opened, configurationService, instantiationService, scopeDisposed: () => scopeDisposed };
 	}
 
 	test('unfocused widget counts and deep links use that widget without retargeting the active model', async () => {
@@ -140,7 +172,7 @@ suite('Chat customizations hover', () => {
 		const action = instantiationService.createInstance(MenuItemAction, {
 			id: 'test.customizations', title: 'Customizations', icon: Codicon.extensions,
 		}, undefined, undefined, undefined, undefined);
-		const item = store.add(instantiationService.createInstance(ChatCustomizationsActionViewItem, action, undefined, createHover().hover, undefined, false, suggestions));
+		const item = store.add(instantiationService.createInstance(ChatCustomizationsActionViewItem, action, undefined, createHover().hover, 'chatInput', undefined, false, suggestions));
 		const container = mainWindow.document.createElement('li');
 		item.render(container);
 		const read = () => ({ badge: container.classList.contains('migration-available'), label: container.querySelector('.action-label')?.getAttribute('aria-label') });
@@ -214,6 +246,124 @@ suite('Chat customizations hover', () => {
 			beforeOpening: [],
 			afterOpening: ['plugins', 'skills', 'instructions', 'hooks'],
 		});
+	});
+
+	test('logs visibility only after showing and deduplicates loading and resolved content', async () => {
+		const loaded = new DeferredPromise<void>();
+		const { hover, events } = createHover([], loaded.p);
+		const options = hover.getHoverOptions('chatInput');
+		const content = hover.getManagedContent();
+		assert.ok(typeof content.markdown === 'function');
+		const firstToken = store.add(new CancellationTokenSource());
+		const first = content.markdown(firstToken.token);
+		const beforeShown = [...events];
+		options.onDidShow?.();
+		await loaded.complete();
+		await first;
+		options.onDidShow?.();
+		firstToken.cancel();
+		const secondToken = store.add(new CancellationTokenSource());
+		await content.markdown(secondToken.token);
+		options.onDidShow?.();
+		const dismissedToken = store.add(new CancellationTokenSource());
+		await content.markdown(dismissedToken.token);
+		dismissedToken.cancel();
+		options.onDidShow?.();
+		assert.deepStrictEqual({ beforeShown, events }, {
+			beforeShown: [],
+			events: Array(2).fill({
+				name: 'chatCustomizationEntryPoint.interaction',
+				data: { action: 'hoverShown', location: 'chatInput', configuredLocation: 'chatInput', windowKind: 'editor', target: 'none' },
+			}),
+		});
+	});
+
+	test('records one button activation for mouse and keyboard without counting other toolbar actions', async () => {
+		const { hover, events, instantiationService } = createHover();
+		const action = instantiationService.createInstance(MenuItemAction, {
+			id: 'test.customizations', title: 'Customizations',
+		}, undefined, undefined, undefined, undefined);
+		const other = instantiationService.createInstance(MenuItemAction, {
+			id: 'test.other', title: 'Other',
+		}, undefined, undefined, undefined, undefined);
+		const container = mainWindow.document.createElement('div');
+		const actionBar = store.add(new ActionBar(container, {
+			actionViewItemProvider: candidate => candidate === action
+				? instantiationService.createInstance(ChatCustomizationsActionViewItem, action, undefined, hover, 'chatInput', constObservable(false), false, undefined)
+				: undefined,
+		}));
+		actionBar.push([action, other]);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await actionBar.run(other);
+		actionBar.focus(0);
+		actionBar.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		actionBar.domNode.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+		assert.deepStrictEqual(events, Array(2).fill({
+			name: 'chatCustomizationEntryPoint.interaction',
+			data: { action: 'buttonClicked', location: 'chatInput', configuredLocation: 'chatInput', windowKind: 'editor', target: 'none' },
+		}));
+	});
+
+	test('logs bounded hover action categories and preserves command trust and opener routing', async () => {
+		const { hover, events, opened } = createHover([], Promise.resolve(), [], true, {
+			isSessionsWindow: true,
+			servers: [upcastPartial<AgentHostMcpServer>({ id: 'secret-id', name: 'Private Server', enabled: true, status: McpServerStatus.AuthRequired })],
+			migration: { migrationFlowId: 'private-flow', message: '', counts: [{ type: CustomizationMigrationType.UserData, count: 1 }] },
+		});
+		const content = (await hover.getContent(CancellationToken.None))!;
+		const options = hover.getHoverOptions('sessionsHeader');
+		const rendered = store.add(renderMarkdown(content, { actionHandler: link => options.linkHandler?.(link) })).element;
+		const links = [...rendered.querySelectorAll<HTMLAnchorElement>('a')];
+		for (const link of links) {
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		}
+		const beforeUnknownLink = events.length;
+		options.linkHandler?.('command:notTrusted?private-data');
+		assert.deepStrictEqual({
+			events,
+			knownLinks: opened.slice(0, -1).map(entry => entry.link),
+			openerOptions: opened.at(-1)?.options,
+			unknownLinkLogged: events.length !== beforeUnknownLink,
+		}, {
+			events: ['plugins', 'mcpServers', 'skills', 'instructions', 'hooks', 'migrations', 'mcpServers', 'mcpAuthentication', 'browseAdditional', 'locationSetting'].map(target => ({
+				name: 'chatCustomizationEntryPoint.interaction',
+				data: { action: 'hoverInteracted', location: 'sessionsHeader', configuredLocation: 'chatInput', windowKind: 'agents', target },
+			})),
+			knownLinks: links.map(link => link.dataset.href),
+			openerOptions: {
+				fromUserGesture: true, allowContributedOpeners: true,
+				allowCommands: [AICustomizationManagementCommands.OpenEditor, McpCommandIds.AuthenticateAgentHostServer, 'workbench.action.openSettings'],
+				skipValidation: undefined,
+			},
+			unknownLinkLogged: false,
+		});
+	});
+
+	test('observes location updates without logging initialization, unchanged values, or experiment defaults', async () => {
+		const { configurationService, instantiationService, events } = createHover();
+		const telemetry = instantiationService.createInstance(ChatCustomizationsTelemetry);
+		const observer = store.add(telemetry.observeLocationChanges());
+		const update = async (value: string, source: ConfigurationTarget, key: string = ChatConfiguration.ChatCustomizationsLocation) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] },
+				affectsConfiguration: candidate => candidate === key,
+			});
+		};
+		await update('chatInput', ConfigurationTarget.USER);
+		await update('sidebar', ConfigurationTarget.DEFAULT);
+		await update('chatToolbar', ConfigurationTarget.USER);
+		await update('auto', ConfigurationTarget.APPLICATION);
+		await update('private-value', ConfigurationTarget.USER);
+		await update('another-private-value', ConfigurationTarget.USER);
+		await update('private-other', ConfigurationTarget.USER, 'unrelated.setting');
+		observer.dispose();
+		await update('chatInput', ConfigurationTarget.USER);
+		assert.deepStrictEqual(events, [
+			{ previousLocation: 'sidebar', location: 'chatToolbar', windowKind: 'editor' },
+			{ previousLocation: 'chatToolbar', location: 'auto', windowKind: 'editor' },
+			{ previousLocation: 'auto', location: 'unknown', windowKind: 'editor' },
+		].map(data => ({ name: 'chatCustomizationEntryPoint.locationChanged', data })));
 	});
 
 	test('category and footer links remain keyboard operable in the compact layout', async () => {

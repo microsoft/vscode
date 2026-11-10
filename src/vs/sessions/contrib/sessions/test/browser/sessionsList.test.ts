@@ -117,6 +117,7 @@ import { getSessionEnvironments } from '../../../../../workbench/contrib/session
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -1182,7 +1183,15 @@ suite('Sessions - SessionsList', () => {
 
 		test('opens migrations from Customizations only while migration attention is active', async () => {
 			const customizationMigrationsAvailable = observableValue(disposables, true);
-			const harness = createListHarness(disposables, []);
+			const events: { name?: string; data?: unknown }[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+					override readonly isSessionsWindow = true;
+				}());
+				instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void { events.push({ name, data }); }
+				}());
+			});
 			const container = harness.createContainer();
 			const navigationContainer = mainWindow.document.createElement('div');
 			const listContainer = mainWindow.document.createElement('div');
@@ -1205,13 +1214,19 @@ suite('Sessions - SessionsList', () => {
 			clickRow(customizationsRow);
 			await Promise.resolve();
 
-			assert.deepStrictEqual(harness.commandService.calls, [{
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [{ migration: true }],
-			}, {
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [],
-			}]);
+			assert.deepStrictEqual({ commands: harness.commandService.calls, events }, {
+				commands: [{
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [{ migration: true }],
+				}, {
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [],
+				}],
+				events: Array(2).fill({
+					name: 'chatCustomizationEntryPoint.interaction',
+					data: { action: 'buttonClicked', location: 'sessionsHeader', configuredLocation: 'unknown', windowKind: 'agents', target: 'none' },
+				}),
+			});
 		});
 
 		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {

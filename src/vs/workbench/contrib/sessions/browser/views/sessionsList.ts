@@ -128,6 +128,7 @@ import { ICustomViewService } from '../customView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { ChatCustomizationsHover } from '../../../chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
@@ -2949,7 +2950,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					: this.customizationExtensionSuggestionsAvailable.get()
 						? getExtensionSuggestionsBadgeDescription()
 						: undefined),
-				{ trapFocus: true, additionalClasses: ['chat-customizations-hover'] },
+				hover.getHoverOptions('sessionsHeader'),
 			));
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
@@ -4796,7 +4797,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -6654,6 +6655,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
+				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
 				if (this.options.customizationMigrationsAvailable?.get()) {
 					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, {
 						migration: true,

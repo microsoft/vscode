@@ -11,10 +11,12 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../common/customizationsLocation.js';
+import { ChatCustomizationsTelemetry } from './chatCustomizationsTelemetry.js';
 
 const command = {
 	id: AICustomizationManagementCommands.OpenEditor,
@@ -43,8 +45,10 @@ class ChatCustomizationsEntryPointContribution extends Disposable implements IWo
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAICustomizationWorkspaceService workspaceService: IAICustomizationWorkspaceService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._register(instantiationService.createInstance(ChatCustomizationsTelemetry).observeLocationChanges());
 		if (workspaceService.isSessionsWindow) {
 			return;
 		}

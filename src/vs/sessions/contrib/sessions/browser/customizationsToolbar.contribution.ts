@@ -44,6 +44,7 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/cont
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { getIgnoredCustomizationMigrationGroups } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -134,6 +135,7 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
 		@IAgentsWindowExtensionSuggestionsService private readonly _extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -165,6 +167,9 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 
 		this._viewItemDisposables.add(this._button.onDidClick(() => {
+			if (this._config.id === CUSTOMIZATION_OVERVIEW_ITEM.id) {
+				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sidebar');
+			}
 			this.actionRunner.run(this._action, this._context);
 		}));
 
@@ -241,11 +246,11 @@ class SessionsCustomizationsActionViewItemFactory {
 		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 	) { }
 
-	create(action: MenuItemAction, options: IActionViewItemOptions, showLabel: boolean): ChatCustomizationsActionViewItem {
+	create(action: MenuItemAction, options: IActionViewItemOptions, location: 'sidebar' | 'chatToolbar' | 'chatInput'): ChatCustomizationsActionViewItem {
 		return this.instantiationService.createInstance(
 			ChatCustomizationsActionViewItem, action, options,
 			this.instantiationService.createInstance(ChatCustomizationsHover),
-			undefined, showLabel, this.extensionSuggestionsService.showBadge,
+			location, undefined, location === 'sidebar', this.extensionSuggestionsService.showBadge,
 		);
 	}
 }
@@ -316,7 +321,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					: when,
 			}));
 			this._register(actionViewItemService.register(menu, openCustomizations, (action, options, scopedInstantiationService) => action instanceof MenuItemAction
-				? scopedInstantiationService.createInstance(SessionsCustomizationsActionViewItemFactory).create(action, options, sidebar)
+				? scopedInstantiationService.createInstance(SessionsCustomizationsActionViewItemFactory).create(action, options, input ? 'chatInput' : sidebar ? 'sidebar' : 'chatToolbar')
 				: undefined, undefined));
 		}
 

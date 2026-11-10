@@ -41,8 +41,19 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { getIgnoredCustomizationMigrationGroups } from './customizationMigrationIgnoredGroups.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatCustomizationsLocation } from '../../common/customizationsLocation.js';
+import { ChatCustomizationsTelemetry, CustomizationsHoverTarget } from './chatCustomizationsTelemetry.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+
+const hoverCommands = [AICustomizationManagementCommands.OpenEditor, McpCommandIds.AuthenticateAgentHostServer, 'workbench.action.openSettings'];
 
 export class ChatCustomizationsHover {
+	private readonly telemetry: ChatCustomizationsTelemetry;
+	private readonly linkTargets = new Map<string, CustomizationsHoverTarget>();
+	private hoverToken: CancellationToken | undefined;
+	private shownToken: CancellationToken | undefined;
+
 	constructor(
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -52,7 +63,36 @@ export class ChatCustomizationsHover {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICustomizationMigrationService private readonly migrationService: ICustomizationMigrationService,
 		@IStorageService private readonly storageService: IStorageService,
-	) { }
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+	) {
+		this.telemetry = instantiationService.createInstance(ChatCustomizationsTelemetry);
+	}
+
+	logButtonClicked(location: Exclude<ChatCustomizationsLocation, 'auto'>): void {
+		this.telemetry.logInteraction('buttonClicked', location);
+	}
+
+	getHoverOptions(location: Exclude<ChatCustomizationsLocation, 'auto'>): IManagedHoverOptions {
+		return {
+			trapFocus: true,
+			additionalClasses: ['chat-customizations-hover'],
+			onDidShow: () => {
+				// Loading and its resolved content are one managed hover request.
+				if (this.hoverToken && !this.hoverToken.isCancellationRequested && this.shownToken !== this.hoverToken) {
+					this.shownToken = this.hoverToken;
+					this.telemetry.logInteraction('hoverShown', location);
+				}
+			},
+			linkHandler: url => {
+				const target = this.linkTargets.get(url);
+				if (target) {
+					this.telemetry.logInteraction('hoverInteracted', location, target);
+				}
+				void openLinkFromMarkdown(this.openerService, url, { enabledCommands: hoverCommands });
+			},
+		};
+	}
 
 	getSessionResource(context?: unknown, reader?: IReader): URI {
 		const active = this.harnessService.activeSessionResource.read(reader);
@@ -87,7 +127,10 @@ export class ChatCustomizationsHover {
 
 	getManagedContent(note?: string, context?: () => unknown): IManagedHoverTooltipMarkdownString {
 		return {
-			markdown: token => this.getContent(token, context?.(), note),
+			markdown: token => {
+				this.hoverToken = token;
+				return this.getContent(token, context?.(), note);
+			},
 			markdownNotSupportedFallback: note ?? localize('customizationsHover.title', "Session Customizations"),
 		};
 	}
@@ -118,23 +161,27 @@ export class ChatCustomizationsHover {
 			}
 			const [migrationHint] = discovery;
 			const migrationCount = migrationHint?.counts.reduce((total, entry) => total + entry.count, 0) ?? 0;
-			const commandLink = (target: { readonly section?: AICustomizationManagementSection; readonly migration?: boolean; readonly showDiscover?: boolean }) =>
-				`command:${AICustomizationManagementCommands.OpenEditor}?${encodeURIComponent(JSON.stringify([{ ...target, sessionResource, ...(target.migration ? { migrationHint } : {}) }]))}`;
-			const content = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor, McpCommandIds.AuthenticateAgentHostServer, 'workbench.action.openSettings'] } });
+			const linkTargets = new Map<string, CustomizationsHoverTarget>();
+			const commandLink = (target: { readonly section?: AICustomizationManagementSection; readonly migration?: boolean; readonly showDiscover?: boolean }, telemetryTarget: CustomizationsHoverTarget) => {
+				const link = `command:${AICustomizationManagementCommands.OpenEditor}?${encodeURIComponent(JSON.stringify([{ ...target, sessionResource, ...(target.migration ? { migrationHint } : {}) }]))}`;
+				linkTargets.set(link, telemetryTarget);
+				return link;
+			};
+			const content = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: { enabledCommands: hoverCommands } });
 			content.appendMarkdown(`**${localize('customizationsHover.title', "Session Customizations")}**\n\n`);
 			content.appendText(this.getProjectRoot(sessionResource)
 				? localize('customizationsHover.scopeWithWorkspace', "Available for {0} and current workspace", descriptor.label)
 				: localize('customizationsHover.scope', "Available for {0}", descriptor.label));
 			content.appendMarkdown('\n\n');
 			let hasSections = false;
-			const appendSection = (section: AICustomizationManagementSection, icon: ThemeIcon, label: string, count: () => number) => {
+			const appendSection = (section: AICustomizationManagementSection & CustomizationsHoverTarget, icon: ThemeIcon, label: string, count: () => number) => {
 				if (!hidden.has(section)) {
 					if (!hasSections) {
 						content.appendMarkdown(`| ${localize('customizationsHover.type', "Type")} | ${localize('customizationsHover.available', "Available")} |\n| :--- | ---: |\n`);
 						hasSections = true;
 					}
 					content.appendMarkdown('| ');
-					content.appendLink(commandLink({ section }), `$(${icon.id})${label}`);
+					content.appendLink(commandLink({ section }, section), `$(${icon.id})${label}`);
 					content.appendMarkdown(` | ${count()} |\n`);
 				}
 			};
@@ -157,7 +204,7 @@ export class ChatCustomizationsHover {
 				content.appendMarkdown(`\n\n**${localize('customizationsHover.attention', "Needs attention")}**\n\n`);
 				if (migrationCount) {
 					content.appendMarkdown(`- $(${Codicon.warning.id}) `);
-					content.appendLink(commandLink({ migration: true }), migrationCount === 1
+					content.appendLink(commandLink({ migration: true }, 'migrations'), migrationCount === 1
 						? localize('customizationsHover.migrationSingle', "1 customization needs migration")
 						: localize('customizationsHover.migrationsCount', "{0} customizations need migration", migrationCount),
 						localize('customizationsHover.reviewMigrations', "Review Migrations"));
@@ -169,7 +216,7 @@ export class ChatCustomizationsHover {
 					const serverNames = authRequiredServers.length > 2
 						? localize('customizationsHover.moreServers', "{0}, +{1} more", names, authRequiredServers.length - 2)
 						: names;
-					content.appendLink(commandLink({ section: AICustomizationManagementSection.McpServers }), authRequiredServers.length === 1
+					content.appendLink(commandLink({ section: AICustomizationManagementSection.McpServers }, 'mcpServers'), authRequiredServers.length === 1
 						? localize('customizationsHover.authenticationSingle', "1 MCP server requires sign-in")
 						: localize('customizationsHover.authentication', "{0} MCP servers require sign-in", authRequiredServers.length),
 						localize('customizationsHover.manageMcp', "Manage MCP Servers: {0}", serverNames));
@@ -179,8 +226,10 @@ export class ChatCustomizationsHover {
 							content.appendMarkdown(',&nbsp;');
 						}
 						const label = getMcpServerDisplayLabel(server);
+						const link = `command:${McpCommandIds.AuthenticateAgentHostServer}?${encodeURIComponent(JSON.stringify([sessionResource, server.id]))}`;
+						linkTargets.set(link, 'mcpAuthentication');
 						content.appendLink(
-							`command:${McpCommandIds.AuthenticateAgentHostServer}?${encodeURIComponent(JSON.stringify([sessionResource, server.id]))}`,
+							link,
 							new MarkdownString().appendText(label).value,
 							localize('customizationsHover.signInToServer', "Sign In to {0}", label),
 						);
@@ -196,14 +245,20 @@ export class ChatCustomizationsHover {
 				content.appendText(note);
 			}
 			content.appendMarkdown('\n\n---\n\n');
-			content.appendLink(commandLink({ showDiscover: true }), `$(${Codicon.add.id})${localize('customizationsHover.browseAdditional', "Browse Additional")}`);
+			content.appendLink(commandLink({ showDiscover: true }, 'browseAdditional'), `$(${Codicon.add.id})${localize('customizationsHover.browseAdditional', "Browse Additional")}`);
 			content.appendMarkdown(' ');
 			const locationLabel = localize('customizationsHover.location', "Change Button Location...");
 			const gearLabel = new MarkdownString();
 			gearLabel.appendMarkdown(`$(${Codicon.settingsGear.id})<span>`);
 			gearLabel.appendText(locationLabel);
 			gearLabel.appendMarkdown('</span>');
-			content.appendLink(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([ChatConfiguration.ChatCustomizationsLocation]))}`, gearLabel.value, locationLabel);
+			const settingsLink = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([ChatConfiguration.ChatCustomizationsLocation]))}`;
+			linkTargets.set(settingsLink, 'locationSetting');
+			content.appendLink(settingsLink, gearLabel.value, locationLabel);
+			this.linkTargets.clear();
+			for (const [link, target] of linkTargets) {
+				this.linkTargets.set(link, target);
+			}
 			return content;
 		} finally {
 			scope?.dispose();
@@ -219,6 +274,7 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
 		private readonly hover: ChatCustomizationsHover,
+		private readonly location: Exclude<ChatCustomizationsLocation, 'auto'>,
 		migrationAvailable: IObservable<boolean> | undefined,
 		private readonly showLabel = false,
 		private readonly extensionSuggestions: IObservable<boolean> = constObservable(false),
@@ -246,6 +302,11 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		this._register(this.actionRunner.onWillRun(event => {
+			if (event.action === this.action) {
+				this.hover.logButtonClicked(this.location);
+			}
+		}));
 		container.classList.add('chat-customizations-action-item');
 		if (this.showLabel) {
 			container.classList.add('customization-link-widget');
@@ -282,7 +343,7 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions {
-		return { trapFocus: true, additionalClasses: ['chat-customizations-hover'] };
+		return this.hover.getHoverOptions(this.location);
 	}
 
 }
