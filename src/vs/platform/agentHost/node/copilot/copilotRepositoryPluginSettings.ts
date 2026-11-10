@@ -15,7 +15,7 @@ import { FileOperationResult, IFileContent, IFileService, toFileOperationResult 
 const writes = new SequencerByKey<string>();
 
 /** Writes a repository decision without interpreting the runtime's settings precedence or policy. */
-// TODO: Replace direct repository settings edits with the SDK repository plugin enablement API when available.
+// TODO: Replace direct repository settings edits with the SDK repository plugin enablement API: https://github.com/github/copilot-agent-runtime/issues/37954
 export function setCopilotRepositoryPluginEnabled(fileService: IFileService, repository: URI, pluginSpec: string, enabled: boolean): Promise<void> {
 	const resource = joinPath(repository, '.github', 'copilot', 'settings.json');
 	return writes.queue(extUriBiasedIgnorePathCase.getComparisonKey(resource), async () => {
