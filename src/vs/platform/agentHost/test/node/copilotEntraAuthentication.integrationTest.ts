@@ -142,7 +142,7 @@ suite('Copilot Entra authentication transport', () => {
 			const identityChallenge = await client.waitForNotification(n => n.method === 'auth/required');
 			assert.deepStrictEqual(identityChallenge.params, {
 				channel: ROOT_STATE_URI,
-				resource: { resource: copilotEntraDiscoveryResource, authorization_servers: ['https://login.microsoftonline.com/organizations'], scopes_supported: ['User.Read'] },
+				resource: { resource: copilotEntraDiscoveryResource, authorization_servers: ['https://login.microsoftonline.com/organizations'], scopes_supported: ['User.Read'], required: false },
 				reason: 'required',
 			});
 			await client.call('authenticate', {

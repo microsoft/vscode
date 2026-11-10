@@ -2223,7 +2223,7 @@ export class AgentSideEffects extends Disposable {
 		let checkpointCapture: Promise<void> | undefined;
 		let dispatchedToProvider = false;
 		try {
-			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources(undefined, 'client')) : undefined;
+			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources()) : undefined;
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'workingDirectory');
 			// Host-owned working-directory resolution: resolve the session's working

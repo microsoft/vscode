@@ -1286,6 +1286,22 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(creates, 0);
 		});
 
+		test('optional alternatives do not authorize a scoped operation or bypass another required resource', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override getProtectedResources() {
+					return [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }, { resource: copilotEntraDiscoveryResource, required: false }, { resource: 'https://required.example/api', required: true }];
+				}
+			}
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(service, provider);
+			const remote = source();
+			await assert.rejects(service.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.AuthRequired });
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'scoped-github' }, remote);
+			await assert.rejects(service.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.AuthRequired });
+			assert.deepStrictEqual({ sessions: (await service.listSessions()).length, sharedAuthentication: provider.authenticateCalls }, { sessions: 0, sharedAuthentication: [] });
+		});
+
 		test('warm local control and drafts do not request fresh credentials for an isolated session', async () => {
 			let identityRequests = 0;
 			class ScopedAgent extends MockAgent {
@@ -1609,66 +1625,70 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('GitHub scoped creation and local cold continuation ignore shared Microsoft requirements', async () => {
-			const history: (string | undefined)[] = [];
-			const sends: (string | undefined)[] = [];
-			const reached = new DeferredPromise<void>();
-			class ScopedAgent extends MockAgent {
-				readonly supportsScopedCredentials = true;
-				override getProtectedResources(reader?: IReader, scope: 'shared' | 'client' = 'shared') {
-					return [...super.getProtectedResources(), ...(scope === 'shared' ? microsoft.getProtectedResources(reader) : [])];
+		for (const withMicrosoft of [false, true]) {
+			test(`GitHub scoped creation and cold continuation honor optional alternatives (microsoft=${withMicrosoft})`, async () => {
+				const history: (string | undefined)[] = [];
+				const sends: (string | undefined)[] = [];
+				const reached = new DeferredPromise<void>();
+				class ScopedAgent extends MockAgent {
+					readonly supportsScopedCredentials = true;
+					override getProtectedResources(reader?: IReader) {
+						return [...super.getProtectedResources().map(resource => ({ ...resource, required: false })), ...microsoft.getProtectedResources(reader)];
+					}
+					validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) {
+						microsoft.validateAuthentication(params, connection);
+					}
+					handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) {
+						return microsoft.authenticate(params, connection);
+					}
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						getMessages: async (chat, context) => {
+							history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+							return base.getMessages(chat, context);
+						},
+						sendMessage: async (...args) => {
+							assert.ok(args[7]);
+							sends.push(resolveAgentChatContext(args[7], args[0]).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+							reached.complete();
+							return base.sendMessage(...args);
+						},
+					}));
 				}
-				validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) {
-					microsoft.validateAuthentication(params, connection);
+				const data = createPerSessionDataService();
+				const scopedService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
+				));
+				const owner = disposables.add(new CancellationTokenSource());
+				const microsoft = disposables.add(new CopilotEntraAuthentication(getTestAgentServiceComposition(scopedService).authenticationService));
+				const provider = disposables.add(new ScopedAgent('copilot'));
+				registerTestAgentProvider(scopedService, provider);
+				const request = { kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' } as const;
+				const cancellation = { isCancellationRequested: false, onCancellationRequested: Event.None };
+				await microsoft.options.tokenProvider?.(request, cancellation);
+				if (withMicrosoft) {
+					await scopedService.authenticate({
+						resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
+						_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
+					}, undefined, owner.token);
 				}
-				handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) {
-					return microsoft.authenticate(params, connection);
-				}
-				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					getMessages: async (chat, context) => {
-						history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
-						return base.getMessages(chat, context);
-					},
-					sendMessage: async (...args) => {
-						assert.ok(args[7]);
-						sends.push(resolveAgentChatContext(args[7], args[0]).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
-						reached.complete();
-						return base.sendMessage(...args);
-					},
-				}));
-			}
-			const data = createPerSessionDataService();
-			const scopedService = disposables.add(createTestAgentService(
-				new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
-			));
-			const owner = disposables.add(new CancellationTokenSource());
-			const microsoft = disposables.add(new CopilotEntraAuthentication(getTestAgentServiceComposition(scopedService).authenticationService));
-			const provider = disposables.add(new ScopedAgent('copilot'));
-			registerTestAgentProvider(scopedService, provider);
-			const request = { kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' } as const;
-			const cancellation = { isCancellationRequested: false, onCancellationRequested: Event.None };
-			await microsoft.options.tokenProvider?.(request, cancellation);
-			await scopedService.authenticate({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
-			}, undefined, owner.token);
-			const previous = source();
-			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
-			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: previous });
-			const chat = hostDefaultChat(scopedService, session);
-			getStateManager(scopedService).removeSession(session.toString());
-			previous.dispose();
-			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
-			await scopedService.dispatchAction(chat, chatTurnStarted('local-cold', 'Continue locally'), 'local-client', 1);
-			await reached.p;
-			assert.deepStrictEqual({
-				history, sends, microsoftIdentity: await microsoft.options.tokenProvider?.(request, cancellation),
-			}, {
-				history: ['desktop-for-local'], sends: ['desktop-for-local'],
-				microsoftIdentity: { kind: 'identity', accountId: 'microsoft' },
+				const previous = source();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
+				const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: previous });
+				const chat = hostDefaultChat(scopedService, session);
+				getStateManager(scopedService).removeSession(session.toString());
+				previous.dispose();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
+				await scopedService.dispatchAction(chat, chatTurnStarted('local-cold', 'Continue locally'), 'local-client', 1);
+				await reached.p;
+				assert.deepStrictEqual({
+					history, sends, microsoftIdentity: await microsoft.options.tokenProvider?.(request, cancellation),
+				}, {
+					history: ['desktop-for-local'], sends: ['desktop-for-local'],
+					microsoftIdentity: withMicrosoft ? { kind: 'identity', accountId: 'microsoft' } : { kind: 'unavailable' },
+				});
 			});
-		});
+		}
 
 		test('Agent Merge enablement retains its admitted sponsor when the connection closes during principal persistence', async () => {
 			class ScopedAgent extends MockAgent {

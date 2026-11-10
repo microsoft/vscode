@@ -149,7 +149,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const providerList = [...providers];
 		if (scope) {
 			const resources = [
-				...providerList.flatMap(provider => provider.getProtectedResources(undefined, 'client').map(resource => resource.resource)),
+				...providerList.flatMap(provider => provider.getProtectedResources().map(resource => resource.resource)),
 				...(scope.principal ? [scope.principal.apiOrigin] : []),
 			];
 			if (!params.target && resources.includes(params.resource)) {
@@ -505,6 +505,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const { resolveMissionControlIdentity } = await import('./missionControl/missionControlAuthentication.js');
 		const captured = new Map<string, IAgentHostScopedCredential>();
 		for (const resource of resources) {
+			const sameOrigin = new URL(resource.resource).origin === new URL(principal.apiOrigin).origin;
+			if (resource.required === false && !sameOrigin) {
+				continue;
+			}
 			if (this.useLocalCredentials && this._localCredentials?.getResources().some(candidate => candidate.resource === resource.resource)) {
 				const credential = this.getSharedCredential({ resource: resource.resource, scopes: resource.scopes_supported });
 				if (credential) {
@@ -514,7 +518,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				}
 				continue;
 			}
-			if (new URL(resource.resource).origin !== new URL(principal.apiOrigin).origin) {
+			if (!sameOrigin) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Local credential origin does not match the isolated session owner');
 			}
 			const request = { resource: resource.resource, scopes: resource.scopes_supported };

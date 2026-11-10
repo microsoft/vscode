@@ -10161,7 +10161,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.supportsScopedCredentials !== true) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'This provider cannot safely execute with client-owned credentials');
 		}
-		for (const resource of provider.getProtectedResources(undefined, 'client')) {
+		for (const resource of provider.getProtectedResources()) {
 			if ((resource.required !== false || resource.resource === credentials.principal?.apiOrigin)
 				&& !credentials.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The requesting client must authenticate for this operation', { resources: [resource] });
@@ -10199,7 +10199,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!provider) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
 			}
-			credentials = await this._authService.createLocalCredentialSource(principal, provider.getProtectedResources(undefined, 'client'));
+			credentials = await this._authService.createLocalCredentialSource(principal, provider.getProtectedResources());
 		}
 		if (credentials) {
 			if (!provider) {
@@ -10257,7 +10257,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (defaultChat !== undefined) {
 			this._authService.restoreSessionCredentialPrincipal(session, credentials.principal, defaultChat);
 		}
-		return captureCredentialSource(credentials, provider.getProtectedResources(undefined, 'client'));
+		return captureCredentialSource(credentials, provider.getProtectedResources());
 	}
 
 	/** The recorded storage of a registered chat, or the creation-time rule for one not registered yet. */
@@ -12941,7 +12941,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!provider) {
 					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
 				}
-				credentials = captureCredentialSource(credentials, provider.getProtectedResources(undefined, 'client'));
+				credentials = captureCredentialSource(credentials, provider.getProtectedResources());
 				await this._persistCredentialPrincipal(sessionChannel, credentials);
 				this._requireProviderCredentials(provider, credentials);
 			}

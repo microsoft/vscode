@@ -92,7 +92,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
-import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -121,7 +121,7 @@ import { buildCopilotBuiltinSkillsContainer } from '../../node/copilot/copilotBu
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
-import type { IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
+import { captureCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import { AhpErrorCodes, AuthenticateTargetKind, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
@@ -5190,8 +5190,8 @@ suite('CopilotAgent', () => {
 			}, [agent], undefined, connection.token);
 			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
 			const resourcesDuringAuthority = {
-				sharedHasMicrosoft: agent.getProtectedResources().some(resource => resource.resource === copilotEntraDiscoveryResource),
-				client: agent.getProtectedResources(undefined, 'client'),
+				microsoftOptional: agent.getProtectedResources().some(resource => resource.resource === copilotEntraDiscoveryResource && resource.required === false),
+				github: agent.getProtectedResources().filter(resource => resource.resource !== copilotEntraDiscoveryResource),
 			};
 			const request = {
 				kind: 'token' as const, clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' as const,
@@ -5233,10 +5233,106 @@ suite('CopilotAgent', () => {
 			}, {
 				settled: withdrawal === 'signOut' ? ['shared'] : [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
 				remaining: withdrawal === 'signOut' ? ['scoped', 'virtual'] : ['shared', 'scoped', 'virtual'],
-				resourcesDuringAuthority: { sharedHasMicrosoft: true, client: initialResources },
+				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources },
 				stops: withdrawal === 'signOut' ? 1 : 0, connected: withdrawal === 'signOut' ? 1 : 0,
 				credential: withdrawal === 'signOut' ? { kind: 'unavailable' } : { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource' },
 			});
+		});
+	}
+
+	for (const credentials of ['github', 'microsoft', 'both', 'neither'] as const) {
+		test(`enabled account alternatives preserve credential-specific operations (${credentials})`, async () => {
+			const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const tokenProvider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+			assert.ok(tokenProvider);
+			const cancellation = { isCancellationRequested: false, onCancellationRequested: Event.None };
+			const identityRequest = { kind: 'identity' as const, clientId: copilotEntraClientId, reason: 'signIn' as const };
+			await tokenProvider(identityRequest, cancellation);
+			const hasGitHub = credentials === 'github' || credentials === 'both';
+			const hasMicrosoft = credentials === 'microsoft' || credentials === 'both';
+			const connection = disposables.add(new CancellationTokenSource());
+			if (hasGitHub) {
+				await authenticationService.authenticate({
+					resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, token: 'github-credential',
+				}, [agent], undefined, connection.token);
+			}
+			if (hasMicrosoft) {
+				await authenticationService.authenticate({
+					resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
+				}, [agent], undefined, connection.token);
+			}
+			const microsoftRequest = {
+				kind: 'token' as const, clientId: copilotEntraClientId, accountId: 'selected-microsoft', reason: 'renewal' as const,
+				audience: copilotEntraM365Audience, scopes: [`${copilotEntraM365Audience}/.default`], skipCachedAccessToken: false,
+			};
+			await tokenProvider(microsoftRequest, cancellation);
+			if (hasMicrosoft) {
+				await authenticationService.authenticate({
+					resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: microsoftRequest.scopes, token: 'microsoft-resource',
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
+				}, [agent], undefined, connection.token);
+			}
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
+				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1',
+			}));
+			if (hasGitHub) {
+				await scope.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'scoped-github' }, [GITHUB_COPILOT_PROTECTED_RESOURCE.resource]);
+			}
+			const resources = agent.getProtectedResources();
+			const captured = captureCredentialSource(scope, resources);
+			const session = AgentSession.uri('copilotcli', `alternatives-${credentials}`);
+			if (!hasGitHub) {
+				await assert.rejects(provisionSession(agent, {
+					session, credentials: captured, workingDirectories: [URI.file(process.cwd())],
+				}), { code: AhpErrorCodes.AuthRequired });
+			}
+			assert.deepStrictEqual({
+				optional: resources.every(resource => resource.required === false),
+				github: captured.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token,
+				scopedMicrosoft: captured.getCredential({ resource: copilotEntraDiscoveryResource }),
+				identity: await tokenProvider(identityRequest, cancellation),
+				microsoft: await tokenProvider(microsoftRequest, cancellation),
+				ordinaryGithub: authenticationService.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }),
+				microsoftAccount: authenticationService.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			}, {
+				optional: true,
+				github: hasGitHub ? 'scoped-github' : undefined,
+				scopedMicrosoft: undefined,
+				identity: hasMicrosoft ? { kind: 'identity', accountId: 'selected-microsoft' } : { kind: 'unavailable' },
+				microsoft: hasMicrosoft ? { kind: 'token', accountId: 'selected-microsoft', accessToken: 'microsoft-resource' } : { kind: 'unavailable' },
+				ordinaryGithub: hasGitHub ? 'github-credential' : undefined,
+				microsoftAccount: hasMicrosoft ? 'selected-microsoft' : undefined,
+			});
+		});
+	}
+
+	for (const enterprise of [undefined, 'https://github.example.com']) {
+		test(`gate-off preserves required GitHub credential enforcement (${enterprise ?? 'github.com'})`, async () => {
+			const endpoint = createTestGitHubEndpointService(enterprise);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]), gitHubEndpointService: endpoint,
+				rootConfig: { [CopilotCliConfigKey.M365Enabled]: false },
+			});
+			afterTest(() => disposeAgent(agent));
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: true });
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
+				apiOrigin: endpoint.getCopilotResource().resource, userId: '1',
+			}));
+			const resources = agent.getProtectedResources();
+			assert.throws(() => captureCredentialSource(scope, resources), { code: AhpErrorCodes.AuthRequired });
+			await scope.authenticate({ resource: endpoint.getCopilotResource().resource, token: 'scoped-github' }, [endpoint.getCopilotResource().resource]);
+			const captured = captureCredentialSource(scope, resources);
+			assert.deepStrictEqual({
+				resources,
+				credential: captured.getCredential({ resource: endpoint.getCopilotResource().resource })?.token,
+			}, { resources: [endpoint.getCopilotResource(), endpoint.getRepoResource()], credential: 'scoped-github' });
 		});
 	}
 

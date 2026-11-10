@@ -2630,12 +2630,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	getProtectedResources(reader?: IReader, scope: 'shared' | 'client' = 'shared'): ProtectedResourceMetadata[] {
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
+			this._entraAuthentication || this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
-			...(scope === 'shared' ? this._entraAuthentication?.getProtectedResources(reader) ?? [] : []),
+			...(this._entraAuthentication?.getProtectedResources(reader) ?? []),
 		];
 	}
 

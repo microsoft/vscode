@@ -72,7 +72,7 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual({ result, requirement: f.bridge.authenticationRequired.get() }, {
 			result: { kind: 'unavailable' },
 			requirement: {
-				resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] },
+				resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'], required: false },
 				reason: AuthRequiredReason.Required,
 			},
 		});
@@ -355,7 +355,7 @@ suite('Copilot Entra authentication', () => {
 				renewal: { kind: 'identity', accountId: 'selected', username: 'Selected account' },
 				tokens: requests.map(() => ({ kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource-credential' })),
 				graph: 'synthetic-resource-credential',
-				resources: [{ resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] }],
+				resources: [{ resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'], required: false }],
 			});
 		});
 	}

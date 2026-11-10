@@ -33,6 +33,7 @@ const discoveryResource: ProtectedResourceMetadata = {
 	resource: copilotEntraDiscoveryResource,
 	authorization_servers: [copilotEntraAuthorizationServer],
 	scopes_supported: ['User.Read'],
+	required: false,
 };
 
 /** Reads credentials supplied through AHP without waiting for a client to acquire them. */
@@ -277,5 +278,6 @@ function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): Protec
 		resource,
 		authorization_servers: [copilotEntraAuthorizationServer],
 		scopes_supported: [...request.scopes],
+		required: false,
 	};
 }
