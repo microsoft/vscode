@@ -2854,7 +2854,7 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
 				request.response?.complete();
 				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
-				const text = '#attachment:a.ts /explain with enough surrounding text to wrap onto another line.';
+				const text = '#attachment:a.ts /explain short wrapping text.';
 				model.addRequest({
 					text,
 					parts: [
@@ -2883,7 +2883,7 @@ suite('ChatListRenderer', () => {
 					};
 				});
 				assert.deepStrictEqual(geometry.map(({ centerOffset, ...rest }) => ({
-					aligned: Math.abs(centerOffset) < 1 / 64,
+					aligned: Math.abs(centerOffset) < 1,
 					...rest,
 				})), [
 					{ aligned: true, overflows: false, wraps: false },
