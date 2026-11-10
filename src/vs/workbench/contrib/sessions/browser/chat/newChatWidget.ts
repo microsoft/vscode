@@ -2118,7 +2118,19 @@ export class NewChatWidget extends Disposable {
 			return true;
 		}
 		const selectedFolder = this._workspacePicker.selectedFolderUri;
-		return !!selectedFolder && !session.workspace.read(reader)?.folders.some(folder => isEqual(folder.root, selectedFolder));
+		const workspace = session.workspace.read(reader);
+		if (!selectedFolder) {
+			return workspace !== undefined;
+		}
+		const folder = workspace?.folders.find(folder => isEqual(folder.root, selectedFolder));
+		if (!folder) {
+			return true;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		const config = provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, session.mainChat.read(reader).resource) : undefined;
+		// The host resolves worktree support before publishing the draft's Git metadata.
+		return !!config && getSessionWorkspaceProperties(config.schema).isolation?.schema.enum?.includes('worktree') === true
+			&& folder.gitRepository?.isRepository?.read(reader) !== true;
 	}
 
 	private _getComparisonModelIds(): Set<string> {
