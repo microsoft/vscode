@@ -8,8 +8,8 @@ import { constObservable, IObservable } from '../../../../base/common/observable
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ICanvas } from '../../../../workbench/common/canvasReference.js';
 
 export interface IInboxCanvasHost extends IDisposable {
 	layout(): void;

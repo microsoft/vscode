@@ -125,6 +125,19 @@ suite('ChatMarkdownRenderer', () => {
 		assert.deepStrictEqual({ globalOpened, scopeOpened }, { globalOpened: [], scopeOpened: ['file:///workspace/notes.ts'] });
 	});
 
+	test('a link clicked in the chat output is a user gesture, which lets a chat window open it in itself', async () => {
+		const opened: { target: string; fromUserGesture: boolean | undefined }[] = [];
+		instantiationService.stub(IOpenerService, { open: async (target: URI | string, options?: { fromUserGesture?: boolean }) => { opened.push({ target: target.toString(), fromUserGesture: options?.fromUserGesture }); return true; } });
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const result = store.add(renderer.render(new MarkdownString('[chat](file:///workspace/session-1)')));
+
+		result.element.querySelector<HTMLAnchorElement>('a[data-href]')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(opened, [{ target: 'file:///workspace/session-1', fromUserGesture: true }]);
+	});
+
 	test('workspace edits render canonical file links without trusting imported content', () => {
 		const resource = URI.file('/workspace/example.ts');
 		const cachedResourceData = {

@@ -59,4 +59,9 @@ suite('Agent Host customization URI', () => {
 			builtin: isAgentBuiltinCustomizationUri(uri),
 		})), [{ readable: false, builtin: false }, { readable: false, builtin: false }]);
 	});
+
+	test('Claude SDK agent identities have no readable source, including when host-wrapped', () => {
+		const resource = URI.parse('claude-internal:/agent/Explore');
+		assert.deepStrictEqual([resource, toAgentHostUri(resource, 'remote')].map(hasReadableCustomizationContent), [false, false]);
+	});
 });

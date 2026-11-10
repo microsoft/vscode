@@ -7,6 +7,7 @@ import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { Diff, IGitDiffService } from '../../../platform/git/common/gitDiffService';
 import { IGitService } from '../../../platform/git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
