@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
+import { AppDetailsOptions, BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
@@ -12,7 +12,7 @@ import { AuxiliaryWindow, IAuxiliaryWindow } from './auxiliaryWindow.js';
 import { IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
+import { IBaseWindow, IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
 import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from '../../windows/electron-main/windows.js';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
@@ -36,7 +36,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
-	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean }[] = [];
+	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean; readonly appDetails: AppDetailsOptions | undefined }[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -92,12 +92,12 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 	}
 
-	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
+	createWindow(details: HandlerDetails, parentWindow?: IBaseWindow): BrowserWindowConstructorOptions {
 		const { state, overrides, disableMaximize } = this.computeWindowStateAndOverrides(details);
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
-		this.pendingWindowOptionsQueue.push({ options, disableMaximize });
+		this.pendingWindowOptionsQueue.push({ options, disableMaximize, appDetails: parentWindow?.appDetails });
 		return options;
 	}
 
@@ -169,7 +169,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		const pendingWindowOptions = this.pendingWindowOptionsQueue.shift();
 
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false);
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false, pendingWindowOptions?.appDetails);
 
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));

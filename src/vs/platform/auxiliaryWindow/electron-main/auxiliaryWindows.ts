@@ -7,6 +7,7 @@ import { BrowserWindowConstructorOptions, HandlerDetails, WebContents } from 'el
 import { Event } from '../../../base/common/event.js';
 import { IAuxiliaryWindow } from './auxiliaryWindow.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IBaseWindow } from '../../window/electron-main/window.js';
 
 export const IAuxiliaryWindowsMainService = createDecorator<IAuxiliaryWindowsMainService>('auxiliaryWindowsMainService');
 
@@ -20,7 +21,7 @@ export interface IAuxiliaryWindowsMainService {
 	readonly onDidChangeAlwaysOnTop: Event<{ window: IAuxiliaryWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: IAuxiliaryWindow; readonly x: number; readonly y: number }>;
 
-	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions;
+	createWindow(details: HandlerDetails, parentWindow?: IBaseWindow): BrowserWindowConstructorOptions;
 	registerWindow(webContents: WebContents): void;
 
 	getWindowByWebContents(webContents: WebContents): IAuxiliaryWindow | undefined;

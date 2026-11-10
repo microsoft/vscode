@@ -48,6 +48,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
 import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
 import { Color } from '../../../base/common/color.js';
+import { getWindowsAppDetails } from './windowsAppDetails.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -192,8 +193,20 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
+
+	private _appDetails: electron.AppDetailsOptions | undefined;
+	get appDetails(): electron.AppDetailsOptions | undefined { return this._appDetails; }
+
+	protected setAppDetails(details: electron.AppDetailsOptions | undefined): void {
+		this._appDetails = details;
+		if (isWindows && details) {
+			this._win?.setAppDetails(details);
+		}
+	}
+
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
+		this.setAppDetails(this._appDetails);
 		// Electron requires the overlay to have been enabled when the window was created.
 		this.hasWindowControlOverlay = !!options?.titleBarOverlay;
 
@@ -821,6 +834,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	) {
 		super(configurationService, stateService, environmentMainService, logService);
 
+		if (isWindows) {
+			this.setAppDetails(getWindowsAppDetails(productService, environmentMainService, !!config.isSessionsWindow));
+		}
+
 		//#region create browser window
 		{
 			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
@@ -843,6 +860,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			if (config.minimized) {
 				options.show = false; // a window that is created visible takes focus
 			}
+			const showAfterAppDetails = isWindows && !!this.appDetails && options.show !== false;
+			if (showAfterAppDetails) {
+				options.show = false; // set the window's shell identity before Windows presents it
+			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
@@ -856,6 +877,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			this._id = this._win.id;
 			this.setWin(this._win, options);
+			if (showAfterAppDetails) {
+				this._win.show();
+			}
 
 			// Apply some state after window creation
 			this.applyState(this.windowState, hasMultipleDisplays, config.minimized);
@@ -967,6 +991,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._config = this.pendingLoadConfig;
 
 				this.pendingLoadConfig = undefined;
+				if (isWindows) {
+					this.setAppDetails(getWindowsAppDetails(this.productService, this.environmentMainService, !!this._config.isSessionsWindow));
+				}
 			}
 		}));
 

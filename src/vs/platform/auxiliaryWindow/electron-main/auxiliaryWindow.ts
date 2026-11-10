@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { AppDetailsOptions, BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { Event } from '../../../base/common/event.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -38,6 +38,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
 		private readonly disableMaximize: boolean,
+		appDetails: AppDetailsOptions | undefined,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -47,6 +48,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		super(configurationService, stateService, environmentMainService, logService);
 
 		this.id = this.webContents.id;
+		this.setAppDetails(appDetails);
 
 		// Try to claim window
 		this.tryClaimWindow();

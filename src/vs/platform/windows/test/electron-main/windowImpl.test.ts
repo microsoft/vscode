@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import type { AppDetailsOptions, BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import sinon from 'sinon';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -23,6 +23,10 @@ class TestWindow extends BaseWindow {
 
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override setAppDetails(details: AppDetailsOptions | undefined): void {
+		super.setAppDetails(details);
 	}
 
 	override applyState(state: IWindowState, hasMultipleDisplays?: boolean, minimized?: boolean): void {
@@ -116,6 +120,54 @@ suite('BaseWindow - window controls overlay', () => {
 			x: horizontalInset,
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
+	});
+});
+
+suite('BaseWindow - Windows shell identity', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWindow() {
+		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'native' } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
+			store.add(new NullLogService())
+		));
+		const applied: AppDetailsOptions[] = [];
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const nativeWindow = upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setAppDetails: details => applied.push(details),
+		});
+		return { window, nativeWindow, applied };
+	}
+
+	test('applies inherited identity when the native window is claimed and exposes it for descendants', () => {
+		const { window, nativeWindow, applied } = createWindow();
+		const details: AppDetailsOptions = {
+			appId: 'Microsoft.VisualStudioCode.Agents',
+			relaunchCommand: '"C:\\Code\\Code.exe" --agents',
+			relaunchDisplayName: 'Visual Studio Code Agents',
+		};
+		window.setAppDetails(details);
+		window.setWin(nativeWindow);
+
+		assert.deepStrictEqual({ details: window.appDetails, applied }, { details, applied: isWindows ? [details] : [] });
+	});
+
+	test('updates the native identity after the window has been claimed', () => {
+		const { window, nativeWindow, applied } = createWindow();
+		window.setWin(nativeWindow);
+		const agents = { appId: 'Microsoft.VisualStudioCode.Agents' };
+		const editor = { appId: 'Microsoft.VisualStudioCode' };
+		window.setAppDetails(agents);
+		window.setAppDetails(editor);
+
+		assert.deepStrictEqual({ details: window.appDetails, applied }, { details: editor, applied: isWindows ? [agents, editor] : [] });
 	});
 });
 

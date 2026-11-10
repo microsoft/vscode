@@ -3,14 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { BrowserWindow } from 'electron';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { ILogService } from '../../log/common/log.js';
 import { IOpenAgentsWindowOptions } from '../../native/common/native.js';
 import { AgentsWindowOpenSource } from '../../window/common/window.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IOpenConfiguration, OpenContext } from './windows.js';
+
+export async function checkAgentsWindowEnabled(configurationService: IConfigurationService, dialogMainService: IDialogMainService, logService: ILogService, parentWindow?: BrowserWindow): Promise<boolean> {
+	if (configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true) {
+		return true;
+	}
+
+	logService.info('Agents Window launch blocked because AI features are disabled.');
+	await dialogMainService.showMessageBox({
+		type: 'info',
+		message: localize('agentsWindow.aiDisabled', "AI features are disabled"),
+		detail: localize('agentsWindow.aiDisabledDetail', "Open a VS Code editor window and enable AI features in Settings to use Agents. Your setting has not been changed."),
+		buttons: [localize('agentsWindow.aiDisabledOK', "OK")],
+		defaultId: 0,
+		cancelId: 0,
+		noLink: true,
+	}, parentWindow);
+	return false;
+}
 
 export function sendAgentsWindowOpenIntent(window: ICodeWindow, isExistingWindow: boolean, openConfig: IOpenConfiguration, options: IOpenAgentsWindowOptions): void {
 	// A focus-only open must not navigate or cancel a pending reveal in an existing window.

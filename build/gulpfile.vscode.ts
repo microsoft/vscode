@@ -388,6 +388,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		if (platform === 'win32') {
+			result = es.merge(result, gulp.src('resources/win32/sessions.ico').pipe(rename('agents.ico')));
+
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			if (versionedResourcesFolder) {

@@ -601,7 +601,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details)
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details, this.windowsMainService?.getWindowByWebContents(contents) ?? this.auxiliaryWindowsMainService.getWindowByWebContents(contents))
 					};
 				}
 
@@ -797,6 +797,11 @@ export class CodeApplication extends Disposable {
 		mark('code/willOpenFirstWindow');
 		const windows = await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
 		mark('code/didOpenFirstWindow');
+
+		if (!isMacintosh && windows.length === 0 && this.windowsMainService?.getWindowCount() === 0) {
+			await this.lifecycleMainService.quit();
+			return;
+		}
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;

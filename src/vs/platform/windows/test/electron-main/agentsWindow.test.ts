@@ -4,15 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { MessageBoxOptions } from 'electron';
+import sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IDialogMainService } from '../../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentsWindowOpenSource } from '../../../window/common/window.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
-import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from '../../electron-main/agentsWindow.js';
+import { checkAgentsWindowEnabled, resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from '../../electron-main/agentsWindow.js';
 import { IOpenConfiguration, OpenContext } from '../../electron-main/windows.js';
+
+suite('Agents window AI opt-out', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	for (const disabled of [true, false, undefined]) {
+		test(`preserves the AI-disabled setting (${disabled}) and only explains blocked launches`, async () => {
+			const configurationService = new TestConfigurationService({ [ChatAIDisabledSettingId]: disabled });
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const update = sinon.spy(configurationService, 'updateValue');
+			const dialogs: MessageBoxOptions[] = [];
+			const dialogService = upcastPartial<IDialogMainService>({
+				showMessageBox: async options => {
+					dialogs.push(options);
+					return { response: 0, checkboxChecked: false };
+				},
+			});
+			const enabled = await checkAgentsWindowEnabled(configurationService, dialogService, store.add(new NullLogService()));
+			assert.deepStrictEqual({ enabled, disabled: configurationService.getValue(ChatAIDisabledSettingId), updates: update.callCount, dialogs }, {
+				enabled: disabled !== true,
+				disabled,
+				updates: 0,
+				dialogs: disabled === true ? [{
+					type: 'info',
+					message: 'AI features are disabled',
+					detail: 'Open a VS Code editor window and enable AI features in Settings to use Agents. Your setting has not been changed.',
+					buttons: ['OK'],
+					defaultId: 0,
+					cancelId: 0,
+					noLink: true,
+				}] : [],
+			});
+		});
+	}
+});
 
 suite('Agents window reveal intent', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
