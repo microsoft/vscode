@@ -13,9 +13,9 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 import type { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
-import { authenticationAccountId, authenticationAccountMeta, IAgentAuthenticationAccount, readAuthenticationAccount } from '../common/meta/agentAuthenticationAccount.js';
+import { authenticationAccountId, authenticationAccountMeta, IAgentAuthenticationAccount, readAuthenticationAccount, readAuthenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
 import { isScopedCredentialUsable, normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
-import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 export const SESSION_CREDENTIAL_PRINCIPAL_KEY = 'vscode.credentialPrincipal';
 
@@ -37,7 +37,7 @@ export interface IAgentHostAuthenticationService {
 	readonly useLocalCredentials?: boolean;
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
 	getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource): string | undefined;
-	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
+	getAuthAccountId(request: IAgentHostAuthTokenRequest): string | undefined;
 	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
@@ -64,6 +64,7 @@ interface IStoredAuthToken {
 	readonly token: string;
 	readonly expiresAt: number | undefined;
 	readonly account?: IAgentAuthenticationAccount;
+	readonly accountId?: string;
 	sharedCredential?: IAgentHostScopedCredential;
 }
 
@@ -134,6 +135,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		if (params.accountId !== undefined && (typeof params.accountId !== 'string' || params.accountId.length === 0)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'accountId must be a nonempty string');
+		}
 		if (scope) {
 			const providerList = [...providers];
 			const resources = [
@@ -237,13 +241,14 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
 		} else if (authenticated) {
 			const account = readAuthenticationAccount(params);
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, account, ...(params.target ? { target: params.target } : {}) });
+			const accountId = readAuthenticationAccountId(params);
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, account, accountId, ...(params.target ? { target: params.target } : {}) });
 		}
 		if (!params.target && this.useLocalCredentials) {
 			this._resolvedSessionSources.clear();
 		}
 		const token = this._tokens.get(key)?.token;
-		if (!params.target && (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account))) {
+		if (!params.target && (previousToken !== token || previous?.accountId !== this._tokens.get(key)?.accountId)) {
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		if (authenticated || previousToken !== token) {
@@ -275,6 +280,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const params: AuthenticateParams = {
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
 				...(stored.target ? { target: stored.target } : {}),
+				...(stored.accountId !== undefined ? { accountId: stored.accountId } : {}),
 				...(stored.account ? { _meta: authenticationAccountMeta(stored.account) } : {}),
 			};
 			if (!stored.target && protectedResources.has(stored.resource)) {
@@ -302,13 +308,13 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		return this._getAuthToken(request, false)?.token;
 	}
 
-	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined {
+	getAuthAccountId(request: IAgentHostAuthTokenRequest): string | undefined {
 		const source = request.session ? this.getSessionCredentialSource(request.session) : undefined;
 		if (source) {
 			const credential = source.getCredential(request);
-			return credential && source.principal ? { providerId: 'github', accountId: source.principal.userId } : undefined;
+			return credential && source.principal ? authenticationAccountId({ providerId: 'github', accountId: source.principal.userId }) : undefined;
 		}
-		return (this._getAuthToken(request, false) ?? this._getAuthToken(request, true))?.account;
+		return (this._getAuthToken(request, false) ?? this._getAuthToken(request, true))?.accountId;
 	}
 
 	get useLocalCredentials(): boolean {

@@ -1221,7 +1221,7 @@ suite('AgentHostSessionTitleController', () => {
 			observe(progressed.event);
 			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
 				override readonly onDidChangeAuthToken = Event.None;
-				override getAuthAccount() { return undefined; }
+				override getAuthAccountId() { return undefined; }
 				override getAuthToken() { return 'test-token'; }
 				override getSessionCredentialSource() { return undefined; }
 				override getSessionCredentialPrincipal() { return undefined; }

@@ -55,7 +55,7 @@ suite('Agent Merge CI diagnostics', () => {
 			fetch: (input, init) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init),
 		}, new class extends mock<IAgentHostAuthenticationService>() {
 			override readonly onDidChangeAuthToken = Event.None;
-			override getAuthAccount() { return undefined; }
+			override getAuthAccountId() { return undefined; }
 			override getAuthToken() { return 'repository-token'; }
 		}(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return store.add(service.acquireRepositoryApiClient(new AbortController().signal));

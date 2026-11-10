@@ -2234,6 +2234,7 @@ suite('authenticateProtectedResources', () => {
 			resource: protectedResource.resource,
 			scopes: ['read'],
 			token: 'provider-token',
+			accountId: '["example-provider","account",null]',
 			_meta: authenticationAccountMeta({ providerId: 'example-provider', accountId: 'account' }),
 		}]);
 	});
@@ -2432,18 +2433,55 @@ suite('authenticateProtectedResources', () => {
 		});
 		const instantiation = createAuthInstantiationService(disposables, authentication);
 		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
-		const requests: { resource: string; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
+		const requests: { resource: string; accountId: string | undefined; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
 		await instantiation.invokeFunction(authenticateProtectedResources, agents, {
 			logPrefix: '[AgentHost]',
 			authenticate: async request => {
-				requests.push({ resource: request.resource, account: readAuthenticationAccount(request), metadata: request._meta });
+				requests.push({ resource: request.resource, accountId: request.accountId, account: readAuthenticationAccount(request), metadata: request._meta });
 			},
 		});
 		assert.deepStrictEqual(requests, [{
 			resource: resource.resource,
+			accountId: '["provider","provider-account",null]',
 			account: { providerId: 'provider', accountId: 'provider-account' },
 			metadata: { 'vscode.authentication.account': { providerId: 'provider', accountId: 'provider-account' } },
 		}]);
+	});
+
+	test('account hints survive renewal and distinguish account, provider, and issuer changes', async () => {
+		let providerId = 'provider';
+		let session: AuthenticationSession = {
+			id: 'session', scopes: ['read'], accessToken: 'token',
+			account: { id: 'account', label: 'Private label' },
+		};
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => providerId,
+			getSessions: async () => [session],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [protectedResource]; }()];
+		const accountIds: (string | undefined)[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { accountIds.push(request.accountId); },
+		};
+		const forward = () => instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		await forward();
+		session = { ...session, id: 'renewed-session', accessToken: 'renewed-token', expiresAfter: 60_000, scopes: ['read', 'write'], account: { ...session.account, label: 'Changed label' } };
+		await forward();
+		session = { ...session, account: { ...session.account, id: 'other-account' } };
+		await forward();
+		providerId = 'other-provider';
+		await forward();
+		session = { ...session, authorizationServer: URI.parse('https://other-issuer.example/') };
+		await forward();
+		assert.deepStrictEqual(accountIds, [
+			'["provider","account",null]',
+			'["provider","account",null]',
+			'["provider","other-account",null]',
+			'["other-provider","other-account",null]',
+			'["other-provider","other-account","https://other-issuer.example/"]',
+		]);
 	});
 
 	for (const enabled of [undefined, false, true]) {
@@ -3154,6 +3192,7 @@ suite('resolveAuthenticationInteractively', () => {
 			commandCalls: 0,
 			requests: [{
 				resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token',
+				accountId: '["provider-1","account-1",null]',
 				_meta: authenticationAccountMeta({ providerId: 'provider-1', accountId: 'account-1' }),
 			}],
 		});

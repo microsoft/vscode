@@ -64,6 +64,12 @@ The [credential broker](../../workbench/services/github/browser/githubCredential
 
 Anonymous clients expose only content reads, `gist.get`, and `search.issues`. They omit authorization, cookies, and referrers, and cannot perform mutations or GraphQL operations. Internal bootstrap clients are reserved for trusted host authentication flows; checking a supplied credential does not make it an accepted host credential.
 
+### Agent Host account-selection hints
+
+The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, unverified client-local selection hint. The protocol boundary scopes it to the originating client, protected resource, and optional target; the GitHub credential service still resolves the token's identity with `GET /user`. Stable hints preserve renewal cooldowns, while a changed selection can be verified without inheriting another selection's bootstrap wait. Neither a changed hint nor token rotation clears a verified account's cooldown or establishes authorization or cross-client credential equivalence.
+
+During migration, VS Code sends its provider/account/authorization-server tuple in the standard field and also retains `_meta['vscode.authentication.account']` for older hosts. New hosts prefer the standard hint and normalize the private metadata only when the standard field is absent. Clients without either hint retain legacy authentication and renewal behavior. Remove the private writer only after supported hosts understand the standard field, and retain the legacy reader while older clients remain supported; general `_meta` support is unaffected.
+
 ## Typed domains
 
 The [account interface](common/account/account.ts) is the authoritative list of available domains.

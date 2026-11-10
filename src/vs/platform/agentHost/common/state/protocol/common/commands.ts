@@ -1392,6 +1392,16 @@ export interface AuthenticateParams extends BaseParams {
 	 * satisfy every matching pending challenge. Older hosts ignore this field.
 	 */
 	target?: AuthenticateTarget;
+	/**
+	 * Opaque client-local account-selection hint scoped to the originating client,
+	 * `resource`, and optional `target`; stable across token renewals and distinct
+	 * across account, provider, or authorization-server changes.
+	 * This is unverified provenance, never authorization or cross-client identity;
+	 * see {@link /specification/authentication#account-selection-hints | Account selection hints}.
+	 *
+	 * @minLength 1
+	 */
+	accountId?: string;
 }
 
 /**

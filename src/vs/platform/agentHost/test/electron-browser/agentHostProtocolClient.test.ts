@@ -8843,9 +8843,11 @@ suite('AgentHostProtocolClient', () => {
 				result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 5 } },
 			});
 			const accountMeta = authenticationAccountMeta({ providerId: 'github', accountId: 'account' });
-			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, _meta: accountMeta });
+			const accountId = '["github","account",null]';
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, accountId, _meta: accountMeta });
 			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
-			assert.deepStrictEqual((initialAuthenticate.params as AuthenticateParams)._meta, accountMeta);
+			const initialParams = initialAuthenticate.params as AuthenticateParams;
+			assert.deepStrictEqual({ accountId: initialParams.accountId, _meta: initialParams._meta }, { accountId, _meta: accountMeta });
 			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
 			await authentication;
 			await flushMicrotasks();
@@ -8885,7 +8887,8 @@ suite('AgentHostProtocolClient', () => {
 			});
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
-			assert.deepStrictEqual((restoredAuthenticate.params as AuthenticateParams)._meta, accountMeta);
+			const restoredParams = restoredAuthenticate.params as AuthenticateParams;
+			assert.deepStrictEqual({ accountId: restoredParams.accountId, _meta: restoredParams._meta }, { accountId, _meta: accountMeta });
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');

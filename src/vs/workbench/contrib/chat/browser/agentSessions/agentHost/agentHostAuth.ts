@@ -15,7 +15,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -564,6 +564,7 @@ export interface IAgentHostAuthenticateRequest {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	readonly accountId?: string;
 	readonly _meta?: Record<string, unknown>;
 }
 
@@ -644,7 +645,7 @@ async function forwardAuthenticationToken(
 		...(options.target ? { target: options.target } : {}),
 	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target);
 	}
 	await options.authenticate(request);
 	return true;
@@ -668,6 +669,7 @@ function toAuthenticateRequest(
 		scopes,
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
+		...(account ? { accountId: authenticationAccountId(account) } : {}),
 		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
 	};
 }

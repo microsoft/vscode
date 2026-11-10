@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
+import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount, readAuthenticationAccountId } from '../../common/meta/agentAuthenticationAccount.js';
 
 suite('Agent authentication account metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,6 +29,23 @@ suite('Agent authentication account metadata', () => {
 	test('rejects malformed optional metadata', () => {
 		const values = [undefined, null, [], 'account', {}, { providerId: '', accountId: 'a' }, { providerId: 'github', accountId: 101 }, { providerId: 'github', accountId: 'a', authorizationServer: 42 }];
 		assert.deepStrictEqual(values.map(value => readAuthenticationAccount({ _meta: { 'vscode.authentication.account': value } })), values.map(() => undefined));
+	});
+
+	test('prefers the opaque standard hint and only falls back when it is absent', () => {
+		const _meta = authenticationAccountMeta({ providerId: 'github', accountId: 'legacy' });
+		assert.deepStrictEqual([
+			readAuthenticationAccountId({ accountId: 'opaque-selection' }),
+			readAuthenticationAccountId({ accountId: 'opaque-selection', _meta }),
+			readAuthenticationAccountId({ _meta }),
+			readAuthenticationAccountId({}),
+			...['', null, 42, [], {}].map(accountId => readAuthenticationAccountId({ accountId, _meta })),
+		], [
+			'opaque-selection',
+			'opaque-selection',
+			'["github","legacy",null]',
+			undefined,
+			undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('account keys isolate providers and issuers while ignoring token renewal', () => {

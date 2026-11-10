@@ -142,7 +142,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 	function createLookupService(fetch: RequestFetch) {
 		const authentication = new class extends mock<IAgentHostAuthenticationService>() {
 			override readonly onDidChangeAuthToken = Event.None;
-			override getAuthAccount() { return undefined; }
+			override getAuthAccountId() { return undefined; }
 			override getAuthToken() { return 'repository-token'; }
 		}();
 		const service = disposables.add(new AgentHostGitHubService({
@@ -304,7 +304,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			let accountId = 'first-account';
 			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
 				override readonly onDidChangeAuthToken = changed.event;
-				override getAuthAccount() { return { providerId: 'github', accountId }; }
+				override getAuthAccountId() { return accountId; }
 				override getAuthToken() { return token; }
 			}();
 			const requests: string[] = [];

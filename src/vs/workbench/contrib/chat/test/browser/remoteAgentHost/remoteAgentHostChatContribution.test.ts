@@ -233,7 +233,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		});
 		await context.authenticationSent;
 		assert.deepStrictEqual({ sent: context.sent, errors: context.errors }, {
-			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', _meta: authenticationAccountMeta({ providerId: 'docs-provider', accountId: 'account' }) }],
+			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', accountId: '["docs-provider","account",null]', _meta: authenticationAccountMeta({ providerId: 'docs-provider', accountId: 'account' }) }],
 			errors: [],
 		});
 	});

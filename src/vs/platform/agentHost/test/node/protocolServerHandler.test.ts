@@ -30,6 +30,7 @@ import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessi
 import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
+import { authenticationAccountId, authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
@@ -12056,6 +12057,43 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
 		assert.deepStrictEqual(resp.result, {});
+	});
+
+	test('authenticate scopes account hints to the client, resource, and canonical target', async () => {
+		const first = connectClient('first-client');
+		const second = connectClient('second-client');
+		const resource = 'https://other-host.example/protected-resource';
+		const account = { providerId: 'provider', accountId: 'selection', authorizationServer: 'https://issuer.example' };
+		const accountId = authenticationAccountId(account);
+		const _meta = { ...authenticationAccountMeta(account), 'example.other': true };
+		const forwarded: { accountId: string | undefined; _meta: Record<string, unknown> | undefined }[] = [];
+		agentService.authenticate = async params => {
+			forwarded.push({ accountId: params.accountId, _meta: params._meta });
+			return { authenticated: true };
+		};
+		const target = { kind: 'mcpServer', session: 'other-session:/opaque', customizationId: 'mcp-1' };
+		for (const [transport, params] of [
+			[first, { resource, _meta }],
+			[first, { resource, accountId, _meta }],
+			[second, { resource, accountId }],
+			[first, { resource: `${resource}/other`, accountId }],
+			[first, { resource, accountId, target }],
+			[first, { resource, accountId, target: { customizationId: target.customizationId, session: target.session, kind: target.kind } }],
+			[first, { resource, accountId, target: { ...target, customizationId: 'mcp-2' } }],
+		] as const) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'authenticate', { ...params, token: 'test-token' }));
+			await response;
+		}
+		assert.deepStrictEqual(forwarded, [
+			{ accountId: JSON.stringify(['first-client', resource, null, accountId]), _meta },
+			{ accountId: JSON.stringify(['first-client', resource, null, accountId]), _meta },
+			{ accountId: JSON.stringify(['second-client', resource, null, accountId]), _meta: undefined },
+			{ accountId: JSON.stringify(['first-client', `${resource}/other`, null, accountId]), _meta: undefined },
+			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-1'], accountId]), _meta: undefined },
+			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-1'], accountId]), _meta: undefined },
+			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-2'], accountId]), _meta: undefined },
+		]);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {

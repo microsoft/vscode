@@ -95,6 +95,7 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		assert.deepStrictEqual({ requests, ongoing }, {
 			requests: [{
 				resource: resource.resource, scopes: ['read'], token: session.accessToken, expiresIn: 2,
+				accountId: '["test","account","https://example.com/"]',
 				_meta: authenticationAccountMeta({ providerId: 'test', accountId: 'account', authorizationServer: 'https://example.com/' }),
 			}],
 			ongoing: requests,
