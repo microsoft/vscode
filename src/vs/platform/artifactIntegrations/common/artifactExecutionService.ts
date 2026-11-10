@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactAction, ArtifactActor, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactJsonValue, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactItemActionInput, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { artifactActionConsent, artifactOptionConsent } from './artifactAutomationConfiguration.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { isArtifactJsonValue } from './artifactIntegrationValidation.js';
@@ -118,21 +118,27 @@ export class ArtifactExecutionService extends Disposable {
 		}
 	}
 
-	async invoke(bindingId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }): Promise<ArtifactRun> {
+	async invoke(bindingId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }, input?: ArtifactJsonValue): Promise<ArtifactRun> {
 		if (!chat.trim() || !requestId.trim()) {
 			throw new Error('An invoking chat and request ID are required');
+		}
+		if (input !== undefined && !isArtifactJsonValue(input)) {
+			throw new Error('Invalid artifact action input');
 		}
 		const binding = this.requireBinding(bindingId);
 		const run = await this.ledger.transact(state => {
 			const existing = state.runs.find(run => run.bindingId === bindingId && run.source === 'manual' && run.requestId === requestId);
 			if (existing) {
-				if (existing.actionId !== actionId || existing.chat !== chat) {
+				if (existing.actionId !== actionId || existing.chat !== chat || !structuralEquals(existing.input, input)) {
 					throw new Error('Artifact action request ID was reused with different arguments');
 				}
 				return existing;
 			}
 			const action = this.requireAction(binding, actionId, true, chat);
-			const run: ArtifactRun = { ...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor };
+			const run: ArtifactRun = {
+				...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor,
+				...input === undefined ? {} : { input: deepClone(input) },
+			};
 			state.runs.push(run);
 			return run;
 		});
@@ -332,7 +338,7 @@ export class ArtifactExecutionService extends Disposable {
 				if (!prepared.value.text.trim()) {
 					throw new Error('An artifact action prepared an empty prompt');
 				}
-				await this.updateRun(runId, { prompt: prepared.value, presentation: this.capturePresentation(binding, action, run) });
+				await this.updateRun(runId, { prompt: { text: prepared.value.text }, presentation: this.capturePresentation(binding, action, run, prepared.value.details) });
 				if (chatObservation?.state.get().busy) {
 					await this.updateRun(runId, { state: 'queued' });
 					return;
@@ -368,7 +374,8 @@ export class ArtifactExecutionService extends Disposable {
 		} catch (error) {
 			run = this.getRun(runId);
 			if (!isArtifactRunSettled(run) && this.runtime.isOwner()) {
-				await this.updateRun(runId, { state: run.dispatched ? 'interrupted' : 'failed', indeterminate: run.dispatched, reason: toErrorMessage(error) });
+				const uncertain = run.dispatched && !(error instanceof ArtifactActionRejectedError);
+				await this.updateRun(runId, { state: uncertain ? 'interrupted' : 'failed', indeterminate: uncertain, reason: toErrorMessage(error) });
 			}
 			this.logService.error('[ArtifactIntegrations] Action failed', error);
 		} finally {
@@ -660,8 +667,40 @@ export class ArtifactExecutionService extends Disposable {
 		return { session: binding.session, chat: run.chat, requestId: run.id, prompt: run.prompt, presentation: run.presentation, initiator: getArtifactRunInitiator(run) };
 	}
 
-	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): ArtifactRequestPresentation {
+	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun, promptDetails: readonly ArtifactDetails[] | undefined): ArtifactRequestPresentation {
 		const view = binding.presentation.get();
+		const item = this.captureItem(binding, action, run);
+		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : item ? item.details : this.captureLinkedDetails(binding, action, view);
+		return {
+			version: 1,
+			integrationLabel: binding.integrationLabel,
+			source: run.source,
+			action: item?.action ?? { label: action.label, iconId: action.iconId },
+			artifact: {
+				resource: binding.artifact.resource,
+				label: view.main?.label ?? binding.artifact.label,
+				description: view.main?.description,
+				icon: view.main?.icon ? { ...view.main.icon } : undefined,
+			},
+			details,
+		};
+	}
+
+	private capturePromptDetails(action: ArtifactAction, promptDetails: readonly ArtifactDetails[]): ArtifactDetails[] {
+		return promptDetails.map(snapshot => {
+			if (isArtifactDetails(snapshot)) {
+				return deepClone({ ...snapshot, links: [] });
+			}
+			this.logService.error('[ArtifactIntegrations] The integration supplied invalid artifact prompt details');
+			return {
+				title: action.label,
+				availability: { kind: 'error', reason: localize('artifactInvalidPromptDetails', "The integration supplied invalid details for this action.") },
+				links: [], items: [], completeness: 'partial',
+			};
+		});
+	}
+
+	private captureLinkedDetails(binding: IArtifactExecutionBinding, action: ArtifactAction, view: ArtifactContributionView): ArtifactDetails[] {
 		const details: ArtifactDetails[] = [];
 		const summaries = [...view.main ? [view.main] : [], ...view.sections];
 		const parts = new Map([...summaries, ...(view.lists ?? []).filter(list => !summaries.some(part => part.detailsId === list.detailsId)).map(list => ({ ...list, description: undefined }))].map(part => [part.detailsId, part]));
@@ -688,19 +727,47 @@ export class ArtifactExecutionService extends Disposable {
 				});
 			}
 		}
-		return {
-			version: 1,
-			integrationLabel: binding.integrationLabel,
-			source: run.source,
-			action: { label: action.label, iconId: action.iconId },
-			artifact: {
-				resource: binding.artifact.resource,
-				label: view.main?.label ?? binding.artifact.label,
-				description: view.main?.description,
-				icon: view.main?.icon ? { ...view.main.icon } : undefined,
-			},
-			details,
-		};
+		return details;
+	}
+
+	/**
+	 * A run an item action started for one details item, such as fixing one of several reported issues, is presented
+	 * as that item action on that item alone, rather than as the artifact action on every item it could apply to. When
+	 * the details no longer list the item, the request names the item action without any details.
+	 */
+	private captureItem(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): { readonly action: ArtifactRequestPresentation['action']; readonly details: readonly ArtifactDetails[] } | undefined {
+		const input = run.input;
+		if (!isArtifactItemActionInput(input)) {
+			return undefined;
+		}
+		try {
+			const model = binding.provider.acquireDetails(input.detailsId);
+			try {
+				const snapshot = model.details.get();
+				if (!isArtifactDetails(snapshot)) {
+					return undefined;
+				}
+				const item = snapshot.items.find(candidate => candidate.id === input.itemId);
+				const itemAction = snapshot.itemActions?.find(candidate => candidate.actionId === action.id && (!item || item.actions?.includes(candidate.id)));
+				if (!itemAction) {
+					return undefined;
+				}
+				const presentedAction = { label: itemAction.label, iconId: itemAction.iconId };
+				if (!item) {
+					return { action: presentedAction, details: [] };
+				}
+				const { actions: _, ...presented } = item;
+				return {
+					action: presentedAction,
+					details: [deepClone({ title: snapshot.title, availability: snapshot.availability, links: [], items: [presented], completeness: 'complete' })],
+				};
+			} finally {
+				model.dispose();
+			}
+		} catch (error) {
+			this.logService.error('[ArtifactIntegrations] Could not capture the item an action runs for', error);
+			return undefined;
+		}
 	}
 
 	private context(binding: IArtifactExecutionBinding, run: ArtifactRun): IArtifactActionContext {

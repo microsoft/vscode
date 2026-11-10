@@ -10,7 +10,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import '../../../../../editor/contrib/format/browser/formatActions.js';
-import { FOCUS_ACTIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { FOCUS_ACTIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import '../../browser/sessionsActions.js';
 
 suite('Sessions - Focus Active Session keybinding', () => {

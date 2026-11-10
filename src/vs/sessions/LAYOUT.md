@@ -16,7 +16,7 @@ breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
 `sessions.experimental.layoutScope` is an experimental window setting
-with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
+with modes `session-shared`, `chat-shared`, and `chat` (default). Both enabled modes
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
@@ -36,9 +36,10 @@ Startup phone windows retain the existing mobile behavior.
 Title bar
 Content
 ├── Sidebar
-└── Main region
-    ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
-    └── Panel
+├── Main region
+│   ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
+│   └── Panel
+└── Session Activity Bar column (desktop)
 ```
 
 The workbench omits the standard Activity Bar, Status Bar, and Banner. Part positions are fixed by the Agents Window rather than user settings.
@@ -52,6 +53,17 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Auxiliary Bar | Session details such as changes and files |
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
+| Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
+
+### Chat windows
+
+A chat window shows the Agents window's title bar as its first row, across the full width of the window from edge to edge, in every layout mode and whatever its parts show, at the main window's title bar height for the current density, including under a native OS title bar. The grid keeps the row's room as its first, pinned row inside the window's outer insets, which the cards and the strip keep; the title bar lies over that row across the whole window, so its window controls reach the window's corners as in the main window. It is created with the window's services, so its command center and session actions act on the window's active chat and its session; a session picked from its command center opens as a tab of that window. Main-window navigation (the sessions list toggle, Back/Forward, and New Session) and app-wide items (account and status, update, and remote connections) stay in the main window's title bar; the chat window's title bar adds the window's layout actions. The session header of a chat is in the chat's card, as in the main window, and hides while the chat shows only its input in Stacked mode.
+
+### Window canvases
+
+Built-in native canvases, including Inbox, open as singleton tabs in the Editor rather than replacing the Sessions Part with a custom view. Their definitions and live content belong to `IWindowCanvasService`, not to an agent, session, or chat. The existing Canvas menus expose both native window canvases and provider-owned browser canvases; provider canvases retain their existing ownership and permission model.
+
+Window-canvas content survives tab hiding and session working-set replacement. The service persists which registered canvases are open independently of session working sets, reopens them without taking focus after a working-set restore, and respects the layout's editor visibility. Explicitly closing a tab releases its content and removes it from restoration. Removing a definition (including disabling Inbox or hiding AI) closes its tab and prevents restoration. Inbox's existing session actions, embedded composers, accessibility help, and accessible view remain owned by Inbox.
 
 The Sessions Part contains its own nested two-dimensional split grid. Its leaves are not workbench editor groups, nor the chat groups inside an individual session.
 
@@ -73,11 +85,13 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 
 ## Sessions Part
 
-Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
+The Sessions Part is a frame with exchangeable content. The frame (`vs/workbench/browser/parts/sessions/sessionsPart.ts`) owns the card, its sizing, the progress bar and part visibility. The window names the kind of content it shows; the frame creates that content from `SessionsPartContentRegistry`, renders and lays it out, and disposes it with itself. The frame depends on no session model or chat code. The Agents Window registers its session grid (`SessionsGridContent` in `vs/workbench/contrib/sessions`) from `vs/sessions/browser/parts/sessionsPartContent.registration.ts`; another window registers its own content kind from its own registration module. The content, not the frame, owns the nested grid and binds its leaves to the panes it shows.
+
+Each pane of the grid has one Sessions-owned view. The view presents the chat its pane shows of the pane's session, the provider's session object, and scopes commands, menus, and context keys to that session.
 
 New-session views may opt into `preserveOnSessionCleared` to retain their composer when a draft is cleared to the empty slot. The host preserves that view's input, picker state, and focus rather than constructing a replacement that could restore an automatic workspace; other views keep the default replacement lifecycle.
 
-A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
+A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement as a detached pane of the grid (`ISessionGridPane` of kind `Detached`), which shows that chat of the provider's session object, with unchanged session identity and provider ownership; the parent's slot excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
 
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 
@@ -92,7 +106,7 @@ In the side-by-side single-chat presentation, pinning a chat header keeps that c
 
 The Sessions Part renders that model. It does not create a second active-session store. Stable slot identities belong to the visible-session model; ordinary replacement transfers the slot to the new session. Retained sessions keep their views and live chat widgets across movement, reordering, and arrangement changes.
 
-Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
+Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part's session grid content owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
 
 The Sessions grid commits leaf container geometry before laying out their descendants through `ISessionGridView`. Explicit layout, structural changes, and presentation transitions finish both phases synchronously, before restoring focus. Allocations delivered directly by the shared grid during a sash gesture share one cancellable animation-frame flush owned by the Sessions grid; they use the latest dimensions and never wait for the gesture to end. Removed views cannot receive pending layout work.
 
@@ -132,7 +146,23 @@ Session providers register internal per-session directories as resource label ho
 
 A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 
+Inbox projects constituent notifications into exclusive session workflow tabs. Hold and occurrence-scoped Done state belong to Inbox, not the provider runtime or the session's archived state. Selecting a row previews evidence without marking the session read. Opening the full session clears completion notifications through the existing read state, but outstanding questions, approvals, CI failures, and review requests remain independent.
+
+Inbox owns one composer region anchored outside its list and evidence scroll areas. It retains the existing new-session and input-only chat views, showing only the one matching the selected conversation or new-session mode. Selection does not change the active Sessions grid. Closing evidence, New Session, or the selected row leaving its workflow tab resets the composer to new-session mode; completion of an older action cannot clear a newer selection. Questions and confirmations belong to evidence, not the collapsed rows or a second composer.
+
+Inbox evidence is scoped to the selected row's exact conversation, independently of the active Sessions grid. Its recorded artifacts retain conversation provenance; command and image-tool results belong to the notification's pending request, or the latest request for other notifications. Visible rows request cached AI action titles while retaining the actual session title separately. The selected row can show a richer Agent interpretation, with empty sections and fallback placeholders hidden. Interpretation may summarize relevant recorded command results and cite their output sources, but raw terminal output remains in the terminal or chat response. Changed files remain in the Changes view rather than the evidence pane. Model interpretation is separate from recorded evidence and is not independent verification. An explicitly selected extension canvas uses the existing canvas definitions and provider operations, but owns a disposable desktop-native presentation rather than borrowing an editor's model or changing the active session. Hiding or disposing that presentation does not close the provider's canvas. Canvas editors do not auto-reveal while Inbox covers the Sessions grid.
+
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
+
+Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers bind to the model's pending draft and prepare it with `preserveCustomView`, retaining workspace trust checks without changing the hidden Sessions grid or navigation. Opening or restoring Inbox does not cancel startup restoration; only an explicit New Session action may cancel it. Workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
+
+Content-sized composer hosts measure and observe `AbstractChatView.inputContentElement` rather than querying the hosted widget's DOM structure. The element remains owned by the view and must not be reparented. Input-only chat views retain the editor's intrinsic height limit instead of deriving it from the host's previous content height; full conversation and standalone New Session layouts are unchanged.
+
+Back and Forward history records each opening of a custom view. A view that shows one of several items, such as the pinned canvas page, names the item as the opening's `state`; history reopens the view with that state. Through `acceptsState`, the view declines states it can no longer show, which history then skips.
+
+## Session-scoped actions
+
+UI acts on the session and chat of the session host it is in (see [Session hosts](SESSIONS.md#session-hosts)). A window, pane, or Changes view of its own provides its host through a child instantiation service, and the Changes view and the title bar session actions read their session from it. Each host binds the session action context keys on its own scoped context key service (`bindSessionActionContextKeys`). Session action commands resolve their target with `resolveSessionCommandTarget`: the session or host their menu passes, else the focused host for keybindings and the Command Palette.
 
 ## Part lifecycle
 

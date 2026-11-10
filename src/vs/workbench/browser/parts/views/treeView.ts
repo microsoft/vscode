@@ -794,6 +794,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				this._onDidExpandItem.fire(element);
 			}
 		}));
+		// The view may have been laid out before the tree was created (e.g. a view that
+		// starts collapsed and is expanded later), so apply the last known dimensions.
+		this.layout(this._height, this._width);
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
 		this.treeDisposables.add(this.tree.onDidOpen(async (e) => {

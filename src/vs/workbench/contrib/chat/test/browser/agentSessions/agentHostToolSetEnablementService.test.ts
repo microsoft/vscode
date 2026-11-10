@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { autorun } from '../../../../../../base/common/observable.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostToolSetEnablementService, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, getToolSetTriState, isCopilotCliSessionType, isToolEnabledInSet } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { COPILOT_CLI_BUILTIN_TOOL_SET_ID, getCopilotCliBuiltinToolSet, getCustomizationToolSets } from '../../../browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { createTestProfile, createTestProfileService, SharedApplicationStorageDatabase, TestWindowStorageService } from '../../common/testSharedApplicationStorage.js';
 
@@ -88,6 +89,16 @@ suite('AgentHostToolSetEnablementService', () => {
 			{ id: 'dep', deprecated: true, getTools: () => [{ id: 'x' }] },
 		];
 		assert.strictEqual(countEnabledCustomizationTools(toolSets, sut.getState(SESSION)), 1);
+	});
+
+	test('customization tool sets include the read-only Copilot built-ins in the enabled count', () => {
+		const { sut } = createSut();
+		sut.setToolSetEnabled(SESSION, SET, TOOLS, false);
+		const copilotToolCount = [...getCopilotCliBuiltinToolSet().getTools()].length;
+		const toolSets = getCustomizationToolSets([{ id: SET, getTools: () => TOOLS.map(id => ({ id })) }]);
+		assert.deepStrictEqual(
+			{ ids: toolSets.map(ts => ts.id), count: countEnabledCustomizationTools(toolSets, sut.getState(SESSION)) },
+			{ ids: [SET, COPILOT_CLI_BUILTIN_TOOL_SET_ID], count: copilotToolCount });
 	});
 
 	test('enablement is isolated per session type', () => {

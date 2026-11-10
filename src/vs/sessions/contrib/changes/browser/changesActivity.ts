@@ -30,15 +30,16 @@ import { diffStatsEqual, IDiffStats } from '../../../../workbench/contrib/chat/b
 import { IconBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionActivityBarActionViewItem } from '../../../browser/parts/sessionActivityBar.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ISessionActivityBarActivityService } from '../../../services/activity/common/sessionActivityBarActivityService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../chat/browser/sessionChatInputToolbar.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionActivityBarActionViewItem } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionActivityBarActivityService } from '../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
+import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../editor/browser/addTabActions.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 
 /** How many chats' seen changes are remembered; the least recently seen entry is evicted beyond this. */
 export const MAX_SEEN_CHANGES_CHATS = 200;
@@ -174,7 +175,7 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@IEditorService editorService: IEditorService,
@@ -195,8 +196,8 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 		const mainSidePaneVisible = observableFromEvent(this, Event.any<unknown>(layoutService.onDidChangePartVisibility, layoutService.onDidToggleSidePane), () => layoutService.isSidePaneVisible());
 
 		const active = derived(this, reader => {
-			const session = sessionsService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
+			const chat = focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
 			return session && chat ? { session, chat } : undefined;
 		});
 
@@ -212,9 +213,12 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The main window's Changes tab stays a visible editor while the side pane is closed, and can show just its file list in the auxiliary bar while the editor part is hidden.
-			const isViewing = visibleEditorPanes.read(reader).some(pane =>
-				!!pane.input.resource && isEqual(sessionChangesService.getSessionResource(pane.input.resource), value.session.resource)
-				&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader)));
+			// A pane's input is briefly undefined while its editor input is being swapped.
+			const isViewing = visibleEditorPanes.read(reader).some(pane => {
+				const resource = pane.input?.resource;
+				return !!resource && isEqual(sessionChangesService.getSessionResource(resource), value.session.resource)
+					&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader));
+			});
 			return { chat: value.chat.resource.toString(), stats, isViewing };
 		});
 

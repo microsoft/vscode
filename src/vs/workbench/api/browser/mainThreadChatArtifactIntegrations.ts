@@ -12,11 +12,11 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { autorun, derived, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactDetails, ArtifactRun, getArtifactRunInitiator, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegrationBinding } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactDetails, ArtifactRun, getArtifactRunInitiator, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegrationBinding } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IArtifactIntegrationRegistry } from '../../../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { isArtifactIntegrationDescription, isArtifactIntegrationLabel, parseArtifactJsonValue } from '../../../platform/artifactIntegrations/common/artifactIntegrationValidation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ChatArtifactActionContextDto, ChatArtifactActionDto, ChatArtifactAutomationRequestDto, ChatArtifactAutomationSnapshotDto, ChatArtifactIntegrationStateDto, ChatArtifactRunDto, ExtHostChatArtifactIntegrationsShape, ExtHostContext, MainContext, MainThreadChatArtifactIntegrationsShape } from '../common/extHost.protocol.js';
+import { ChatArtifactActionContextDto, ChatArtifactActionDto, ChatArtifactAutomationRequestDto, ChatArtifactAutomationSnapshotDto, ChatArtifactIntegrationProviderMetadataDto, ChatArtifactIntegrationStateDto, ChatArtifactRunDto, ExtHostChatArtifactIntegrationsShape, ExtHostContext, MainContext, MainThreadChatArtifactIntegrationsShape } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatArtifactIntegrations)
@@ -40,11 +40,13 @@ export class MainThreadChatArtifactIntegrations extends Disposable implements Ma
 		this.proxy = context.getProxy(ExtHostContext.ExtHostChatArtifactIntegrations);
 	}
 
-	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void {
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void {
+		const { label, description, groupLabel, automationOptions: options, canSignIn } = metadata;
 		if (this.providers.has(handle)) {
 			throw new Error('Duplicate artifact integration provider handle');
 		}
-		if (!isArtifactIntegrationLabel(label) || (description !== undefined && !isArtifactIntegrationDescription(description))) {
+		if (!isArtifactIntegrationLabel(label) || (description !== undefined && !isArtifactIntegrationDescription(description))
+			|| (groupLabel !== undefined && !isArtifactIntegrationLabel(groupLabel))) {
 			throw new Error('Invalid artifact integration provider label or description');
 		}
 		const store = new DisposableStore();
@@ -54,7 +56,7 @@ export class MainThreadChatArtifactIntegrations extends Disposable implements Ma
 		store.add(toDisposable(() => this.providerChanges.delete(handle)));
 		try {
 			store.add(this.registry.register({
-				id, label, ...(description ? { description } : {}), automationOptions: options, onDidChange: changes.event,
+				id, label, ...(description ? { description } : {}), ...(groupLabel ? { groupLabel } : {}), automationOptions: options, onDidChange: changes.event,
 				match: async (resource, token) => {
 					const result = await this.proxy.$match(handle, resource, token);
 					if (result?.kind === 'authenticationRequired') {
@@ -80,9 +82,9 @@ export class MainThreadChatArtifactIntegrations extends Disposable implements Ma
 				} : {}),
 				createResource: async (match, _context, token) => {
 					const resourceHandle = this.nextResourceHandle++;
-					const resource = new ExtensionArtifactResource(this.proxy, resourceHandle, (detailsId, canLoadMore, owner) => {
+					const resource = new ExtensionArtifactResource(this.proxy, resourceHandle, (detailsId, canLoadMore, initial, received, owner) => {
 						const detailsHandle = this.nextDetailsHandle++;
-						const details = new ExtensionArtifactDetails(this.proxy, resourceHandle, detailsHandle, detailsId, canLoadMore, () => {
+						const details = new ExtensionArtifactDetails(this.proxy, resourceHandle, detailsHandle, detailsId, canLoadMore, initial, received, () => {
 							this.details.deleteAndLeak(detailsHandle);
 							owner.deleteAndLeak(detailsHandle);
 						});
@@ -261,12 +263,14 @@ class ExtensionArtifactResource extends Disposable {
 	});
 	private readonly details = this._register(new DisposableMap<number, ExtensionArtifactDetails>());
 	private initialDetails: Readonly<Record<string, { readonly details: ArtifactDetails; readonly canLoadMore: boolean }>> = {};
+	/** The details the extension last sent for each details ID, to any of this resource's details models. */
+	private readonly latestDetails = new Map<string, ArtifactDetails>();
 	private actions: readonly ChatArtifactActionDto[] = [];
 
 	constructor(
 		private readonly proxy: ExtHostChatArtifactIntegrationsShape,
 		readonly handle: number,
-		private readonly createDetails: (detailsId: string, canLoadMore: boolean, owner: DisposableMap<number, ExtensionArtifactDetails>) => ExtensionArtifactDetails,
+		private readonly createDetails: (detailsId: string, canLoadMore: boolean, initial: ArtifactDetails | undefined, received: (details: ArtifactDetails) => void, owner: DisposableMap<number, ExtensionArtifactDetails>) => ExtensionArtifactDetails,
 		release: () => void,
 	) {
 		super();
@@ -329,9 +333,10 @@ class ExtensionArtifactResource extends Disposable {
 					throw new Error(localize('extensionArtifactDetailsUnavailable', "The artifact details are no longer available."));
 				}
 				const initial = this.initialDetails[detailsId];
-				const details = this.createDetails(detailsId, initial?.canLoadMore ?? false, this.details);
-				details.accept(initial?.details);
-				return details;
+				// A new model shows the latest details until its own arrive, rather than those from when the resource was
+				// created, so a synchronous read, such as of the item an action runs for, sees items listed since.
+				return this.createDetails(detailsId, initial?.canLoadMore ?? false, this.latestDetails.get(detailsId) ?? initial?.details,
+					details => this.latestDetails.set(detailsId, details), this.details);
 			},
 			activateAutomation: context => activate(context, reason => error.set(reason, undefined)),
 			dispose: () => { },
@@ -357,16 +362,22 @@ class ExtensionArtifactDetails extends Disposable implements IArtifactDetailsMod
 		private readonly handle: number,
 		detailsId: string,
 		canLoadMore: boolean,
+		initial: ArtifactDetails | undefined,
+		/** Reports the details the extension sends for this model. */
+		private readonly received: (details: ArtifactDetails) => void,
 		release: () => void,
 	) {
 		super();
 		this.canLoadMore = canLoadMore;
 		this._register(toDisposable(release));
+		if (initial) {
+			this.value.set(initial, undefined);
+		}
 		void this.proxy.$acquireDetails(resourceHandle, handle, detailsId).then(result => {
 			if (!this._store.isDisposed) {
 				this.initialized = true;
 				this.canLoadMore = result.canLoadMore;
-				this.value.set(result.details, undefined);
+				this.accept(result.details);
 			}
 		}, error => {
 			if (!this._store.isDisposed) {
@@ -381,10 +392,18 @@ class ExtensionArtifactDetails extends Disposable implements IArtifactDetailsMod
 		});
 	}
 
-	accept(details: ArtifactDetails | undefined): void {
-		if (!this._store.isDisposed && details) {
+	accept(details: ArtifactDetails): void {
+		if (!this._store.isDisposed) {
 			this.value.set(details, undefined);
+			this.received(details);
 		}
+	}
+
+	async runItemAction(itemId: string, actionId: string, token: CancellationToken): Promise<void> {
+		if (!this.initialized) {
+			throw new Error(localize('extensionArtifactDetailsLoading', "Artifact details are still loading."));
+		}
+		await this.proxy.$runItemAction(this.handle, itemId, actionId, token);
 	}
 
 	get loadMore(): ((token: CancellationToken) => Promise<void>) | undefined {

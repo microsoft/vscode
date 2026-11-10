@@ -48,6 +48,7 @@ import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../nod
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { TestSessionDatabase, createNoopChangesetService, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -2138,6 +2139,33 @@ suite('AgentHostGitStateService', () => {
 			});
 		});
 	});
+
+	for (const autoAttachPullRequests of [false, true]) {
+		test(`returns a pull request lookup GitHub refused for single sign-on, with its authorization page (${autoAttachPullRequests ? 'automatic' : 'restricted'} association)`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const gitState: ISessionGitState = { branchName: 'local/pr-2', baseBranchName: 'main' };
+				const ssoAuthorizationUrl = 'https://github.com/orgs/microsoft/sso?authorization_request=abc';
+				const refusal = new GitHubRequestError('GitHub API request failed: GET repos/microsoft/vscode/pulls - 403 Forbidden - Resource protected by organization SAML enforcement.', 'authorization', 403, undefined, undefined, 'Forbidden', { ssoAuthorizationUrl });
+				const h = createHarness({
+					autoAttachPullRequests,
+					query: new class extends mock<IPullRequestsClient>() {
+						override async list(): Promise<never> { throw refusal; }
+					}(),
+				});
+				seedSession(h.stateManager, {
+					workingDirectory: WORKING_DIRECTORY,
+					gitState,
+					gitHubState: { owner: 'microsoft', repo: 'vscode' },
+					artifacts: [pullRequestArtifact(2)],
+				});
+				h.setGitResult(gitState);
+
+				assert.deepStrictEqual(await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY)), {
+					kind: 'authorization', message: refusal.message, ssoAuthorizationUrl,
+				});
+			});
+		});
+	}
 
 	test('reconciles an existing automatically discovered PR when the setting is disabled', async () => {
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };

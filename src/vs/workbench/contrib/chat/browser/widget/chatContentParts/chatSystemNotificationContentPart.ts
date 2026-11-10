@@ -38,6 +38,11 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 	readonly domNode: HTMLElement;
 	readonly inlineTimingContainer: HTMLElement | undefined;
 
+	/** Whether the notification stays out of the completed-steps disclosure. */
+	get keepVisible(): boolean {
+		return !!this.notification.alwaysVisible;
+	}
+
 	constructor(
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,

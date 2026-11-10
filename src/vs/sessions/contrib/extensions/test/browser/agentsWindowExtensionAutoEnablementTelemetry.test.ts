@@ -35,6 +35,8 @@ interface ITestExtension {
 	readonly contributes: Record<string, unknown>;
 	readonly enablementState: EnablementState;
 	readonly candidate?: boolean;
+	/** Whether the experiment lists the extension, to enable it automatically even when it isn't a candidate. */
+	readonly listed?: boolean;
 }
 
 function anExtension(options: ITestExtension): IExtension {
@@ -75,6 +77,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		const modelLanguageChanged = disposables.add(new Emitter<{ readonly model: ITextModel; readonly oldLanguageId: string }>());
 		const activated = new Map(context.activated);
 		const candidates = new Set(context.extensions.filter(extension => extension.candidate !== false).map(extension => extension.name));
+		const listed = new Set(context.extensions.filter(extension => extension.listed).map(extension => extension.name));
 		const tools = new Map(context.extensions.map(extension => [`${extension.name}.tool`, upcastPartial<IToolData>({
 			id: `${extension.name}.tool`,
 			source: { type: 'extension', label: extension.name, extensionId: new ExtensionIdentifier(`pub.${extension.name}`) },
@@ -87,6 +90,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 			},
 			new class extends mock<IExtensionManifestPropertiesService>() {
 				override canAutoEnableOnSessionsWindow(manifest: IExtensionManifest) { return candidates.has(manifest.name); }
+				override shouldAutoEnableOnSessionsWindow(manifest: IExtensionManifest) { return listed.has(manifest.name); }
 			},
 			new class extends mock<IExtensionService>() {
 				override readonly onDidChangeExtensionsStatus = statusChanged.event;
@@ -132,9 +136,10 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		const telemetry = createTelemetry({
 			extensions: [
 				{ name: 'auto', contributes: { languageModelTools: [{}], languages: [{ id: 'autoLanguage' }] }, enablementState: EnablementState.EnabledGlobally },
-				{ name: 'user', contributes: { grammars: [{ language: 'userLanguage' }] }, enablementState: EnablementState.EnabledWorkspace },
+				{ name: 'user', contributes: { chatSkills: [{}], grammars: [{ language: 'userLanguage' }] }, enablementState: EnablementState.EnabledWorkspace },
 				{ name: 'disabled', contributes: { languageModelTools: [{}] }, enablementState: EnablementState.DisabledWorkspace },
 				{ name: 'unrelated', contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledGlobally, candidate: false },
+				{ name: 'listed', contributes: { commands: [{}] }, enablementState: EnablementState.EnabledGlobally, candidate: false, listed: true },
 			],
 			// Used before the contribution started.
 			activated: new Map([['auto', 'onLanguageModelTool:auto.tool']]),
@@ -145,6 +150,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		telemetry.invokeTool('auto');
 		telemetry.invokeTool('disabled');
 		telemetry.invokeTool('unrelated');
+		telemetry.invokeTool('listed');
 		telemetry.openModel('autoLanguage');
 		telemetry.changeLanguage('userLanguage');
 		telemetry.activate('user', '*');
@@ -154,10 +160,12 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		assert.deepStrictEqual(telemetry.events, [
 			TRIGGER,
 			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.auto', enabledBy: 'automatic', suggestedContributions: 'languageModelTools' } },
-			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.user', enabledBy: 'user', suggestedContributions: 'grammars' } },
+			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.user', enabledBy: 'user', suggestedContributions: 'chatSkills' } },
+			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.listed', enabledBy: 'automatic', suggestedContributions: '' } },
 			used('pub.auto', 'automatic', 'activated', 'onLanguageModelTool'),
 			used('pub.user', 'user', 'languageUsed'),
 			used('pub.auto', 'automatic', 'toolInvoked'),
+			used('pub.listed', 'automatic', 'toolInvoked'),
 			used('pub.auto', 'automatic', 'languageUsed'),
 			used('pub.user', 'user', 'activated', '*'),
 		]);
@@ -169,6 +177,8 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 			treatment: { extensions: [{ name: 'tools', contributes: tools, enablementState: EnablementState.EnabledGlobally }] },
 			control: { extensions: [{ name: 'tools', contributes: tools, enablementState: EnablementState.DisabledWorkspace }] },
 			noCandidates: { extensions: [{ name: 'tools', contributes: tools, enablementState: EnablementState.DisabledWorkspace, candidate: false }] },
+			// Which extensions a treatment lists depends on the arm, so listing extensions doesn't trigger the experiment.
+			onlyListed: { extensions: [{ name: 'tools', contributes: tools, enablementState: EnablementState.EnabledGlobally, candidate: false, listed: true }] },
 			managementDisabled: { extensions: [{ name: 'tools', contributes: tools, enablementState: EnablementState.DisabledByEnvironment }], managementEnabled: false },
 		};
 
@@ -178,6 +188,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 				treatment: ['experimentTrigger', 'agentsWindowAutoEnableCandidateEnabled'],
 				control: ['experimentTrigger'],
 				noCandidates: [],
+				onlyListed: ['agentsWindowAutoEnableCandidateEnabled'],
 				managementDisabled: [],
 			},
 		);

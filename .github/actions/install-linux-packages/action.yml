@@ -1,0 +1,100 @@
+name: Install Linux packages
+description: Installs the apt packages of the Linux test jobs (packages.txt) from the .deb files that the linux-packages job of pr-workspace-images.yml caches on main for the image of the runner, or with apt-get when there are none or they cannot be installed. Expects the repository to be checked out.
+
+inputs:
+  save-cache:
+    description: When 'true', downloads the .deb files of the packages that the runner lacks, installs them to check them, and saves them, without restoring. Use on main, whose caches pull requests can read.
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # The packages that a runner lacks, and so the .deb files, depend on its image, so the key holds the
+    # image (ImageOS and ImageVersion, which GitHub-hosted runners set) and the list. Each run of the
+    # linux-packages job saves a new entry, and the jobs restore the newest one of their key.
+    - name: Prepare the apt packages cache key
+      id: prepare
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${ImageOS:-}" ] && [ -n "${ImageVersion:-}" ]; then
+          echo "key=apt-packages-v1-$ImageOS-$ImageVersion-$RUNNER_ARCH-$(sha256sum < "$GITHUB_ACTION_PATH/packages.txt" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+        else
+          echo "The runner doesn't name its image, so apt-get installs the packages"
+        fi
+
+    - name: Restore the apt packages cache
+      if: inputs.save-cache != 'true' && steps.prepare.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/apt-packages
+        key: ${{ steps.prepare.outputs.key }}
+        restore-keys: ${{ steps.prepare.outputs.key }}-
+
+    - name: Download the apt packages
+      if: inputs.save-cache == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "$KEY" ]; then
+          echo "The runner doesn't name its image" >&2
+          exit 1
+        fi
+        mapfile -t packages < <(grep -v '^[[:space:]]*$' "$GITHUB_ACTION_PATH/packages.txt")
+        dir="$RUNNER_TEMP/apt-packages"
+        rm -rf "$dir"
+        mkdir -p "$dir/partial"
+        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+        # Only the packages that the runner lacks, and their dependencies
+        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y --download-only -o "Dir::Cache::archives=$dir/" "${packages[@]}"
+        sudo rm -rf "$dir/partial" "$dir/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$dir"
+        echo "$KEY" > "$dir/key.txt"
+        ls -la "$dir"
+      env:
+        KEY: ${{ steps.prepare.outputs.key }}
+
+    # dpkg installs the cached .deb files without apt-get update. When there are none for the image of
+    # the runner, or dpkg fails, apt-get installs the packages as without a cache, and repairs what dpkg
+    # left. The linux-packages job fails instead, so that it doesn't save .deb files that don't install.
+    - name: Install the apt packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        mapfile -t packages < <(grep -v '^[[:space:]]*$' "$GITHUB_ACTION_PATH/packages.txt")
+        dir="$RUNNER_TEMP/apt-packages"
+        if [ -n "$KEY" ] && [ "$(cat "$dir/key.txt" 2>/dev/null)" = "$KEY" ]; then
+          shopt -s nullglob
+          debs=("$dir"/*.deb)
+          echo "Installing ${#debs[@]} .deb files of $KEY"
+          if { [ ${#debs[@]} -eq 0 ] || sudo DEBIAN_FRONTEND=noninteractive dpkg -i "${debs[@]}"; } && [ -z "$(dpkg --audit)" ]; then
+            if [ "$SAVE_CACHE" != 'true' ]; then
+              exit 0
+            fi
+            # apt-retry.sh doesn't fail, so the files could miss packages: apt-get must have none left to install
+            simulation="$(apt-get install --simulate "${packages[@]}")"
+            if grep -q '^0 upgraded, 0 newly installed,' <<< "$simulation"; then
+              exit 0
+            fi
+            echo "$simulation"
+          fi
+          if [ "$SAVE_CACHE" = 'true' ]; then
+            echo "The downloaded packages don't install" >&2
+            exit 1
+          fi
+          echo "::warning title=apt packages::The cached packages of $KEY don't install, so apt-get installs them"
+        else
+          echo "No cached packages for the image of the runner, so apt-get installs them"
+        fi
+        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y --fix-broken "${packages[@]}"
+      env:
+        KEY: ${{ steps.prepare.outputs.key }}
+        SAVE_CACHE: ${{ inputs.save-cache }}
+
+    - name: Save the apt packages cache
+      if: inputs.save-cache == 'true'
+      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ${{ runner.temp }}/apt-packages
+        key: ${{ steps.prepare.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}

@@ -589,6 +589,21 @@ impl<'a> ServerBuilder<'a> {
 		Ok(())
 	}
 
+	/// Runs one certificate operation without a server listener or persistent supervisor.
+	pub async fn run_agent_certificate(&self, operation: &str) -> Result<i32, AnyError> {
+		let mut cmd = self.get_base_command();
+		cmd.arg("--agent-host-ca").arg(operation);
+		if matches!(operation, "trust" | "remove") {
+			cmd.arg("--agent-host-ca-confirm");
+		}
+		cmd.stdin(std::process::Stdio::inherit());
+		cmd.kill_on_drop(true);
+		let child = cmd
+			.spawn()
+			.map_err(|e| wrap(e, "Failed to run certificate command"))?;
+		wait_for_certificate_command(child, tokio::signal::ctrl_c()).await
+	}
+
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
 		let requested_file = get_socket_name();
 		self.listen_on_socket(&requested_file).await
@@ -704,6 +719,34 @@ impl<'a> ServerBuilder<'a> {
 			.code_server_args
 			.apply_to_command(&mut cmd);
 		cmd
+	}
+}
+
+async fn wait_for_certificate_command(
+	mut child: Child,
+	interrupt: impl std::future::Future<Output = std::io::Result<()>>,
+) -> Result<i32, AnyError> {
+	tokio::select! {
+		status = child.wait() => {
+			Ok(status.map_err(|e| wrap(e, "Failed to wait for certificate command"))?.code().unwrap_or(1))
+		}
+		signal = interrupt => {
+			if let Some(pid) = child.id() {
+				#[cfg(windows)]
+				capture_command_and_check_status("taskkill", &["/f", "/t", "/pid", &pid.to_string()]).await?;
+				#[cfg(not(windows))]
+				kill_tree(pid).await?;
+			}
+			timeout(Duration::from_secs(10), child.wait())
+				.await
+				.map_err(|e| wrap(e, "Timed out stopping certificate command"))?
+				.map_err(|e| wrap(e, "Failed to stop certificate command"))?;
+			signal.map_err(|e| wrap(e, "Failed to listen for certificate command interruption"))?;
+			Err(wrap(
+				"Interrupted",
+				"Certificate command interrupted. OS trust may have changed. Check certificate status before retrying.",
+			).into())
+		}
 	}
 }
 
@@ -974,6 +1017,48 @@ async fn get_should_use_breakaway_from_job() -> bool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[tokio::test]
+	async fn agent_certificate_command_preserves_exit_code() {
+		let mut cmd =
+			crate::util::command::new_tokio_command(if cfg!(windows) { "cmd" } else { "sh" });
+		cmd.args(if cfg!(windows) {
+			["/c", "exit /b 3"]
+		} else {
+			["-c", "exit 3"]
+		});
+		cmd.kill_on_drop(true);
+		let result =
+			wait_for_certificate_command(cmd.spawn().unwrap(), std::future::pending()).await;
+		assert_eq!(result.unwrap(), 3);
+	}
+
+	#[tokio::test]
+	async fn agent_certificate_command_stops_on_interruption() {
+		let mut cmd =
+			crate::util::command::new_tokio_command(if cfg!(windows) { "cmd" } else { "sh" });
+		cmd.args(if cfg!(windows) {
+			["/c", "ping -n 60 127.0.0.1 >nul"]
+		} else {
+			["-c", "sleep 60"]
+		});
+		cmd.kill_on_drop(true);
+		let child = cmd.spawn().unwrap();
+		let pid = child.id().unwrap();
+		let result = wait_for_certificate_command(child, async {
+			tokio::time::sleep(Duration::from_millis(200)).await;
+			Ok(())
+		})
+		.await;
+		let error = result.unwrap_err();
+		assert!(
+			error
+				.to_string()
+				.contains("Certificate command interrupted"),
+			"{error}"
+		);
+		assert!(!process_exists(pid));
+	}
 
 	#[test]
 	fn agent_host_bridge_connection_token_is_only_in_command_environment() {

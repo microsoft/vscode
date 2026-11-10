@@ -163,7 +163,7 @@ suite('ChatSessionArchiveNudge', () => {
 			mergeIcon: true,
 			decorativeIcon: 'true',
 			iconBeforeTitle: true,
-			overview: 'Archive this session to hide it from the sessions list and focus on your remaining tasks.',
+			overview: 'Archive this session to set it aside and focus on your remaining tasks.',
 			overviewOutsideDetails: true,
 			detailsExpanded: false,
 			detailsLabel: 'What Does "Archive" Do?',
@@ -419,7 +419,7 @@ suite('ChatSessionArchiveNudge', () => {
 		}, {
 			title: 'PR merged. Mark this session as done?',
 			multipleTitle: 'All PRs merged. Mark this session as done?',
-			description: 'Mark this session as done to hide it from the sessions list and focus on your remaining tasks.',
+			description: 'Mark this session as done to set it aside and focus on your remaining tasks.',
 			disclosure: 'What Does "Mark as Done" Do?',
 			recovery: 'The session is not deleted. Ask your agent to find it, or look in the "Done" section of the sessions list. You can restore it anytime.',
 			worktree: 'The worktree created for this session will be deleted. You can recreate it by restoring the session.',

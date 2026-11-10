@@ -61,3 +61,19 @@ export function shouldWarnForSessionShutdown(session: ShutdownWarningSession, re
 
 	return true;
 }
+
+/**
+ * Returns why chat blocks an unattended restart. Unlike the shutdown warnings, archived sessions
+ * and sessions on remote agent hosts also block, since nobody is around to resume them.
+ */
+export function getChatUnattendedRestartBlocker(requestInProgress: boolean, pendingRequestSessionTypes: readonly string[], sessions: readonly Pick<IAgentSession, 'providerType' | 'status'>[]): string | undefined {
+	if (requestInProgress || pendingRequestSessionTypes.length > 0) {
+		return 'chat.requestInProgress';
+	}
+
+	if (sessions.some(session => session.providerType !== AgentSessionProviders.Cloud && isSessionInProgressStatus(session.status))) {
+		return 'chat.sessionInProgress';
+	}
+
+	return undefined;
+}

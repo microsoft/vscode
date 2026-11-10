@@ -452,6 +452,11 @@ suite('ChatImageReveal', () => {
 	test('time spent handling the image load does not extend the reveal deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { container, image, reveal } = await render();
 		const fresh = await render();
+		// A reveal continues the loading wave from its surface's last painted frame, and real animation frames
+		// paint with virtual timestamps. Let both surfaces paint the same frame, so that their reveal timings
+		// can only differ by the time spent handling the load.
+		await nextFrame();
+		await nextFrame();
 		const loadedAt = mainWindow.performance.now();
 		await timeout(100);
 		fresh.reveal.reveal();

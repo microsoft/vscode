@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Configuration, ConfigurationModel } from '../../../configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AllowedMcpServersService } from '../../common/allowedMcpServersService.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, RegistryType, TransportType } from '../../common/mcpManagement.js';
 import { McpServerType } from '../../common/mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../policy/common/copilotManagedSettings.js';
-import { IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { createEnvVarResolver } from '../../common/envVarResolution.js';
 
 suite('AllowedMcpServersService', () => {
@@ -30,6 +33,90 @@ suite('AllowedMcpServersService', () => {
 	test('allows any server when nothing is configured', () => {
 		const service = createService({});
 		assert.strictEqual(service.isServerAllowed({ name: 'github' }), true);
+	});
+
+	for (const allowlist of [undefined, [{ serverName: 'server' }]]) {
+		test(`rejects malformed configuration before policy matching ${allowlist ? 'with a matching name rule' : 'without policy'}`, () => {
+			const service = createService({ [mcpAllowedServersConfig]: allowlist });
+			const servers: IInstallableMcpServer[] = JSON.parse(JSON.stringify([
+				{ type: McpServerType.LOCAL },
+				{ type: McpServerType.LOCAL, command: null },
+				{ type: McpServerType.LOCAL, command: ' ' },
+				{ type: McpServerType.LOCAL, command: 'node', args: [null] },
+				{ type: McpServerType.LOCAL, command: 'node', args: [42] },
+				{ type: McpServerType.LOCAL, command: 'node', args: '--bad' },
+				{ type: McpServerType.LOCAL, command: 'node', args: null },
+				{ type: McpServerType.REMOTE },
+				{ type: McpServerType.REMOTE, url: 42 },
+				{ type: McpServerType.REMOTE, url: '' },
+			].map(config => ({ name: 'server', config }))));
+			assert.deepStrictEqual(servers.map(server => {
+				const result = service.isAllowed(server);
+				return result !== true && result.value.includes('configuration is invalid');
+			}), servers.map(() => true));
+		});
+	}
+
+	test('only enterprise allowlist policies replace registry authorization, including an explicit empty list', () => {
+		const configurations: [Record<string, unknown>, Record<string, unknown>][] = [
+			[{}, {}],
+			[{ [mcpAllowedServersConfig]: [] }, {}],
+			[{ [mcpAllowedServersConfig]: [{ serverName: 'user' }] }, {}],
+			[{}, { [mcpAllowedServersConfig]: null }],
+			[{}, { [mcpAllowedServersConfig]: [] }],
+			[{}, { [mcpAllowedServersConfig]: [{ serverName: 'managed' }] }],
+			[{ [COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true }, {}],
+			[{}, { [COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true }],
+		];
+		assert.deepStrictEqual(configurations.map(([config, policy]) => createService(config, policy).hasManagedAllowlist),
+			[false, false, false, false, true, true, false, true]);
+	});
+
+	test('real configuration policy replaces broader user, workspace and memory allow rules', () => {
+		const logService = disposables.add(new NullLogService());
+		const empty = () => ConfigurationModel.createEmptyModel(logService);
+		const policy = empty();
+		const user = empty();
+		const workspace = empty();
+		const memory = empty();
+		policy.setValue(mcpAllowedServersConfig, [{ serverCommand: ['node', 'approved.js'] }]);
+		policy.setValue(mcpDeniedServersConfig, [{ serverName: 'denied' }]);
+		for (const [model, script] of [[user, 'user.js'], [workspace, 'workspace.js'], [memory, 'memory.js']] as const) {
+			model.setValue(mcpAllowedServersConfig, [{ serverCommand: ['node', script] }]);
+			model.setValue(mcpDeniedServersConfig, []);
+		}
+		const configuration = new Configuration(
+			empty(), policy, empty(), user, empty(), workspace,
+			new ResourceMap<ConfigurationModel>(), memory, new ResourceMap<ConfigurationModel>(), logService,
+		);
+		const configurationService = new class extends TestConfigurationService {
+			override getValue<T>(section?: string | IConfigurationOverrides, overrides?: IConfigurationOverrides): T | undefined {
+				return configuration.getValue(typeof section === 'string' ? section : undefined,
+					typeof section === 'object' ? section : overrides ?? {}, undefined) as T | undefined;
+			}
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				return configuration.inspect<T>(key, overrides ?? {}, undefined);
+			}
+		}();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const service = disposables.add(new AllowedMcpServersService(configurationService));
+		const identities = [
+			{ name: 'workspace-defined-approved', command: ['node', 'approved.js'] },
+			...['user.js', 'workspace.js', 'memory.js'].map(script => ({ name: 'server', command: ['node', script] })),
+			{ name: 'denied', command: ['node', 'approved.js'] },
+		];
+		const managed = identities.map(identity => service.isServerAllowed(identity) === true);
+		policy.setValue(mcpAllowedServersConfig, []);
+		const emptyManaged = identities.map(identity => service.isServerAllowed(identity) === true);
+		assert.deepStrictEqual({
+			managed, emptyManaged, hasManagedAllowlist: service.hasManagedAllowlist,
+			effectiveAllowlist: configurationService.getValue(mcpAllowedServersConfig),
+		}, {
+			managed: [true, false, false, false, false],
+			emptyManaged: [false, false, false, false, false],
+			hasManagedAllowlist: true,
+			effectiveAllowlist: [],
+		});
 	});
 
 	suite('gallery command admission', () => {

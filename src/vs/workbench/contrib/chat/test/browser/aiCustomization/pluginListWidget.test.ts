@@ -18,6 +18,8 @@ import { ContributionEnablementState, IEnablementModel } from '../../../common/e
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 suite('pluginListWidget', () => {
@@ -49,7 +51,7 @@ suite('pluginListWidget', () => {
 		]);
 	});
 
-	test('renders the effective state when an enablement write is rejected', () => {
+	test('renders the effective state when an enablement write is rejected', async () => {
 		const model: IEnablementModel = {
 			readEnabled: () => ContributionEnablementState.DisabledProfile,
 			readProfileEnabled: () => false,
@@ -58,7 +60,9 @@ suite('pluginListWidget', () => {
 		};
 
 		assert.strictEqual(
-			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
+			await setPluginEnablementAndReadEffective(model, new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/plugin');
+			}(), ContributionEnablementState.EnabledProfile),
 			ContributionEnablementState.DisabledProfile,
 		);
 	});
@@ -86,7 +90,7 @@ suite('pluginListWidget', () => {
 		});
 	});
 
-	test('renders User before Workspace even when User has no plugins', () => {
+	test('renders Workspace before User even when User has no plugins', () => {
 		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
 			const plugin = new class extends mock<IAgentPlugin>() {
 				override readonly uri = URI.file(`/plugins/${name}`);
@@ -95,7 +99,7 @@ suite('pluginListWidget', () => {
 			}();
 			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
 		};
-		const renderGroupLabels = (installedItems: readonly IInstalledPluginItem[]): readonly string[] => {
+		const renderGroupLabels = (installedItems: readonly IInstalledPluginItem[], remoteItems: readonly ICustomizationItem[] = []): readonly string[] => {
 			type TreeNode = { readonly element: { readonly type: string; readonly label?: string } };
 			let renderedChildren: readonly TreeNode[] = [];
 			const widget = Object.assign(Object.create(PluginListWidget.prototype), {
@@ -105,7 +109,7 @@ suite('pluginListWidget', () => {
 					},
 				},
 				installedItems,
-				remoteItems: [],
+				remoteItems,
 				marketplaceItems: [],
 				marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
 				searchQuery: '',
@@ -137,10 +141,40 @@ suite('pluginListWidget', () => {
 				createItem('user', ContributionEnablementState.EnabledProfile),
 			]),
 			userEmpty: renderGroupLabels([workspace]),
+			hostPlugin: renderGroupLabels([], [{
+				uri: URI.file('/plugins/host-plugin'),
+				type: 'plugin',
+				name: 'host-plugin',
+				source: AICustomizationSources.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+			}]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
+			hostPlugin: ['Workspace', 'User'],
 		});
+	});
+
+	test('host plugin accessibility labels do not imply a remote connection', () => {
+		const widget: { getPluginEntryAriaLabel(element: { type: 'remote-item'; item: ICustomizationItem }): string } = Object.create(PluginListWidget.prototype);
+		const item: ICustomizationItem = {
+			uri: URI.file('/plugins/host-plugin'),
+			type: 'plugin',
+			name: 'host-plugin',
+			source: AICustomizationSources.plugin,
+			extensionId: undefined,
+			pluginUri: undefined,
+		};
+		assert.deepStrictEqual([
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
+		], [
+			'host-plugin. Agent host',
+			'host-plugin. Agent host. Status: Loaded',
+			'host-plugin. Organization: contoso. Agent host',
+		]);
 	});
 
 	test('splits workspace plugin sections in multi-root workspaces', () => {
@@ -185,7 +219,7 @@ suite('pluginListWidget', () => {
 
 		(Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void).call(widget);
 
-		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'First', 'Second']);
+		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['Workspace · First', 'Workspace · Second', 'User']);
 	});
 
 	test('reveals, selects, and focuses an installed plugin by URI', async () => {
@@ -268,10 +302,12 @@ suite('pluginListWidget', () => {
 			name: item.name,
 			location: item.location,
 			matchesLocation: installedPluginMatchesQuery(item, 'agent-plugins'),
+			matchesSpacedLocation: installedPluginMatchesQuery(item, 'agent plugins'),
 			matchesDescription: installedPluginMatchesQuery(item, 'design system'),
+			matchesDashedDescription: installedPluginMatchesQuery(item, 'design-system'),
 		})), [
-			{ name: 'example', location: '~/.copilot/installed-plugins/local', matchesLocation: false, matchesDescription: false },
-			{ name: 'figma', location: '~/.vscode/agent-plugins/github.com/example', matchesLocation: true, matchesDescription: true },
+			{ name: 'example', location: '~/.copilot/installed-plugins/local', matchesLocation: false, matchesSpacedLocation: false, matchesDescription: false, matchesDashedDescription: false },
+			{ name: 'figma', location: '~/.vscode/agent-plugins/github.com/example', matchesLocation: true, matchesSpacedLocation: true, matchesDescription: true, matchesDashedDescription: true },
 		]);
 	});
 

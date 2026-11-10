@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry } from '../../../../../workbench/common/views.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -22,6 +24,7 @@ const groupExternalSessionsProperty = configurationRegistry.getConfigurationProp
 const externalApplicationBadgeProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING];
 const externalApplicationBadgeShowFromProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING];
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
+const indentItemsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_INDENT_ITEMS_SETTING];
 const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
 
 suite('Sessions Contribution', () => {
@@ -88,7 +91,7 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('hides archived sessions by default with automatic experiments', () => {
+	test('shows archived sessions by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: showArchivedByDefaultProperty.type,
 			default: showArchivedByDefaultProperty.default,
@@ -97,14 +100,28 @@ suite('Sessions Contribution', () => {
 			experiment: showArchivedByDefaultProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
 	});
 
-	test('shows chats as tabs by default with automatic experiments', () => {
+	test('does not indent sessions list items by default with an advanced automatic experiment', () => {
+		assert.deepStrictEqual({
+			type: indentItemsProperty.type,
+			default: indentItemsProperty.default,
+			tags: indentItemsProperty.tags,
+			experiment: indentItemsProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental', 'advanced', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('shows the active chat as the session view by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: showChatTabsProperty.type,
 			enum: showChatTabsProperty.enum,
@@ -114,7 +131,7 @@ suite('Sessions Contribution', () => {
 		}, {
 			type: 'string',
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
-			default: SESSIONS_CHAT_TABS_DEFAULT,
+			default: SessionsChatTabsMode.Single,
 			scope: ConfigurationScope.WINDOW,
 			experiment: { mode: 'auto' },
 		});
@@ -130,5 +147,10 @@ suite('Sessions Contribution', () => {
 			default: true,
 			experiment: { mode: 'auto' },
 		});
+	});
+
+	test('opens the Sessions view with Ctrl/Cmd+0, leaving Ctrl/Cmd+Shift+X to managing extensions like it opens the Extensions view in editor windows', () => {
+		const sessionsContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get('agentic.workbench.view.sessionsContainer');
+		assert.deepStrictEqual({ registered: !!sessionsContainer, keybindings: sessionsContainer?.openCommandActionDescriptor?.keybindings }, { registered: true, keybindings: { primary: KeyMod.CtrlCmd | KeyCode.Digit0 } });
 	});
 });

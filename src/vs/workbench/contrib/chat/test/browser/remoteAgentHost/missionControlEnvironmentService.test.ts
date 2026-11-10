@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxEnvironment, IMissionControlEnvironment } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -61,13 +61,15 @@ suite('Mission Control inventory', () => {
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		let account: string | undefined = initialAccount;
 		let hidden = false;
-		let own = 'own';
-		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]);
+		let own: string | undefined = 'own';
+		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), { ...host('managed'), kind: 'managed-sandbox' }]);
 		let discoveryToken: CancellationToken | undefined;
 		let listed = new DeferredPromise<void>();
 		let environment: Promise<ICloudSandboxEnvironment> = Promise.resolve({ id: 'remote', status: 'online' });
 		let connecting: Promise<void> = Promise.resolve();
 		let recovering: Promise<void> = Promise.resolve();
+		let deleting: Promise<void> = Promise.resolve();
+		const deletions: { id: string; account: string; token: CancellationToken }[] = [];
 		let connectionStatus: RemoteAgentHostConnectionStatus | undefined;
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override async waitForConnection(address: string) {
@@ -91,6 +93,10 @@ suite('Mission Control inventory', () => {
 			override async getAccountKey() { return account; }
 			override async listEnvironments(token: CancellationToken) { discoveryToken = token; calls.lists++; void listed.complete(); return list; }
 			override async getEnvironment(id: string) { calls.lookups.push(id); return environment; }
+			override async deleteEnvironment(id: string, token: CancellationToken, account: string) {
+				deletions.push({ id, account, token });
+				await deleting;
+			}
 		}());
 		instantiation.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
 			override async connect(options: ICloudSandboxConnectOptions, token: CancellationToken) {
@@ -102,6 +108,10 @@ suite('Mission Control inventory', () => {
 		}());
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override async getMissionControlEnvironmentId() { return own; }
+		}());
+		const sharingState = observableValue<'disabled' | 'connecting' | 'enabled'>('sharingState', 'disabled');
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = sharingState;
 		}());
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IConfigurationService, configuration);
@@ -119,15 +129,17 @@ suite('Mission Control inventory', () => {
 		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
-			service, storage, calls, configuration, authenticationChanged, events, availability,
+			service, storage, calls, configuration, authenticationChanged, events, availability, deletions,
 			get discoveryToken() { return discoveryToken; },
 			setList: (result: Promise<readonly IMissionControlEnvironment[]>) => { list = result; listed = new DeferredPromise<void>(); return listed.p; },
 			setEnvironment: (result: Promise<ICloudSandboxEnvironment>) => { environment = result; },
 			setConnecting: (result: Promise<void>) => { connecting = result; },
 			setRecovering: (result: Promise<void>) => { recovering = result; },
+			setDeleting: (result: Promise<void>) => { deleting = result; },
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
-			setOwn: (id: string) => { own = id; },
+			setOwn: (id: string | undefined) => { own = id; },
+			setSharingState: (state: 'disabled' | 'connecting' | 'enabled') => sharingState.set(state, undefined),
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
@@ -154,13 +166,138 @@ suite('Mission Control inventory', () => {
 		]);
 	}));
 
-	test('discovers native hosts before connection and excludes self and managed compute', async () => {
-		const { service, calls } = fixture();
+	test('discovers native hosts before connection, identifies this computer and excludes managed compute', async () => {
+		const { service, calls, setList } = fixture();
+		void setList(Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]));
 		await service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ hosts: service.hosts.get(), calls }, {
-			hosts: [{ ...host('remote'), displayName: undefined }],
+		assert.deepStrictEqual({ hosts: service.hosts.get(), own: service.ownEnvironmentId.get(), calls }, {
+			hosts: [{ ...host('remote'), displayName: undefined }, { ...host('own'), displayName: undefined }],
+			own: 'own',
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
+	});
+
+	test('remembers this computer while sharing is off and forgets it once its registration is gone', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const second = fixture(storage);
+		second.setOwn(undefined);
+		void second.setList(Promise.resolve(withOwn));
+		await second.service.refresh(CancellationToken.None);
+		const remembered = second.service.ownEnvironmentId.get();
+		void second.setList(Promise.resolve([host('remote')]));
+		await second.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ remembered, forgotten: second.service.ownEnvironmentId.get() }, { remembered: 'own', forgotten: undefined });
+	});
+
+	test('identifies this computer once sharing turns on and remembers it for later windows', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		first.setOwn(undefined);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const beforeSharing = first.service.ownEnvironmentId.get();
+		first.setOwn('own');
+		first.setSharingState('enabled');
+		await timeout(0);
+		const afterSharing = first.service.ownEnvironmentId.get();
+		const later = fixture(storage);
+		later.setOwn(undefined);
+		void later.setList(Promise.resolve(withOwn));
+		await later.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ beforeSharing, afterSharing, laterWindow: later.service.ownEnvironmentId.get() }, {
+			beforeSharing: undefined, afterSharing: 'own', laterWindow: 'own',
+		});
+	});
+
+	for (const status of ['online', 'offline']) {
+		test(`deletes ${status} user-local registrations, withdraws connections and persists removal`, async () => {
+			const context = fixture();
+			context.setList(Promise.resolve([host('remote', 'Machine', status), host('retained')]));
+			await context.service.refresh(CancellationToken.None);
+			await context.service.delete('remote', CancellationToken.None);
+			const restored = fixture(context.storage);
+			await restored.service.initialize();
+			assert.deepStrictEqual({
+				deletions: context.deletions.map(({ id, account }) => ({ id, account })),
+				hosts: context.service.hosts.get().map(host => host.id),
+				restored: restored.service.hosts.get().map(host => host.id),
+				disconnects: context.calls.disconnects,
+			}, { deletions: [{ id: 'remote', account: firstAccount }], hosts: ['retained'], restored: ['retained'], disconnects: ['remote'] });
+		});
+	}
+
+	test('retains the registration and connection when deletion fails', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const before = context.service.hosts.get();
+		const response = new DeferredPromise<void>();
+		context.setDeleting(response.p);
+		const deletion = context.service.delete('remote', CancellationToken.None);
+		const rejected = assert.rejects(deletion, /delete failed/);
+		await response.error(new Error('delete failed'));
+		await rejected;
+		assert.deepStrictEqual({ hosts: context.service.hosts.get(), disconnects: context.calls.disconnects }, { hosts: before, disconnects: [] });
+	});
+
+	for (const kind of ['managed-sandbox', 'managed-cca', 'user-codespace', 'future-kind']) {
+		test(`rejects deletion of ${kind} even if present in the inventory`, async () => {
+			const context = fixture();
+			await context.service.refresh(CancellationToken.None);
+			context.service.hosts.set([{ ...host('remote'), kind }], undefined);
+			await assert.rejects(context.service.delete('remote', CancellationToken.None), /Only user-shared/);
+			assert.deepStrictEqual(context.deletions, []);
+		});
+	}
+
+	test('a refresh already in flight cannot resurrect a deleted environment', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+		const listed = context.setList(response.p);
+		const refresh = context.service.refresh(CancellationToken.None);
+		const rejected = assert.rejects(refresh, CancellationError);
+		await listed;
+		await context.service.delete('remote', CancellationToken.None);
+		await response.complete([host('remote')]);
+		await rejected;
+		assert.deepStrictEqual(context.service.hosts.get(), []);
+	});
+
+	test('account changes cancel deletion and late completion cannot remove the new inventory', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<void>();
+		context.setDeleting(response.p);
+		const deletion = context.service.delete('remote', CancellationToken.None);
+		const rejected = assert.rejects(deletion, CancellationError);
+		context.setList(Promise.resolve([host('remote', 'Other account')]));
+		context.changeAccount(secondAccount);
+		await context.service.refresh(CancellationToken.None);
+		await response.complete();
+		await rejected;
+		assert.deepStrictEqual({
+			account: context.service.accountKey,
+			names: context.service.hosts.get().map(host => host.name),
+			deletions: context.deletions.map(({ account, token }) => ({ account, cancelled: token.isCancellationRequested })),
+		}, { account: secondAccount, names: ['Other account'], deletions: [{ account: firstAccount, cancelled: true }] });
+	});
+
+	test('deleted inventory cancels a pending connection', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<ICloudSandboxEnvironment>();
+		context.setEnvironment(response.p);
+		const connection = context.service.connect('remote', CancellationToken.None);
+		const rejected = assert.rejects(connection, CancellationError);
+		await context.service.delete('remote', CancellationToken.None);
+		await rejected;
+		await response.complete({ id: 'remote', status: 'online' });
+		assert.deepStrictEqual({ hosts: context.service.hosts.get(), connects: context.calls.connects }, { hosts: [], connects: [] });
 	});
 
 	for (const gate of ['setting', 'experiment', 'disposal'] as const) {
@@ -190,7 +327,7 @@ suite('Mission Control inventory', () => {
 		});
 	}
 
-	test('excludes a native host whose registration becomes ready during discovery', async () => {
+	test('identifies a native host whose registration becomes ready during discovery as this computer', async () => {
 		const { service, setList, setOwn, calls } = fixture();
 		const inventory = new DeferredPromise<readonly IMissionControlEnvironment[]>();
 		const listed = setList(inventory.p);
@@ -199,7 +336,7 @@ suite('Mission Control inventory', () => {
 		setOwn('remote');
 		await inventory.complete([host('remote')]);
 		await refresh;
-		assert.deepStrictEqual({ hosts: service.hosts.get(), connects: calls.connects }, { hosts: [], connects: [] });
+		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), own: service.ownEnvironmentId.get(), connects: calls.connects }, { hosts: ['remote'], own: 'remote', connects: [] });
 	});
 
 	test('restores account/profile-local metadata before network and preserves rename on refresh', async () => {

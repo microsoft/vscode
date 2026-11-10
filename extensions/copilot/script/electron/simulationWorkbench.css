@@ -217,22 +217,6 @@
 	margin-top: 5px;
 }
 
-.error-comparison {
-	font-family: Arial, 'Segoe UI';
-	margin-left: 30px;
-	margin-top: 10px;
-	margin-bottom: 10px;
-}
-
-.error-comparison .title {
-	font-size: 1em;
-	font-weight: bold;
-}
-
-.error-comparison .category {
-	font-weight: bold;
-}
-
 .diagnostics-comparison {
 	font-size: 1em;
 }
@@ -280,26 +264,6 @@
 	font-family: Monaco;
 	color: red;
 } */
-
-.scorecard-container {
-	margin-top: 10px;
-	margin-bottom: 10px;
-}
-
-.scorecard-title {
-	font-size: 1.25em;
-}
-
-.scorecard-table {
-	border: 1px solid black;
-	border-collapse: collapse;
-}
-
-.scorecard-table td,
-.scorecard-table th {
-	border: 1px solid black;
-	padding: 4px;
-}
 
 .tooltip .tooltiptext {
 	visibility: hidden;

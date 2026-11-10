@@ -15,46 +15,46 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { DesktopLayoutContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../browser/menus.js';
-import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
 
+// Dynamic imports (layering rules disallow static ones here), awaited while this file loads so that their
+// permanent registrations are in place before any suite runs instead of being registered by this suite.
+await Promise.all([
+	import('../../contrib/editor/browser/editor.contribution.js'),
+	import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
+	import('../../contrib/chat/browser/chat.contribution.js'),
+	// Every browser contribution to the shared View > Appearance menu, so that an
+	// entry that does not apply to the Agents window fails the menu snapshot below.
+	import('../../../workbench/browser/actions/layoutActions.js'),
+	import('../../../workbench/browser/workbench.zenMode.contribution.js'),
+	import('../../../workbench/browser/parts/activitybar/activitybarPart.js'),
+	import('../../../editor/contrib/stickyScroll/browser/stickyScrollContribution.js'),
+	import('../../../workbench/browser/actions/windowActions.js'),
+	import('../../../workbench/browser/parts/titlebar/titlebarActions.js'),
+	import('../../../workbench/browser/parts/editor/breadcrumbsControl.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleMinimap.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleRenderWhitespace.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleRenderControlCharacter.js'),
+]);
+
 suite('Sessions - Layout Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
-	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
-	suiteSetup(async () => {
-		await Promise.all([
-			import('../../contrib/editor/browser/editor.contribution.js'),
-			import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
-			import('../../contrib/chat/browser/chat.contribution.js'),
-			// Every browser contribution to the shared View > Appearance menu, so that an
-			// entry that does not apply to the Agents window fails the menu snapshot below.
-			import('../../../workbench/browser/actions/layoutActions.js'),
-			import('../../../workbench/browser/workbench.zenMode.contribution.js'),
-			import('../../../workbench/browser/parts/activitybar/activitybarPart.js'),
-			import('../../../editor/contrib/stickyScroll/browser/stickyScrollContribution.js'),
-			import('../../../workbench/browser/actions/windowActions.js'),
-			import('../../../workbench/browser/parts/titlebar/titlebarActions.js'),
-			import('../../../workbench/browser/parts/editor/breadcrumbsControl.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleMinimap.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleRenderWhitespace.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleRenderControlCharacter.js'),
-		]);
-	});
-
 	test('offers shared layout density commands in the title bar menu and the desktop View > Appearance menu', () => {
-		const parents = [Menus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
+		const parents = [AgentsWindowMenus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
 			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
 		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
 
@@ -149,29 +149,65 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('toggles the session activity bar layout actions from its context menu', async () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
-			.filter(item => item.group === 'navigation')
-			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
-			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+	test('groups the session activity bar context menu into its layout actions, its position and size, and hiding it, and sets its position from a submenu', async () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext)
+			.map(item => ({ group: item.group, order: item.order, title: isIMenuItem(item) ? item.command.title : `${item.title} >` }))
+			.sort((first, second) => (first.group ?? '').localeCompare(second.group ?? '') || (first.order ?? 0) - (second.order ?? 0))
+			.map(({ group, title }) => `${group}: ${title}`);
+		const positions = MenuRegistry.getMenuItems(Menus.SessionActivityBarPosition).filter(isIMenuItem)
+			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0))
+			.map(item => ({ id: item.command.id, title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value, toggled: item.command.toggled }));
 		const configurationService = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
 			}
-		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true });
+		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true, [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: true });
 		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
-		const run = async () => {
-			await CommandsRegistry.getCommand(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID)!.handler(accessor);
-			return configurationService.getValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING);
+		const run = async (commandId: string, setting: string) => {
+			await CommandsRegistry.getCommand(commandId)!.handler(accessor);
+			return configurationService.getValue(setting);
 		};
 
-		assert.deepStrictEqual({ items, afterFirstRun: await run(), afterSecondRun: await run() }, {
+		assert.deepStrictEqual({
+			items,
+			positions,
+			layoutActions: [await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING), await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING)],
+			position: [await run(positions[1].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING), await run(positions[0].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING)],
+			toggledFromCommandPalette: await run(TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
+		}, {
 			items: [
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, title: 'Show Layout Actions', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true), order: 0 },
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, title: 'Hide Session Activity Bar', toggled: undefined, order: 1 },
+				'1_layoutActions: Show Layout Actions',
+				'2_configure: Position >',
+				'2_configure: Size >',
+				'3_visibility: Hide',
 			],
-			afterFirstRun: false,
-			afterSecondRun: true,
+			positions: [
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.docked', title: 'Docked', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true) },
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.floating', title: 'Floating', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, false) },
+			],
+			layoutActions: [false, true],
+			position: [false, true],
+			toggledFromCommandPalette: false,
+		});
+	});
+
+	test('shows Position in the main window only, and Size in the main window while docked and always in a chat window, whose column always shows the bar', () => {
+		const submenus = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isISubmenuItem);
+		const shown = (values: Record<string, unknown>) => submenus
+			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => values[key] as T }) ?? true)
+			.map(item => typeof item.title === 'string' ? item.title : item.title.value)
+			.sort();
+		const desktop = { [DesktopLayoutContext.key]: true };
+		const fixedColumn = `config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`;
+
+		assert.deepStrictEqual({
+			mainWindowDocked: shown({ ...desktop, [fixedColumn]: true }),
+			mainWindowFloating: shown({ ...desktop, [fixedColumn]: false }),
+			chatWindow: shown({ ...desktop, [fixedColumn]: false, [LayoutModeContext.key]: 'sideBySide' }),
+		}, {
+			mainWindowDocked: ['Position', 'Size'],
+			mainWindowFloating: ['Position'],
+			chatWindow: ['Size'],
 		});
 	});
 
@@ -184,7 +220,7 @@ suite('Sessions - Layout Actions', () => {
 			chat: describe(find(MenuId.ChatContext)),
 			newSession: describe(find(Menus.SessionChatBackgroundContext)),
 		}, {
-			activityBar: { title: 'Hide Session Activity Bar', toggled: undefined, group: 'navigation', when: undefined },
+			activityBar: { title: 'Hide', toggled: undefined, group: '3_visibility', when: undefined },
 			chat: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
 			newSession: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
 		});
@@ -192,7 +228,7 @@ suite('Sessions - Layout Actions', () => {
 
 	test('shows the panel toggle below the tab entries of the session activity bar only while it can show there', () => {
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === TogglePanelAction.ID);
-		const titleBar = find(Menus.TitleBarSessionMenu).find(item => item.command.title === 'Show Panel');
+		const titleBar = find(AgentsWindowMenus.TitleBarSessionMenu).find(item => item.command.title === 'Show Panel');
 		const activityBar = find(Menus.SessionActivityBar).find(item => item.command.title === 'Show Panel');
 		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
 		const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
@@ -224,7 +260,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarRightLayout);
 		const menuItems = items.filter(isIMenuItem);
 
 		const toggleAlwaysOnTop = menuItems.find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
@@ -234,7 +270,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('screen reader optimized action uses a title bar toolbar menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
+		const item = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarAccessibility)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'editor.action.toggleScreenReaderAccessibilityMode');
 
@@ -250,7 +286,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu).filter(isIMenuItem);
 		const panelActions = items
 			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID)
 			.map(item => ({
@@ -293,7 +329,7 @@ suite('Sessions - Layout Actions', () => {
 		const alignmentItems = MenuRegistry.getMenuItems(MenuId.ViewTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
-		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(Menus.PanelTitle)
+		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(AgentsWindowMenus.PanelTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
 

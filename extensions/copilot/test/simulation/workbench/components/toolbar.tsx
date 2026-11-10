@@ -9,7 +9,6 @@ import * as mobx from 'mobx';
 import * as mobxlite from 'mobx-react-lite';
 import * as React from 'react';
 import { InitArgs } from '../initArgs';
-import { AMLProvider } from '../stores/amlSimulations';
 import { NesExternalOptions } from '../stores/nesExternalOptions';
 import { RunnerOptions } from '../stores/runnerOptions';
 import { SimulationRunsProvider } from '../stores/simulationBaseline';
@@ -17,7 +16,6 @@ import { SimulationRunner } from '../stores/simulationRunner';
 import { SimulationTestsProvider } from '../stores/simulationTestsProvider';
 import { TestSource, TestSourceValue } from '../stores/testSource';
 import { WorkbenchModeValue } from '../stores/workbenchMode';
-import { AMLModeToolbar } from './amlModeToolbar';
 import { ThemeKind } from './app';
 import { LocalModeToolbar } from './localModeToolbar';
 import { NesExternalModeToolbar } from './nesExternalModeToolbar';
@@ -28,13 +26,11 @@ type ToolbarProps = {
 	runner: SimulationRunner;
 	runnerOptions: RunnerOptions;
 	nesExternalOptions: NesExternalOptions;
-	amlProvider: AMLProvider;
 	simulationRunsProvider: SimulationRunsProvider;
 	simulationTestsProvider: SimulationTestsProvider;
 	workbenchMode: WorkbenchModeValue;
 	testSource: TestSourceValue;
 	onFiltererChange: (filter: TestFilterer | undefined) => void;
-	allLanguageIds: readonly string[];
 	theme: ThemeKind;
 	toggleTheme: () => void;
 };
@@ -45,13 +41,11 @@ export const Toolbar = mobxlite.observer(
 		runner,
 		runnerOptions,
 		nesExternalOptions,
-		amlProvider,
 		simulationRunsProvider,
 		simulationTestsProvider,
 		workbenchMode,
 		testSource,
 		onFiltererChange,
-		allLanguageIds,
 		theme,
 		toggleTheme,
 	}: ToolbarProps) => {
@@ -84,15 +78,6 @@ export const Toolbar = mobxlite.observer(
 							nesExternalOptions={nesExternalOptions}
 							simulationRunsProvider={simulationRunsProvider}
 							onFiltererChange={onFiltererChange}
-						/>
-					);
-				case TestSource.External:
-					return (
-						<AMLModeToolbar
-							amlProvider={amlProvider}
-							simulationTestsProvider={simulationTestsProvider}
-							onFiltererChange={onFiltererChange}
-							allLanguageIds={allLanguageIds}
 						/>
 					);
 			}
@@ -130,7 +115,6 @@ const ADHOC_REQUEST_OPTION = 'adhocRequest';
 const modeOptions: { value: string; label: string; source?: TestSource }[] = [
 	{ value: String(TestSource.Local), label: 'Local', source: TestSource.Local },
 	{ value: String(TestSource.NesExternal), label: 'NES External', source: TestSource.NesExternal },
-	{ value: String(TestSource.External), label: 'AML', source: TestSource.External },
 	{ value: ADHOC_REQUEST_OPTION, label: 'Adhoc Request' },
 ];
 

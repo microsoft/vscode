@@ -18,20 +18,21 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
-import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
-import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
-import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
+import { SessionPullRequestPresentationModel } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
@@ -189,7 +190,7 @@ suite('Pull Request Actions', () => {
 		});
 	});
 
-	test('Open Pull Request and Copy Pull Request URL are contributed to a dedicated context menu group', () => {
+	test('Open Pull Request joins the open actions and Copy Pull Request URL the copy actions', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.agentSessions.action.openPullRequest' || item.command.id === 'workbench.agentSessions.action.copyPullRequestUrl');
@@ -199,9 +200,9 @@ suite('Pull Request Actions', () => {
 			group: item.group,
 			order: item.order,
 			hasPullRequestGate: (item.when?.serialize() ?? '').includes(SessionHasPullRequestContext.key),
-		})).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [
-			{ id: 'workbench.agentSessions.action.openPullRequest', group: '2_pullRequest', order: 0, hasPullRequestGate: true },
-			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '2_pullRequest', order: 1, hasPullRequestGate: true },
+		})).sort((a, b) => a.id.localeCompare(b.id)), [
+			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '3_copy', order: 2, hasPullRequestGate: true },
+			{ id: 'workbench.agentSessions.action.openPullRequest', group: 'navigation', order: 4, hasPullRequestGate: true },
 		]);
 	});
 
@@ -218,8 +219,9 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
 
@@ -256,8 +258,9 @@ suite('Pull Request Actions', () => {
 		const openerService = new TestOpenerService();
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<ITestSessionWithChat>({ workspace: session.workspace }));
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor));
 
@@ -280,8 +283,9 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
 
@@ -296,8 +300,9 @@ suite('Pull Request Actions', () => {
 		const openerService = new TestOpenerService();
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, session));
 
@@ -328,8 +333,9 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, sessions));
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, sessions));
@@ -364,8 +370,9 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));
 
@@ -379,8 +386,9 @@ suite('Pull Request Actions', () => {
 
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				if (isResourceMultiDiffEditorInput(args[0])) {
@@ -389,11 +397,13 @@ suite('Pull Request Actions', () => {
 				return undefined;
 			}
 		});
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		const agentLayoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override revealEditorPartExplicitly(): void {
 				revealed++;
 			}
-		});
+		};
+		instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+		instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
 

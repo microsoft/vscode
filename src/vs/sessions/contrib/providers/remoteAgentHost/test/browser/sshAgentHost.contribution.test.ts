@@ -21,12 +21,13 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { type IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
-import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
-import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
-import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, SSHAgentHostContribution, sshConnectionKey } from '../../browser/sshAgentHost.contribution.js';
+import { categorizeSSHConnectError } from '../../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { type IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
+import { ManagedReconnectState } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
+import { RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { disconnectSSHEntry, sshConnectionKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { shouldPauseSSHReconnectAfterFailure, SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 
 suite('SSHAgentHostContribution reconnect ownership', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

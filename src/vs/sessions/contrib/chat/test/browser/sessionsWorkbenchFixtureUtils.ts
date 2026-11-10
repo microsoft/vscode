@@ -32,18 +32,23 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ComponentFixtureContext, createEditorServices, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
-import { Menus } from '../../../../browser/menus.js';
-import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
-import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { SessionsPart } from '../../../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
+import '../../../../browser/parts/sessionsPartContent.registration.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
-import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
-import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { chatOfShown, focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { IFocusedSessionHostService, ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
@@ -52,7 +57,8 @@ import { SessionActionFeedback } from '../../../sessions/browser/sessionActionFe
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NewSessionActionViewItemContribution } from '../../../sessions/browser/sessionsActions.js';
 import { registerSessionsTitleBarMenus, SessionsTitleBarWidget } from '../../../sessions/browser/sessionsTitleBarWidget.js';
 import { acquireArchiveActions, FixtureActionViewItemService, FixtureContextMenuService } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
-import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
+import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 
 import '../../../../browser/layoutActions.js';
 import '../../browser/runScriptAction.js';
@@ -70,6 +76,7 @@ function acquireWorkbenchActions() {
 		sharedActions.add(BaseLayoutController.registerSidePaneToggleAction());
 		sharedActions.add(registerAction2(OpenInVSCodeAction));
 		sharedActions.add(registerAction2(NewChatInSessionsWindowAction));
+		sharedActions.add(appendNewSessionTitleBarMenuItem());
 		sharedActions.add(acquireArchiveActions());
 	}
 	return toDisposable(() => {
@@ -81,7 +88,7 @@ function acquireWorkbenchActions() {
 }
 
 /** Renders the visible desktop workbench parts without bootstrapping global workbench contributions. */
-export function createSessionsWorkbenchFixture(context: ComponentFixtureContext, width: number, height: number, sessionsService: ISessionsService, options: {
+export function createSessionsWorkbenchFixture(context: ComponentFixtureContext, width: number, height: number, sessionsService: ISessionsService & ITestSessionsGridState, options: {
 	readonly sidePane?: ISerializableView;
 	readonly sidePaneWidth?: number;
 	readonly bottomPanel?: ISerializableView;
@@ -138,8 +145,8 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const multipleSessions = MultipleSessionsVisibleContext.bindTo(services.contextKeyService);
 	const virtualWorkspace = SessionWorkspaceIsVirtualContext.bindTo(services.contextKeyService);
 	disposableStore.add(autorun(reader => {
-		multipleSessions.set(sessionsService.visibleSessions.read(reader).length > 1);
-		virtualWorkspace.set(sessionsService.activeSession.read(reader)?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false);
+		multipleSessions.set(sessionsService.slotPanes.read(reader).length > 1);
+		virtualWorkspace.set(chatOfShown(sessionsService.activeSession?.read(reader), reader)?.workspace.read(reader)?.isVirtualWorkspace ?? false);
 	}));
 	disposableStore.add(acquireWorkbenchActions());
 	instantiationService.stub(ICommandService, new TestCommandService(instantiationService));
@@ -149,7 +156,13 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IContextMenuService, disposableStore.add(instantiationService.createInstance(FixtureContextMenuService, container, context.focus)));
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+	// ISessionsHostLayoutService is left to the fixture default, which resolves it to this layout with the layout as the
+	// docked side pane, as the Agents workbench does.
 	instantiationService.stub(ISessionsService, sessionsService);
+	// The main window shows the grid's active session: the host UI of its parts, such as the title bar, injects, and the
+	// focused host, which grid commands check.
+	stubSessionHosts(instantiationService, disposableStore, { session: sessionsService.activeSession });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)));
 	instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return options.chatBackground; }
@@ -192,7 +205,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 		override readonly extUri = extUri;
 	}());
-	const host = $(`.part.sessionspart.basepanel.right.${AGENTS_PART_CARD_CLASS}`);
+	const host = $(`.part.sessionspart.basepanel.right.${AGENTS_PART_CARD_CLASS}.${AGENTS_CARD_SURFACE_CLASS}`);
 	const feedback = disposableStore.add(new SessionActionFeedback());
 	const blockedIndicator = new class extends mock<BlockedSessionsIndicatorModel>() {
 		override readonly onDidRequestBlink = Event.None;
@@ -200,18 +213,22 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();
-	disposableStore.add(actionViewItems.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
+	disposableStore.add(actionViewItems.register(AgentsWindowMenus.CommandCenter, AgentsWindowMenus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
 		? instantiationService.createInstance(SessionsTitleBarWidget, action, options, feedback, blockedIndicator)
 		: undefined));
 	disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 	disposableStore.add(instantiationService.createInstance(OpenInVSCodeWidgetContribution));
 	disposableStore.add(instantiationService.createInstance(AccountWidgetContribution));
 
-	const part = disposableStore.add(instantiationService.createInstance(SessionsPart));
+	const part = disposableStore.add(instantiationService.createInstance(SessionsPart, SessionsGridContent.ID));
+	const content = assertReturnsDefined(part.getContent(SessionsGridContent));
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
-		override toggleMaximizeSession(session: IActiveSession | undefined) { part.toggleMaximizeSession(session?.sessionId); }
-		override focusSession(session: IActiveSession | undefined) { part.focusSession(session?.sessionId); }
+		override getSessionView(id: string | undefined) { return content.getSessionView(id); }
+		// The pane commands resolve the view of the host their menu passes.
+		override getSessionViewOfHost(host: ISessionHost) { return content.getSessionViewOfHost(host); }
+		override getActiveSessionView() { return content.getActiveSessionView(); }
+		override toggleMaximizePane(pane: ISessionGridPane) { content.toggleMaximizePane(pane); }
+		override focusNewSessionSlot() { content.focusNewSessionSlot(); }
 	}());
 	part.create(host);
 	const titlebar = disposableStore.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, getWindow(container)));
@@ -226,5 +243,5 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	}
 	append(container, grid.element);
 	const workbenchGap = options.compactDensity ? 0 : AGENTS_FLOATING_PANEL_GAP;
-	return { ...services, part, grid, layout: () => grid.layout(width - workbenchGap, height - workbenchGap) };
+	return { ...services, part, content, grid, layout: () => grid.layout(width - workbenchGap, height - workbenchGap) };
 }

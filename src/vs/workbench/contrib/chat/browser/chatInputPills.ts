@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
@@ -116,6 +116,68 @@ function getPinnedEntryStorageKey(scope: string, kind: SessionChatPillKind): str
 	return JSON.stringify([scope, kind]);
 }
 
+/**
+ * The entries a user pinned out of a chat input pill's dropdown into pills of
+ * their own, per pin scope (such as a chat) and pill kind. Shared by every
+ * surface composing chat input pills, so an entry stays pinned whichever
+ * presentation lists it.
+ */
+export class ChatInputPillPins extends Disposable {
+	private readonly pinned: IObservable<ReadonlyMap<string, readonly string[]>>;
+
+	constructor(@IStorageService private readonly storageService: IStorageService) {
+		super();
+		this.pinned = observableFromEvent(
+			this,
+			storageService.onDidChangeValue(StorageScope.PROFILE, PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, this._store),
+			() => readPinnedChatPillEntries(storageService),
+		);
+	}
+
+	/** The IDs of the entries pinned for a scope and pill kind. */
+	getPinned(scope: string | undefined, kind: SessionChatPillKind, reader: IReader | undefined): ReadonlySet<string> {
+		return scope ? new Set(this.pinned.read(reader).get(getPinnedEntryStorageKey(scope, kind)) ?? []) : new Set();
+	}
+
+	setPinned(scope: string, kind: SessionChatPillKind, entryId: string, label: string, pinned: boolean): void {
+		const storageKey = getPinnedEntryStorageKey(scope, kind);
+		const pinnedForSource = new Set(readPinnedChatPillEntries(this.storageService).get(storageKey) ?? []);
+		if (pinned) {
+			pinnedForSource.add(entryId);
+		} else {
+			pinnedForSource.delete(entryId);
+		}
+		const next = new Map(readPinnedChatPillEntries(this.storageService));
+		if (pinnedForSource.size > 0) {
+			next.set(storageKey, [...pinnedForSource]);
+		} else {
+			next.delete(storageKey);
+		}
+		if (next.size > 0) {
+			this.storageService.store(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, JSON.stringify([...next]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, StorageScope.PROFILE);
+		}
+		status(pinned
+			? localize('chatInputPills.pinnedEntry', "Pinned {0}.", label)
+			: localize('chatInputPills.unpinnedEntry', "Unpinned {0}.", label));
+	}
+
+	/** The action that pins an entry into a pill of its own, or unpins it back into its dropdown. */
+	createPinAction(entry: Pick<IChatPillEntry, 'id' | 'label'>, kind: SessionChatPillKind, scope: string, pinned: boolean): IChatPillAction {
+		return withChatPillHoverLabel(toAction({
+			id: `chatInputPills.${kind}.${pinned ? 'unpin' : 'pin'}.${entry.id}`,
+			label: pinned
+				? localize('chatInputPills.unpinEntry', "Unpin {0}", entry.label)
+				: localize('chatInputPills.pinEntry', "Pin {0}", entry.label),
+			class: ThemeIcon.asClassName(pinned ? Codicon.unpin : Codicon.pin),
+			run: () => this.setPinned(scope, kind, entry.id, entry.label, !pinned),
+		}), pinned
+			? localize('chatInputPills.unpinHoverLabel', "Unpin")
+			: localize('chatInputPills.pinHoverLabel', "Pin"));
+	}
+}
+
 class PinnedChatPillModel {
 	private readonly entry: ISettableObservable<IChatPillEntry>;
 	readonly pill: IObservable<IChatPill>;
@@ -172,22 +234,18 @@ export function createChatSectionPillSource(
 /** Builds the canonical pill components and ordering from surface-specific data adapters. */
 export class StandardChatInputPillSources extends Disposable {
 	readonly sources: readonly IChatInputPillSource[];
+	private readonly pins: ChatInputPillPins;
 
 	constructor(
 		data: IStandardChatInputPillsData,
 		offeredKinds: readonly SessionChatPillKind[],
 		pinScope: IObservable<string | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		const offered = new Set(offeredKinds);
-		const pinnedEntryIds = observableFromEvent(
-			this,
-			storageService.onDidChangeValue(StorageScope.PROFILE, PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, this._store),
-			() => readPinnedChatPillEntries(storageService),
-		);
+		const pins = this.pins = this._register(instantiationService.createInstance(ChatInputPillPins));
 		const resourceLabels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		const sources: IChatInputPillSource[] = [];
 		if (data.changes && offered.has(SessionChatPillKind.Changes)) {
@@ -224,9 +282,7 @@ export class StandardChatInputPillSources extends Disposable {
 			const presentation = derived(this, reader => {
 				const sections = source.sections.read(reader);
 				const scope = pinScope.read(reader);
-				const pinnedIds = scope
-					? new Set(pinnedEntryIds.read(reader).get(getPinnedEntryStorageKey(scope, kind)) ?? [])
-					: new Set<string>();
+				const pinnedIds = pins.getPinned(scope, kind, reader);
 				const pinnedEntries: IChatPillEntry[] = [];
 				const unpinnedSections = sections.map(section => ({
 					...section,
@@ -335,7 +391,7 @@ export class StandardChatInputPillSources extends Disposable {
 		if (!scope) {
 			return entry;
 		}
-		const pinAction = this.createPinAction(entry, kind, scope, pinned);
+		const pinAction = this.pins.createPinAction(entry, kind, scope, pinned);
 		if (pinned) {
 			return {
 				...entry,
@@ -347,43 +403,6 @@ export class StandardChatInputPillSources extends Disposable {
 			...entry,
 			toolbarActions: [...entry.toolbarActions ?? [], pinAction],
 		};
-	}
-
-	private createPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string, pinned: boolean): IChatPillAction {
-		return withChatPillHoverLabel(toAction({
-			id: `chatInputPills.${kind}.${pinned ? 'unpin' : 'pin'}.${entry.id}`,
-			label: pinned
-				? localize('chatInputPills.unpinEntry', "Unpin {0}", entry.label)
-				: localize('chatInputPills.pinEntry', "Pin {0}", entry.label),
-			class: ThemeIcon.asClassName(pinned ? Codicon.unpin : Codicon.pin),
-			run: () => this.setPinned(kind, scope, entry.id, entry.label, !pinned),
-		}), pinned
-			? localize('chatInputPills.unpinHoverLabel', "Unpin")
-			: localize('chatInputPills.pinHoverLabel', "Pin"));
-	}
-
-	private setPinned(kind: SessionChatPillKind, scope: string, entryId: string, label: string, pinned: boolean): void {
-		const storageKey = getPinnedEntryStorageKey(scope, kind);
-		const pinnedForSource = new Set(readPinnedChatPillEntries(this.storageService).get(storageKey) ?? []);
-		if (pinned) {
-			pinnedForSource.add(entryId);
-		} else {
-			pinnedForSource.delete(entryId);
-		}
-		const next = new Map(readPinnedChatPillEntries(this.storageService));
-		if (pinnedForSource.size > 0) {
-			next.set(storageKey, [...pinnedForSource]);
-		} else {
-			next.delete(storageKey);
-		}
-		if (next.size > 0) {
-			this.storageService.store(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, JSON.stringify([...next]), StorageScope.PROFILE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, StorageScope.PROFILE);
-		}
-		status(pinned
-			? localize('chatInputPills.pinnedEntry', "Pinned {0}.", label)
-			: localize('chatInputPills.unpinnedEntry', "Unpinned {0}.", label));
 	}
 }
 

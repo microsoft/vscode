@@ -56,6 +56,8 @@ export interface IActionWidgetDropdownAction extends IAction {
 	detail?: string;
 	/** Optional badge displayed after the label. */
 	badge?: string;
+	/** Optional badges displayed alongside {@link badge}. */
+	additionalBadges?: IActionListItem<unknown>['additionalBadges'];
 	/**
 	 * Optional description used in the accessible label instead of the visual description.
 	 */
@@ -206,6 +208,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					ariaDescription: action.ariaDescription,
 					detail: action.detail,
 					badge: action.badge,
+					additionalBadges: action.additionalBadges,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
 					className: action.className,

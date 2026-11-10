@@ -9,6 +9,7 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
@@ -31,6 +32,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly enablementSettings?: readonly string[];
 	/** Instantiate while hidden so sidebar metadata such as item counts is available before first navigation. */
 	readonly initializeOnEditorOpen?: boolean;
+	/** Visually separates this section from the preceding customization sections in the navigation list. */
+	readonly separatorBefore?: boolean;
 	readonly supportsHarness: (harnessId: string) => boolean;
 	/**
 	 * Describes why the section's navigation entry shows a badge, for example because the section has suggestions
@@ -38,7 +41,11 @@ export interface IAICustomizationManagementSectionContribution {
 	 * accessible name. The editor reads it while it is open.
 	 */
 	readonly getBadge?: (accessor: ServicesAccessor) => IObservable<string | undefined>;
-	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
+	/**
+	 * Creates the section's widget in `container`. `group` is the editor group of the editor that shows the section,
+	 * which editor panes that the section shows need.
+	 */
+	create(instantiationService: IInstantiationService, container: HTMLElement, group: IEditorGroup): IAICustomizationManagementSectionWidget;
 }
 
 class AICustomizationManagementSectionRegistry {

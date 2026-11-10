@@ -40,7 +40,7 @@ import { IStateService } from '../../state/node/state.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
-import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
+import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -293,7 +293,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		const existingWindows = this.getWindows();
@@ -303,7 +303,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
 
 		if (windows.length > 0) {
-			sendAgentsWindowOpenIntent(windows[0], existingWindows.includes(windows[0]), openConfig, { folderUri, reveal, source, folderUriIsDefault, draft, onboardingSessionResource });
+			sendAgentsWindowOpenIntent(windows[0], existingWindows.includes(windows[0]), openConfig, { folderUri, reveal, revealRemoteAuthority, source, folderUriIsDefault, draft, onboardingSessionResource });
 		}
 
 		return windows;
@@ -357,7 +357,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let maybeOpenEmptyWindow = false;
 
 		// Identify things to open from open config
-		const pathsToOpen = await this.getPathsToOpen(openConfig);
+		const { pathsToOpen, requestedPaths } = await this.getPathsToOpen(openConfig);
 		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
 		for (const path of pathsToOpen) {
 			if (isSingleFolderWorkspacePathToOpen(path)) {
@@ -470,6 +470,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		if (isMacintosh && openConfig.initialStartup && this.windowsStateHandler.exactRestore?.hideApplication) {
+			app.hide();
+		}
+
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing or merging, only if opened individually
 		const isDiff = filesToOpen && filesToOpen.filesToDiff.length > 0;
@@ -494,6 +498,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
+
+		// Handle a chat session to open in the window of the requested path
+		this.handleChatSessionToOpen(openConfig, requestedPaths, usedWindows, filesOpenedInWindow);
 
 		return usedWindows;
 	}
@@ -535,6 +542,27 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (windowHandlingChatRequest) {
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
+		}
+	}
+
+	private handleChatSessionToOpen(openConfig: IOpenConfiguration, requestedPaths: readonly IPathToOpen[], usedWindows: ICodeWindow[], filesOpenedInWindow: ICodeWindow | undefined): void {
+		const chatSessionToOpen = openConfig.chatSessionToOpen;
+		if (!chatSessionToOpen) {
+			return;
+		}
+
+		// Windows from the previous session can open next to the requested
+		// path (`window.restoreWindows`), so only its own window qualifies
+		const window = findWindowOnRequestedPath(usedWindows, requestedPaths, filesOpenedInWindow);
+		if (!window) {
+			this.logService.trace('windowsManager#open: no window opened the requested path, not opening its chat session');
+			return;
+		}
+
+		if (chatSessionToOpen.kind === 'copilotCli') {
+			window.sendWhenReady('vscode:openCopilotCliSession', CancellationToken.None, chatSessionToOpen.sessionId);
+		} else {
+			window.sendWhenReady('vscode:openChatSession', CancellationToken.None, chatSessionToOpen.resource);
 		}
 	}
 
@@ -823,7 +851,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		});
 	}
 
-	private async getPathsToOpen(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
+	private async getPathsToOpen(openConfig: IOpenConfiguration): Promise<{ readonly pathsToOpen: IPathToOpen[]; readonly requestedPaths: readonly IPathToOpen[] }> {
 		let pathsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 		let isRestoringPaths = false;
@@ -884,6 +912,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		// The paths that were asked for, without windows restored next to them
+		const requestedPaths = isCommandLineOrAPICall ? [...pathsToOpen] : [];
+
 		// Check for `window.restoreWindows` setting to include all windows
 		// from the previous session if this is the initial startup and we have
 		// not restored windows already otherwise.
@@ -894,7 +925,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			pathsToOpen.unshift(...lastSessionPaths.filter(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path) || path.backupPath));
 		}
 
-		return pathsToOpen;
+		return { pathsToOpen, requestedPaths };
 	}
 
 	private async doExtractPathsFromAPI(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
@@ -1602,6 +1633,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// New window
 		if (!window) {
 			const state = this.windowsStateHandler.getNewWindowState(configuration);
+			const minimized = !!options.initialStartup && !!this.windowsStateHandler.exactRestore && !!state.minimized;
 
 			// Create the window
 			mark('code/willCreateCodeWindow');
@@ -1609,7 +1641,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				isSessionsWindow: configuration.isSessionsWindow
+				isSessionsWindow: configuration.isSessionsWindow,
+				minimized
 			});
 			mark('code/didCreateCodeWindow');
 
@@ -1839,5 +1872,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const window = this.getWindowById(browserWindow.id);
 
 		return window?.matches(webContents) ? window : undefined;
+	}
+
+	restoreExactlyOnNextStartup(restore: boolean): void {
+		this.windowsStateHandler.setNextExactRestore(restore ? {
+			hideApplication: isMacintosh && app.isHidden()
+		} : undefined);
 	}
 }

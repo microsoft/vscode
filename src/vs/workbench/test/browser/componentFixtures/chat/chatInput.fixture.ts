@@ -169,6 +169,22 @@ const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	},
 };
 
+function sandboxPlaceholderOptions(enabled: boolean): ChatInputFixtureOptions {
+	return {
+		width: 660,
+		placeholder: 'Chat with Copilot [windows-ca-test-sunday1234]',
+		agentHostSessionConfig: {
+			schema: {
+				type: 'object', properties: {
+					...copilotHarnessSessionConfig.schema.properties,
+					[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+				}
+			},
+			values: { ...copilotHarnessSessionConfig.values, [SessionConfigKey.SandboxEnabled]: enabled ? 'on' : 'off' },
+		},
+	};
+}
+
 const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } }));
 
 const combinedPickerOptions: ChatInputFixtureOptions = {
@@ -217,6 +233,16 @@ function renderCopilotIntroductionComparison(context: ComponentFixtureContext): 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
+	SessionSandboxEnabled: defineComponentFixture({ render: context => renderChatInput(context, sandboxPlaceholderOptions(true)) }),
+	SessionSandboxDisabled: defineComponentFixture({ render: context => renderChatInput(context, sandboxPlaceholderOptions(false)) }),
+	SessionSandboxOverflow: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: async context => {
+			await renderChatInput(context, { ...sandboxPlaceholderOptions(true), placeholder: 'Chat', resizeWidths: [80] });
+			assert(!context.container.querySelector('.agent-host-chat-input-picker-host-autoApprove'), 'Permissions should be in overflow.');
+			assert(context.container.querySelector('.editorPlaceholder')?.textContent === 'Chat (sandbox enabled)', 'Overflow must not hide sandbox status.');
+		},
+	}),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
 	WithShortModelName: defineComponentFixture({ render: context => renderChatInput(context, { models: shortNameModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({

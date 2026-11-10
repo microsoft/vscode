@@ -30,6 +30,8 @@ export interface IEnablementModel {
 	 * this state is shared by every profile and window; see {@link EnablementModel}.
 	 */
 	readProfileEnabled(key: string, reader?: IReader): boolean;
+	/** Whether a transition is permitted before starting an external mutation. */
+	canSetEnabled?(key: string, state: ContributionEnablementState): boolean;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
 	setDefaultEnabled?(key: string, enabled: boolean, tx?: ITransaction): void;
 	remove(key: string): void;
@@ -226,6 +228,10 @@ export class CollisionEnablementModel implements IEnablementModel {
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
 		return this._base.readProfileEnabled(key, reader);
+	}
+
+	canSetEnabled(key: string, state: ContributionEnablementState): boolean {
+		return this._base.canSetEnabled?.(key, state) ?? true;
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {

@@ -21,7 +21,7 @@ import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../..
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { canShowAgentsBanner, createAgentsBanner, IAgentsBannerOptions } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
@@ -29,7 +29,7 @@ suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const account = new class extends mock<IDefaultAccount>() { }();
 
-	function createBanner(initialAccount: IDefaultAccount | null, options: { source?: IAgentsBannerOptions['source']; offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
+	function createBanner(initialAccount: IDefaultAccount | null, options: { initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		const onDidChangeSentiment = store.add(new Emitter<void>());
 		const configurationService = options.configuration ?? new TestConfigurationService();
@@ -48,7 +48,6 @@ suite('AgentsBanner', () => {
 			}());
 		};
 		let signInCalls = 0;
-		let onButtonClickCalls = 0;
 		const commands: { id: string; args: unknown[] }[] = [];
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
 			override currentDefaultAccount = initialAccount;
@@ -70,15 +69,12 @@ suite('AgentsBanner', () => {
 		const banner = createAgentsBanner(
 			{
 				cssClass: 'agents-banner',
-				source: options.source ?? 'welcomePage',
-				label: options.label,
-				onButtonClick: () => onButtonClickCalls++,
 			},
 			commandService,
 			NullTelemetryService,
 			configurationService,
 			chatEntitlementService,
-			options.offerSignIn !== false ? defaultAccountService : undefined,
+			defaultAccountService,
 		);
 		store.add(banner.disposables);
 		const button = banner.element.querySelector('button')!;
@@ -109,7 +105,6 @@ suite('AgentsBanner', () => {
 				icon: button.querySelector('.codicon')?.className,
 				iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
 				signInCalls,
-				onButtonClickCalls,
 				commands: [...commands],
 			}),
 		};
@@ -123,41 +118,37 @@ suite('AgentsBanner', () => {
 			assert.deepStrictEqual({
 				...banner.visibility(),
 				commands: banner.state().commands.length,
-				onButtonClickCalls: banner.state().onButtonClickCalls,
 			}, {
 				canShow: enabled,
 				display: enabled ? '' : 'none',
 				ariaHidden: enabled ? null : 'true',
 				disabled: !enabled,
 				commands: enabled ? 1 : 0,
-				onButtonClickCalls: enabled ? 1 : 0,
 			});
 		});
 	}
 
-	for (const offerSignIn of [false, true]) {
-		test(`updates an existing banner as effective agent enablement changes (sign-in offer: ${offerSignIn})`, async () => {
-			const banner = createBanner(account, { offerSignIn, configuration: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: false }) });
-			const states = [banner.visibility()];
-			for (const enabled of [true, false, true]) {
-				await banner.setAgentEnabled(enabled);
-				states.push(banner.visibility());
-				banner.button.click();
-			}
+	test('updates an existing banner as effective agent enablement changes', async () => {
+		const banner = createBanner(account, { configuration: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: false }) });
+		const states = [banner.visibility()];
+		for (const enabled of [true, false, true]) {
+			await banner.setAgentEnabled(enabled);
+			states.push(banner.visibility());
+			banner.button.click();
+		}
 
-			const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
-			const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
-			assert.deepStrictEqual({
-				states,
-				sameButton: banner.button === banner.banner.element.querySelector('button'),
-				commands: banner.state().commands.length,
-			}, {
-				states: [hidden, visible, hidden, visible],
-				sameButton: true,
-				commands: 2,
-			});
+		const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
+		const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
+		assert.deepStrictEqual({
+			states,
+			sameButton: banner.button === banner.banner.element.querySelector('button'),
+			commands: banner.state().commands.length,
+		}, {
+			states: [hidden, visible, hidden, visible],
+			sameButton: true,
+			commands: 2,
 		});
-	}
+	});
 
 	for (const sentiment of [{ hidden: true }, { disabled: true }]) {
 		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled'}`, async () => {
@@ -188,8 +179,7 @@ suite('AgentsBanner', () => {
 		assert.deepStrictEqual({
 			signInCalls: banner.state().signInCalls,
 			commands: banner.state().commands,
-			onButtonClickCalls: banner.state().onButtonClickCalls,
-		}, { signInCalls: 0, commands: [], onButtonClickCalls: 0 });
+		}, { signInCalls: 0, commands: [] });
 	});
 
 	test('disposes the visibility listeners', async () => {
@@ -215,28 +205,22 @@ suite('AgentsBanner', () => {
 			icon: 'codicon icon-widget codicon-github',
 			iconHidden: 'true',
 			signInCalls: 1,
-			onButtonClickCalls: 0,
 			commands: [],
 		});
 	});
 
-	for (const [source, windowOpenSource] of [
-		['welcomePage', 'welcomeTryOut'],
-		['agentSessionsWelcome', 'welcomeViewAll'],
-	] as const) {
-		test(`reports ${windowOpenSource} when opening Agents from ${source}`, () => {
-			const banner = createBanner(account, { source });
-			banner.button.click();
+	test('reports welcomeTryOut when opening Agents from the welcome page', () => {
+		const banner = createBanner(account);
+		banner.button.click();
 
-			assert.deepStrictEqual({
-				commands: banner.state().commands,
-				accepted: isAgentsWindowOpenSource(windowOpenSource),
-			}, {
-				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: windowOpenSource }] }],
-				accepted: true,
-			});
+		assert.deepStrictEqual({
+			commands: banner.state().commands,
+			accepted: isAgentsWindowOpenSource(AgentsWindowOpenSource.WelcomeTryOut),
+		}, {
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
+			accepted: true,
 		});
-	}
+	});
 
 	test('signed-in users keep the Agents window action', () => {
 		const banner = createBanner(account);
@@ -248,7 +232,6 @@ suite('AgentsBanner', () => {
 			icon: 'codicon icon-widget codicon-agent',
 			iconHidden: 'true',
 			signInCalls: 0,
-			onButtonClickCalls: 1,
 			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
@@ -267,30 +250,13 @@ suite('AgentsBanner', () => {
 			signedOut: { label: signedOut.label, title: signedOut.title, icon: signedOut.icon },
 			sameButton: banner.button === banner.banner.element.querySelector('button'),
 			signInCalls: signedOut.signInCalls,
-			onButtonClickCalls: signedOut.onButtonClickCalls,
 			commands: signedOut.commands,
 		}, {
 			signedIn: { label: 'Try out the new Agents window', title: 'Try out the new Agents window', icon: 'codicon icon-widget codicon-agent' },
 			signedOut: { label: 'Sign in to GitHub', title: 'Sign in to GitHub', icon: 'codicon icon-widget codicon-github' },
 			sameButton: true,
 			signInCalls: 1,
-			onButtonClickCalls: 1,
 			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
-		});
-	});
-
-	test('preserves banners that do not offer sign-in and their custom labels', () => {
-		const banner = createBanner(null, { source: 'agentSessionsWelcome', offerSignIn: false, label: 'View All Sessions' });
-		banner.button.click();
-
-		assert.deepStrictEqual(banner.state(), {
-			label: 'View All Sessions',
-			title: 'View All Sessions',
-			icon: 'codicon icon-widget codicon-agent',
-			iconHidden: 'true',
-			signInCalls: 0,
-			onButtonClickCalls: 1,
-			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeViewAll }] }],
 		});
 	});
 
@@ -306,7 +272,6 @@ suite('AgentsBanner', () => {
 			icon: 'codicon icon-widget codicon-agent',
 			iconHidden: 'true',
 			signInCalls: 0,
-			onButtonClickCalls: 1,
 			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
@@ -324,13 +289,11 @@ suite('AgentsBanner', () => {
 			enabled: { label: enabled.label, title: enabled.title, icon: enabled.icon },
 			disabled: { label: disabled.label, title: disabled.title, icon: disabled.icon },
 			signInCalls: disabled.signInCalls,
-			onButtonClickCalls: disabled.onButtonClickCalls,
 			commands: disabled.commands,
 		}, {
 			enabled: { label: 'Sign in to GitHub', title: 'Sign in to GitHub', icon: 'codicon icon-widget codicon-github' },
 			disabled: { label: 'Try out the new Agents window', title: 'Try out the new Agents window', icon: 'codicon icon-widget codicon-agent' },
 			signInCalls: 1,
-			onButtonClickCalls: 1,
 			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
@@ -355,7 +318,6 @@ suite('AgentsBanner', () => {
 					icon: 'codicon icon-widget codicon-agent',
 					iconHidden: 'true',
 					signInCalls: 0,
-					onButtonClickCalls: 1,
 					commands: [openAgentsCommand],
 				},
 				afterResolution: {
@@ -364,7 +326,6 @@ suite('AgentsBanner', () => {
 					icon: resolvedAccount ? 'codicon icon-widget codicon-agent' : 'codicon icon-widget codicon-github',
 					iconHidden: 'true',
 					signInCalls: resolvedAccount ? 0 : 1,
-					onButtonClickCalls: resolvedAccount ? 2 : 1,
 					commands: resolvedAccount ? [openAgentsCommand, openAgentsCommand] : [openAgentsCommand],
 				},
 			});
@@ -399,6 +360,13 @@ suite('AgentsBanner graphic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const graphicTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}`;
 	const sectionStyleTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowSectionStyle}`;
+	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+		override currentDefaultAccount = null;
+		override onDidChangeDefaultAccount = Event.None;
+		override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+			return null;
+		}
+	}();
 
 	/** Creates the banner with the graphic, like the Welcome page does. */
 	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean } = {}) {
@@ -421,11 +389,12 @@ suite('AgentsBanner graphic', () => {
 		const graphic = store.add(new AgentsWindowGraphic(configurationService, hostService, environmentService));
 		const exposed = observableValue('exposed', options.exposed ?? true);
 		const banner = createAgentsBanner(
-			{ cssClass: 'agents-banner', source: 'welcomePage', graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: exposed } },
+			{ cssClass: 'agents-banner', graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: exposed } },
 			new class extends mock<ICommandService>() { }(),
 			telemetryService,
 			configurationService,
 			chatEntitlementService,
+			defaultAccountService,
 		);
 		store.add(banner.disposables);
 		const setConfiguration = async (key: string, value: string | boolean) => {
@@ -500,7 +469,7 @@ suite('AgentsBanner graphic', () => {
 		const configurationService = new TestConfigurationService();
 		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
 		const banner = createAgentsBanner(
-			{ cssClass: 'agents-banner', source: 'agentSessionsWelcome' },
+			{ cssClass: 'agents-banner' },
 			new class extends mock<ICommandService>() { }(),
 			telemetryService,
 			configurationService,
@@ -508,6 +477,7 @@ suite('AgentsBanner graphic', () => {
 				override sentiment = {};
 				override onDidChangeSentiment = Event.None;
 			}(),
+			defaultAccountService,
 		);
 		store.add(banner.disposables);
 

@@ -65,7 +65,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'issueReporter.wizard.enabled': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: localize('issueReporter.wizard.enabled', "Enable the new single-page issue reporter instead of the classic issue reporter."),
 			experiment: { mode: 'auto' }
 		},

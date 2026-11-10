@@ -41,6 +41,9 @@ declare module 'vscode' {
 		/**
 		 *
 		 * The desired scheme of the canonical URI.
+		 * Workspace Trust requests `vscode-vfs` for virtual resources with encoded metadata.
+		 * Return the actual source repository's URI, preserving its host identity and the resource's
+		 * repository-relative path, or undefined if its identity cannot be verified.
 		 */
 		targetScheme: string;
 	}

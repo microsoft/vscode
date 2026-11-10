@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type { ChatErrorDetails, Diagnostic, FormattingOptions, Uri, WorkspaceEdit } from 'vscode';
-import { IDeserializedWorkspaceState } from '../../src/platform/test/node/promptContextModel';
 import { ITestingServicesAccessor } from '../../src/platform/test/node/services';
 import { IFile, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
 import { ResourceMap } from '../../src/util/vs/base/common/map';
@@ -53,21 +52,14 @@ export type OutcomeAnnotation = { severity: 'info' | 'warning' | 'error'; label:
 
 export type IOutcome = (IInlineEditOutcome | IWorkspaceEditOutcome | IConversationalOutcome | IErrorOutcome | IEmptyOutcome);
 
-export interface ICommonScenarioProps {
+export interface IScenario {
 	queries: IScenarioQuery[];
 	extraWorkspaceSetup?: (workspace: SimulationWorkspace) => void | Promise<void>;
 	onBeforeStart?: (accessor: ITestingServicesAccessor) => void | Promise<void>;
-}
-export interface IDeserializedWorkspaceStateBasedScenario extends ICommonScenarioProps {
-	readonly workspaceState: IDeserializedWorkspaceState;
-	readonly scenarioFolderPath?: string;
-}
-export interface IFileBasedScenario extends ICommonScenarioProps {
 	readonly files: IFile[];
 	readonly workspaceFolders?: Uri[];
 }
-export type IScenario = IDeserializedWorkspaceStateBasedScenario | IFileBasedScenario;
-export type DiagnosticProviderId = 'tsc' | 'eslint' | 'pylint' | 'pyright' | 'roslyn' | 'cpp' | 'ruff';
+export type DiagnosticProviderId = 'tsc' | 'pyright';
 
 export interface IScenarioQuery {
 	file?: string | Uri;
@@ -116,14 +108,6 @@ export const enum EditTestStrategy {
 	 * Tests Edits in non-agent mode (with codeblock strategy)
 	 */
 	Edits,
-	/**
-	 * We will test an inline interaction.
-	 */
-	Inline,
-	/**
-	 * We will test an inline chat intent interaction.
-	 */
-	InlineChatIntent,
 	/**
 	 * Test Edits in agent mode
 	 */

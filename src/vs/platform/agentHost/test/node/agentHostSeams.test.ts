@@ -7,7 +7,6 @@ import assert from 'assert';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -43,7 +42,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 
 suite('Agent Host provider seams', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilot', 'seam-session');
 	const sessionKey = session.toString();
 	const defaultChat = URI.parse(buildDefaultChatUri(sessionKey));
@@ -82,8 +81,6 @@ suite('Agent Host provider seams', () => {
 		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Exhaustive origin + customizations on every context ---------------
 
