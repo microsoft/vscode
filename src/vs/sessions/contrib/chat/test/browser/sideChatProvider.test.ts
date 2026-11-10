@@ -98,6 +98,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		const callOrder: string[] = [];
 		const requests: ISendRequestOptions[] = [];
 		const contextInheritance: (boolean | undefined)[] = [];
+		const openReferences: (string | undefined)[] = [];
 		const sendRequest: ISessionsManagementService['sendRequest'] = async (_session, chat, requestOptions) => {
 			callOrder.push(`send:${chat.resource.toString()}:${requestOptions.query}`);
 			requests.push(requestOptions);
@@ -127,8 +128,9 @@ suite('SessionsSideChatProviderContribution', () => {
 			slotPanes: testGridPanes(constObservable([session])),
 			activeSession,
 			navigationRequest,
-			openChat: async (_session, chatUri) => {
+			openChat: async (_session, chatUri, openOptions) => {
 				callOrder.push(`open:${chatUri.toString()}`);
+				openReferences.push(openOptions?.referenceChatResource?.toString());
 				if (options.fail === 'open') {
 					throw new Error('Open failed');
 				}
@@ -149,7 +151,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
+		return { provider: () => registered, callOrder, openReferences, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -220,6 +222,28 @@ suite('SessionsSideChatProviderContribution', () => {
 			});
 		});
 	}
+
+	test('a side chat from a chat window opens beside its source chat there, and is not split in the main window grid', async () => {
+		const { provider, callOrder, openReferences } = setup({ inChatWindow: true });
+
+		await provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		assert.deepStrictEqual({ callOrder, openReferences }, {
+			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:question`],
+			openReferences: [sourceChat.resource.toString()],
+		});
+	});
+
+	test('a side chat from the main window opens beside its source chat and splits in the grid', async () => {
+		const { provider, callOrder, openReferences } = setup();
+
+		await provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		assert.deepStrictEqual({ callOrder, openReferences }, {
+			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:question`],
+			openReferences: [sourceChat.resource.toString()],
+		});
+	});
 
 	test('a side chat from a chat window is not sent in the background when the main window switches sessions meanwhile', async () => {
 		const creation = new DeferredPromise<void>();

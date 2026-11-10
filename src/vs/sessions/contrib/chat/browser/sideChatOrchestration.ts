@@ -11,23 +11,30 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { IChat, ISession, ISideChatSelection } from '../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
-/** Activates a new side chat in its own group before sending the request. */
+/**
+ * Opens a new side chat beside its source chat, in the chat window that shows the source chat or else in the grid, before
+ * sending the request.
+ */
 export async function openAndSendSideChat(
 	sessionsManagementService: ISessionsManagementService,
 	sessionsService: ISessionsService,
 	sessionsPartService: ISessionsPartService,
 	session: ISession,
 	sideChat: IChat,
+	sourceChat: URI,
+	sourceInGrid: boolean,
 	requestOptions: ISendRequestOptions,
 ): Promise<void> {
-	const opening = sessionsService.openChat(session, sideChat.resource);
+	const opening = sessionsService.openChat(session, sideChat.resource, { referenceChatResource: sourceChat });
 	const navigationRequest = sessionsService.navigationRequest.get();
 	await opening;
 	if (sessionsService.navigationRequest.get() !== navigationRequest) {
 		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 		return;
 	}
-	sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
+	if (sourceInGrid) {
+		sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
+	}
 	await sessionsManagementService.sendRequest(session, sideChat, requestOptions);
 }
 
@@ -73,7 +80,7 @@ export async function createAndSendSideChat(
 	if (navigated) {
 		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 	} else {
-		await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, requestOptions);
+		await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, sourceChat, inGrid, requestOptions);
 	}
 	return sideChat;
 }
