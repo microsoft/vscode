@@ -175,7 +175,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -4267,6 +4267,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
+		const routerPickSettled$ = derived(reader => isModelRouterPickSettled(mergedState$.read(reader)?.turns ?? [], opts.turnId, modelRouterNameFromModelId(turn$.read(reader)?.message.model?.id)));
 		store.add(autorun(reader => {
 			const state = mergedState$.read(reader);
 			if (state?.turns.some(turn => turn.id === opts.turnId)) {
@@ -4428,7 +4429,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const selectedModelId = turn?.message?.model?.id;
 				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
 					.toAutoModeResolution?.(usage$.read(reader));
-				if (!resolution || (!resolution.resolved && turn?.message.text.startsWith('/')) || equals(lastAutoModeResolution, resolution)) {
+				// An unresolved row is skipped for a slash command, and for a model router that already picked for this chat and is not picking again.
+				const skipUnresolved = !resolution?.resolved && (turn?.message.text.startsWith('/') || routerPickSettled$.read(reader));
+				if (!resolution || skipUnresolved || equals(lastAutoModeResolution, resolution)) {
 					return;
 				}
 				lastAutoModeResolution = resolution;
@@ -7903,21 +7906,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toAutoModeResolution: usage => {
 				const routed = readUsageInfoMeta(usage).modelRouted;
 				if (routed) {
+					// A router that picks once per chat has nothing new to report on a later turn.
+					if (routed.kept && routed.firstTurnOnly) {
+						return undefined;
+					}
 					const routedModel = lookupRawModel(routed.chosenModel);
 					const previousModel = routed.switchedFrom ? lookupRawModel(routed.switchedFrom) : undefined;
 					return {
 						kind: 'autoModeResolution',
 						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
-						router: routed.router,
+						router: routed.routerLabel ?? routed.router,
 						preference: routed.preference,
 						effort: routed.effort,
+						...(routed.contextTokens ? { contextSize: routed.contextTokens } : {}),
 						switchedFrom: routed.switchedFrom && (previousModel ? displayName(previousModel) : routed.switchedFrom),
 						defaulted: routed.defaulted,
 						kept: routed.kept,
 					};
 				}
 				if (isModelRouterModelId(fallbackRawModelId)) {
-					return { kind: 'autoModeResolution', router: modelRouterNameFromModelId(fallbackRawModelId) };
+					// The router's picker row carries its display name.
+					return { kind: 'autoModeResolution', router: lookupRawModel(fallbackRawModelId)?.model.name ?? modelRouterNameFromModelId(fallbackRawModelId) };
 				}
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
 				const isAutoTurn = fallbackRawModelId === AUTO_RAW_MODEL_ID || !!resolution;

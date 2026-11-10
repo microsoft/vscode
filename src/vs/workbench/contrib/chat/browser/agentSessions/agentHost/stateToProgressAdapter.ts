@@ -915,6 +915,23 @@ export function formatTurnResponseDetails(
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
 }
 
+/**
+ * Whether a model router that picks once per chat has already picked for this chat. A later turn
+ * that selects it keeps that pick without being routed, so there is no routing to report.
+ */
+export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
+	if (!routerName) {
+		return false;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = turns[i].id === turnId ? undefined : readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed.router === routerName && routed.firstTurnOnly === true;
+		}
+	}
+	return false;
+}
+
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
 export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, resolvedModelName: string | undefined): IChatAutoModeResolutionPart | undefined {
 	const resolution = readUsageInfoMeta(usage).autoModeResolved;
