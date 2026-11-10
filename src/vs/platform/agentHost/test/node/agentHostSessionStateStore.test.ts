@@ -520,6 +520,18 @@ suite('AgentHostSessionStateStore', () => {
 		assert.strictEqual(sessionStore.peek(session), undefined);
 	});
 
+	test('deletion drains a queued write without inheriting its deletion error', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		const before = await database.readSessionArchived(session.toString());
+		const rejectedWrite = assert.rejects(sessionStore.writeMetadata(session, session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
+		const deletion = store.add(sessionStore.beginDeletion(session));
+		await Promise.all([rejectedWrite, deletion.whenDrained]);
+		deletion.dispose();
+		assert.deepStrictEqual({ archived: await database.readSessionArchived(session.toString()), cached: sessionStore.peek(session) }, { archived: before, cached: undefined });
+	});
+
 	test('renders exactly the old format older builds wrote, and names the keys it does not own', async () => {
 		const { fixture, session } = await oldBuildSession();
 		const sessionStore = createStore();

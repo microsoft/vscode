@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isEqual, isEqualOrParent, joinPath, relativePath } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
@@ -397,7 +397,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		const unrecorded: IRecordedWorktree[] = [];
 		for (const directory of parseSessionWorkingDirectories(values?.get(SESSION_WORKING_DIRECTORIES_KEY)) ?? []) {
 			const folder = URI.parse(directory);
-			if (folder.scheme !== Schemas.file || recordedFolders.some(root => isEqualOrParent(folder, root))) {
+			if (folder.scheme !== Schemas.file || recordedFolders.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(folder, root))) {
 				continue;
 			}
 			const checkout = await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true });

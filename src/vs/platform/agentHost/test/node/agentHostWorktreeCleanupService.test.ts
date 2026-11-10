@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -253,6 +254,22 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await assert.rejects(cleanup.sessionWorktreeCleanup(SESSION, true), /additional worktrees without recovery records/);
 		await cleanup.runPass();
 		assert.deepStrictEqual({ recovery: [...worktree.sessions], pending: await pending(database), calls: worktree.calls }, { recovery: [], pending: [], calls: [] });
+	});
+
+	test('preparation recognizes recorded roots after working-directory URI serialization', async () => {
+		const { database, cleanup, worktree } = create(undefined, undefined, upcastPartial<IAgentHostGitService>({
+			getRepositoryRoot: async () => { throw new Error('A recorded worktree must not be rediscovered'); },
+		}));
+		const root = {
+			repositoryRoot: URI.file(isWindows ? 'C:\\repo' : '/repo'),
+			worktree: URI.file(isWindows ? 'C:\\repo.worktrees\\recorded' : '/repo.worktrees/recorded'),
+			branchName: 'agents/recorded',
+		};
+		worktree.sessions.set(SESSION.toString(), root);
+		await useWorktree(database, SESSION, root, true);
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		assert.deepStrictEqual({ pending: await pending(database), calls: worktree.calls }, { pending: [], calls: [] });
 	});
 
 	test('prepares Branch recovery before archiving the last native owner of a shared checkout', async () => {
