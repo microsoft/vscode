@@ -8,8 +8,9 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -51,7 +52,7 @@ export class ChatResourcesControl extends Disposable {
 	/** The chat's files that exist, by the ID of their pill entry. */
 	private readonly _resources: IObservable<ReadonlyMap<string, IChatResource>>;
 	/** The IDs of the entries that open in the chat rather than in an editor, by chat. */
-	private readonly _opensInChat: ISettableObservable<Readonly<Record<string, readonly string[]>>>;
+	private readonly _opensInChat: IObservable<Readonly<Record<string, readonly string[]>>>;
 	/** The ID of the shown resource by chat; `null` when the user hid it, absent before the user chose; see {@link getShownChatResource}. */
 	private readonly _selection = observableValue<ReadonlyMap<string, string | null>>(this, new Map());
 	/** Sizes by chat and resource ID, kept while the control lives so that switching resources keeps their sizes. */
@@ -84,7 +85,8 @@ export class ChatResourcesControl extends Disposable {
 		container.prepend(element);
 		this._register(toDisposable(() => element.remove()));
 
-		this._opensInChat = observableValue(this, this._readOpensInChat());
+		// Every chat widget stores its choices under the same key, so each follows the stored value rather than its own copy.
+		this._opensInChat = observableFromEvent(this, this._storageService.onDidChangeValue(StorageScope.WORKSPACE, OPENS_IN_CHAT_STORAGE_KEY, this._store), () => this._readOpensInChat());
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
@@ -203,14 +205,17 @@ export class ChatResourcesControl extends Disposable {
 		if (chat === undefined) {
 			return;
 		}
-		const all = this._opensInChat.get();
+		const all = this._readOpensInChat();
 		const ids = (all[chat] ?? []).filter(candidate => candidate !== id);
 		const next: Record<string, readonly string[]> = { ...all, [chat]: opensInChat ? [...ids, id] : ids };
 		if (next[chat].length === 0) {
 			delete next[chat];
 		}
-		this._opensInChat.set(next, undefined);
-		this._storageService.store(OPENS_IN_CHAT_STORAGE_KEY, JSON.stringify(next), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (Object.keys(next).length > 0) {
+			this._storageService.store(OPENS_IN_CHAT_STORAGE_KEY, JSON.stringify(next), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(OPENS_IN_CHAT_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private _readOpensInChat(): Record<string, readonly string[]> {
@@ -322,6 +327,8 @@ function findClippingAncestor(element: HTMLElement): HTMLElement {
 	return element;
 }
 
+/** How far the arrow keys move the resize edge. */
+const KEYBOARD_RESIZE_STEP = 20;
 /** How long the content height must stay unchanged after the content is shown before the view follows it. */
 const CONTENT_HEIGHT_SETTLE_DELAY = 150;
 /** The view follows the content height at the latest this long after the content is shown. */
@@ -360,7 +367,12 @@ class ChatShownResourceFrame extends Disposable {
 			dom.h('.chat-embedded-resource-body@body'),
 		]);
 		// The resize edge is the edge that moves: the top one.
-		const resizeHandle = dom.$('.chat-embedded-resource-sash', { role: 'separator', 'aria-orientation': 'horizontal' });
+		const resizeHandle = dom.$('.chat-embedded-resource-sash', {
+			role: 'separator',
+			tabindex: '0',
+			'aria-orientation': 'horizontal',
+			'aria-label': localize('chatResources.resizeLabel', "Resize {0}", _resource.label),
+		});
 		elements.root.prepend(resizeHandle);
 		this.element = elements.root;
 		this._body = elements.body;
@@ -387,9 +399,13 @@ class ChatShownResourceFrame extends Disposable {
 			const size = this._size.read(reader);
 			this._body.style.height = `${height.read(reader)}px`;
 			this.element.classList.toggle('automatic-height', size.fixedHeight === undefined);
+			resizeHandle.setAttribute('aria-valuenow', String(Math.round(height.read(reader))));
+			resizeHandle.setAttribute('aria-valuetext', size.fixedHeight === undefined
+				? localize('chatResources.resizeValueAutomatic', "Follows its content, {0} pixels", Math.round(height.read(reader)))
+				: localize('chatResources.resizeValueFixed', "{0} pixels", Math.round(height.read(reader))));
 			resizeHandle.title = size.fixedHeight === undefined
-				? localize('chatResources.resizeAutomatic', "Follows its content up to {0}px. Drag to resize, double-click to reset.", size.maxAutomaticHeight)
-				: localize('chatResources.resizeFixed', "Fixed at {0}px. Drag to its content height to follow the content again, double-click to reset.", Math.round(size.fixedHeight));
+				? localize('chatResources.resizeAutomatic', "Follows its content up to {0}px. Drag or use the Up and Down Arrow keys to resize, double-click or press Home to reset.", size.maxAutomaticHeight)
+				: localize('chatResources.resizeFixed', "Fixed at {0}px. Resize to its content height to follow the content again; double-click or press Home to reset.", Math.round(size.fixedHeight));
 		}));
 		// Dragging the top edge up grows the resource.
 		this._register(this._registerResizing(resizeHandle, height, -1));
@@ -430,6 +446,21 @@ class ChatShownResourceFrame extends Disposable {
 			store.add(drag);
 		}));
 		store.add(dom.addDisposableListener(handle, dom.EventType.DBLCLICK, () => this._size.set(defaultChatEmbeddedResourceSize, undefined)));
+		store.add(dom.addDisposableListener(handle, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Home') {
+				e.preventDefault();
+				this._size.set(defaultChatEmbeddedResourceSize, undefined);
+				return;
+			}
+			// The arrow moves the handle, like dragging it.
+			const movement = e.key === 'ArrowUp' ? -KEYBOARD_RESIZE_STEP : e.key === 'ArrowDown' ? KEYBOARD_RESIZE_STEP : 0;
+			if (movement) {
+				e.preventDefault();
+				const size = this._size.get();
+				const contentHeight = this._contentHeight.get();
+				this._size.set(resizeChatEmbeddedResource(size, getChatEmbeddedResourceAutomaticHeight(size, contentHeight), height.get() + direction * movement, contentHeight), undefined);
+			}
+		}));
 		return store;
 	}
 
@@ -470,12 +501,11 @@ class ChatShownResourceFrame extends Disposable {
 
 	private async _render(): Promise<void> {
 		try {
-			const content = await createChatResourceContent(this._resource, this._body, this._getClippingContainer, this._instantiationService);
+			// The frame owns the content while it loads, so closing the frame disposes content that is still loading.
+			const content = await createChatResourceContent(this._resource, this._body, this._getClippingContainer, this._instantiationService, this._store);
 			if (this._store.isDisposed) {
-				content.dispose();
 				return;
 			}
-			this._register(content);
 			this._register(this._followContentHeight(content.contentHeight));
 			const layout = () => content.layout(this._body.clientWidth, this._body.clientHeight);
 			const resizeObserver = new (dom.getWindow(this._body).ResizeObserver)(layout);
@@ -483,6 +513,9 @@ class ChatShownResourceFrame extends Disposable {
 			this._register(toDisposable(() => resizeObserver.disconnect()));
 			layout();
 		} catch (error) {
+			if (this._store.isDisposed || isCancellationError(error)) {
+				return;
+			}
 			this._logService.error(`[ChatResources] Could not render ${this._resource.resource.toString()}`, error);
 			dom.reset(this._body, dom.$('.chat-embedded-resource-error', undefined, toErrorMessage(error)));
 		}

@@ -691,6 +691,32 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('a file shown above the chat input is the agent host\'s file, also in a remote window', async () => {
+		const showFile = async (resourceUris: IAgentHostResourceUriMapper) => {
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true }]),
+			}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }), resourceUris });
+			const rendered = new DeferredPromise<string>();
+			harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
+			await timeout(0);
+			await harness.dropdown('1 Artifact').flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Pin '))?.run();
+			await timeout(0);
+			const pill = harness.persistentContent.querySelector<HTMLElement>('.chat-pill-item');
+			await harness.menu(pill)?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+			return rendered.p;
+		};
+		const remote = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));
+
+		assert.deepStrictEqual({
+			localWindow: await showFile(identityAgentHostResourceUriMapper),
+			remoteWindow: await showFile(remote),
+		}, {
+			localWindow: 'file:///repo/status.md',
+			remoteWindow: remote.fromAgentHost(URI.file('/repo/status.md')).toString(),
+		});
+	});
+
 	test('legacy artifact rules join the editor pill only when their setting is enabled', async () => {
 		const service = upcastPartial<IChatArtifactsService>({
 			getArtifacts: () => upcastPartial<IChatArtifacts>({

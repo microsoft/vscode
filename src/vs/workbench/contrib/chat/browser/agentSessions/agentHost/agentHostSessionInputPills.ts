@@ -267,13 +267,13 @@ function parseUri(value: string | undefined): URI | undefined {
 }
 
 /**
- * The file of a `resource` artifact that names one with a file URI, on the agent host's file system like the files of
- * `file` artifacts. Other resources, such as settings, are no files.
+ * The file a recorded artifact names, in this window's URI space as its connection maps it (a `vscode-remote` file in a
+ * remote window), so that the chat reads and renders the agent host's file. Agents record files with the `file` and the
+ * `resource` type; resources that are no files, such as settings, have none.
  */
 function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
-	const uri = artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
-	// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
-	return uri && uri.scheme === Schemas.file ? toAgentHostUri(uri, getAgentHostResourceAuthority(resolution)) : undefined;
+	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
+	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : undefined;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -980,14 +980,15 @@ export class AgentHostSessionInputPills extends Disposable {
 				: [];
 		});
 		// The files among artifacts and references, whether the agent host or a chat tool recorded them, can open in the chat
-		// once pinned. Agents also record files with the `resource` type, which the lists show as links; their file URI counts too.
+		// once pinned.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
 			const currentResolution = resolution.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
 			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
-				const resource = entry.resource ?? (artifact && currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined);
+				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
+				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent's label describes the resource for people; lists show files by their name.
 				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource }] : [];
 			}));

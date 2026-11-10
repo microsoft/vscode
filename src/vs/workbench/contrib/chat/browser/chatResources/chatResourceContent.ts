@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
@@ -13,6 +15,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../edito
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ContextMenuController } from '../../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { ContentHoverController } from '../../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { MenuPreventer } from '../../../codeEditor/browser/menuPreventer.js';
@@ -20,6 +23,7 @@ import { SelectionClipboardContributionID } from '../../../codeEditor/browser/se
 import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
 import { ICustomEditorService } from '../../../customEditor/common/customEditor.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 /** What a embedded resource shows. */
@@ -38,25 +42,31 @@ export interface IChatResourceContent extends Disposable {
 /**
  * Renders a resource with the editor that opens it by default: its custom editor when that is the default (such as an
  * extension's view or an image preview), and a readonly text editor otherwise.
+ * @param owner Owns the content from its creation on, so that disposing it while the content loads disposes the content.
  */
 export async function createChatResourceContent(
 	target: IChatResourceTarget,
 	body: HTMLElement,
 	getClippingContainer: () => HTMLElement,
 	instantiationService: IInstantiationService,
+	owner: DisposableStore,
 ): Promise<IChatResourceContent> {
 	return instantiationService.invokeFunction(async accessor => {
 		const defaultEditor = accessor.get(IEditorResolverService).getEditorMatches(target.resource).defaultRule.editor.id;
 		if (defaultEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
 			const customEditorService = accessor.get(ICustomEditorService);
 			await accessor.get(IExtensionService).activateByEvent(`onCustomEditor:${defaultEditor}`);
+			if (owner.isDisposed) {
+				throw new CancellationError();
+			}
 			// Only custom editors that an extension provides render in a webview here; other editors, such as notebooks, show
 			// the resource as text.
-			if (customEditorService.getCustomEditorCapabilities(defaultEditor)) {
-				return whenReady(instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, body, getClippingContainer));
+			const capabilities = customEditorService.getCustomEditorCapabilities(defaultEditor);
+			if (capabilities) {
+				return whenReady(owner.add(instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, !capabilities.supportsMultipleEditorsPerDocument, body, getClippingContainer)));
 			}
 		}
-		return whenReady(instantiationService.createInstance(ChatResourceTextContent, target.resource, body));
+		return whenReady(owner.add(instantiationService.createInstance(ChatResourceTextContent, target.resource, body)));
 	});
 }
 
@@ -131,45 +141,72 @@ class ChatResourceTextContent extends Disposable implements IChatResourceContent
 	}
 }
 
-/** A resource rendered by its custom editor in an overlay webview anchored to the view's body. */
+/**
+ * A resource rendered by its custom editor in an overlay webview anchored to the view's body. A custom editor that supports
+ * only one editor per document is not rendered while an editor shows the resource, so that it gets no second instance.
+ */
 class ChatResourceWebviewContent extends Disposable implements IChatResourceContent {
 	private readonly _contentHeight = observableValue<number | undefined>(this, undefined);
 	readonly contentHeight: IObservable<number | undefined> = this._contentHeight;
+	/** The custom editor input and its webview while the chat shows them. */
+	private readonly _presentation = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly _target: IChatResourceTarget,
 		private readonly _viewType: string,
+		private readonly _singlePerResource: boolean,
 		private readonly _body: HTMLElement,
 		private readonly _getClippingContainer: () => HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
 
 	async ready(): Promise<this> {
-		const input = CustomEditorInput.create(this._instantiationService, {
+		if (this._singlePerResource) {
+			this._register(this._editorService.onDidEditorsChange(() => {
+				if (this._presentation.value && this._isOpenInEditor()) {
+					this._showOpenInEditor();
+				}
+			}));
+			if (this._isOpenInEditor()) {
+				this._showOpenInEditor();
+				return this;
+			}
+		}
+		const presentation = this._presentation.value = new DisposableStore();
+		const input = presentation.add(CustomEditorInput.create(this._instantiationService, {
 			resource: this._target.resource,
 			viewType: this._viewType,
 			webviewTitle: this._target.label,
 			preferredName: this._target.label,
 			iconPath: undefined,
-		}, undefined);
-		this._register(input);
+		}, undefined));
 		if (!(input instanceof CustomEditorInput)) {
 			return this;
 		}
 		await input.resolve();
-		if (!this._store.isDisposed) {
-			this._attach(input);
+		if (!presentation.isDisposed) {
+			this._attach(input, presentation);
 		}
 		return this;
 	}
 
-	private _attach(input: CustomEditorInput): void {
+	private _isOpenInEditor(): boolean {
+		return this._editorService.editors.some(editor => editor instanceof CustomEditorInput && editor.viewType === this._viewType && isEqual(editor.resource, this._target.resource));
+	}
+
+	private _showOpenInEditor(): void {
+		this._presentation.clear();
+		dom.reset(this._body, dom.$('.chat-embedded-resource-message', undefined, localize('chatResources.openInEditorElsewhere', "{0} is open in an editor.", this._target.label)));
+	}
+
+	private _attach(input: CustomEditorInput, presentation: DisposableStore): void {
 		const webview = input.webview;
 		const targetWindow = dom.getWindow(this._body);
 		// Webviews report the height of their document, which is the content height.
-		this._register(autorun(reader => {
+		presentation.add(autorun(reader => {
 			const size = webview.intrinsicContentSize.read(reader);
 			if (size) {
 				this._contentHeight.set(size.height, undefined);
@@ -194,7 +231,7 @@ class ChatResourceWebviewContent extends Disposable implements IChatResourceCont
 			}
 		});
 		observer.observe(this._body);
-		this._register(toDisposable(() => {
+		presentation.add(toDisposable(() => {
 			observer.disconnect();
 			release();
 		}));

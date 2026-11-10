@@ -87,7 +87,15 @@
 	position: relative;
 }
 
-.chat-embedded-resource-error {
+.chat-embedded-resource-error,
+.chat-embedded-resource-message {
 	padding: 6px 8px;
+}
+
+.chat-embedded-resource-error {
 	color: var(--vscode-errorForeground);
+}
+
+.chat-embedded-resource-message {
+	color: var(--vscode-descriptionForeground);
 }
