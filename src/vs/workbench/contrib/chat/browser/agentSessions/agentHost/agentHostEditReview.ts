@@ -8,7 +8,7 @@ import { cancelOnDispose, CancellationToken } from '../../../../../../base/commo
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -57,6 +57,7 @@ const DIFF_TIMEOUT_MS = 1000;
 const WORKING_SET_READY_TIMEOUT_MS = 30_000;
 
 class EditReviewSynchronizationError extends Error { }
+class EditReviewSupersededError extends EditReviewSynchronizationError { }
 
 /** A file of the session's Working Set, and the version of its changes that the agent host published with it. */
 interface IWorkingSetFileChange {
@@ -261,6 +262,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
 	private readonly _blockedFiles = new ResourceSet();
+	private readonly _suspendedEntries = this._register(new DisposableResourceMap<AgentHostEditReviewEntry>());
 	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	constructor(
@@ -335,7 +337,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			for (const file of files) {
 				if (file.editing) {
 					// An edit starts immediately, even while an earlier update is being read or diffed.
-					this._entries.get(this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI))?.setEditing(true);
+					const resource = this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI);
+					(this._entries.get(resource) ?? this._suspendedEntries.get(resource))?.setEditing(true);
 				}
 			}
 			if (current && state?.status !== ChangesetStatus.Ready) {
@@ -431,7 +434,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const resource = this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI);
 			listed.add(resource);
 			if (file.editing) {
-				this._entries.get(resource)?.setEditing(true);
+				(this._entries.get(resource) ?? this._suspendedEntries.get(resource))?.setEditing(true);
 				continue;
 			}
 			try {
@@ -466,6 +469,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		for (const resource of this._blockedFiles) {
 			if (!listed.has(resource)) {
 				this._blockedFiles.delete(resource);
+				this._suspendedEntries.deleteAndDispose(resource);
 			}
 		}
 		for (const entry of [...this._entries.values()]) {
@@ -478,10 +482,13 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private _handleReviewError(resource: URI, error: unknown): void {
 		this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
 		if (error instanceof EditReviewSynchronizationError) {
-			const entry = this._entries.get(resource);
+			const entry = this._entries.get(resource) ?? this._suspendedEntries.get(resource);
 			if (entry) {
 				entry.setEditing(false);
-				this._removeEntry(entry);
+				if (this._entries.has(resource)) {
+					this._suspendedEntries.set(resource, entry.acquire());
+					this._removeEntry(entry);
+				}
 			}
 			if (!this._blockedFiles.has(resource)) {
 				this._blockedFiles.add(resource);
@@ -513,8 +520,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 					await entry.update(file, prepared.original, prepared.edit);
 				}
 			} catch (error) {
-				if (!isCancellationError(error) && isCurrent()) {
-					this._handleReviewError(entry.modifiedURI, error);
+				if (isCurrent()) {
+					if (error instanceof EditReviewSupersededError) {
+						this._refreshReview(entry);
+					} else if (!isCancellationError(error)) {
+						this._handleReviewError(entry.modifiedURI, error);
+					}
 				}
 			}
 		});
@@ -529,7 +540,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			return;
 		}
 		const contents = await this._readContents(change.diff);
-		const entry = this._entries.get(resource);
+		const suspended = this._suspendedEntries.get(resource);
+		const entry = this._entries.get(resource) ?? suspended;
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			return;
 		}
@@ -537,6 +549,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			if (entry) {
 				this._removeEntry(entry);
 			}
+			this._suspendedEntries.deleteAndDispose(resource);
 			return;
 		}
 		if (entry?.state.get() === ModifiedFileEntryState.Modified) {
@@ -547,8 +560,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return;
 			}
 			const file = { ...change, ...contents };
-			const prepared = await this._prepareFile(file, entry.modifiedModel, token);
+			const trackedOriginal = suspended && isSameWorkingSetFile(suspended.file, file) ? suspended.originalModel : undefined;
+			const prepared = await this._prepareFile(file, entry.modifiedModel, token, trackedOriginal);
 			await entry.update(file, prepared.original, prepared.edit);
+			if (token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			if (this._suspendedEntries.deleteAndLeak(resource)) {
+				this._entries.set(resource, entry);
+			}
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
 			this._entriesObs.set([...this._entries.values()], undefined);
 			return;
@@ -557,6 +577,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			// The user decided on the earlier changes, so the file is reviewed anew.
 			this._removeEntry(entry);
 		}
+		this._suspendedEntries.deleteAndDispose(resource);
 		await this._createEntry(resource, { ...change, ...contents }, token);
 	}
 
@@ -631,7 +652,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return { original, edit };
 			}
 		}
-		throw new EditReviewSynchronizationError(localize('agentHostEditReview.prepareChanged', "The document changed while its changes were being compared."));
+		throw new EditReviewSupersededError(localize('agentHostEditReview.prepareChanged', "The document changed while its changes were being compared."));
 	}
 
 	/** Reads a file's baseline and current content, unless they aren't UTF-8 text, as the agent host compares them. */
@@ -961,16 +982,17 @@ async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: str
 	if (trackedOriginal === undefined || trackedOriginal === original) {
 		return original;
 	}
-	const [pending, adjustments] = await Promise.all([computeEdit(trackedOriginal, live, workerService), computeEdit(trackedOriginal, original, workerService)]);
+	const [pending, adjustments] = await Promise.all([computeEdit(trackedOriginal, live, workerService, true), computeEdit(trackedOriginal, original, workerService, true)]);
 	if (!pending || !adjustments) {
 		return undefined;
 	}
 	let pendingIndex = 0;
 	const refinements = adjustments.replacements.filter(adjustment => {
 		while (pendingIndex < pending.replacements.length) {
-			const range = pending.replacements[pendingIndex].replaceRange;
+			const replacement = pending.replacements[pendingIndex];
+			const range = replacement.replaceRange;
 			if (range.containsRange(adjustment.replaceRange)) {
-				return true;
+				return replacement.equals(adjustment);
 			}
 			if (range.endExclusive > adjustment.replaceRange.start) {
 				return false;
@@ -1028,11 +1050,11 @@ function toTextRange(lines: LineRange): TextRange {
 }
 
 /** The edit that turns `original` into `modified`, as their diff spells it out, or `undefined` if the diff times out. */
-async function computeEdit(original: string, modified: string, workerService: IEditorWorkerService): Promise<StringEdit | undefined> {
+async function computeEdit(original: string, modified: string, workerService: IEditorWorkerService, computeRawChanges = false): Promise<StringEdit | undefined> {
 	if (original === modified) {
 		return StringEdit.empty;
 	}
-	const diff = await workerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: DIFF_TIMEOUT_MS }, 'advanced');
+	const diff = await workerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: DIFF_TIMEOUT_MS, computeRawChanges }, 'advanced');
 	return diff.isCoarse ? undefined : diff.edit;
 }
 
