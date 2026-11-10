@@ -683,8 +683,7 @@ async function resolveToolInput(connection: IAgentConnection, toolInput: ToolInp
 
 /**
  * Converts carousel answers (IChatQuestionAnswers) to protocol
- * ChatInputAnswer records, handling text, single-select,
- * boolean, and multi-select answer shapes.
+ * ChatInputAnswer records, preserving the question kind for freeform selections.
  */
 export function convertCarouselAnswers(raw: IChatQuestionAnswers, questions: readonly ChatInputQuestion[] = []): Record<string, ChatInputAnswer> {
 	const answers: Record<string, ChatInputAnswer> = {};
@@ -716,13 +715,13 @@ export function convertCarouselAnswers(raw: IChatQuestionAnswers, questions: rea
 						value: single.selectedValue === BOOLEAN_TRUE_OPTION_ID,
 					},
 				};
-			} else if (single.selectedValue) {
+			} else if (single.selectedValue || (single.freeformValue && questionKinds.get(qId) === ChatInputQuestionKind.SingleSelect)) {
 				// Single-select answer
 				answers[qId] = {
 					state: ChatInputAnswerState.Submitted,
 					value: {
 						kind: ChatInputAnswerValueKind.Selected,
-						value: single.selectedValue,
+						value: single.selectedValue ?? '',
 						freeformValues: single.freeformValue ? [single.freeformValue] : undefined,
 					},
 				};
