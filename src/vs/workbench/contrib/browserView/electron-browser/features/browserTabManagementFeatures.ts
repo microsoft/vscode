@@ -617,7 +617,8 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		super();
 
 		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
-		registerBuiltInExternalUriOpener(LocalhostLinkOpenerContribution.OPENER_ID, localize('browser.externalUriOpener.description', "Open in the Integrated Browser."));
+		// The Simple Browser opener delegates to the Integrated Browser, so only this one is offered
+		this._register(registerBuiltInExternalUriOpener(LocalhostLinkOpenerContribution.OPENER_ID, localize('browser.externalUriOpener.description', "Open in the Integrated Browser."), ['simpleBrowser.open']));
 	}
 
 	async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {

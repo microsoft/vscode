@@ -47,7 +47,7 @@ async function openInIntegratedBrowser(url?: string): Promise<void> {
 	await vscode.commands.executeCommand(integratedBrowserCommand, url);
 }
 
-export async function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext) {
 
 	const manager = new SimpleBrowserManager(context.extensionUri);
 	context.subscriptions.push(manager);
@@ -85,11 +85,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			manager.show(url, showOptions);
 		}
 	}));
-
-	// Where the Integrated Browser is available it is the opener, so don't offer this one
-	if (await shouldUseIntegratedBrowser()) {
-		return;
-	}
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
 		async canOpenExternalUri(uri: vscode.Uri) {
