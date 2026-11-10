@@ -607,6 +607,61 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	test('show automation runs overrides listing policies without changing explicit choices', () => {
+		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
+		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
+		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
+		const replied = createSession('replied', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		sessions = [hidden, shown, policy, replied, regular];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const listed = (showAutomationRuns: boolean) => sessions
+			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+			.map(session => session.sessionId);
+		service.hideAutomationSessions([hidden]);
+		service.showAutomationSessions([shown]);
+		service.showRepliedAutomationSession(replied);
+
+		setMode(AutomationSessionsListMode.Never);
+		const never = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.AfterReply);
+		const afterReply = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.Always);
+		const always = { off: listed(false), on: listed(true) };
+		const stored = {
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		};
+
+		assert.deepStrictEqual({ never, afterReply, always, stored }, {
+			never: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			afterReply: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			always: {
+				off: ['shown', 'policy', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			stored: {
+				shown: JSON.stringify(['shown', 'replied']),
+				hidden: JSON.stringify(['hidden']),
+			},
+		});
+	});
+
 	// -- onDidChange --
 
 	test('onDidChange includes changes array with sessionId and kind', () => {

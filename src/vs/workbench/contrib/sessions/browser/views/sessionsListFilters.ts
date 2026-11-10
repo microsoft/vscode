@@ -153,6 +153,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
+	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
 	private readonly excluded: Map<string, boolean>;
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
@@ -203,6 +204,15 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {
 		this.excluded.set(sessionFilterKey(filter), excluded);
+		this.save();
+	}
+
+	isShowAutomationRuns(): boolean {
+		return this.excluded.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY) ?? false;
+	}
+
+	setShowAutomationRuns(show: boolean): void {
+		this.excluded.set(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY, show);
 		this.save();
 	}
 
