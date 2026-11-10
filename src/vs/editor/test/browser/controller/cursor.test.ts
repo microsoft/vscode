@@ -4050,6 +4050,8 @@ suite('Editor Controller', () => {
 				'def normal',
 				'def normal(name)',
 				'def normal(name = "world")',
+				'def normal(value = foo() == 1)',
+				'def normal(pattern = /; end/)',
 				'def normal name',
 				'def normal name = "world"',
 			], true),
