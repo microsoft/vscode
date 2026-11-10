@@ -6328,13 +6328,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 						rendered = { ...rendered, collapsed: false };
 						if (section.sessions.length === 0) {
 							const hasDismissed = sections.some(section => section.id === SessionInboxSection.Done && section.sessions.length > 0);
-							rendered = { ...rendered, children: [{
-								element: {
-									placeholder: true as const, sectionId: id,
-									label: hasDismissed ? localize('inboxEmptyHistory', "No new activity. See Dismissed below.") : localize('inboxEmpty', "Your inbox is clear"),
-									hover: hasDismissed ? localize('inboxHistoryHelp', "Dismissed includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
-								},
-							}] };
+							rendered = {
+								...rendered, children: [{
+									element: {
+										placeholder: true as const, sectionId: id,
+										label: hasDismissed ? localize('inboxEmptyHistory', "No new activity. See Dismissed below.") : localize('inboxEmpty', "Your inbox is clear"),
+										hover: hasDismissed ? localize('inboxHistoryHelp', "Dismissed includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
+									},
+								}]
+							};
 						}
 					} else if (id === SessionInboxSection.OnHold) {
 						const workspaces = new Map<string, { sessions: ISession[]; children: IObjectTreeElement<SessionListItem>[] }>();
@@ -6352,10 +6354,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 							workspace.sessions.push(...sessions);
 							workspace.children.push(child);
 						}
-						rendered = { ...rendered, children: [...workspaces].sort(([a], [b]) => a.localeCompare(b)).map(([label, workspace]) => {
-							const section: ISessionSection = { id: `${SessionInboxSection.OnHold}:workspace:${label}`, label, sessions: workspace.sessions };
-							return { ...renderSection(section), children: workspace.children };
-						}) };
+						rendered = {
+							...rendered, children: [...workspaces].sort(([a], [b]) => a.localeCompare(b)).map(([label, workspace]) => {
+								const section: ISessionSection = { id: `${SessionInboxSection.OnHold}:workspace:${label}`, label, sessions: workspace.sessions };
+								return { ...renderSection(section), children: workspace.children };
+							})
+						};
 					}
 					children.push(rendered);
 				}
