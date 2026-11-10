@@ -12,9 +12,10 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/common/browserView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IBrowserViewModel } from '../common/browserView.js';
+import { BrowserDimOnHoverSettingId, IBrowserViewModel } from '../common/browserView.js';
 import { BrowserOverlayManager, BrowserOverlayType } from './overlayManager.js';
 
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
@@ -31,6 +32,7 @@ export class WebContentsViewHost extends Disposable {
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
 	private _overlayObscured = false;
+	private _overlayHoverOnly = false;
 	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -49,8 +51,15 @@ export class WebContentsViewHost extends Disposable {
 		private readonly ensureBrowserFocus: () => void,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserDimOnHoverSettingId)) {
+				this._refresh();
+			}
+		}));
 
 		this._overlayManager = this._register(new BrowserOverlayManager(targetWindow));
 		const message = $('.browser-overlay-paused-message');
@@ -183,7 +192,8 @@ export class WebContentsViewHost extends Disposable {
 		const placeholderActive = !!this._model?.url && !this._model.error;
 		this._placeholderScreenshot.style.display = placeholderActive ? '' : 'none';
 		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
-		this._overlayPauseElement.classList.toggle('visible', pauseActive);
+		const dim = pauseActive && !(this._overlayHoverOnly && !this.configurationService.getValue<boolean>(BrowserDimOnHoverSettingId));
+		this._overlayPauseElement.classList.toggle('visible', dim);
 		if (!this._model) {
 			return;
 		}
@@ -221,8 +231,10 @@ export class WebContentsViewHost extends Disposable {
 		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
 		const obscured = overlays.length > 0;
 		this._overlayPauseElement.classList.toggle('show-message', overlays.some(overlay => overlay.type === BrowserOverlayType.Notification));
-		if (obscured !== this._overlayObscured) {
+		const hoverOnly = obscured && overlays.every(overlay => overlay.type === BrowserOverlayType.Hover);
+		if (obscured !== this._overlayObscured || hoverOnly !== this._overlayHoverOnly) {
 			this._overlayObscured = obscured;
+			this._overlayHoverOnly = hoverOnly;
 			this._refresh();
 		}
 	}

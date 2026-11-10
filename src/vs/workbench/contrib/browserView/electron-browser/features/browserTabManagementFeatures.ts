@@ -24,7 +24,7 @@ import { logBrowserOpen } from '../../../../../platform/browserView/common/brows
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserDimOnHoverSettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
@@ -953,6 +953,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserDimOnHoverSettingId]: {
+			type: 'boolean',
+			default: true,
+			tags: ['advanced'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.dimOnHover' },
+				"Controls whether the Integrated Browser page is dimmed while a hover, such as an editor tab hover, overlaps it. Dimming for menus, dialogs, and notifications is not affected."
+			),
 		},
 		[BrowserNewTabPlacementSettingId]: {
 			type: 'string',
