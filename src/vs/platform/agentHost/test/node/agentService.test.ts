@@ -3833,7 +3833,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
 			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
-			provider.setPluginEnabled = async (plugin, enabled) => { calls.push(['enablement', plugin, enabled]); };
+			provider.setPluginEnabled = async (plugin, enabled, scope, operationSession, operationChat) => { calls.push(['enablement', plugin, enabled, scope, operationSession?.toString(), operationChat?.toString()]); };
 			provider.listPluginInstallations = async (operationSession, operationChat) => {
 				calls.push(['inventory', operationSession?.toString(), operationChat?.toString()]);
 				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
@@ -3843,8 +3843,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
-			await managementService.setPluginEnabled(provider.id, 'direct-source', true);
-			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false);
+			await managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global');
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false, 'global', session, chat);
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', true, 'repository', session, chat);
 			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
 			assert.deepStrictEqual({ inventory, calls }, {
@@ -3852,13 +3853,14 @@ suite('AgentService (node dispatcher)', () => {
 				calls: [
 					['install', { source: 'spark@copilot-plugins' }, session.toString()],
 					['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
-					['enablement', 'direct-source', true],
-					['enablement', 'spark@copilot-plugins', false],
+					['enablement', 'direct-source', true, 'global', undefined, undefined],
+					['enablement', 'spark@copilot-plugins', false, 'global', session.toString(), chat.toString()],
+					['enablement', 'spark@copilot-plugins', true, 'repository', session.toString(), chat.toString()],
 					['inventory', session.toString(), chat.toString()],
 				],
 			});
 			provider.setPluginEnabled = async () => { throw new Error('managed policy refused'); };
-			await assert.rejects(managementService.setPluginEnabled(provider.id, 'direct-source', true), /managed policy refused/);
+			await assert.rejects(managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global'), /managed policy refused/);
 		});
 
 		test('manages plugin marketplaces through the owning provider', async () => {

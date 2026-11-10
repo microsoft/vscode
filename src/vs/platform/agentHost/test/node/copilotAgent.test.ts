@@ -27,7 +27,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -2244,22 +2244,96 @@ suite('CopilotAgent', () => {
 			reloadPlugins: async (reason: string) => { reloads.push(reason); },
 		}, 'sdk-plugin-peer');
 		afterTest(() => disposeAgent(agent));
-		await agent.setPluginEnabled('source-id', true);
+		await agent.setPluginEnabled('source-id', true, 'global');
 		const enabled = client.pluginInstallations.map(plugin => plugin.enabled);
-		await agent.setPluginEnabled('source-id', false);
+		await agent.setPluginEnabled('source-id', false, 'global');
 		assert.deepStrictEqual({ enabled, disabled: client.pluginInstallations.map(plugin => plugin.enabled), reloads }, {
 			enabled: [true, false],
 			disabled: [false, false],
 			reloads: ['enablement', 'enablement'],
 		});
 
-		await assert.rejects(agent.setPluginEnabled('canvas', true), /not installed/);
+		await assert.rejects(agent.setPluginEnabled('canvas', true, 'global'), /not installed/);
 		const refuse = stub(client.rpc.plugins, 'enable').resolves();
 		try {
-			await assert.rejects(agent.setPluginEnabled('source-id', true), /did not change enablement/);
+			await assert.rejects(agent.setPluginEnabled('source-id', true, 'global'), /did not change enablement/);
 		} finally {
 			refuse.restore();
 		}
+	});
+
+	test('persists repository plugin enablement separately from global installation state', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'spark', marketplace: 'copilot-plugins', enabled: false }];
+		const gitService = new TestAgentHostGitService();
+		gitService.repositoryRoot = URI.file('/repository');
+		const { agent, fileService } = createTestAgentContext(disposables, { copilotClient: client, gitService });
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		afterTest(() => disposeAgent(agent));
+		const enable = spy(client.rpc.plugins, 'enable');
+		const disable = spy(client.rpc.plugins, 'disable');
+		afterTest(async () => { enable.restore(); disable.restore(); });
+		const session = AgentSession.uri('copilotcli', 'repository-plugin-enablement');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		const reloads: string[] = [];
+		setDefaultSessionStub(agent, 'repository-plugin-enablement', {
+			workingDirectory: URI.file('/different-repository'),
+			reloadPlugins: async () => { },
+		});
+		setPeerChatStub(agent, chat, {
+			workingDirectory: URI.file('/repository/nested'),
+			reloadPlugins: async (reason: string) => { reloads.push(reason); },
+		}, 'sdk-repository-plugin-peer');
+		const resolveRepository = spy(agent['_gitService'], 'getRepositoryRoot');
+		afterTest(async () => resolveRepository.restore());
+
+		await agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat);
+		const resource = joinPath(gitService.repositoryRoot, '.github', 'copilot', 'settings.json');
+		const enabled = JSON.parse((await fileService.readFile(resource)).value.toString());
+		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session, chat);
+		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session);
+
+		assert.deepStrictEqual({
+			enabled,
+			disabled: JSON.parse((await fileService.readFile(resource)).value.toString()),
+			global: client.pluginInstallations.map(plugin => plugin.enabled),
+			globalWrites: [enable.callCount, disable.callCount],
+			reloads,
+			directories: resolveRepository.args.map(args => args[0]),
+			options: resolveRepository.args.map(args => args[1]),
+		}, {
+			enabled: { enabledPlugins: { 'spark@copilot-plugins': true } },
+			disabled: { enabledPlugins: { 'spark@copilot-plugins': false } },
+			global: [false],
+			globalWrites: [0, 0],
+			reloads: ['enablement', 'enablement', 'enablement'],
+			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository')],
+			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
+		});
+	});
+
+	test('rejects unsupported repository plugin targets without falling back to global enablement', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ name: 'spark', marketplace: 'copilot-plugins', enabled: false },
+			{ name: 'direct', marketplace: '', directSourceId: 'source-id', enabled: false },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+
+		const session = AgentSession.uri('copilotcli', 'unsupported-plugin-enablement');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		const target = { workingDirectory: URI.parse('https://example.com/repository') };
+		setPeerChatStub(agent, chat, target);
+
+		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository'), /active chat/);
+		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', URI.file('/wrong-session'), chat), /active chat/);
+		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat), /filesystem working directory/);
+		target.workingDirectory = URI.file('/repository');
+		await assert.rejects(agent.setPluginEnabled('source-id', true, 'repository', session, chat), /directly installed plugins/);
+		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat), /not in a Git repository/);
+
+		assert.deepStrictEqual(client.pluginInstallations.map(plugin => plugin.enabled), [false, false]);
 	});
 
 	test('reloads live chats after uninstalling a plugin from the root inventory', async () => {
@@ -3883,7 +3957,7 @@ suite('CopilotAgent', () => {
 						if (operation === 'catalog') {
 							await applyTestInstallation(agent, action);
 						} else if (operation === 'enablement') {
-							await agent.setPluginEnabled('session-timeline@test', action === 'install');
+							await agent.setPluginEnabled('session-timeline@test', action === 'install', 'global');
 						} else if (action === 'uninstall') {
 							await agent.uninstallPlugin({ name: 'session-timeline', marketplace: 'test' });
 						} else {
