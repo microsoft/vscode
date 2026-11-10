@@ -171,7 +171,7 @@ suite('normalizeBrowserViewUrl', () => {
 
 	test('keeps defaulting the scheme', () => {
 		assert.deepStrictEqual(
-			['localhost:3000', 'example.com', 'https://example.com'].map(normalizeBrowserViewUrl),
+			['localhost:3000', 'example.com', 'https://example.com'].map(url => normalizeBrowserViewUrl(url)),
 			['http://localhost:3000', 'http://example.com', 'https://example.com']);
 	});
 });
