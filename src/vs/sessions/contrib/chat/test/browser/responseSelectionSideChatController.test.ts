@@ -86,6 +86,7 @@ suite('ResponseSelectionSideChatController', () => {
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
 		enhancedSelectionMenu?: boolean;
+		showOnSelection?: boolean;
 		responseSelectionSupported?: boolean;
 		initialInput?: string;
 		chatInteractivity?: ChatInteractivity;
@@ -361,6 +362,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true, {
 			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) === true,
+			showOnSelection: options?.showOnSelection,
 			onAction: (variant, action) => logResponseSelectionWidgetAction(instantiationService.get(ITelemetryService), variant, action),
 		}));
 		bindChat(controller, chat);
@@ -699,7 +701,7 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
 	});
 
-	test('shows the enhanced action menu only when the experiment setting is enabled', () => {
+	test('shows the enhanced action menu when configured', () => {
 		const { controller, setSelection } = setup({ enhancedSelectionMenu: true });
 
 		setSelection('hello world');
@@ -714,6 +716,30 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
 			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+		});
+	});
+
+	test('updates response-selection menu visibility when configured', () => {
+		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true, showOnSelection: false });
+
+		setSelection('hello world');
+		const initiallyVisible = menuDomNode(controller).style.display !== 'none';
+		controller.setShowOnSelection(true);
+		const visibleAfterEnable = menuDomNode(controller).style.display !== 'none';
+		controller.setShowOnSelection(false);
+
+		assert.deepStrictEqual({
+			initiallyVisible,
+			visibleAfterEnable,
+			visibleAfterDisable: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			initiallyVisible: false,
+			visibleAfterEnable: true,
+			visibleAfterDisable: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
 		});
 	});
 
