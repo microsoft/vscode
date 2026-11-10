@@ -224,10 +224,9 @@ configurationRegistry.registerConfiguration({
 		[ChatProvidersSettingId.Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.multipleChatProviders.enabled', "Enables chats in one Agent Host session to use different agents."),
-			default: product.quality !== 'stable',
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			experiment: { mode: 'startup' },
 			agentHost: { key: ChatProvidersConfigKey.Enabled },
 		},
 		...chatMoveConfigurationProperties,
