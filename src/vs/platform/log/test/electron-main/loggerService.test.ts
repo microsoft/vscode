@@ -9,8 +9,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { BufferReader, BufferWriter, deserialize, IChannel, serialize } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractMessageLogger, DidChangeLoggersEvent, LogLevel } from '../../common/log.js';
-import { LoggerChannelClient } from '../../common/logIpc.js';
+import { AbstractMessageLogger, DidChangeLoggersEvent, ILoggerResource, LogLevel } from '../../common/log.js';
+import { LoggerChannelClient, RemoteLoggerChannelClient } from '../../common/logIpc.js';
 import { LoggerChannel } from '../../electron-main/logIpc.js';
 import { LoggerMainService } from '../../electron-main/loggerService.js';
 
@@ -62,7 +62,9 @@ class QueuedChannel extends Disposable implements IChannel {
 	call<T>(command: string, arg?: object): Promise<T> {
 		return new Promise<T>((resolve, reject) => this.requests.push(async () => {
 			try {
-				resolve(await this.server.call(undefined, command, this.roundTrip(arg)));
+				const result = this.roundTrip(await this.server.call(undefined, command, this.roundTrip(arg)));
+				// Responses follow the notifications emitted while handling the request.
+				this.notifications.push(() => resolve(result));
 			} catch (error) {
 				reject(error);
 			}
@@ -84,9 +86,10 @@ class QueuedChannel extends Disposable implements IChannel {
 		}
 	}
 
-	flushNotifications(): void {
+	async flushNotifications(): Promise<void> {
 		while (this.notifications.length) {
 			this.notifications.shift()!();
+			await Promise.resolve();
 		}
 	}
 }
@@ -128,7 +131,7 @@ suite('LoggerMainService ownership', () => {
 			const loggers = clients.map(client => client.createLogger(resource, { id: 'terminal' }));
 			for (const channel of channels) {
 				await channel.flushRequests();
-				channel.flushNotifications();
+				await channel.flushNotifications();
 			}
 			const sink = main.getLogger(resource) as TestLogger;
 			const removals: DidChangeLoggersEvent[] = [];
@@ -137,7 +140,7 @@ suite('LoggerMainService ownership', () => {
 			main.setLogLevel(resource, LogLevel.Trace);
 			main.setVisibility(resource, false);
 			const survivor = firstClosed === 1 ? 1 : 0;
-			channels[survivor].flushNotifications();
+			await channels[survivor].flushNotifications();
 			loggers[survivor].trace('still logging');
 			await channels[survivor].flushRequests();
 
@@ -190,7 +193,9 @@ suite('LoggerMainService ownership', () => {
 			const clients = channels.map((channel, index) => store.add(new LoggerChannelClient(index + 1, LogLevel.Info, URI.file('/logs'), [], channel)));
 			const logger = clients[0].createLogger(resource, { id: 'terminal' });
 			await channels[0].flushRequests();
-			channels.forEach(channel => channel.flushNotifications());
+			for (const channel of channels) {
+				await channel.flushNotifications();
+			}
 			const missingBefore = clients[1].getRegisteredLogger(resource) === undefined;
 			const sink = main.getLogger(resource) as TestLogger;
 			const ownerAdditions: DidChangeLoggersEvent[] = [];
@@ -204,10 +209,14 @@ suite('LoggerMainService ownership', () => {
 				main.registerLogger(info);
 			}
 			main.registerLogger(info);
-			channels.forEach(channel => channel.flushNotifications());
+			for (const channel of channels) {
+				await channel.flushNotifications();
+			}
 			main.setLogLevel(resource, LogLevel.Trace);
 			main.setVisibility(resource, false);
-			channels.forEach(channel => channel.flushNotifications());
+			for (const channel of channels) {
+				await channel.flushNotifications();
+			}
 			logger.trace('after global registration');
 			await channels[0].flushRequests();
 			main.deregisterLoggers(1);
@@ -216,7 +225,7 @@ suite('LoggerMainService ownership', () => {
 				missingBefore,
 				mirror: clients[1].getRegisteredLogger(resource),
 				mirrorAdditions: mirrorAdditions.length,
-				ownerAdditions,
+				ownerAdditions: ownerAdditions.length,
 				currentLogger: clients[0].getLogger(resource) === logger,
 				currentSink: main.getLogger(resource) === sink,
 				messages: sink.messages,
@@ -226,7 +235,7 @@ suite('LoggerMainService ownership', () => {
 				missingBefore: true,
 				mirror: { ...info, logLevel: LogLevel.Trace, hidden: true },
 				mirrorAdditions: 1,
-				ownerAdditions: [],
+				ownerAdditions: 1,
 				currentLogger: true,
 				currentSink: true,
 				messages: ['after global registration'],
@@ -244,13 +253,13 @@ suite('LoggerMainService ownership', () => {
 			const replacedResource = URI.file('/logs/test.log');
 			client.createLogger('test');
 			await channel.flushRequests();
-			channel.flushNotifications();
+			await channel.flushNotifications();
 			client.deregisterLogger('test');
 			const replacement = client.createLogger(replacementId);
 			await channel.flushRequests();
-			channel.flushNotifications();
+			await channel.flushNotifications();
 			main.setLogLevel(replacedResource, LogLevel.Trace);
-			channel.flushNotifications();
+			await channel.flushNotifications();
 			replacement.trace('after replacement');
 			await channel.flushRequests();
 
@@ -269,10 +278,10 @@ suite('LoggerMainService ownership', () => {
 		const client = store.add(new LoggerChannelClient(undefined, LogLevel.Info, URI.file('/logs'), [], channel));
 		const logger = client.createLogger(resource);
 		await channel.flushRequests();
-		channel.flushNotifications();
+		await channel.flushNotifications();
 		main.registerLogger(info, 1);
 		main.deregisterLoggers(1);
-		channel.flushNotifications();
+		await channel.flushNotifications();
 		logger.info('shared process');
 		await channel.flushRequests();
 
@@ -292,6 +301,121 @@ suite('LoggerMainService ownership', () => {
 		await server.call(undefined, 'deregisterLogger', [resource.toJSON(), undefined]);
 		main.setLogLevel(resource, LogLevel.Trace);
 		assert.deepStrictEqual({ registered: !!main.getRegisteredLogger(resource), globals: main.getGlobalLoggers(), changes }, { registered: true, globals: [], changes: [1] });
+	});
+
+	for (const windowId of [2, undefined]) {
+		test(`publishes final promotion metadata to client ${windowId}`, async () => {
+			const { main, server } = setup();
+			const sink = main.createLogger(resource, { id: 'window', name: 'Window' }, 1) as TestLogger;
+			const channel = store.add(new QueuedChannel(server));
+			const client = store.add(new LoggerChannelClient(windowId, LogLevel.Info, URI.file('/logs'), main.getGlobalLoggers(), channel));
+			const options = { id: 'global', name: 'Global', group: { id: 'group', name: 'Group' } };
+			const observed: (ILoggerResource | undefined)[] = [];
+			store.add(main.getOnDidChangeLoggersEvent(2)(() => observed.push(main.getRegisteredLogger(resource))));
+			main.createLogger(resource, options);
+			await channel.flushNotifications();
+			const snapshot = (logger: ILoggerResource | undefined) => logger && { id: logger.id, name: logger.name, group: logger.group };
+			assert.deepStrictEqual({ mirror: snapshot(client.getRegisteredLogger(resource)), observed: observed.map(snapshot), sameSink: main.getLogger(resource) === sink }, {
+				mirror: options, observed: [options], sameSink: true
+			});
+		});
+	}
+
+	test('removes mirrors that lose global interest without disposing the window sink', async () => {
+		const { main, server } = setup();
+		const sink = main.createLogger(resource, { id: 'terminal' }) as TestLogger;
+		main.registerLogger(info, 1);
+		const channels = [1, 2, undefined].map(() => store.add(new QueuedChannel(server)));
+		const clients = [1, 2, undefined].map((id, index) => store.add(new LoggerChannelClient(id, LogLevel.Info, URI.file('/logs'), main.getGlobalLoggers(), channels[index])));
+		main.deregisterLogger(resource);
+		main.setVisibility(resource, false);
+		for (const channel of channels) {
+			await channel.flushNotifications();
+		}
+		sink.info('still owned');
+		assert.deepStrictEqual({ mirrors: clients.map(client => !!client.getRegisteredLogger(resource)), disposals: sink.disposals, messages: sink.messages }, {
+			mirrors: [true, false, false], disposals: 0, messages: ['still owned']
+		});
+	});
+
+	test('restores the global mirror when a window releases its local writer', async () => {
+		const { main, server } = setup();
+		const sink = main.createLogger(resource, { id: 'terminal' }) as TestLogger;
+		const channel = store.add(new QueuedChannel(server));
+		const client = store.add(new LoggerChannelClient(1, LogLevel.Info, URI.file('/logs'), main.getGlobalLoggers(), channel));
+		client.createLogger(resource, { id: 'terminal' });
+		await channel.flushRequests();
+		await channel.flushNotifications();
+		client.deregisterLogger(resource);
+		await channel.flushRequests();
+		await channel.flushNotifications();
+		main.setLogLevel(resource, LogLevel.Trace);
+		main.setVisibility(resource, false);
+		await channel.flushNotifications();
+		assert.deepStrictEqual({ id: client.getRegisteredLogger(resource)?.id, level: client.getLogLevel(resource), hidden: client.getRegisteredLogger(resource)?.hidden, writer: client.getLogger(resource), disposals: sink.disposals }, {
+			id: 'terminal', level: LogLevel.Trace, hidden: true, writer: undefined, disposals: 0
+		});
+		main.deregisterLogger(resource);
+		await channel.flushNotifications();
+		assert.strictEqual(client.getRegisteredLogger(resource), undefined);
+	});
+
+	for (const visibility of [true, false]) {
+		test(`reconciles queued visibility for a replacement (visible: ${visibility})`, async () => {
+			const { main, server } = setup();
+			const channel = store.add(new QueuedChannel(server));
+			const client = store.add(new LoggerChannelClient(1, LogLevel.Info, URI.file('/logs'), [], channel));
+			client.createLogger(resource, { id: 'old', hidden: !visibility });
+			await channel.flushRequests();
+			await channel.flushNotifications();
+			main.setVisibility(resource, !visibility);
+			client.deregisterLogger(resource);
+			const replacement = client.createLogger(resource, { id: 'replacement', hidden: !visibility });
+			await channel.flushRequests();
+			await channel.flushNotifications();
+			assert.deepStrictEqual({ current: client.getLogger(resource) === replacement, hidden: client.getRegisteredLogger(resource)?.hidden, mainHidden: main.getRegisteredLogger(resource)?.hidden }, {
+				current: true, hidden: !visibility, mainHidden: !visibility
+			});
+			main.setVisibility(resource, !visibility);
+			await channel.flushNotifications();
+			assert.strictEqual(client.getRegisteredLogger(resource)?.hidden, visibility);
+		});
+	}
+
+	test('ignores an older registration response and applies updates after the replacement response', async () => {
+		const { main, server } = setup();
+		const channel = store.add(new QueuedChannel(server));
+		const client = store.add(new LoggerChannelClient(1, LogLevel.Info, URI.file('/logs'), [], channel));
+		client.createLogger(resource, { id: 'old', hidden: true });
+		await channel.flushRequests();
+		client.deregisterLogger(resource);
+		const replacement = client.createLogger(resource, { id: 'replacement', hidden: false });
+		await channel.flushRequests();
+		main.setVisibility(resource, false);
+		await channel.flushNotifications();
+		assert.deepStrictEqual({ current: client.getLogger(resource) === replacement, hidden: client.getRegisteredLogger(resource)?.hidden }, { current: true, hidden: true });
+	});
+
+	test('releases serialized remote registrations from the owning window', async () => {
+		const { main, server } = setup();
+		const channel = store.add(new QueuedChannel(server));
+		const client = store.add(new LoggerChannelClient(1, LogLevel.Info, URI.file('/logs'), [], channel));
+		const changes = store.add(new Emitter<DidChangeLoggersEvent>());
+		const remoteChannel: IChannel = {
+			call: async <T>(command: string) => (command === 'getRegisteredLoggers' ? [] : undefined) as T,
+			listen: <T>(event: string) => (event === 'onDidChangeLoggers' ? changes.event : Event.None) as Event<T>
+		};
+		store.add(new RemoteLoggerChannelClient(client, remoteChannel));
+		await Promise.resolve();
+		const serializedInfo: ILoggerResource = JSON.parse(JSON.stringify(info));
+		changes.fire({ added: [serializedInfo], removed: [] });
+		await channel.flushRequests();
+		await channel.flushNotifications();
+		assert.ok(main.getRegisteredLogger(resource));
+		changes.fire({ added: [], removed: [serializedInfo] });
+		await channel.flushRequests();
+		await channel.flushNotifications();
+		assert.deepStrictEqual({ main: main.getRegisteredLogger(resource), client: client.getRegisteredLogger(resource) }, { main: undefined, client: undefined });
 	});
 
 	test('notifies all owners, excluding unrelated windows', () => {
