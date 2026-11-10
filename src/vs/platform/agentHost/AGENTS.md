@@ -701,16 +701,13 @@ Both windows create their draft with the model selected in the chat input (`Agen
 
 #### Microsoft credential bridge
 
-Applies when `copilotM365EnabledAtStartup` is on. Easy to get wrong:
+Applies only when the host started with `copilotM365EnabledAtStartup` on. Easy to get wrong on the host:
 
-- **Listing accounts is not acquiring a token.** `getSessions` without scopes can return account placeholders with no usable token. Select the account, then request the advertised scopes for it.
-- **Resolution stays generic.** Never infer a Copilot mode from resource URLs or private host metadata.
-- **`required: false` is metadata only.** With the gate on, the GitHub and Entra resources are optional alternatives, but an operation still needs its own credential.
-- **The account ID is the identity.** The display label is never compared, and the host rejects a different account rather than switching.
-- **The SDK callback never waits.** It returns a stored credential or `unavailable`, which means none is available now, not a lack of entitlement.
-- **A disconnect is not a sign-out.** Credentials the host accepted survive the last client leaving; only the connection that supplied them can withdraw them.
-- **`auth/required` never opens sign-in UI.** The challenge reason is freshness information, not permission to prompt.
-- **Rejected tokens.** Clients remember every rejected token by fingerprint; the host remembers only the most recently challenged one per resource.
+- **GitHub and Microsoft are advertised as optional.** A user needs one of them, not both, so each is `required: false`. That only stops a client from blocking on one of them; a session still cannot run without a credential.
+- **The host is bound to one Microsoft account.** It compares account IDs, never display names, and rejects a token for a different account instead of switching.
+- **The SDK's token callback never waits.** It returns the stored token or `unavailable`, which means "no token right now", not "this user has no access".
+- **A client disconnecting is not a sign-out.** Tokens the host accepted survive the last client leaving; only the connection that supplied them can withdraw them.
+- **Clients may re-send a challenged token.** The host refuses the token the runtime most recently rejected for a resource, but it does not remember earlier ones.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
