@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
+import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const AGENTS_LAUNCHER_WIDTH = 640;
 const AGENTS_LAUNCHER_HORIZONTAL_MARGIN = 48;
@@ -128,4 +132,22 @@ export class AgentsLauncherPresenter {
 			await this._presentation.hide(windowId).catch(() => { /* the window may have closed meanwhile */ });
 		}
 	}
+}
+
+/**
+ * Follows an ordinary send of `draft`, one the user did not send in the background, by the Agents Launcher's composer of `slot`:
+ * calls `leave` as it goes out, and `open` with its session once it has started. Disposing the result stops following
+ * it, such as for a send that the composer does not dispatch.
+ */
+export function followOrdinarySend(sessionsManagementService: ISessionsManagementService, slot: INewSessionDraftSlot, draft: ISession, handlers: { leave(): void; open(session: ISession): void }): IDisposable {
+	const store = new DisposableStore();
+	// A background send is accepted as it goes out, with the draft it sends.
+	store.add(Event.once(Event.filter(sessionsManagementService.onDidAcceptNewSessionRequest, ({ owner, session }) => owner === slot && session.sessionId === draft.sessionId))(() => handlers.leave()));
+	store.add(trackNewSessionRequestEnd(sessionsManagementService, slot, draft, ({ session, started }) => {
+		store.dispose();
+		if (started) {
+			handlers.open(session);
+		}
+	}));
+	return store;
 }

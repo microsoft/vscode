@@ -9,8 +9,8 @@ import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, constObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -34,19 +34,23 @@ import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/c
 import { AGENTS_LAUNCHER_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
-import { AbstractChatView } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { AbstractChatView, INewSessionDraftHost } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ChatWindowComposerBackgroundSends, ChatWindowComposerModel, createChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
-import { computeAgentsLauncherBounds, AgentsLauncherPresenter } from './agentsLauncher.js';
+import { computeAgentsLauncherBounds, followOrdinarySend, AgentsLauncherPresenter } from './agentsLauncher.js';
 
 const AGENTS_LAUNCHER_INITIAL_HEIGHT = 180;
 const AGENTS_LAUNCHER_BLUR_HIDE_DELAY = 150;
 /** How long the Agents Launcher stays transparent at most as it shows, waiting for its first frame. */
 const AGENTS_LAUNCHER_REVEAL_TIMEOUT = 150;
 const HIDE_AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.hideAgentsLauncher';
+const AGENTS_LAUNCHER_SEND_IN_BACKGROUND_COMMAND_ID = 'workbench.action.agentsLauncher.sendInBackground';
 
 const AgentsLauncherFocusContext = new RawContextKey<boolean>('agentsLauncherFocus', false, localize('agentsLauncherFocus', "Whether focus is inside the Agents Launcher"));
 
@@ -62,6 +66,8 @@ export interface IAgentsLauncherService {
 	hide(): Promise<void>;
 	/** Shows or hides the Agents Launcher. */
 	toggle(): Promise<void>;
+	/** Starts the composer's session in the background and keeps the Agents Launcher open, with a status that can open the session. */
+	sendInBackground(): Promise<void>;
 }
 
 /** Returns whether a context view is visible, optionally in one particular window. */
@@ -122,8 +128,11 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _blurHide = this._register(new MutableDisposable());
 	private readonly _focusRequest = this._register(new MutableDisposable());
+	/** Opens the session of the last send that leaves the Agents Launcher, once it has started. */
+	private readonly _pendingOpen = this._register(new MutableDisposable());
 	private readonly _backgroundSends: ChatWindowComposerBackgroundSends;
 	private readonly _composer: ChatWindowComposerModel;
+	private readonly _draftHost: INewSessionDraftHost;
 
 	private _window: IAuxiliaryWindow | undefined;
 	private _windowCreation: Promise<IAuxiliaryWindow> | undefined;
@@ -143,6 +152,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
@@ -152,14 +162,26 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		super();
 
 		this._backgroundSends = this._register(this._instantiationService.createInstance(ChatWindowComposerBackgroundSends));
-		// The composer sends in the background, so that a failure gives its prompt back here.
-		this._composer = this._register(this._instantiationService.createInstance(
+		const composer = this._composer = this._register(this._instantiationService.createInstance(
 			ChatWindowComposerModel,
 			createChatWindowComposerResource(),
 			{},
 			this._backgroundSends,
 			session => this._openStartedSession(session),
 		));
+		// The composer sends in the background, so that a failure gives its prompt back here. A send the user did not ask to
+		// send in the background, as Send in Background does, also leaves the Agents Launcher for the Agents window.
+		this._draftHost = {
+			slot: composer.slot,
+			input: composer.input,
+			requestedTarget: composer.requestedTarget,
+			setRequestedTarget: (target, reason) => composer.setRequestedTarget(target, reason),
+			openStartedSession: session => composer.openStartedSession(session),
+			trackBackgroundSend: send => {
+				const tracking = composer.trackBackgroundSend(send);
+				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenStarted(send.session));
+			},
+		};
 
 		this._register(this._nativeHostService.onDidBlurMainOrAuxiliaryWindow(windowId => this._onWindowBlur(windowId)));
 		this._register(this._nativeHostService.onDidFocusMainOrAuxiliaryWindow(windowId => {
@@ -248,6 +270,11 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		return this._presenter.visible.get() ? this.hide() : this.show();
 	}
 
+	async sendInBackground(): Promise<void> {
+		const widget = this._getChatWidget();
+		await (widget && SharedChatInputComposer.getBackgroundComposer(widget))?.submit(true);
+	}
+
 	/** The chat widget of the composer in the Agents Launcher's window. */
 	private _getChatWidget(): IChatWidget | undefined {
 		const container = this._window?.container;
@@ -327,7 +354,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		const scopedInstantiationService = this._windowDisposables.add(this._instantiationService.createChild(createSessionHostServices(scopedContextKeyService, host)));
 		const view = this._windowDisposables.add(this._chatViewFactory.createNewChatView(false, {
 			backgroundSend: true,
-			newSessionDraft: this._composer,
+			newSessionDraft: this._draftHost,
 			session: this._composer.session,
 			hostVisible: constObservable(true),
 			// Kept rendered while hidden, it is a foreground chat only while visible.
@@ -419,12 +446,40 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 
 	private async _openStartedSession(session: ISession): Promise<void> {
 		this._logService.trace(`[AgentsLauncher] Opening started session=${session.sessionId}`);
+		this._pendingOpen.clear();
 		await this.hide();
 		try {
 			await this._sessionsService.openSession(session.resource, { source: 'chat', forceMainChat: true });
 		} finally {
 			await this._nativeHostService.focusWindow({ mode: FocusMode.Force, targetWindowId: mainWindow.vscodeWindowId });
 		}
+	}
+
+	/**
+	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as it
+	 * has started. A failure is reported there, and the prompt goes back into the Agents Launcher's composer. Disposing the result,
+	 * as the composer does for a send it does not dispatch, stays in the Agents Launcher.
+	 */
+	private _openWhenStarted(draft: ISession): IDisposable {
+		const pending = followOrdinarySend(this._sessionsManagementService, this._composer.slot, draft, {
+			leave: () => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once it has started`);
+				void (async () => {
+					await this.hide();
+					await this._nativeHostService.focusWindow({ mode: FocusMode.Force, targetWindowId: mainWindow.vscodeWindowId });
+				})().catch(error => this._logService.error('[AgentsLauncher] Failed to show the Agents window', error));
+			},
+			open: session => {
+				void this._sessionsService.openSession(session.resource, { source: 'chat', forceMainChat: true })
+					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the started session', error));
+			},
+		});
+		this._pendingOpen.value = pending;
+		return toDisposable(() => {
+			if (this._pendingOpen.value === pending) {
+				this._pendingOpen.clear();
+			}
+		});
 	}
 
 	private _onWindowUnload(auxiliaryWindow: IAuxiliaryWindow): void {
@@ -483,6 +538,35 @@ registerAction2(class ShowAgentsLauncherAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): Promise<void> {
 		return accessor.get(IAgentsLauncherService).toggle();
+	}
+});
+
+registerAction2(class SendInBackgroundFromAgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_SEND_IN_BACKGROUND_COMMAND_ID,
+			title: localize2('agentsLauncherSendInBackground', "Start Session in Background"),
+			f1: false,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatInputSupportsBackgroundContext,
+				ChatContextKeys.inputHasSendableContent,
+				ChatContextKeys.inputBlocked.negate(),
+				ChatContextKeys.chatSessionOptionsValid,
+			),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				secondary: [KeyMod.Alt | KeyCode.Enter],
+				when: ContextKeyExpr.and(AgentsLauncherFocusContext, ChatContextKeys.inChatInput),
+				// Above the chat input's own Send in Background, which takes Cmd+Enter only with the inbox enabled, and sends the
+				// chat widget focused last rather than this one.
+				weight: KeybindingWeight.SessionsContrib + 1,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IAgentsLauncherService).sendInBackground();
 	}
 });
 

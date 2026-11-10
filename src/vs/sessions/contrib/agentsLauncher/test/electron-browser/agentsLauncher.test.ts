@@ -5,8 +5,13 @@
 
 import * as assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeAgentsLauncherBounds, IAgentsLauncherWindowPresentation, AgentsLauncherPresenter } from '../../electron-browser/agentsLauncher.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { computeAgentsLauncherBounds, followOrdinarySend, IAgentsLauncherWindowPresentation, AgentsLauncherPresenter } from '../../electron-browser/agentsLauncher.js';
 
 /** Records the window operations of a presenter, any of which a test can hold until it completes them. */
 class RecordingPresentation implements IAgentsLauncherWindowPresentation {
@@ -77,7 +82,7 @@ class RecordingPresentation implements IAgentsLauncherWindowPresentation {
 }
 
 suite('Agents Launcher', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const shown = ['opacity 0', 'position', 'show', 'focus', 'rendered', 'opacity 1'];
 
@@ -116,6 +121,48 @@ suite('Agents Launcher', () => {
 		assert.deepStrictEqual({ visible: presenter.visible.get(), operations: presentation.operations }, {
 			visible: true,
 			operations: ['prepare', 'prepare', ...shown],
+		});
+	});
+
+	test('leaves for the Agents window as an ordinary send goes out, and opens its session once it has started, but not one that failed or did not go out', () => {
+		const accepted = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
+		const ended = store.add(new Emitter<INewSessionRequestEndedEvent>());
+		const replaced = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		const service = upcastPartial<ISessionsManagementService>({ onDidAcceptNewSessionRequest: accepted.event, onDidEndNewSessionRequest: ended.event, onDidReplaceNewDraftSession: replaced.event, onDidReplaceSession: Event.None });
+		const slot = upcastPartial<INewSessionDraftSlot>({ id: 'agentsLauncher' });
+		const otherSlot = upcastPartial<INewSessionDraftSlot>({ id: 'other' });
+		const session = (sessionId: string) => upcastPartial<ISession>({ sessionId });
+		const follow = (scenario: (draft: ISession, following: IDisposable) => void) => {
+			const events: string[] = [];
+			const draft = session('draft');
+			const following = followOrdinarySend(service, slot, draft, { leave: () => events.push('leave'), open: started => events.push(`open ${started.sessionId}`) });
+			scenario(draft, following);
+			following.dispose();
+			return events;
+		};
+
+		assert.deepStrictEqual({
+			started: follow(draft => {
+				accepted.fire({ session: draft, owner: otherSlot, background: true });
+				accepted.fire({ session: session('other'), owner: slot, background: true });
+				accepted.fire({ session: draft, owner: slot, background: true });
+				replaced.fire({ from: draft, to: session('prepared') });
+				ended.fire({ session: session('prepared'), owner: otherSlot, started: true, readopted: false });
+				ended.fire({ session: session('prepared'), owner: slot, started: true, readopted: false });
+			}),
+			failed: follow(draft => {
+				accepted.fire({ session: draft, owner: slot, background: true });
+				ended.fire({ session: draft, owner: slot, started: false, readopted: false, error: new Error('failed') });
+			}),
+			notSent: follow((draft, following) => {
+				following.dispose();
+				accepted.fire({ session: draft, owner: slot, background: true });
+				ended.fire({ session: draft, owner: slot, started: true, readopted: false });
+			}),
+		}, {
+			started: ['leave', 'open prepared'],
+			failed: ['leave'],
+			notSent: [],
 		});
 	});
 
