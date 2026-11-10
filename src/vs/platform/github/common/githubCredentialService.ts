@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isThenable } from '../../../base/common/async.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -116,6 +117,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	private _current: ICredentialGeneration | undefined;
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
+	private _tokenProviderAnswersSynchronously = false;
 	private readonly _lifetime = new AbortController();
 	private readonly _identity = generateUuid();
 
@@ -140,7 +142,9 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 		return this._withDeadline(signal, async (signal, deadline) => {
 			while (true) {
-				const token = await this._tokenProvider.getToken(signal);
+				const pendingToken = this._tokenProvider.getToken(signal);
+				this._tokenProviderAnswersSynchronously = !isThenable(pendingToken);
+				const token = await pendingToken;
 				this._throwIfExpired(signal, deadline);
 				if (!token) {
 					this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
@@ -340,8 +344,11 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		this._invalidateCurrent('replacement', true);
 	}
 
-	/** The provider's token if it is available without waiting. */
+	/** The provider's token if it answers without waiting; asking a provider that waits would only cost a lookup. */
 	private _peekToken(): string | undefined {
+		if (!this._tokenProviderAnswersSynchronously) {
+			return undefined;
+		}
 		try {
 			const token = this._tokenProvider.getToken(this._lifetime.signal);
 			if (typeof token === 'string') {
