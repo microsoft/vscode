@@ -24,7 +24,7 @@ jobs:
           VSCODE_CIBUILD: true
           VSCODE_WORKSPACE_IMAGE: build
 
-      # Out of the sources directory, which it unmounts
+      # Out of the sources directory, which it makes read-only to pack it
       - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/workspaceImage.ts" pack
         displayName: Pack workspace image
         workingDirectory: $(Agent.TempDirectory)

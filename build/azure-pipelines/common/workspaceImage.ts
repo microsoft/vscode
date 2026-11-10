@@ -322,9 +322,9 @@ function create(): void {
 }
 
 /**
- * Leaves the volume ready for the test jobs, unmounts it and packs it into the cache folder: git
- * compares only the sizes and modification times of the files, which the image keeps (unlike the
- * device of the volume), so that the checkout of a test job writes only the files that changed.
+ * Leaves the volume ready for the test jobs and packs it into the cache folder: git compares only
+ * the sizes and modification times of the files, which the image keeps (unlike the device of the
+ * volume), so that the checkout of a test job writes only the files that changed.
  */
 function pack(): void {
 	const ws = sourcesDirectory();
@@ -355,15 +355,20 @@ function pack(): void {
 	if (spawnSync('sudo', ['fstrim', '--verbose', ws], { stdio: 'inherit' }).status !== 0) {
 		console.log('fstrim failed, so the image keeps the blocks of deleted files.');
 	}
-	const unmounted = spawnSync('sudo', ['umount', ws], { stdio: 'inherit' });
-	if (unmounted.status !== 0) {
-		// The processes that keep the volume busy
+	// The volume can't be unmounted: the agent starts the task of every step in the sources directory.
+	// Read-only, the file of the volume holds a consistent file system, which ext4 marks clean.
+	if (spawnSync('sudo', ['mount', '-o', 'remount,ro', ws], { stdio: 'inherit' }).status !== 0) {
+		// The processes that write to the volume
 		spawnSync('sudo', ['fuser', '-vm', ws], { stdio: 'inherit' });
-		throw new Error(`Cannot unmount ${ws}`);
+		throw new Error(`Cannot remount ${ws} read-only`);
 	}
-	fs.mkdirSync(cacheFolder(), { recursive: true });
-	run(process.execPath, [path.join(import.meta.dirname, '../../../.github/workflows/workspace_image/image.ts'), 'pack', '--in', volumeFile(), '--out', packedImage()], { stdio: 'inherit' });
-	fs.rmSync(volumeFile(), { force: true });
+	try {
+		fs.mkdirSync(cacheFolder(), { recursive: true });
+		run(process.execPath, [path.join(import.meta.dirname, '../../../.github/workflows/workspace_image/image.ts'), 'pack', '--in', volumeFile(), '--out', packedImage()], { stdio: 'inherit' });
+	} finally {
+		// For the rest of the job
+		spawnSync('sudo', ['mount', '-o', 'remount,rw', ws], { stdio: 'inherit' });
+	}
 	console.log(`Packed the workspace image of ${commit}`);
 }
 
