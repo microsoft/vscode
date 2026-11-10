@@ -347,7 +347,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			constructor() {
 				super({
 					id: `agentSessions.filter.toggleExcludeAutomation.${menuId.id.toLowerCase()}`,
-					title: localize('agentSessions.filter.automation', "Show Automation Runs"),
+					title: localize('agentSessions.filter.automation', "Automations"),
 					menu: {
 						id: menuId,
 						group: '3_props',
