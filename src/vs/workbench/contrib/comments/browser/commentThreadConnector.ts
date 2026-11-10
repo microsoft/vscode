@@ -171,6 +171,40 @@ export class CommentedCodeGeometry extends Disposable {
 	}
 
 	/**
+	 * Estimates where the editor's lines between the given vertical positions end, such as the lines next to a widget,
+	 * without rendering them. A line with more characters than fit in the editor reaches its right edge anyway, so its
+	 * text isn't read: the time this takes depends on the number of lines, rather than on their length.
+	 * @param top The top of the area, in document coordinates.
+	 * @param bottom The bottom of the area, in document coordinates.
+	 * @returns The lines, in document coordinates.
+	 */
+	estimateLineRects(top: number, bottom: number): IRect[] {
+		const viewModel = this._editor._getViewModel();
+		const model = this._editor.getModel();
+		if (!viewModel || !model) {
+			return [];
+		}
+		const viewLayout = viewModel.viewLayout;
+		const layoutInfo = this._editor.getLayoutInfo();
+		const left = layoutInfo.contentLeft - this._editor.getScrollLeft();
+		const characterWidth = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const maxColumns = Math.ceil(layoutInfo.contentWidth / characterWidth);
+		const tabSize = model.getOptions().tabSize;
+		const lines: IRect[] = [];
+		const lineCount = viewModel.getLineCount();
+		for (let lineNumber = viewLayout.getLineNumberAtVerticalOffset(Math.max(0, top)); lineNumber <= lineCount; lineNumber++) {
+			const lineTop = viewLayout.getVerticalOffsetForLineNumber(lineNumber);
+			if (lineTop >= bottom) {
+				break;
+			}
+			const length = viewModel.getLineLength(lineNumber);
+			const columns = length > maxColumns ? length : CursorColumns.visibleColumnFromColumn(viewModel.getLineContent(lineNumber), length + 1, tabSize);
+			lines.push({ top: lineTop, left, width: columns * characterWidth, height: viewLayout.getLineHeightForLineNumber(lineNumber) });
+		}
+		return lines;
+	}
+
+	/**
 	 * Where the commented text of a line in view starts and ends.
 	 */
 	private _getLineExtent(lineNumber: number, startColumn: number, endColumn: number): ILineExtent {

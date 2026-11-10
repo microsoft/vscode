@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -142,6 +142,18 @@ suite('Comment thread floating widget', () => {
 			});
 		});
 
+		test('places an existing comment right after the end of the lines next to the code when there is room', () => {
+			assert.deepStrictEqual({
+				afterLines: computeFloatingWidgetPlacement({ ...request, linesRight: 400 }),
+				linesShorterThanCode: computeFloatingWidgetPlacement({ ...request, linesRight: 200 }),
+				noRoomAfterLines: computeFloatingWidgetPlacement({ ...request, linesRight: 700 }),
+			}, {
+				afterLines: { top: 420, left: 424, centered: true },
+				linesShorterThanCode: { top: 420, left: 384, centered: true },
+				noRoomAfterLines: { top: 420, left: 592, centered: true },
+			});
+		});
+
 		test('moves the widget to the closest free position above or below the widgets it would cover', () => {
 			assert.deepStrictEqual({
 				closerAbove: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 380, left: 600, width: 300, height: 300 }] }),
@@ -194,6 +206,45 @@ suite('Comment thread floating widget', () => {
 				widgetOverCode: undefined,
 			});
 		});
+	});
+
+	suite('getPlacementBesideLines', () => {
+		test('goes after the lines that leave it room, and is as wide as its content fills, up to a readable width', () => {
+			assert.deepStrictEqual({
+				shortLines: placeBesideLines([100, 300, 200]),
+				contentWiderThanRoom: placeBesideLines([100, 400, 200], { naturalWidth: 900 }),
+				readableWidth: placeBesideLines([100, 300], { maxRight: 1400, naturalWidth: 900 }),
+				codeEndsAfterLines: placeBesideLines([100, 300], { codeRight: 400 }),
+				longLineWithRoomAfterIt: placeBesideLines([100, 600, 200]),
+				lineNotNextToWidget: placeBesideLines([100, 300, 200, 700], { bottom: 60 }),
+			}, {
+				shortLines: { linesRight: 300, width: 450 },
+				contentWiderThanRoom: { linesRight: 400, width: 568 },
+				readableWidth: { linesRight: 300, width: 640 },
+				codeEndsAfterLines: { linesRight: 400, width: 450 },
+				longLineWithRoomAfterIt: { linesRight: 600, width: 368 },
+				lineNotNextToWidget: { linesRight: 300, width: 450 },
+			});
+		});
+
+		test('hides a couple of lines that leave it no room after them, at its default width', () => {
+			assert.deepStrictEqual({
+				lineEndingInTheMiddle: placeBesideLines([100, 700, 200]),
+				twoLongLines: placeBesideLines([100, 700, 300, 1400]),
+				threeLongLines: placeBesideLines([700, 1400, 300, 800]),
+				codeLeavesNoRoom: placeBesideLines([100, 300], { codeRight: 700 }),
+			}, {
+				lineEndingInTheMiddle: { linesRight: 200, width: 300 },
+				twoLongLines: { linesRight: 300, width: 300 },
+				threeLongLines: undefined,
+				codeLeavesNoRoom: undefined,
+			});
+		});
+
+		function placeBesideLines(rights: number[], { bottom = rights.length * 20, codeRight = 60, maxRight = 1000, naturalWidth = 450 } = {}) {
+			const lines = rights.map((right, i) => ({ top: i * 20, left: 60, width: right - 60, height: 20 }));
+			return getPlacementBesideLines(lines, 0, bottom, codeRight, maxRight, 300, naturalWidth);
+		}
 	});
 
 	suite('getRevealScrollTop', () => {
