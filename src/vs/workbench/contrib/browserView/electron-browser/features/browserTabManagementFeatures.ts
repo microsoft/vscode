@@ -32,6 +32,7 @@ import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../p
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
+import { registerBuiltInExternalUriOpener } from '../../../externalUriOpener/common/configuration.js';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -616,6 +617,7 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		super();
 
 		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+		registerBuiltInExternalUriOpener(LocalhostLinkOpenerContribution.OPENER_ID, localize('browser.externalUriOpener.description', "Open in the Integrated Browser."));
 	}
 
 	async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {

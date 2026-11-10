@@ -65,10 +65,28 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 	}
 };
 
-export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
-	externalUriOpenerIdSchemaAddition.enum = enumValues;
-	externalUriOpenerIdSchemaAddition.enumDescriptions = enumDescriptions;
+const builtInOpeners = new Map<string, string>();
+let contributedOpenerIds: string[] = [];
+let contributedOpenerDescriptions: string[] = [];
+
+function refreshOpenerSchema(): void {
+	externalUriOpenerIdSchemaAddition.enum = [...builtInOpeners.keys(), ...contributedOpenerIds];
+	externalUriOpenerIdSchemaAddition.enumDescriptions = [...builtInOpeners.values(), ...contributedOpenerDescriptions];
 
 	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		.notifyConfigurationSchemaUpdated(externalUriOpenersConfigurationNode);
+}
+
+export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
+	contributedOpenerIds = enumValues;
+	contributedOpenerDescriptions = enumDescriptions;
+	refreshOpenerSchema();
+}
+
+/**
+ * Lists a workbench opener, which is not contributed by an extension, as a value of the opener setting.
+ */
+export function registerBuiltInExternalUriOpener(id: string, description: string): void {
+	builtInOpeners.set(id, description);
+	refreshOpenerSchema();
 }
