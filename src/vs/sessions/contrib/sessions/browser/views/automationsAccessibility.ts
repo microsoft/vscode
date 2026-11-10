@@ -100,21 +100,24 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			{ type: AccessibleViewType.View },
 			() => {
 				const runs = automationService.runs.get();
-				const hasCatalogedSession = (resource: URI) => sessionsManagementService.getSessions().some(session => isEqual(session.resource, resource));
+				const sessions = sessionsManagementService.getSessions();
+				const hasCatalogedSession = (resource: URI) => sessions.some(session => isEqual(session.resource, resource));
 				const hasSession = (resource: URI) => sessionsManagementService.getSession(resource) !== undefined;
 				const startingAutomationIds = new Set(runs
 					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession))
 					.map(run => run.automationId));
 				return buildAutomationsAccessibleContent(
 					automationService.automations.get(),
-					runs.filter(run =>
-						!isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession)
-						&& (
-							!!run.externalResource
-							|| (!!run.sessionResource && hasCatalogedSession(run.sessionResource))
-							|| automationService.getAutomationHistoryState?.(run.automationId) !== undefined
-						)
-					),
+					runs.filter(run => {
+						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
+						return retainedHistory || (
+							!isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession)
+							&& (
+								!!run.externalResource
+								|| (!!run.sessionResource && hasCatalogedSession(run.sessionResource))
+							)
+						);
+					}),
 					automationService.catalogueState.get(),
 					readAutomationTemplates(agentPluginService.plugins.get()),
 					automationService.unavailableProviders.get(),

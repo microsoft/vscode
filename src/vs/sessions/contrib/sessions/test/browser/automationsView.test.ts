@@ -1886,12 +1886,21 @@ suite('AutomationsCardsWidget', () => {
 		const completedRun = { ...pendingRun, status: 'completed' as const, sessionResource: SESSION_RESOURCE };
 		automationService.setRuns([completedRun]);
 		await sessionsManagementService.deleteSession(sessionsManagementService.session);
+		const deleted = {
+			historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			buttonDisabled: runButton.getAttribute('aria-disabled'),
+			buttonLabel: runButton.getAttribute('aria-label'),
+			cardLabel: card.getAttribute('aria-label'),
+		};
+		automationService.setRuns([{ ...completedRun, sessionResource: undefined }]);
 
 		assert.deepStrictEqual({
 			pending,
 			running,
 			resolved,
-			deleted: {
+			deleted,
+			sessionlessCompleted: {
 				historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 				prompt: card.querySelector('.automations-card-prompt')?.textContent,
 				buttonDisabled: runButton.getAttribute('aria-disabled'),
@@ -1918,6 +1927,13 @@ suite('AutomationsCardsWidget', () => {
 				cardLabel: 'Daily review — Hourly',
 			},
 			deleted: {
+				historyRows: 0,
+				prompt: automation().prompt,
+				buttonDisabled: 'false',
+				buttonLabel: 'Run now',
+				cardLabel: 'Daily review — Hourly',
+			},
+			sessionlessCompleted: {
 				historyRows: 0,
 				prompt: automation().prompt,
 				buttonDisabled: 'false',
@@ -4794,7 +4810,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('accessible view reports unresolved local startup on the card without a history row', () => {
-		const { automationService, instantiationService } = setup();
+		const { automationService, sessionsManagementService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
@@ -4814,6 +4830,8 @@ suite('AutomationsCardsWidget', () => {
 			run({ status: 'pending', sessionResource: undefined }),
 			run({ id: 'disabled-run', automationId: 'disabled', status: 'pending', sessionResource: undefined }),
 		]);
+		let sessionCatalogReads = 0;
+		sessionsManagementService.onGetSessions = () => sessionCatalogReads++;
 
 		const content = accessibleProvider.provideContent();
 
@@ -4821,10 +4839,41 @@ suite('AutomationsCardsWidget', () => {
 			enabledCardRunning: content.includes('Daily review, enabled, Running'),
 			disabledCardRunning: content.includes('Disabled review, disabled, Running'),
 			historyRun: content.includes('Daily review, Pending, started'),
+			sessionCatalogReads,
 		}, {
 			enabledCardRunning: true,
 			disabledCardRunning: true,
 			historyRun: false,
+			sessionCatalogReads: 1,
+		});
+	});
+
+	test('accessible view preserves retained history while its completed session is not cataloged', () => {
+		const { automationService, sessionsManagementService, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
+		if (!accessibleView) {
+			throw new Error('Expected the sessions automations accessible view');
+		}
+		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+		if (!accessibleProvider) {
+			throw new Error('Expected the sessions automations accessible view provider');
+		}
+		disposables.add(accessibleProvider);
+		automationService.historyStates.set('automation-1', 'retained');
+		automationService.setAutomations([]);
+		automationService.setRuns([run({ status: 'completed', sessionResource: SESSION_RESOURCE })]);
+		sessionsManagementService.setFirstSessionCataloged(false);
+
+		const content = accessibleProvider.provideContent();
+
+		assert.deepStrictEqual({
+			owner: content.includes('Daily review, Completed, started'),
+			guidance: content.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+		}, {
+			owner: true,
+			guidance: true,
 		});
 	});
 
