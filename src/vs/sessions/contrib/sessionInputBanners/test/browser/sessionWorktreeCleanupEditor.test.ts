@@ -511,13 +511,13 @@ suite('SessionWorktreeCleanupEditor', () => {
 			selectable: checkbox.getAttribute('aria-disabled'),
 			titleRole: title.getAttribute('role'),
 			titleTabIndex: title.tabIndex,
-			announcesPath: title.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('/repos/app.worktrees/recovered'),
+			announcesPath: title.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes(URI.file('/repos/app.worktrees/recovered').fsPath),
 			inspectedPaths: showHover.args.map(([options, focus]) => ({ content: options.content, focus })),
 		}, {
 			title: 'agents/recovered',
 			storage: 'Not measured', lastUsed: 'No session activity', selected: 'false', selectable: null,
 			titleRole: 'button', titleTabIndex: 0, announcesPath: true,
-			inspectedPaths: Array.from({ length: 2 }, () => ({ content: '/repos/app.worktrees/recovered', focus: true })),
+			inspectedPaths: Array.from({ length: 2 }, () => ({ content: URI.file('/repos/app.worktrees/recovered').fsPath, focus: true })),
 		});
 		checkbox.click();
 		container.querySelector<HTMLAnchorElement>('.session-worktree-cleanup-action')!.click();
@@ -717,7 +717,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 				storage: row.querySelector('.storage')?.textContent,
 				checkbox: row.querySelector('[role="checkbox"]'),
 			}))
-		}, { rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
+		}, { rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: URI.file('/repos/app.worktrees/removed').fsPath, storage: '0B', checkbox: null }] });
 	}));
 
 	test('live results preserve selection and show verified removals despite stale host errors without showing failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -665,10 +665,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			const states = getWorktreeCleanupSessions(worktree).map(session => this._getCleanupState(session, cutoff));
 			const archived = states.every(state => state === 'archived');
 			const blocked = states.find(state => state === 'running' || state === 'pinned' || state === 'recent' || state === 'untitled' || state === 'error');
+			const active = states.find(state => state === 'active' || state === 'needsInput');
 			return {
 				...worktree,
 				...(archived ? { sizeBytes: worktree.worktreeExists === false ? 0 : undefined, isMeasuring: false, measurementFailed: false } : { worktreeExists: undefined, worktreeCheckError: undefined }),
-				cleanupState: blocked ?? (archived ? 'archived' : worktree.measurementFailed ? 'unavailable' : states.find(state => state !== 'archived') ?? 'unavailable'),
+				cleanupState: blocked ?? (archived ? 'archived' : worktree.measurementFailed ? 'unavailable' : active ?? states.find(state => state !== 'archived') ?? 'unavailable'),
 			};
 		});
 	}
@@ -907,6 +908,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 					} else {
 						const sessions = getWorktreeCleanupSessions(candidate);
 						const alreadyArchived = sessions.every(session => session.isArchived.get());
+						for (const session of sessions) {
+							if (isCancelled()) {
+								break;
+							}
+							await this.sessionsManagementService.prepareSessionWorktreeCleanup(session);
+						}
 						for (const session of sessions) {
 							if (isCancelled()) {
 								break;

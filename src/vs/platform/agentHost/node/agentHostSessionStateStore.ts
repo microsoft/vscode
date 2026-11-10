@@ -786,6 +786,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async whenIdle(session: URI | undefined): Promise<void> {
 		if (session) {
+			// A cold session may have a queued write but no loaded record yet.
+			await this._sequencer.peek(this._enter(session));
 			const record = this._records.get(session.toString());
 			if (record) {
 				await this._flushRecord(record);

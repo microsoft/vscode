@@ -94,6 +94,67 @@ suite('SessionWorktreeCleanupService', () => {
 		]);
 	});
 
+	test('active and needs-input members outrank eligible members regardless of representative order', async () => {
+		const first = createSession('first', oldDate());
+		const active = { ...createSession('active', oldDate()), workspace: first.workspace };
+		const needsInput = { ...createSession('input', oldDate(), SessionStatus.NeedsInput), workspace: first.workspace };
+		const results: string[] = [];
+		for (const member of [active, needsInput]) {
+			for (const sessions of [[first, member], [member, first]]) {
+				const service = disposables.add(createService(sessions, true, () => 100, undefined, undefined, [active]));
+				results.push((await service.getWorktrees(0))[0].cleanupState);
+			}
+		}
+		const pinned = disposables.add(createService([first, needsInput], true, () => 100, undefined, undefined, [], undefined, first));
+		results.push((await pinned.getWorktrees(0))[0].cleanupState);
+		assert.deepStrictEqual(results, ['active', 'active', 'needsInput', 'needsInput', 'pinned']);
+	});
+
+	test('prepares every shared session before archive and awaits archive completion before retry', async () => {
+		const first = createSession('first', oldDate());
+		const second = { ...createSession('second', new Date(0)), workspace: first.workspace };
+		const archiveStarted = new DeferredPromise<void>();
+		const archiveCompleted = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const service = disposables.add(createService([first, second], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onPrepare: async session => { calls.push(`prepare:${session.sessionId}`); },
+			onArchive: async session => {
+				calls.push(`archive:${session.sessionId}`);
+				await archiveStarted.complete();
+				await archiveCompleted.p;
+			},
+			onCleanup: async (session, retry) => { if (retry) { calls.push(`retry:${session.sessionId}`); } return { state: 'pending' }; },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const cleanup = service.cleanupWorktrees([{ session: first, sessions: [first, second], sizeBytes: 100, worktreeCount: 1 }]);
+		await archiveStarted.p;
+		const beforeAcknowledgement = [...calls];
+		await archiveCompleted.complete();
+		await cleanup;
+		assert.deepStrictEqual({ beforeAcknowledgement, calls }, {
+			beforeAcknowledgement: ['prepare:first', 'prepare:second', 'archive:first'],
+			calls: ['prepare:first', 'prepare:second', 'archive:first', 'archive:second', 'retry:first', 'retry:second'],
+		});
+	});
+
+	test('preparation failure prevents archiving any associated session', async () => {
+		const first = createSession('first', oldDate());
+		const second = { ...createSession('second', new Date(0)), workspace: first.workspace };
+		const calls: string[] = [];
+		const service = disposables.add(createService([first, second], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onPrepare: async session => {
+				calls.push(`prepare:${session.sessionId}`);
+				if (session === second) {
+					throw new Error('Unsupported cleanup preparation');
+				}
+			},
+			onArchive: async session => { calls.push(`archive:${session.sessionId}`); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		await assert.rejects(service.cleanupWorktrees([{ session: first, sessions: [first, second], sizeBytes: 100, worktreeCount: 1 }]), /Unsupported cleanup preparation/);
+		assert.deepStrictEqual(calls, ['prepare:first', 'prepare:second']);
+	});
+
 	test('publishes cleanup eligibility before disk usage is available', async () => {
 		const measurement = new DeferredPromise<number>();
 		const session = createSession('ready', oldDate());
@@ -2046,6 +2107,7 @@ function createService(
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
+		readonly onPrepare?: ISessionsManagementService['prepareSessionWorktreeCleanup'];
 		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
 		readonly canForceWorktreeCleanup?: ISessionsManagementService['canForceWorktreeCleanup'];
 		readonly onExists?: ISessionsManagementService['sessionWorktreeExists'];
@@ -2061,6 +2123,7 @@ function createService(
 			getSessions: () => sessions,
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
+			prepareSessionWorktreeCleanup: async session => overrides.onPrepare?.(session),
 			sessionWorktreeCleanup: overrides.onCleanup,
 			canForceWorktreeCleanup: overrides.canForceWorktreeCleanup,
 			sessionWorktreeExists: overrides.onExists ?? (async () => true),
