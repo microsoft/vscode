@@ -8,12 +8,18 @@
 	position: fixed;
 	inset: 0;
 	z-index: 2560;
-	cursor: crosshair;
+	/* A camera for a click that captures the window or a browser page, with its hotspot at the lens. */
+	cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M8.6 5.5 9.9 3.8h4.2l1.3 1.7h3.6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2z' fill='%23fff' stroke='%23000' stroke-width='1.5' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12.5' r='3.6' fill='%23fff' stroke='%23000' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12.5' r='1' fill='%23000'/%3E%3C/svg%3E") 12 12, crosshair;
 	user-select: none;
 	-webkit-user-select: none;
 	-webkit-app-region: no-drag;
 	outline: none;
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+}
+
+/* Dragging selects an area. */
+.screenshot-tool-overlay.selecting {
+	cursor: crosshair;
 }
 
 .screenshot-tool-overlay .screenshot-tool-hint {
