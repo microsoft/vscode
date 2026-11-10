@@ -5,9 +5,10 @@
 
 import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { extname } from '../../../../../base/common/path.js';
 import { normalizePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -264,18 +265,17 @@ export class FetchWebPageTool implements IToolImpl {
 		let confirmationMessage: string | MarkdownString | undefined;
 
 		if (urlsNeedingConfirmation.size && !allDomainsTrusted) {
+			const links = [...urlsNeedingConfirmation].map(uri => {
+				const url = uri.toString(true);
+				const target = matchesSomeScheme(uri, Schemas.http, Schemas.https) ? url : uri;
+				return new MarkdownString().appendLink(target, escapeMarkdownLinkText(url)).value;
+			});
 			if (urlsNeedingConfirmation.size === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
-				confirmationMessage = new MarkdownString(
-					Iterable.first(urlsNeedingConfirmation)!.toString(true),
-					{ supportThemeIcons: true }
-				);
+				confirmationMessage = new MarkdownString(links[0]);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
-				confirmationMessage = new MarkdownString(
-					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString(true)}`).join('\n'),
-					{ supportThemeIcons: true }
-				);
+				confirmationMessage = new MarkdownString(links.map(link => `- ${link}`).join('\n'));
 			}
 		}
 		result.confirmationMessages = {

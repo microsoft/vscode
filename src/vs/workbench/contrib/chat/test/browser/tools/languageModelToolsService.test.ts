@@ -8,6 +8,7 @@ import { Barrier, DeferredPromise } from '../../../../../../base/common/async.js
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -626,6 +627,45 @@ suite('LanguageModelToolsService', () => {
 			{ origin: origin.toString(), presentation: undefined },
 			{ origin: origin.toString(), presentation: undefined },
 		]);
+	});
+
+	test('preserves literal confirmation links in fallback dialogs and approved inputs', async () => {
+		const confirmations: IConfirmation[] = [];
+		const invocations: IToolInvocation[] = [];
+		const dialogService = new class extends TestDialogService {
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			}
+		}();
+		const { service } = createTestToolsService(store, { dialogService });
+		const urls = [
+			'https://registry.npmjs.org/-/v1/search?text=foo bar&size=20',
+			'https://example.com/?text=[foo] (bar)&icon=$(zap)',
+		];
+		for (const group of [urls.slice(0, 1), urls]) {
+			const links = group.map(url => new MarkdownString().appendLink(url, escapeMarkdownLinkText(url)).value);
+			const message = new MarkdownString(group.length === 1 ? links[0] : links.map(link => `- ${link}`).join('\n'));
+			const tool = registerToolForTest(service, store, `fetch-links-${group.length}`, {
+				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Fetch resources?', message } }),
+				invoke: async invocation => {
+					invocations.push(invocation);
+					return { content: [{ kind: 'text', value: 'Fetched content' }] };
+				},
+			});
+			await service.invokeTool(tool.makeDto({ urls: group }), async () => 0, CancellationToken.None);
+		}
+
+		assert.deepStrictEqual({
+			dialogs: confirmations.map(({ message, detail }) => ({ message, detail })),
+			inputs: invocations.map(invocation => invocation.parameters),
+		}, {
+			dialogs: [
+				{ message: 'Fetch resources?', detail: urls[0] },
+				{ message: 'Fetch resources?', detail: urls.join('\n\n') },
+			],
+			inputs: [{ urls: urls.slice(0, 1) }, { urls }],
+		});
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {

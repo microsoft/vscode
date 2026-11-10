@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -49,6 +49,33 @@ suite('ChatResponseAccessibleView', () => {
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
 			{ partIndex: 0, text: 'Read issue. GitHub (MCP Server)' },
 			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
+		]);
+	});
+
+	test('preserves literal URL labels in single and multiple tool confirmations', () => {
+		const urls = [
+			'https://registry.npmjs.org/-/v1/search?text=foo bar&size=20',
+			'https://example.com/?text=<b>[foo]</b>&icon=$(zap)',
+		];
+		const content = [urls.slice(0, 1), urls].map(group => {
+			const links = group.map(url => new MarkdownString().appendLink(url, escapeMarkdownLinkText(url)).value);
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Fetching resources',
+				confirmationMessages: {
+					title: 'Fetch resources?',
+					message: new MarkdownString(group.length === 1 ? links[0] : links.map(link => `- ${link}`).join('\n')),
+				},
+			}, {
+				id: 'fetch', displayName: 'Fetch', modelDescription: 'Fetch resources', source: ToolDataSource.Internal,
+			}, 'fetch', undefined, { urls: group });
+			return getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [invocation] }),
+			}), true);
+		});
+
+		assert.deepStrictEqual(content, [
+			[{ partIndex: 0, text: `Fetch resources?\n${urls[0]}` }],
+			[{ partIndex: 0, text: `Fetch resources?\n${urls.join('\n\n')}` }],
 		]);
 	});
 

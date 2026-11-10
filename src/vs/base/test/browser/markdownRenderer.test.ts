@@ -907,6 +907,24 @@ suite('MarkdownRenderer', () => {
 				'Added src/\n\nUses bold and code');
 		});
 
+		test('reduces escaped link labels when omitMarkdownSyntax is set', () => {
+			const labels = [
+				'https://example.com/search?text=foo bar&size=20',
+				'https://example.com/?text=<b>[foo]</b>&icon=$(zap)',
+			];
+			const links = labels.map(label => new MarkdownString().appendLink(label, escapeMarkdownLinkText(label)).value);
+			const single = new MarkdownString(links[0]);
+			const multiple = new MarkdownString(links.map(link => `- ${link}`).join('\n'));
+
+			assert.deepStrictEqual([false, true].map(useLinkFormatter => ({
+				single: renderAsPlaintext(single, { omitMarkdownSyntax: true, useLinkFormatter }),
+				multiple: renderAsPlaintext(multiple, { omitMarkdownSyntax: true, useLinkFormatter }),
+			})), [false, true].map(() => ({
+				single: labels[0],
+				multiple: labels.join('\n\n'),
+			})));
+		});
+
 		test('separates a nested list from the item holding it when omitMarkdownSyntax is set', () => {
 			const markdown = { value: '- outer\n    - inner [link](/target)' };
 			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');

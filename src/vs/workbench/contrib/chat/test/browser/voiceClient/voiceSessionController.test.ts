@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -3406,6 +3406,28 @@ suite('VoiceSessionController', () => {
 			},
 			containsHiddenParameters: false,
 		});
+	});
+
+	test('narrates literal URL labels in linked tool confirmations', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { detail?: string };
+		const urls = ['https://example.com/?text=foo bar&size=20', 'https://example.com/?text=[foo] (bar)'];
+		const message = new MarkdownString(urls.map(url => `- ${new MarkdownString().appendLink(url, escapeMarkdownLinkText(url)).value}`).join('\n'));
+		const toolInvocation = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly state = observableValue<IChatToolInvocation.State>('fetch-links', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: {},
+				confirmationMessages: { title: 'Fetch web pages?', message },
+				confirm: () => { },
+			});
+			override readonly invocationMessage = 'Fetching web pages';
+		}();
+
+		assert.strictEqual(
+			getAgentStateInfo.call(controller, pendingResponsePartModel(URI.parse('chat-session:/fetch-links'), toolInvocation)).detail,
+			`tool approval: Fetch web pages?\n${urls.join(' ')}`
+		);
 	});
 
 	test('narrates authentication using the visible server name without hidden server metadata', () => {
