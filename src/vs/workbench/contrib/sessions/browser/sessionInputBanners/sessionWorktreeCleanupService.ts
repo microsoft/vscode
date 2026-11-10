@@ -445,6 +445,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				}
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to read cleanup status for session ${session.sessionId}`, error);
 			}
+		}
+		if (session.isArchived.get() || sizeBytes === 0) {
 			try {
 				worktreeExists = await this.sessionsManagementService.sessionWorktreeExists?.(session, token);
 			} catch (error) {
@@ -453,6 +455,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				}
 				worktreeCheckError = getErrorMessage(error);
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to check worktree existence for session ${session.sessionId}`, error);
+			}
+			if (sizeBytes === 0 && worktreeExists === undefined) {
+				sizeBytes = undefined;
+				measurementFailed = true;
 			}
 		}
 		return { session, sizeBytes: session.isArchived.get() ? undefined : sizeBytes, worktreeCount: this._countWorktrees(session), isMeasuring: false, measurementFailed: !session.isArchived.get() && measurementFailed, cleanupStatus, cleanupStatusError, worktreeExists, worktreeCheckError };
@@ -666,9 +672,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			const archived = states.every(state => state === 'archived');
 			const blocked = states.find(state => state === 'running' || state === 'pinned' || state === 'recent' || state === 'untitled' || state === 'error');
 			const active = states.find(state => state === 'active' || state === 'needsInput');
+			const hasCurrentExistenceCheck = archived || worktree.sizeBytes === 0 || worktree.measurementFailed === true;
 			return {
 				...worktree,
-				...(archived ? { sizeBytes: worktree.worktreeExists === false ? 0 : undefined, isMeasuring: false, measurementFailed: false } : { worktreeExists: undefined, worktreeCheckError: undefined }),
+				worktreeExists: hasCurrentExistenceCheck ? worktree.worktreeExists : undefined,
+				worktreeCheckError: hasCurrentExistenceCheck ? worktree.worktreeCheckError : undefined,
+				...(archived ? { sizeBytes: worktree.worktreeExists === false ? 0 : undefined, isMeasuring: false, measurementFailed: false } : {}),
 				cleanupState: blocked ?? (archived ? 'archived' : worktree.measurementFailed ? 'unavailable' : active ?? states.find(state => state !== 'archived') ?? 'unavailable'),
 			};
 		});
@@ -717,7 +726,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private _getCleanupCandidates(worktrees: readonly ISessionWorktree[]): readonly (ISessionWorktreeCleanupCandidate & { readonly sizeBytes: number })[] {
 		return worktrees
-			.filter((worktree): worktree is ISessionWorktree & { readonly session: ISession; readonly sizeBytes: number } => !!worktree.session && worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined)
+			.filter((worktree): worktree is ISessionWorktree & { readonly session: ISession; readonly sizeBytes: number } => !!worktree.session && worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined && worktree.worktreeExists !== false && !worktree.worktreeCheckError)
 			.map(worktree => ({ ...worktree }))
 			.sort((a, b) => a.session.updatedAt.get().getTime() - b.session.updatedAt.get().getTime());
 	}

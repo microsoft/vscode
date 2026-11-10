@@ -1050,6 +1050,62 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual({ before, during, after, measurements }, { before: ByteSize.GB, during: undefined, after: 2 * ByteSize.GB, measurements: 2 });
 	});
 
+	test('distinguishes empty worktrees from missing or unverified worktrees before displaying zero usage', async () => {
+		const session = createSession('session', oldDate());
+		const results: { exists: boolean | undefined; size: number | undefined; failed: boolean | undefined; error: string | undefined }[] = [];
+		for (const exists of [true, false, undefined, 'error'] as const) {
+			const service = disposables.add(createService([session], true, () => 0, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				onExists: async () => {
+					if (exists === 'error') {
+						throw new Error('Host disconnected');
+					}
+					return exists;
+				},
+			}));
+			const [worktree] = await service.getWorktrees(0);
+			results.push({ exists: worktree.worktreeExists, size: worktree.sizeBytes, failed: worktree.measurementFailed, error: worktree.worktreeCheckError });
+		}
+		assert.deepStrictEqual(results, [
+			{ exists: true, size: 0, failed: false, error: undefined },
+			{ exists: false, size: 0, failed: false, error: undefined },
+			{ exists: undefined, size: undefined, failed: true, error: undefined },
+			{ exists: undefined, size: undefined, failed: true, error: 'Host disconnected' },
+		]);
+	});
+
+	test('does not count missing unarchived worktrees toward cleanup suggestions and rechecks them on refresh', async () => {
+		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`missing-${index}`, oldDate()));
+		let exists = false;
+		const service = disposables.add(createService(sessions, true, () => 0, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onExists: async () => exists,
+		}));
+		await service.activate();
+		const before = { suggestion: !!service.suggestion.get(), missing: (await service.getWorktrees(0)).filter(worktree => worktree.worktreeExists === false).length };
+		exists = true;
+		await service.refresh();
+		const after = { suggestion: !!service.suggestion.get(), missing: (await service.getWorktrees(0)).filter(worktree => worktree.worktreeExists === false).length };
+		assert.deepStrictEqual({ before, after }, {
+			before: { suggestion: false, missing: 20 },
+			after: { suggestion: true, missing: 0 },
+		});
+	});
+
+	test('does not hide a restored session using an in-flight archived existence check', async () => {
+		const archived = observableValue('archived', true);
+		const session = createSession('session', oldDate(), SessionStatus.Completed, true, true, 1, archived);
+		const started = new DeferredPromise<void>();
+		const existence = new DeferredPromise<boolean>();
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onExists: async () => { started.complete(); return existence.p; },
+		}));
+		const loading = service.getWorktrees(0);
+		await started.p;
+		archived.set(false, undefined);
+		await existence.complete(false);
+		const [worktree] = await loading;
+		assert.deepStrictEqual({ state: worktree.cleanupState, exists: worktree.worktreeExists }, { state: 'eligible', exists: undefined });
+	});
+
 	test('rechecks archived existence on cached loads without scanning sizes or reusing absence after recreation', async () => {
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
 		let exists = true;

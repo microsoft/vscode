@@ -1087,6 +1087,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (worktree.worktreeExists === false) {
 			return ByteSize.formatSize(0);
 		}
+		if (this.isWorktreeCleaning(worktree)) {
+			const sizeBeforeCleanup = this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.candidate.sizeBytes;
+			return sizeBeforeCleanup === undefined
+				? localize('sessionWorktreeCleanup.pendingRemovalStorage', "Pending removal")
+				: ByteSize.formatSize(sizeBeforeCleanup);
+		}
 		return worktree.cleanupState === 'archived' || worktree.session?.isArchived.get() || worktree.unlinkedWorktree
 			? accessible ? worktree.unlinkedWorktree ? localize('sessionWorktreeCleanup.unlinkedStorage', "Not measured for worktrees without a listed session") : localize('sessionWorktreeCleanup.doneStorage', "Not measured for done sessions") : localize('sessionWorktreeCleanup.notMeasured', "Not measured")
 			: worktree.isMeasuring

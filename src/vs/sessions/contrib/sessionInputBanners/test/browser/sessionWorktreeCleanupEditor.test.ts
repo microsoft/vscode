@@ -1657,17 +1657,26 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	}));
 
-	test('keeps row order stable while archived sizes are hidden and cleanup status changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('keeps pre-cleanup sizes and row order until removal is confirmed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const first = { ...createWorktree('first', '/repos/app'), sizeBytes: 300 };
 		const second = { ...createWorktree('second', '/repos/app'), sizeBytes: 200 };
 		const existing = { ...createWorktree('existing', '/repos/app', 'archived'), sizeBytes: 100 };
+		const scheduling = new DeferredPromise<void>();
 		let archived = false;
 		let checks = 0;
 		const { editor, container } = createEditor({
 			getWorktrees: async () => archived
 				? [{ ...first, sizeBytes: undefined, cleanupState: 'archived', cleanupStatus: { state: 'pending' } }, { ...second, sizeBytes: undefined, cleanupState: 'archived', cleanupStatus: { state: 'pending' } }, existing]
 				: [first, second, existing],
-			cleanupWorktrees: async (candidates, onProgress) => { archived = true; return scheduleCleanup(candidates, onProgress); },
+			cleanupWorktrees: async (candidates, onProgress) => {
+				onProgress?.({ state: 'started' });
+				await scheduling.p;
+				archived = true;
+				for (const candidate of candidates) {
+					onProgress?.({ state: 'scheduled', candidate });
+				}
+				return true;
+			},
 			refreshPendingCleanup: async () => ++checks === 1
 				? [{ ...first, sizeBytes: undefined, cleanupState: 'archived', cleanupStatus: { state: 'running' } }, { ...second, sizeBytes: undefined, cleanupState: 'archived', cleanupStatus: { state: 'pending' } }, existing]
 				: [removedWorktree(first), removedWorktree(second), existing],
@@ -1676,16 +1685,51 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		selectAllWorktrees(container);
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		const storage = () => [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header) .storage')].map(cell => cell.textContent);
+		const queuedStorage = storage();
+		await scheduling.complete();
+		await timeout(0);
+		const pendingStorage = storage();
 		await timeout(2_100);
 		const rowsAfterShrink = [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent);
+		const runningStorage = storage();
+		const accessibleStorage = container.querySelector('.monaco-list-row')?.getAttribute('aria-label')?.includes('disk usage 300B.');
 		await timeout(4_100);
 		assert.deepStrictEqual({
+			queuedStorage,
+			pendingStorage,
+			runningStorage,
+			accessibleStorage,
 			rowsAfterShrink,
 			rowsAfterRemoval: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+			removedStorage: storage(),
 		}, {
+			queuedStorage: ['300B', '200B'],
+			pendingStorage: ['300B', '200B'],
+			runningStorage: ['300B', '200B'],
+			accessibleStorage: true,
 			rowsAfterShrink: ['first', 'second'],
 			rowsAfterRemoval: ['first', 'second'],
+			removedStorage: ['0B', '0B'],
 		});
+	}));
+
+	test('shows pending removal rather than not measured when cleanup starts without a size estimate', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const worktree = { ...createWorktree('unmeasured', '/repos/app'), sizeBytes: undefined };
+		let archived = false;
+		const { editor, container } = createEditor({
+			getWorktrees: async () => [archived ? { ...worktree, cleanupState: 'archived', cleanupStatus: { state: 'pending' } } : worktree],
+			cleanupWorktrees: async (candidates, onProgress) => { archived = true; return scheduleCleanup(candidates, onProgress); },
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		selectAllWorktrees(container);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			storage: container.querySelector('.session-worktree-cleanup-row:not(.header) .storage')?.textContent,
+			accessible: container.querySelector('.monaco-list-row')?.getAttribute('aria-label')?.includes('disk usage Pending removal'),
+		}, { storage: 'Pending removal', accessible: true });
 	}));
 
 	test('limits existence polling without claiming removal when the host has no cleanup status support', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
