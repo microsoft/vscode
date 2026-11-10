@@ -494,6 +494,12 @@ async fn github_environment_config(
 		base_url: "https://api.github.com".into(),
 		account_id: user.id.to_string(),
 		credential,
+		optional_roots: paths
+			.roots
+			.iter()
+			.filter(|root| !paths.projects.contains(root))
+			.cloned()
+			.collect(),
 		roots: paths.roots,
 		default_directory: paths.projects[0].clone(),
 		projects: paths.projects,

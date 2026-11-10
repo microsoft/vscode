@@ -34,7 +34,7 @@ agent host supervisor.
 
 ## GitHub environments
 
-Use `code agent host --github-environment --name <name>` to register a foreground agent host as a GitHub environment. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning.
+Use `code agent host --github-environment --name <name>` to register a foreground agent host as a GitHub environment. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning. Automatically discovered grants are checked again when the agent host restarts, so a disconnected drive does not prevent registration.
 
 To restrict access, pass `--github-environment-root <directory>`. Repeat the option to grant multiple directories; explicit roots replace the default filesystem-wide grants and shared projects, with the first root as the default working directory.
 
