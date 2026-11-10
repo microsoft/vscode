@@ -14,7 +14,7 @@ import { deriveMotionResponses, evaluateCriticalResponse, generateMotionResponse
 
 const sourceUrl = new URL('../../../../src/vs/platform/theme/common/motion/motionResponsePresets.json', import.meta.url);
 const outputUrl = new URL('../../../../src/vs/platform/theme/common/motion/motionResponses.ts', import.meta.url);
-const sourceText = await readFile(sourceUrl, 'utf8');
+const sourceText = (await readFile(sourceUrl, 'utf8')).replace(/\r\n/g, '\n');
 const source = JSON.parse(sourceText);
 const presets = deriveMotionResponses(source);
 
@@ -189,10 +189,10 @@ test('analytic helpers reject invalid and out-of-budget ranges', () => {
 	}
 });
 
-test('generation is deterministic, binds the exact source digest, and emits localized readonly data', async () => {
+test('generation is deterministic, binds source formatting, and emits localized readonly data', async () => {
 	const generated = generateMotionResponses(sourceText);
 	assert.equal(generateMotionResponses(sourceText), generated);
-	assert.equal(await readFile(outputUrl, 'utf8'), generated);
+	assert.equal((await readFile(outputUrl, 'utf8')).replace(/\r\n/g, '\n'), generated);
 	const digest = `sha256:${createHash('sha256').update(sourceText, 'utf8').digest('hex')}`;
 	assert.ok(generated.includes(`motionResponseSourceDigest = '${digest}'`));
 	assert.ok(!generateMotionResponses(`${sourceText}\n`).includes(digest));
@@ -227,6 +227,23 @@ test('CLI only writes the fixed module and never mutates output when checking st
 	}), /missing or stale/);
 	await assert.rejects(runCli(['--output', 'elsewhere.ts'], io), /Usage/);
 	await assert.rejects(runCli([], { ...io, readFile: async () => '{}' }), /required/);
+	assert.deepEqual(writes, []);
+});
+
+test('generation and CLI checks accept LF and CRLF checkouts without rewriting files', async () => {
+	const lfSource = sourceText.replace(/\r\n/g, '\n');
+	const generated = generateMotionResponses(lfSource);
+	const writes = [];
+	for (const sourceEnding of ['\n', '\r\n']) {
+		const input = lfSource.replace(/\n/g, sourceEnding);
+		assert.equal(generateMotionResponses(input), generated);
+		for (const outputEnding of ['\n', '\r\n']) {
+			await runCli(['--check'], {
+				readFile: async path => path.href === sourceUrl.href ? input : generated.replace(/\n/g, outputEnding),
+				writeFile: async (...args) => { writes.push(args); },
+			});
+		}
+	}
 	assert.deepEqual(writes, []);
 });
 
