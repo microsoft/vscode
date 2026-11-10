@@ -172,7 +172,8 @@ function matchesScope(target: HTMLElement, scope: string | undefined): boolean {
 	return (typeof registeredScope === 'function' ? registeredScope() : registeredScope) === scope;
 }
 
-function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
+/** Whether a target can be presented in the given window. */
+export function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
 	if (!target.isConnected || target.ownerDocument !== targetWindow.document) {
 		return false;
 	}

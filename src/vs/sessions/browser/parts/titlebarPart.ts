@@ -460,6 +460,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
+		const hasWindowControls = Array.from(this.rightContent.children).some(element => element.classList.contains('window-controls-container') && element.clientWidth > 0);
+		this.rightContent.classList.toggle('has-window-controls', hasWindowControls);
 		this.updateOverflowingToolBars();
 		this.updateLastRightToolBar();
 	}

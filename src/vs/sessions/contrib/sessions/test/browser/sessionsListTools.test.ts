@@ -220,20 +220,19 @@ suite('Sessions - Sessions list tools', () => {
 		});
 	});
 
-	test('rejects disabled inbox grouping before changing filters and allows it after opt-in', async () => {
-		const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
-		list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
-		const rejected = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
-		const unchanged = { grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) };
-		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
-		const accepted = await organize({ action: 'setView', grouping: 'inbox' });
-		assert.deepStrictEqual({ rejected: rejected.results, unchanged, accepted: accepted.results, grouping: (await read()).view.grouping }, {
-			rejected: [{ action: 'setView', ok: false, error: 'Inbox Mode requires "sessions.list.inboxEnabled" to be enabled.' }],
-			unchanged: { grouping: 'workspace', excluded: true },
-			accepted: [{ action: 'setView', ok: true }],
-			grouping: 'inbox',
+	for (const enabled of [false, true]) {
+		test(`allows inbox grouping regardless of the default setting (${enabled})`, async () => {
+			const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
+			await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, enabled);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
+			const result = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
+			assert.deepStrictEqual({ results: result.results, grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) }, {
+				results: [{ action: 'setView', ok: true }],
+				grouping: 'inbox',
+				excluded: false,
+			});
 		});
-	});
+	}
 
 	test('refuses to read or change the list while the setting is off', async () => {
 		const { invokeRaw, configurationService, harness } = setup([session('Alpha', 1)]);

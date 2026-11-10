@@ -153,28 +153,7 @@ export class IssueReporter extends BaseIssueReporterService {
 				return false;
 			}
 		}
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			console.error('Invalid GitHub URL provided.');
-			return false;
-		}
-		const result = await response.json();
-		await this.openerService.open(result.html_url, { openExternal: true });
-		this.close();
-		return true;
+		return super.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 	}
 
 	public override async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {

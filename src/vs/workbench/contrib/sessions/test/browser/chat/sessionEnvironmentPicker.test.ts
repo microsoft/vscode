@@ -11,7 +11,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItemHover } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -92,6 +92,16 @@ suite('SessionEnvironmentPicker', () => {
 			{ id: 'cloud', kind: 'cloud', providerIds: ['cloud'], description: undefined },
 			{ id: 'agenthost-remote-visible', kind: 'remote', providerIds: ['agenthost-remote-visible'], description: 'Connected' },
 		]);
+	});
+
+	test('preserves the checked workspace provider across provider registration order', () => {
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud, local], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, LOCAL_AGENT_HOST_PROVIDER_ID, false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local], folder, 'cloud', false, undefined, true)?.id,
+		], ['cloud', 'cloud', 'cloud', 'local', 'local']);
 	});
 
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
@@ -182,13 +192,18 @@ suite('SessionEnvironmentPicker', () => {
 		let hide: (() => void) | undefined;
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
+		let hovers: IActionListItemHover['content'][] = [];
+		let ariaLabels: (string | undefined)[] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
 		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			hide: () => hide?.(),
-			show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+			show: (...args: Parameters<IActionWidgetService['show']>) => {
+				const [, , items, delegate, , , , accessibilityProvider] = args;
 				labels = items.map(item => item.label);
+				hovers = items.map(item => item.hover?.content);
+				ariaLabels = items.map(item => accessibilityProvider?.getAriaLabel?.(item)?.toString());
 				hide = () => delegate.onHide();
 				accept = index => delegate.onSelect(items[index].item!);
 			},
@@ -222,15 +237,81 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual({
 			order: container.textContent,
 			labels,
+			hovers,
+			ariaLabels,
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
 			toolbar: !!trigger.closest('.monaco-toolbar'),
 			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'],
+			hovers: ['Run this session directly on this computer', 'Run this session in the cloud on GitHub'],
+			ariaLabels: ['This Computer, Run this session directly on this computer', 'Cloud, Run this session in the cloud on GitHub'],
+			selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
 			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
+	});
+
+	test('describes every entry kind in its hover and accessible name', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_SETTING]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		const entries: readonly IRemoteAgentHostEntry[] = [
+			{ name: 'build-box', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote', hostName: 'remote' } },
+			{ name: 'laptop', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'remote', clusterId: 'test' } },
+			{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
+			{ name: 'desktop', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:remote', environmentId: 'remote', environmentKind: 'user-local' } },
+			{ name: 'my_host*', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://localhost:3000' } },
+		];
+		const providers = entries.map((entry, index) => upcastPartial<IAgentHostSessionsProvider>({
+			...provider(`agenthost-remote-${index}`, 'remote'), label: entry.name, remoteAddress: getEntryAddress(entry),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+		}));
+		instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
+		instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox) });
+		instantiation.stub(IMissionControlEnvironmentService, { enabled: true, accountKey: 'account', hosts: constObservable([{ id: 'remote', name: 'desktop', kind: 'user-local', status: 'online' }]) });
+		instantiation.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
+		instantiation.stub(IContextKeyService, new MockContextKeyService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IKeybindingService, new MockKeybindingService());
+		instantiation.stub(ICommandService, {});
+		const menuActions = [
+			instantiation.createInstance(MenuItemAction, { id: 'test.ssh', title: 'SSH...', tooltip: 'Connect over *SSH*' }, undefined, undefined, undefined, undefined),
+			instantiation.createInstance(MenuItemAction, { id: 'test.other', title: 'Other...' }, undefined, undefined, undefined, undefined),
+		];
+		instantiation.stub(IMenuService, { getMenuActions: () => [['navigation', menuActions]] });
+		let described: { hover: IActionListItemHover['content']; aria: string | undefined }[] = [];
+		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			hide: () => { },
+			show: (...args: Parameters<IActionWidgetService['show']>) => {
+				const [, , items, , , , , accessibilityProvider] = args;
+				described = items.filter(item => item.kind === ActionListItemKind.Action)
+					.map(item => ({ hover: item.hover?.content, aria: accessibilityProvider?.getAriaLabel?.(item)?.toString() }));
+			},
+		}));
+		const container: ISessionCreationEnvironment = { id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud, ...getSessionCreationEnvironments(providers), container]), observableValue<ISessionCreationEnvironment | undefined>(store, local), async () => { }, () => []));
+		store.add(picker.render(dom.$('div')));
+		picker.showPicker();
+		const remote = (name: string, hover: string, escaped = hover) => ({ hover: escaped, aria: `${name}, Disconnected, ${hover}` });
+		assert.deepStrictEqual(described, [
+			{ hover: 'Run this session directly on this computer', aria: 'This Computer, Run this session directly on this computer' },
+			{ hover: 'Run this session in the cloud on GitHub', aria: 'Cloud, Run this session in the cloud on GitHub' },
+			remote('build-box', 'Run this session on build-box over SSH'),
+			remote('laptop', 'Run this session on laptop through a dev tunnel'),
+			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
+			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
+			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
+			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container, Run this session in a dev container for the selected folder' },
+			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
+			{ hover: undefined, aria: 'Other...' },
+			{ hover: 'Add, connect, and manage remote environments', aria: 'Manage Remote Environments..., Add, connect, and manage remote environments' },
+		]);
 	});
 
 	for (const { remotesEnabled, environmentPickerEnabled } of [false, true].flatMap(remotesEnabled => [false, true].map(environmentPickerEnabled => ({ remotesEnabled, environmentPickerEnabled })))) {

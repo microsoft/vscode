@@ -234,12 +234,6 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
-/** Options for {@link IAgent.startChatDiscovery}. */
-export interface IAgentChatDiscoveryOptions {
-	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
-	readonly migrateLegacyChats: boolean;
-}
-
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -2029,8 +2023,8 @@ export interface IAgent {
 	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	/** Persists enablement for an installed plugin identified by its marketplace spec or direct source ID. */
-	setPluginEnabled?(plugin: string, enabled: boolean): Promise<void>;
+	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
+	setPluginEnabled?(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
@@ -2282,7 +2276,7 @@ export interface IAgent {
 	 * The host passes its own startup-frozen legacy-migration gate so discovery
 	 * and listing always agree on whether legacy chats are adoptable.
 	 */
-	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
+	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;

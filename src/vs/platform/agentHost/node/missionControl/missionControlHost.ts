@@ -522,7 +522,7 @@ export class MissionControlHost extends Disposable {
 			_meta: {
 				...this._stateManager.getSessionState(summary.resource)?._meta,
 				[event.type === 'session.plan_changed' ? 'copilot.planHint' : 'copilot.todosHint']:
-					{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
+				{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
 			},
 		});
 	}

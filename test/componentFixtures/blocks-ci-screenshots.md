@@ -6,6 +6,12 @@
 #### baseUI/KeyboardFocusedToggle/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/dfbb0ce3586e7a15bdb7354ff70df81563ed19b5b857c71d7a02e11ef7ad13fd)
 
+#### chat/chatCustomizationsHover/Default/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/734f5dc70ad31bda6fabf42e583315a5c21317a06e59e705e078d480474f551d)
+
+#### chat/chatCustomizationsHover/MigrationsAndMcpAuthentication/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0832b2ae75bd7259fd9601df3d42a4cb8767922dd9ed5a51e5ff7527a1e9b9a6)
+
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/53dc97e97d4f9e8d02d144012794cce528d3d25d659149df8c854f7c42e54d74)
 
@@ -115,7 +121,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/701b67f35b07c17d6548488179641c4049343144210d1436fff11972acef6ec7)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/60f021f38c2b08175d0eb489f61dbc91f4ecbca12b353b066526f31eb4c796b1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/bda16146f9fc5332ff4c5a14aae9528b63280cd985eebaacdee9cd54539ea93e)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAutoModel/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/257a578b04ba15a9979fd399bc49b5e0755b515367349bef17047f94d06b7bf9)
@@ -133,7 +139,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6d0ec65bdd8ab2271cf5b1566cbff91a5fca2886d76ae42b602f387f90cc2278)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3a798b6c99f178259d7d29f5a2dfec1eaf76363e22fc422ee2543cb8d3d7ce43)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d36e5b3148dfd452aef5c6dee07be23f33c47b7f0f035cb34f658d3054d4ac5d)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7cfac85698a7ca7373a9b6d9f22e2ef6ae6177b8ceff6e6a3f9c4737547fc5fd)

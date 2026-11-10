@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,6 +19,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxSessionFeedTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
+import { IPowerService } from '../../../../../services/power/common/powerService.js';
 
 class TestSocket {
 	onmessage: OmitThisParameter<NonNullable<WebSocket['onmessage']>> | null = null;
@@ -62,6 +64,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly socketError?: boolean;
 	readonly onInvalidate?: () => void;
 	readonly disconnectAfterMs?: number;
+	readonly canConnect?: () => boolean;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const sockets: TestSocket[] = [];
@@ -72,6 +75,12 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	const debugs: string[] = [];
 	const requests: CancellationToken[] = [];
 	const telemetry: ICloudSandboxSessionFeedTelemetryData[] = [];
+	const suspend = store.add(new Emitter<void>());
+	const resume = store.add(new Emitter<void>());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = suspend.event;
+		override readonly onDidResume = resume.event;
+	}());
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override async connectSessionFeed(token: CancellationToken) {
 			requests.push(token);
@@ -107,8 +116,8 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 			store.add(disposableTimeout(() => socket.disconnect(), options.disconnectAfterMs));
 		}
 		return socket;
-	}, () => StopWatch.create(false)));
-	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs, telemetry };
+	}, () => StopWatch.create(false), options?.canConnect));
+	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs, telemetry, suspend, resume };
 }
 
 suite('CloudSandboxSessionFeed', () => {
@@ -244,6 +253,94 @@ suite('CloudSandboxSessionFeed', () => {
 				{ outcome: 'connected', reason: 'initial', consecutiveFailures: 0 },
 				...Array.from({ length: 3 }, () => ({ outcome: 'renewed', reason: 'renewal', consecutiveFailures: 0, connectionDurationMs: 480_000, lastMessageAgeMs: 480_000 })),
 			],
+		});
+	}));
+
+	test('releases the inactive socket when renewal is due and resumes without replacing the feed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		await timeout(60_000);
+		const beforeRenewal = { requests: h.requests.length, closed: h.sockets[0].closed, deferred: h.feed.deferred };
+		await timeout(24 * 60_000);
+		const inactive = { requests: h.requests.length, closed: h.sockets[0].closed, connected: h.feed.connected, deferred: h.feed.deferred, reasons: [...h.reasons] };
+		active = true;
+		await h.feed.start();
+		await timeout(501);
+		assert.deepStrictEqual({ beforeRenewal, inactive, requests: h.requests.length, closed: h.sockets.map(socket => socket.closed), reasons: h.reasons, outcome: h.telemetry.at(-1)?.reason }, {
+			beforeRenewal: { requests: 1, closed: false, deferred: false },
+			inactive: { requests: 1, closed: true, connected: false, deferred: true, reasons: [] },
+			requests: 2, closed: [true, false], reasons: [],
+			outcome: 'recovery',
+		});
+	}));
+
+	test('defers dropped-socket retries while inactive', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		h.sockets[0].disconnect();
+		await timeout(60 * 60_000);
+		const inactiveRequests = h.requests.length;
+		active = true;
+		await h.feed.start();
+		assert.deepStrictEqual({ inactiveRequests, requests: h.requests.length, connected: h.feed.connected, reason: h.telemetry.at(-1)?.reason, refreshes: h.reasons }, {
+			inactiveRequests: 1, requests: 2, connected: true, reason: 'recovery', refreshes: [],
+		});
+	}));
+
+	test('an invalid message while inactive prevents resume from restarting the feed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		const h = createFeed(store, { canConnect: () => active });
+		await h.feed.start();
+		active = false;
+		await timeout(7 * 60_000);
+		h.sockets[0].receive('{invalid');
+		active = true;
+		await h.feed.start();
+		await timeout(501);
+		assert.deepStrictEqual({ requests: h.requests.length, connected: h.feed.connected, deferred: h.feed.deferred, reasons: h.reasons }, {
+			requests: 1, connected: false, deferred: false, reasons: [],
+		});
+	}));
+
+	test('does not open a socket if demand disappears during negotiation', async () => {
+		let active = true;
+		const pending = new DeferredPromise<ICloudSandboxSessionFeedConnection>();
+		const h = createFeed(store, { canConnect: () => active, connect: () => pending.p });
+		const started = h.feed.start();
+		active = false;
+		await pending.complete(connection());
+		await started;
+		const inactiveSockets = h.sockets.length;
+		active = true;
+		await h.feed.start();
+		assert.deepStrictEqual({ inactiveSockets, requests: h.requests.length, connected: h.feed.connected }, {
+			inactiveSockets: 0, requests: 2, connected: true,
+		});
+	});
+
+	test('releases the old socket if activity disappears during renewal negotiation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let active = true;
+		let attempts = 0;
+		const pending = new DeferredPromise<ICloudSandboxSessionFeedConnection>();
+		const h = createFeed(store, {
+			canConnect: () => active,
+			connect: async () => ++attempts === 2 ? pending.p : connection(),
+		});
+		await h.feed.start();
+		await timeout(8 * 60_000 + 1);
+		active = false;
+		await pending.complete(connection());
+		await timeout(0);
+		const inactive = { attempts, closed: h.sockets.map(socket => socket.closed), connected: h.feed.connected, deferred: h.feed.deferred };
+		active = true;
+		await h.feed.start();
+		assert.deepStrictEqual({ inactive, attempts, closed: h.sockets.map(socket => socket.closed) }, {
+			inactive: { attempts: 2, closed: [true], connected: false, deferred: true },
+			attempts: 3, closed: [true, false],
 		});
 	}));
 
@@ -634,6 +731,183 @@ suite('CloudSandboxSessionFeed', () => {
 			cancelled: true, sockets: 0, warnings: [],
 		});
 	});
+
+	test('suspend pauses renewals and buffered hints until one resumed subscription catches up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		h.sockets[0].receive(changed('one'));
+		h.suspend.fire();
+		h.suspend.fire();
+		await timeout(30 * 60_000);
+		const suspended = { requests: h.requests.length, connected: h.feed.connected, closed: h.sockets[0].closed, reasons: [...h.reasons] };
+		h.resume.fire();
+		h.resume.fire();
+		await timeout(1_501);
+		assert.deepStrictEqual({
+			suspended, requests: h.requests.length, connected: h.feed.connected,
+			reasons: h.reasons, taskBatches: h.taskBatches,
+			outcomes: h.telemetry.map(event => event.outcome),
+		}, {
+			suspended: { requests: 1, connected: false, closed: true, reasons: [] },
+			requests: 2, connected: true, reasons: ['reconnect', 'change'], taskBatches: [undefined, ['one']],
+			outcomes: ['connected', 'connected'],
+		});
+	}));
+
+	test('resume delivers buffered hints without waiting for a replacement feed that becomes unavailable', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const replacement = new DeferredPromise<ICloudSandboxSessionFeedConnection | undefined>();
+		let attempts = 0;
+		const h = createFeed(store, { connect: async () => ++attempts === 1 ? connection() : replacement.p });
+		await h.feed.start();
+		h.sockets[0].receive(changed('one'));
+		h.suspend.fire();
+		await timeout(60_000);
+		const duringSuspend = [...h.reasons];
+		h.resume.fire();
+		await timeout(1_501);
+		const beforeReplacement = { reasons: [...h.reasons], taskBatches: [...h.taskBatches] };
+		await replacement.complete(undefined);
+		await timeout(60 * 60_000);
+		assert.deepStrictEqual({
+			duringSuspend, beforeReplacement, reasons: h.reasons, taskBatches: h.taskBatches,
+			requests: h.requests.length, connected: h.feed.connected,
+			outcomes: h.telemetry.map(event => event.outcome),
+		}, {
+			duringSuspend: [], beforeReplacement: { reasons: ['change'], taskBatches: [['one']] },
+			reasons: ['change'], taskBatches: [['one']], requests: 2, connected: false,
+			outcomes: ['connected', 'unavailable'],
+		});
+	}));
+
+	test('startup during suspend waits for resume before negotiating', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		h.suspend.fire();
+		let started = false;
+		const start = h.feed.start().then(() => started = true);
+		await timeout(60_000);
+		const suspended = { requests: h.requests.length, started };
+		h.resume.fire();
+		await start;
+		assert.deepStrictEqual({ suspended, requests: h.requests.length, connected: h.feed.connected }, {
+			suspended: { requests: 0, started: false }, requests: 1, connected: true,
+		});
+	}));
+
+	for (const initial of [false, true]) {
+		test(`resume defers negotiation when monitoring demand disappears during suspend (initial=${initial})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			let canConnect = true;
+			const h = createFeed(store, { canConnect: () => canConnect });
+			if (!initial) {
+				await h.feed.start();
+			}
+			h.suspend.fire();
+			const pending = initial ? h.feed.start() : undefined;
+			canConnect = false;
+			h.resume.fire();
+			await timeout(1_501);
+			await pending;
+			const deferred = { requests: h.requests.length, deferred: h.feed.deferred, connected: h.feed.connected };
+			canConnect = true;
+			await h.feed.start();
+			assert.deepStrictEqual({ deferred, requests: h.requests.length, connected: h.feed.connected }, {
+				deferred: { requests: initial ? 0 : 1, deferred: true, connected: false },
+				requests: initial ? 1 : 2, connected: true,
+			});
+		}));
+	}
+
+	for (const phase of ['negotiation', 'handshake'] as const) {
+		test(`suspend cancels pending ${phase} without failures or stale socket publication`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const pending = new DeferredPromise<ICloudSandboxSessionFeedConnection>();
+			let attempts = 0;
+			const h = createFeed(store, {
+				autoReady: phase !== 'handshake',
+				connect: async () => ++attempts === 1 && phase === 'negotiation' ? pending.p : connection(),
+			});
+			const start = h.feed.start();
+			await timeout(0);
+			h.suspend.fire();
+			// Resume before the cancelled negotiation/handshake has unwound.
+			h.resume.fire();
+			await timeout(1_001);
+			if (phase === 'handshake') {
+				h.sockets[h.sockets.length - 1].receive({ type: 'system', event: 'connected' });
+			}
+			await start;
+			await pending.complete(connection());
+			await timeout(501);
+			assert.deepStrictEqual({
+				requests: h.requests.length, cancelled: h.requests[0].isCancellationRequested,
+				closed: h.sockets.map(socket => socket.closed), connected: h.feed.connected,
+				outcomes: h.telemetry.map(event => event.outcome), reasons: h.reasons,
+			}, {
+				requests: 2, cancelled: true, closed: phase === 'handshake' ? [true, false] : [false], connected: true,
+				outcomes: ['connected'], reasons: ['reconnect'],
+			});
+		}));
+	}
+
+	test('suspend and resume preserve an outstanding server retry deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, {
+			connect: async () => {
+				if (++attempts === 1) {
+					throw new CloudSandboxRequestError(503, 'Unavailable', 600);
+				}
+				return connection();
+			},
+		});
+		await h.feed.start();
+		h.suspend.fire();
+		await timeout(1_000);
+		h.resume.fire();
+		await timeout(598_999);
+		const beforeDeadline = h.requests.length;
+		await timeout(502);
+		assert.deepStrictEqual({ beforeDeadline, requests: h.requests.length, reasons: h.reasons }, {
+			beforeDeadline: 1, requests: 2, reasons: ['reconnect'],
+		});
+	}));
+
+	test('a second suspend cancels scheduled wake recovery until the next resume', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		h.suspend.fire();
+		h.resume.fire();
+		h.suspend.fire();
+		await timeout(60_000);
+		const beforeSecondResume = h.requests.length;
+		h.resume.fire();
+		await timeout(1_501);
+		assert.deepStrictEqual({ beforeSecondResume, requests: h.requests.length, reasons: h.reasons }, {
+			beforeSecondResume: 1, requests: 2, reasons: ['reconnect'],
+		});
+	}));
+
+	for (const stopped of ['unavailable', 'invalid message'] as const) {
+		test(`resume does not restart a feed stopped for ${stopped}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createFeed(store, { connect: stopped === 'unavailable' ? async () => undefined : undefined });
+			await h.feed.start();
+			if (stopped === 'invalid message') {
+				h.sockets[0].receive('{invalid');
+			}
+			h.suspend.fire();
+			h.resume.fire();
+			await timeout(60_000);
+			assert.deepStrictEqual({ requests: h.requests.length, connected: h.feed.connected }, { requests: 1, connected: false });
+		}));
+	}
+
+	test('disposal during suspend settles pending startup without reconnecting after resume', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		h.suspend.fire();
+		const start = h.feed.start();
+		h.feed.dispose();
+		await start;
+		h.resume.fire();
+		await timeout(60_000);
+		assert.deepStrictEqual({ requests: h.requests.length, sockets: h.sockets.length }, { requests: 0, sockets: 0 });
+	}));
 
 	test('disposal closes sockets and cancels queued invalidations and reconnects', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);

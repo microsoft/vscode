@@ -696,6 +696,8 @@ export interface IChatAutoModeResolutionPart {
 	defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	kept?: boolean;
+	/** Auto is presented as Copilot Fusion, so the row names it that way. */
+	fusion?: boolean;
 }
 
 /**
@@ -756,6 +758,18 @@ export interface IChatTerminalToolInvocationData {
 	intention?: string;
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;
+	/**
+	 * Where an Agent Host command runs, shown before approval because the same
+	 * relative command line runs a different program in another directory or
+	 * environment. The built-in terminal tool leaves this unset and names a
+	 * changed directory in its confirmation title instead.
+	 */
+	executionTarget?: {
+		/** The working directory, verbatim in its execution environment's path syntax. */
+		readonly workingDirectory?: string;
+		/** The execution environment, when it is not the agent host's own machine. */
+		readonly environment?: string;
+	};
 	/**
 	 * Pre-computed confirmation display data (localization must happen at source).
 	 * Contains the command line to show in confirmation (potentially without cd prefix)

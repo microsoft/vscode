@@ -24,7 +24,7 @@ import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../.
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
@@ -742,6 +742,21 @@ suite('AgentHostProtocolClient', () => {
 			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
 			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 123 } });
 			await assert.rejects(status, /invalid worktree cleanup status/);
+		});
+
+		test('requires explicit preparation support and preserves opaque session identities', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.worktreeCleanup': true });
+			await assert.rejects(unsupported.client.prepareSessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id')), /does not support preparing/);
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.prepareSessionWorktreeCleanup': true });
+			const preparation = client.prepareSessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await preparation;
+			assert.deepStrictEqual({ method: request.method, params: request.params }, {
+				method: 'vscode/prepareSessionWorktreeCleanup', params: { session: 'opaque-session://tenant/exact-id' },
+			});
 		});
 	});
 
@@ -4662,6 +4677,13 @@ suite('AgentHostProtocolClient', () => {
 					}
 					return 'Negotiate ticket';
 				},
+				lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+					calls.push(['lookupBasicAuthorization', proxyUrl, String(realm), String(attempt)]);
+					if (proxyUrl.includes('failing')) {
+						throw new Error('secret failure detail');
+					}
+					return proxyUrl.includes('unknown') ? undefined : { username: 'user', password: 'secret' };
+				},
 			};
 			const client = disposables.add(new AgentHostProtocolClient('wsl-test', transport, { clientProxy }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
 			return { client, transport, onDidChange };
@@ -4711,6 +4733,35 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({ calls, errors }, { calls: [], errors: Array(proxyUrls.length).fill('Unsupported proxy URL') });
 		});
 
+		test('serves Basic credential lookups and rejects unsupported proxy URLs and attempts', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const results = [
+				await sendRequest(transport, 70, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', realm: 'Corp', attempt: 1 }),
+				await sendRequest(transport, 71, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://unknown.example:8080', attempt: 2 }),
+				await sendRequest(transport, 72, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://failing.example:8080', attempt: 1 }),
+				await sendRequest(transport, 73, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'socks5://proxy.example:1080', attempt: 1 }),
+				await sendRequest(transport, 74, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 0 }),
+				await sendRequest(transport, 75, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1.5 }),
+			];
+			assert.deepStrictEqual({ calls, results }, {
+				calls: [
+					['lookupBasicAuthorization', 'http://proxy.example:8080', 'Corp', '1'],
+					['lookupBasicAuthorization', 'http://unknown.example:8080', 'undefined', '2'],
+					['lookupBasicAuthorization', 'http://failing.example:8080', 'undefined', '1'],
+				],
+				results: [
+					{ username: 'user', password: 'secret' },
+					{},
+					'Proxy credential lookup failed',
+					'Unsupported proxy URL',
+					'Unsupported attempt',
+					'Unsupported attempt',
+				],
+			});
+		});
+
 		test('neither advertises nor serves proxy lookups when disabled or not supplied', async () => {
 			const calls: string[][] = [];
 			const disabled = createProxyClient(calls, false);
@@ -4723,11 +4774,12 @@ suite('AgentHostProtocolClient', () => {
 				errors: [
 					await sendRequest(disabled.transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com' }),
 					await sendRequest(ordinary.transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+					await sendRequest(disabled.transport, 53, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080', attempt: 1 }),
 				],
 				calls,
 			}, {
 				advertised: [undefined, undefined],
-				errors: ['This client does not resolve proxies for this agent host', 'This client does not provide Kerberos credentials for this agent host'],
+				errors: ['This client does not resolve proxies for this agent host', 'This client does not provide Kerberos credentials for this agent host', 'This client does not provide proxy credentials for this agent host'],
 				calls: [],
 			});
 		});
@@ -7011,6 +7063,33 @@ suite('AgentHostProtocolClient', () => {
 			const request = await waitForRequestAtWithin(transport, 'reconnect', 0);
 			return { transport, request };
 		}
+
+		test('re-forwards the latest requested configuration after reconnect', async () => {
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, true);
+			await completeHandshake(transports[0], client.connect());
+
+			const { transport, request } = await beginRecovery(client, transports);
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+			fireConfigurationChange(configurationService, SYNC_SETTING_A);
+			const whileDisconnected = findOptionalRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A);
+			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+			await reconnected;
+
+			assert.deepStrictEqual({
+				initialConnection: findRootConfigValue(transports[0].sentMessages, SYNC_CONFIG_KEY_A),
+				whileDisconnected,
+				reconnected: findRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A),
+			}, {
+				initialConnection: true,
+				whileDisconnected: undefined,
+				reconnected: false,
+			});
+		});
 
 		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {
 			const { client, transports } = createFactoryClient();
