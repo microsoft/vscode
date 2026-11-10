@@ -1208,7 +1208,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
 			manualComparison: defaultHelp.includes('activate Compare Models'),
-		}, { tools: [false, true, false], manualComparison: true });
+			openComparison: enabledHelp.includes('Use Tab to reach Open Comparison in the tool result and Enter'),
+			scopedDiscovery: enabledHelp.includes('list comparisons started by this chat'),
+		}, { tools: [false, true, false], manualComparison: true, openComparison: true, scopedDiscovery: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

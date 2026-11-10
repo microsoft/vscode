@@ -1897,6 +1897,23 @@ suite('SessionComparisonService', () => {
 		]);
 	});
 
+	test('preserves the exact initiating chat independently of participants across reload', async () => {
+		const { service, sessionsManagementService, storageService, groupsService, chatService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		const originatingChatResource = URI.parse('test:/evaluator#nested-chat');
+		const comparison = await service.startComparison({
+			...startOptions(), originatingChatResource, judgeHarness: undefined, synthesisHarness: undefined,
+		});
+		service.dispose();
+		const restored = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, new RecordingTelemetryService()));
+		assert.deepStrictEqual({
+			created: comparison.originatingChatResource?.toString(),
+			restored: restored.getComparison(comparison.id)?.originatingChatResource?.toString(),
+			legacyParent: restored.getComparison(comparison.id)?.sessionResource,
+		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined });
+	});
+
 	test('restores persisted URI fields', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
