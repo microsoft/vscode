@@ -32,9 +32,12 @@ export async function openAndSendSideChat(
 		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 		return;
 	}
-	if (sourceInGrid) {
-		sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
+	if (!sourceInGrid) {
+		// A foreground send discards the main window's new-session draft and makes its slot follow the sent chat.
+		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
+		return;
 	}
+	sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
 	await sessionsManagementService.sendRequest(session, sideChat, requestOptions);
 }
 

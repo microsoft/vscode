@@ -224,13 +224,14 @@ suite('SessionsSideChatProviderContribution', () => {
 	}
 
 	test('a side chat from a chat window opens beside its source chat there, and is not split in the main window grid', async () => {
-		const { provider, callOrder, openReferences } = setup({ inChatWindow: true });
+		const { provider, callOrder, openReferences, requests } = setup({ inChatWindow: true });
 
 		await provider()!.askInSideChat(sourceChat.resource, 'question');
 
-		assert.deepStrictEqual({ callOrder, openReferences }, {
+		assert.deepStrictEqual({ callOrder, openReferences, requests }, {
 			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:question`],
 			openReferences: [sourceChat.resource.toString()],
+			requests: [{ query: 'question', attachedContext: undefined, background: true }],
 		});
 	});
 
@@ -245,7 +246,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		});
 	});
 
-	test('a side chat from a chat window is not sent in the background when the main window switches sessions meanwhile', async () => {
+	test('a side chat from a chat window is sent once in the background, so it neither discards the main window draft nor is it followed there', async () => {
 		const creation = new DeferredPromise<void>();
 		const harness = setup({ inChatWindow: true, onCreateSideChat: () => creation.p });
 		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'question', undefined, undefined);
@@ -256,7 +257,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		await creation.complete();
 		await request;
 
-		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [false]);
+		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [true]);
 	});
 
 	test('does not split or follow a side chat when navigation supersedes its pending open', async () => {
