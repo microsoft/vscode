@@ -1363,13 +1363,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.getFontSizeAtPosition(position);
 	}
 
-	public getLineFontSize(lineNumber: number): string | null {
-		if (!this._modelData) {
-			return null;
-		}
-		return this._modelData.viewModel.getLineFontSize(lineNumber);
-	}
-
 	/**
 	 * @deprecated
 	 */

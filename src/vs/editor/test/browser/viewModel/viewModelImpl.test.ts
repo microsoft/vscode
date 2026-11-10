@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
@@ -327,8 +326,8 @@ suite('ViewModel', () => {
 	});
 
 	test('gets inherited line font sizes independently of inline decorations', () => {
-		testViewModel(['  {}  '], { fontSize: 20, allowVariableFonts: true }, (viewModel, model, configuration) => {
-			const results: string[] = [];
+		testViewModel(['  {}  '], { fontSize: 20, allowVariableFonts: true }, (viewModel, model) => {
+			const results: (string | null)[] = [];
 			const wholeLineDecoration = {
 				range: new Range(1, 1, 1, 7),
 				options: { description: 'test-inherited-font-size', isWholeLine: true, fontSize: '10px' },
@@ -348,26 +347,30 @@ suite('ViewModel', () => {
 				},
 			];
 			let decorationIds = model.deltaDecorations([], inlineDecorations);
-			results.push(viewModel.getLineFontSize(1));
+			results.push(viewModel.getViewLineRenderingData(1).lineFontSize);
 			for (const wholeLineFirst of [true, false]) {
 				decorationIds = model.deltaDecorations(decorationIds, wholeLineFirst
 					? [wholeLineDecoration, ...inlineDecorations]
 					: [...inlineDecorations, wholeLineDecoration]);
-				results.push(viewModel.getLineFontSize(1));
+				results.push(viewModel.getViewLineRenderingData(1).lineFontSize);
 			}
 
-			assert.deepStrictEqual(results, [`${configuration.options.get(EditorOption.fontInfo).fontSize}px`, '10px', '10px']);
+			assert.deepStrictEqual(results, [null, '10px', '10px']);
 		});
 	});
 
-	test('keeps the position font nullable when variable fonts are disabled', () => {
-		testViewModel(['text'], { fontSize: 20, allowVariableFonts: false }, (viewModel, _model, configuration) => {
+	test('ignores font decorations when variable fonts are disabled', () => {
+		testViewModel(['text'], { fontSize: 20, allowVariableFonts: false }, (viewModel, model) => {
+			model.deltaDecorations([], [{
+				range: new Range(1, 1, 1, 5),
+				options: { description: 'test-inherited-font-size', isWholeLine: true, fontSize: '10px' },
+			}]);
 			assert.deepStrictEqual({
 				positionFont: viewModel.getFontSizeAtPosition(new Position(1, 1)),
-				lineFont: viewModel.getLineFontSize(1),
+				lineFont: viewModel.getViewLineRenderingData(1).lineFontSize,
 			}, {
 				positionFont: null,
-				lineFont: `${configuration.options.get(EditorOption.fontInfo).fontSize}px`,
+				lineFont: null,
 			});
 		});
 	});

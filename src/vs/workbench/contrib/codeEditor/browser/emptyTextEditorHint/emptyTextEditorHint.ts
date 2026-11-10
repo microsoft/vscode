@@ -287,7 +287,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		}
 		// Reuse the editor's full font styling, then override only size and line height to match the first line if it is shrunk
 		this.editor.applyFontInfo(this.domNode);
-		const fontSize = this.editor.getLineFontSize(1);
+		const fontSize = this.editor._getViewModel()?.getViewLineRenderingData(1).lineFontSize;
 		if (fontSize) {
 			this.domNode.style.fontSize = fontSize;
 		}

@@ -588,22 +588,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return fontSize;
 	}
 
-	public getLineFontSize(lineNumber: number): string {
-		const fontSize = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
-		if (!this._configuration.options.get(EditorOption.effectiveAllowVariableFonts)) {
-			return fontSize;
-		}
-		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-		const fontDecorations = this.model.getFontDecorationsInRange(range, this._editorId);
-		for (const fontDecoration of fontDecorations) {
-			const options = fontDecoration.options;
-			if (options.isWholeLine && !options.inlineClassName && options.fontSize) {
-				return options.fontSize;
-			}
-		}
-		return fontSize;
-	}
-
 	/**
 	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
 	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.
@@ -902,15 +886,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		const relativeLineNumber = lineNumber - visibleRange.startLineNumber;
 		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[relativeLineNumber];
 		const hasVariableFonts = viewportDecorationsCollection.hasVariableFonts[relativeLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations);
+		const lineFontSize = viewportDecorationsCollection.lineFontSizes[relativeLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations, lineFontSize);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations, decorationsCollection.lineFontSizes[0]);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[], lineFontSize: string | null): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
@@ -935,7 +920,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			tabSize,
 			lineData.startVisibleColumn,
 			this._getTextDirection(lineNumber, decorations),
-			hasVariableFonts
+			hasVariableFonts,
+			lineFontSize
 		);
 	}
 

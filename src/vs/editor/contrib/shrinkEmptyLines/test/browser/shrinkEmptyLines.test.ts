@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption, EditorOptions, IEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
@@ -51,9 +52,12 @@ suite('Shrink Empty Lines', () => {
 		return result;
 	}
 
-	function getLineFontSizes(editor: ITestCodeEditor): (string | null)[] {
-		return Array.from({ length: editor.getModel().getLineCount() }, (_, index) =>
-			editor.getLineFontSize(index + 1));
+	function getLineFontSizes(editor: ICodeEditor): string[] {
+		const viewModel = editor._getViewModel();
+		assert.ok(viewModel);
+		const defaultFontSize = `${editor.getOption(EditorOption.fontInfo).fontSize}px`;
+		return Array.from({ length: viewModel.getLineCount() }, (_, index) =>
+			viewModel.getViewLineRenderingData(index + 1).lineFontSize ?? defaultFontSize);
 	}
 
 	function getShrinkingDecorations(model: ITextModel) {
@@ -143,7 +147,7 @@ suite('Shrink Empty Lines', () => {
 		const lineNumbers = [1, 2, 3];
 		const getSizes = () => ({
 			lineHeights: lineNumbers.map(lineNumber => editor.getLineHeightForPosition({ lineNumber, column: 1 })),
-			fontSizes: lineNumbers.map(lineNumber => editor.getLineFontSize(lineNumber)),
+			fontSizes: getLineFontSizes(editor),
 		});
 		const results = [getSizes()];
 		const options: IEditorOptions[] = [
@@ -199,7 +203,7 @@ suite('Shrink Empty Lines', () => {
 			scannedLastLine: getLineContent.calledWith(model.getLineCount()),
 			decorationIds: getShrinkingDecorations(model).map(decoration => decoration.id),
 			lineHeights: [1, 500, 1000].map(lineNumber => editor.getViewModel()!.viewLayout.getLineHeightForLineNumber(lineNumber)),
-			fontSize: editor.getLineFontSize(1000),
+			fontSize: editor.getViewModel()?.getViewLineRenderingData(1000).lineFontSize,
 		}, {
 			scannedLastLine: false,
 			decorationIds,
@@ -606,7 +610,7 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual({
 			lineHeights: getLineHeights(editor),
 			fontRanges: whitespaceDecorations.map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
-			punctuationFont: editor.getLineFontSize(2),
+			punctuationFont: editor.getViewModel()?.getViewLineRenderingData(2).lineFontSize,
 			whitespaceFonts: whitespaceDecorations.map(decoration => decoration.options.fontSize),
 		}, {
 			lineHeights: [19, 10, 19],

@@ -48,6 +48,10 @@ export interface IViewDecorationsCollection {
 	 * Whether the decorations affect the fonts.
 	 */
 	readonly hasVariableFonts: boolean[];
+	/**
+	 * Inherited font sizes indexed relative to the range's start view line; null uses the default font.
+	 */
+	readonly lineFontSizes: (string | null)[];
 }
 
 export interface IInlineDecorationsComputer {
@@ -92,9 +96,11 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 		let decorationsInViewportLen = 0;
 		const inlineDecorations: InlineDecoration[][] = [];
 		const hasVariableFonts: boolean[] = [];
+		const lineFontSizes: (string | null)[] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
 			hasVariableFonts[j - startLineNumber] = false;
+			lineFontSizes[j - startLineNumber] = null;
 		}
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
@@ -122,6 +128,9 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 					}
 					if (decorationOptions.affectsFont) {
 						hasVariableFonts[j - startLineNumber] = true;
+						if (decorationOptions.isWholeLine && !decorationOptions.inlineClassName && decorationOptions.fontSize) {
+							lineFontSizes[j - startLineNumber] ??= decorationOptions.fontSize;
+						}
 					}
 				}
 			}
@@ -156,7 +165,8 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 		return {
 			decorations: decorationsInViewport,
 			inlineDecorations: inlineDecorations,
-			hasVariableFonts
+			hasVariableFonts,
+			lineFontSizes
 		};
 	}
 

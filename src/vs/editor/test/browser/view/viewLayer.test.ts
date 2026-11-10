@@ -4,8 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
+import { getWindow } from '../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILine, RenderedLinesCollection } from '../../../browser/view/viewLayer.js';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { createCodeEditorServices } from '../testCodeEditor.js';
+import { createTextModel } from '../../common/testTextModel.js';
 
 class TestLine implements ILine {
 
@@ -39,6 +47,95 @@ function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollec
 	}
 	assert.deepStrictEqual(actualState, state);
 }
+
+suite('View layer line fonts', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reuses viewport font sizes without per-line decoration lookups', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = createCodeEditorServices(store);
+		const editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			fontSize: 20,
+			lineHeight: 20,
+			minimap: { enabled: false },
+			scrollBeyondLastLine: false,
+			smoothScrolling: false,
+		}, { contributions: [] }));
+		const model = store.add(createTextModel(Array.from({ length: 2200 }, () => 'const value = 1;').join('\n')));
+		editor.setModel(model);
+		editor.layout({ width: 800, height: 1260 });
+		const lineFontLookups = spy(model, 'getFontDecorationsInRange');
+		store.add(toDisposable(() => lineFontLookups.restore()));
+		const defaultFontSize = `${editor.getOption(EditorOption.fontInfo).fontSize}px`;
+
+		function getFontSizes(selector: string) {
+			return [...new Set(Array.from(container.querySelectorAll(selector), line =>
+				getWindow(container).getComputedStyle(line).fontSize))].sort();
+		}
+
+		function renderAndMeasureLineFontLookups() {
+			lineFontLookups.resetHistory();
+			for (let frame = 0; frame < 4; frame++) {
+				editor.setScrollTop(frame * 40);
+				editor.render(true);
+			}
+			return {
+				lookups: lineFontLookups.callCount,
+				fontSizes: {
+					text: getFontSizes('.view-lines .view-line'),
+					content: getFontSizes('.view-overlays > div'),
+					margin: getFontSizes('.margin-view-overlays > div')
+				},
+				inlineFontSizes: [...new Set(Array.from(container.querySelectorAll<HTMLElement>('.view-lines .view-line'), line => line.style.fontSize))].sort(),
+			};
+		}
+
+		const initial = renderAndMeasureLineFontLookups();
+		editor.createDecorationsCollection(Array.from({ length: 2000 }, (_, index) => ({
+			range: new Range(index + 1, 7, index + 1, 12),
+			options: { description: 'test-find-match', inlineClassName: 'findMatch' },
+		})));
+		const findMatches = renderAndMeasureLineFontLookups();
+		const fontDecorations = editor.createDecorationsCollection([{
+			range: new Range(8, 1, 8, 17),
+			options: { description: 'test-inherited-font-size', isWholeLine: true, fontSize: '10px' },
+		}]);
+		const overridden = renderAndMeasureLineFontLookups();
+		editor.updateOptions({ allowVariableFonts: false });
+		const variableFontsDisabled = renderAndMeasureLineFontLookups();
+		editor.updateOptions({ allowVariableFonts: true });
+		const restored = renderAndMeasureLineFontLookups();
+		fontDecorations.clear();
+		const removed = renderAndMeasureLineFontLookups();
+		fontDecorations.set([{
+			range: new Range(8, 1, 8, 17),
+			options: { description: 'test-inline-font-size', inlineClassName: 'test-inline-font', fontSize: '30px' },
+		}]);
+		const inlineOnly = renderAndMeasureLineFontLookups();
+		editor.updateOptions({ fontSize: 24 });
+		const resized = renderAndMeasureLineFontLookups();
+		const resizedFontSize = `${editor.getOption(EditorOption.fontInfo).fontSize}px`;
+		const defaultFontSizes = { text: [defaultFontSize], content: [defaultFontSize], margin: [defaultFontSize] };
+		const overriddenSizes = ['10px', defaultFontSize].sort();
+		const overriddenFontSizes = { ...defaultFontSizes, text: overriddenSizes };
+		const resizedFontSizes = { text: [resizedFontSize], content: [resizedFontSize], margin: [resizedFontSize] };
+
+		assert.deepStrictEqual({
+			initial, findMatches, overridden, variableFontsDisabled, restored, removed, inlineOnly, resized,
+		}, {
+			initial: { lookups: 0, fontSizes: defaultFontSizes, inlineFontSizes: [''] },
+			findMatches: { lookups: 0, fontSizes: defaultFontSizes, inlineFontSizes: [''] },
+			overridden: { lookups: 0, fontSizes: overriddenFontSizes, inlineFontSizes: ['', '10px'] },
+			variableFontsDisabled: { lookups: 0, fontSizes: defaultFontSizes, inlineFontSizes: [''] },
+			restored: { lookups: 0, fontSizes: overriddenFontSizes, inlineFontSizes: ['', '10px'] },
+			removed: { lookups: 0, fontSizes: defaultFontSizes, inlineFontSizes: [''] },
+			inlineOnly: { lookups: 0, fontSizes: defaultFontSizes, inlineFontSizes: [''] },
+			resized: { lookups: 0, fontSizes: resizedFontSizes, inlineFontSizes: [''] },
+		});
+	});
+});
 
 suite('RenderedLinesCollection onLinesDeleted', () => {
 
