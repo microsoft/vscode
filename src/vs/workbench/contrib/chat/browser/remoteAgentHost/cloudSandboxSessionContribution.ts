@@ -75,6 +75,7 @@ const DISCOVERY_POLL_INTERVAL_MS = 5 * 60_000;
 const DISCOVERY_POLL_JITTER_MS = 60_000;
 const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
 const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
+const SESSION_FEED_INACTIVITY_GRACE_MS = 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 
 interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
@@ -200,7 +201,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 * discovery and connects abort instead of committing state after teardown has run.
 	 */
 	protected _enabledCts = new CancellationTokenSource();
-	private _discoveryCts = new CancellationTokenSource();
 	/** Serializes discovery so overlapping triggers can't interleave reconciliation. */
 	private _discoveryInFlight: Promise<void> | undefined;
 	private _discoveryQueued: Promise<void> | undefined;
@@ -213,6 +213,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryTrigger: CloudSandboxDiscoveryTrigger | undefined;
 	private _lastDiscoveryFailed = false;
 	private _discoveryDeferred = false;
+	private _inactiveSince: number | undefined;
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
@@ -249,6 +250,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._inactiveSince = this._hostService.hasFocus ? undefined : Date.now();
 		this._updateArchiveRegistration();
 
 		// Supply the generic remote-agent-host contribution with the sandbox host's per-connection
@@ -299,6 +301,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._register(this._chatEntitlementService.onDidChangeSentiment(() => this._updateEnablement()));
 
 		this._register(this._hostService.onDidChangeFocus(focused => {
+			this._updateDiscoveryActivity();
 			if (focused) {
 				void this._refreshIfStale('focus');
 			}
@@ -316,7 +319,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// remote-agent-host types.
 		// The source is swapped out by `_teardownAll`, so cancel whichever one is current on dispose.
 		this._register(toDisposable(() => {
-			this._discoveryCts.dispose(true);
 			this._enabledCts.cancel();
 			this._enabledCts.dispose();
 			for (const address of [...this._environments.keys()]) {
@@ -337,7 +339,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected async _refreshIfStale(trigger: 'poll' | 'focus' | 'selection' | 'automatic' = 'poll'): Promise<void> {
-		if (!this.discoveryEnabled || !this.discoveryActive || !this._isEnabled() || this._store.isDisposed) {
+		if (!this.discoveryEnabled || !this.discoveryActive) {
 			return;
 		}
 		if (this._discoveryInFlight) {
@@ -385,22 +387,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return Math.floor(Math.random() * DISCOVERY_POLL_JITTER_MS);
 	}
 
-	/** Window adapters may suspend catalogue network work independently of live conversations. */
+	/** Window adapters may defer catalog network work until first use. */
 	protected get discoveryEnabled(): boolean { return true; }
 
-	protected _suspendDiscovery(): void {
-		this._sessionFeed.clear();
-		this._discoveryPoll.cancel();
-		this._pendingTaskIds.clear();
-		this._discoveryCts.dispose(true);
-		this._discoveryCts = new CancellationTokenSource();
-		if (this._archiveState.get() === 'loading') {
-			this._archiveState.set('idle', undefined);
-		}
-	}
+	/** Automatic monitoring pauses in background windows; adapters may additionally require their chat surface. */
+	protected get discoveryActive(): boolean { return this._hostService.hasFocus; }
 
-	/** Window adapters may pause automatic network work without discarding the catalog or live connections. */
-	protected get discoveryActive(): boolean { return true; }
+	protected _updateDiscoveryActivity(): void {
+		this._inactiveSince = this.discoveryActive ? undefined : this._inactiveSince ?? Date.now();
+	}
 
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
 	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
@@ -412,7 +407,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return this._refreshTasks(taskIds);
 		}
 		if (this._discoveryInFlight) {
-			if (!retry && this._discoveryToken === this._discoveryCts.token && (incremental || !this._discoveryIncremental)
+			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)
 				&& (!this._archivesRequested || this._discoveryIncludesArchived)) {
 				if (this._discoveryDiagnostics) {
 					this._discoveryDiagnostics.coalescedRequestCount++;
@@ -451,7 +446,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
-		this._discoveryToken = this._discoveryCts.token;
+		this._discoveryToken = this._enabledCts.token;
 		this._discoveryTrigger = trigger;
 		this._lastDiscoveryFailed = false;
 		this._discoveryIncludesArchived = this._archivesRequested;
@@ -523,7 +518,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (!this._pendingTaskIds.size) {
 			return Promise.resolve();
 		}
-		const token = this._discoveryCts.token;
+		const token = this._enabledCts.token;
 		this._taskRefreshInFlight = Promise.resolve().then(() => {
 			if (token.isCancellationRequested || !this.discoveryActive) {
 				return;
@@ -551,7 +546,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					void this._discoverAndSeed({ trigger: 'accountChange', retry: true });
 					return;
 				}
-				token = this._discoveryCts.token;
+				token = this._enabledCts.token;
 				this._discoveryToken = token;
 				this._discoveryIncremental = incremental = false;
 				if (diagnostics && trigger !== 'startup') {
@@ -579,7 +574,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			}
 			while (!token.isCancellationRequested && this._isEnabled() && this.discoveryActive && this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
 				const feed = this._sessionFeed.value ??= this._instantiationService.createInstance(CloudSandboxSessionFeed,
-					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && this.discoveryActive);
+					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && (
+						this.discoveryActive || this._inactiveSince !== undefined && Date.now() - this._inactiveSince < SESSION_FEED_INACTIVITY_GRACE_MS));
 				await feed.start();
 				if (this._sessionFeed.value === feed) {
 					break;
@@ -1281,7 +1277,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._resetTaskCatalog();
 		this._tasks.clear();
 		this._taskIdsByEnvironment.clear();
-		this._suspendDiscovery();
+		this._sessionFeed.clear();
+		this._discoveryPoll.cancel();
+		this._pendingTaskIds.clear();
 		this._apiService.clearSessionHistory();
 		// Abort in-flight discovery/connects first so nothing commits state after this runs.
 		this._enabledCts.cancel();
@@ -1317,7 +1315,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	/** Resolve the sandbox address owning a remote-agent-host session type, if any. */
-	protected _findAddressForSessionType(sessionType: string): string | undefined {
+	private _findAddressForSessionType(sessionType: string): string | undefined {
 		const byAuthority = this._authoritiesByAddress();
 		const authority = findRemoteAgentHostSessionTypeAuthority(sessionType, byAuthority.keys());
 		return authority ? byAuthority.get(authority) : undefined;

@@ -321,14 +321,6 @@ interface IPendingSessionResolution {
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _sessionItemRequests = observableValue(this, 0);
-	readonly sessionItemsRequested = this._sessionItemRequests.map(count => count > 0);
-
-	acquireSessionItems(): IDisposable {
-		this._sessionItemRequests.set(this._sessionItemRequests.get() + 1, undefined);
-		return toDisposable(() => this._sessionItemRequests.set(this._sessionItemRequests.get() - 1, undefined));
-	}
-
 	private readonly _archiveProviders = observableValue<readonly IChatSessionItemArchiveProvider[]>(this, []);
 	private _archiveRequests = 0;
 	readonly archivedSessionItems = derived<IChatSessionItemArchiveState>(this, reader => {

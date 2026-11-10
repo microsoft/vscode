@@ -9879,7 +9879,7 @@ suite('AgentHostChatContribution', () => {
 			};
 
 			assert.deepStrictEqual({ standard: await runTurn(true), highOrMax: await runTurn(false) }, {
-				standard: [{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } }],
+				standard: [{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason }, fusion: true }],
 				highOrMax: [],
 			});
 		}));

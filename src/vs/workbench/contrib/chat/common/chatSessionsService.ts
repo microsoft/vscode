@@ -1007,10 +1007,6 @@ export interface IChatSessionCommitEvent {
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
-	/** Whether a session catalogue is presented, independently of whether it has any rows. */
-	readonly sessionItemsRequested: IObservable<boolean>;
-	/** Hold while a catalogue is visible or explicitly consumed. */
-	acquireSessionItems(): IDisposable;
 	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
 	registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable;
 	/** Acquire while archived history is expanded or otherwise explicitly requested. */

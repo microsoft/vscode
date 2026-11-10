@@ -1766,19 +1766,6 @@ suite('ChatSessionsService - archive capability', () => {
 		});
 	});
 
-	test('catalogue demand is independent of rows and remains until the last surface releases it', () => {
-		const states: boolean[] = [service.sessionItemsRequested.get()];
-		const first = store.add(service.acquireSessionItems());
-		const second = store.add(service.acquireSessionItems());
-		states.push(service.sessionItemsRequested.get());
-		first.dispose();
-		first.dispose();
-		states.push(service.sessionItemsRequested.get());
-		second.dispose();
-		states.push(service.sessionItemsRequested.get());
-		assert.deepStrictEqual(states, [false, true, true, false]);
-	});
-
 	test('delegates to the registered controller', () => {
 		const sessionType = 'supported-type';
 		const updates: { resource: string; archived: boolean }[] = [];

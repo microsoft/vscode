@@ -333,9 +333,9 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
-  # The copilot ID runs all three checkpointed Copilot tests with shared setup.
+  # The copilot ID runs all the checkpointed Copilot tests with shared setup.
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
+    - template: ../../copilot/product-test-steps.yml@self
       parameters:
         OS: win32
 

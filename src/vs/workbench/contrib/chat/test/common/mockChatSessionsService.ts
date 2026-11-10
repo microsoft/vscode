@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemArchiveProvider, IChatSessionItemArchiveState, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, ChatSessionRefreshReason, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
@@ -18,12 +18,6 @@ import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
-	private readonly _sessionItemRequests = observableValue(this, 0);
-	readonly sessionItemsRequested = this._sessionItemRequests.map(count => count > 0);
-	acquireSessionItems(): IDisposable {
-		this._sessionItemRequests.set(this._sessionItemRequests.get() + 1, undefined);
-		return toDisposable(() => this._sessionItemRequests.set(this._sessionItemRequests.get() - 1, undefined));
-	}
 	readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 	registerChatSessionItemArchiveProvider(_provider: IChatSessionItemArchiveProvider): IDisposable { return toDisposable(() => { }); }
 	acquireArchivedSessionItems(): IDisposable { return toDisposable(() => { }); }

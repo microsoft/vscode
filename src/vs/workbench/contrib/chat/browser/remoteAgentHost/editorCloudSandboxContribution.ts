@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../../base/common/arrays.js';
-import { raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { equalSets } from '../../../../../base/common/collections.js';
@@ -39,20 +39,21 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { GitRemote, IGitRepository, IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { commitChatSession } from '../chatSessions/chatSessionCommit.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { CLOUD_SANDBOX_INPUT_PLACEHOLDER } from './cloudSandboxConnectionCustomization.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
@@ -73,8 +74,6 @@ export const CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID = 'workbench.action.chat
 /** Pre-selected while no repository is known; a slash-free id so it can never be mistaken for a pick. */
 const SELECT_REPOSITORY_PLACEHOLDER_ID = 'select-repository';
 const REPOSITORY_NWO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
-/** Keep view switches and short layout changes within the same monitoring lifetime. */
-const MONITORING_GRACE_PERIOD_MS = 60_000;
 
 /** The repository a folder tracks: its `origin` when that is on GitHub, otherwise its first GitHub remote. */
 function trackedGitHubRepository(remotes: readonly GitRemote[]): string | undefined {
@@ -110,17 +109,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	private readonly _draftInputBlocked = new ResourceMap<ISettableObservable<boolean>>();
 	private _taskList: CloudSandboxTaskListController | undefined;
 	private _discoveryRequested = false;
-	private _discoveryStarted = false;
-	private _monitoringOperations = 0;
-	private readonly _suspendMonitoring = this._register(new RunOnceScheduler(() => {
-		if (!this._hasMonitoringDemand()) {
-			this._discoveryRequested = false;
-			this._suspendDiscovery();
-		}
-	}, MONITORING_GRACE_PERIOD_MS));
 
-	/** Account-wide monitoring is independent of the live AHP connections. */
+	/** External creations are observed only after Chat is presented or Cloud functionality is requested. */
 	protected override get discoveryEnabled(): boolean { return this._discoveryRequested; }
+
+	protected override get discoveryActive(): boolean {
+		return super.discoveryActive && this._viewsService.isViewVisible(ChatViewId);
+	}
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -144,6 +139,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
@@ -262,15 +258,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, groups);
 			}
 		}));
-		this._discoveryRequested = this._hasMonitoringDemand();
-		this._discoveryStarted = this._discoveryRequested;
-		this._updateRegistration();
-		this._register(autorun(reader => {
-			enabled.read(reader);
-			this._editorChatSessionsService.sessionItemsRequested.read(reader);
-			this._chatService.chatModels.read(reader);
-			this._updateMonitoringDemand();
+		this._discoveryRequested = this._viewsService.isViewVisible(ChatViewId);
+		this._updateDiscoveryActivity();
+		this._register(this._viewsService.onDidChangeViewVisibility(event => {
+			if (event.id === ChatViewId) {
+				this._updateDiscoveryActivity();
+				if (event.visible) {
+					this._requestDiscovery();
+					void this._refreshIfStale('automatic');
+				}
+			}
 		}));
+		this._updateRegistration();
 		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 		for (const widget of this._chatWidgetService.getAllWidgets()) {
 			widgetListeners.set(widget, this._watchDraftInput(widget));
@@ -291,83 +290,35 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}));
 	}
 
-	private _requestDiscovery(trigger?: 'manual'): Promise<void> {
-		if (this._store.isDisposed) {
-			return Promise.resolve();
-		}
-		this._suspendMonitoring.cancel();
-		if (!this._hasMonitoringDemand()) {
-			this._suspendMonitoring.schedule();
-		}
-		if (this._discoveryRequested && trigger !== 'manual') {
-			return Promise.resolve();
-		}
-		const resuming = this._discoveryStarted && !this._discoveryRequested;
-		const discoveryTrigger = trigger ?? (this._discoveryStarted ? 'feedReconnect' : 'startup');
-		this._discoveryRequested = true;
-		this._discoveryStarted = true;
-		return this._discoverAndSeed({ trigger: discoveryTrigger, retry: resuming });
-	}
-
-	private _hasMonitoringDemand(): boolean {
-		if (this._monitoringOperations > 0 || this._editorChatSessionsService.sessionItemsRequested.get()) {
-			return true;
-		}
-		for (const model of this._chatService.chatModels.get()) {
-			if (model.sessionResource.scheme === CLOUD_SANDBOX_TASK_SCHEME
-				|| this._findAddressForSessionType(model.sessionResource.scheme) !== undefined) {
-				return true;
-			}
-		}
-		return this._taskList?.items.some(item => item.status !== undefined && isSessionInProgressStatus(item.status)
-			|| item.children?.some(child => child.status !== undefined && isSessionInProgressStatus(child.status))
-			|| this._tasks.get(item.resource.path.slice(1))?.isQueued === true) ?? false;
-	}
-
-	private _updateMonitoringDemand(): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		if (this._hasMonitoringDemand()) {
-			this._suspendMonitoring.cancel();
-			if (!this._discoveryRequested) {
-				void this._requestDiscovery();
-			}
-		} else if (this._discoveryRequested && !this._suspendMonitoring.isScheduled()) {
-			this._suspendMonitoring.schedule();
-		}
-	}
-
-	private async _withMonitoringDemand<R>(operation: (discovery: Promise<void>) => Promise<R>, trigger?: 'manual'): Promise<R> {
-		this._monitoringOperations++;
-		try {
-			return await operation(this._requestDiscovery(trigger));
-		} finally {
-			this._monitoringOperations--;
-			this._updateMonitoringDemand();
+	private _requestDiscovery(): void {
+		if (!this._discoveryRequested) {
+			this._discoveryRequested = true;
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
 	}
 
 	protected override _waitForActivation(sessionType: string): Promise<boolean> {
-		return this._withMonitoringDemand(() => super._waitForActivation(sessionType));
+		this._requestDiscovery();
+		return super._waitForActivation(sessionType);
 	}
 
-	protected override async _openTask(resource: URI, token: CancellationToken) {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
+	protected override _openTask(resource: URI, token: CancellationToken) {
+		if (!token.isCancellationRequested) {
+			this._requestDiscovery();
 		}
-		return this._withMonitoringDemand(() => super._openTask(resource, token));
+		return super._openTask(resource, token);
 	}
 
-	protected override async _prepareTaskRequest(resource: URI, token: CancellationToken) {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
+	protected override _prepareTaskRequest(resource: URI, token: CancellationToken) {
+		if (!token.isCancellationRequested) {
+			this._requestDiscovery();
 		}
-		return this._withMonitoringDemand(() => super._prepareTaskRequest(resource, token));
+		return super._prepareTaskRequest(resource, token);
 	}
 
 	override connect(options: ICloudSandboxConnectOptions): Promise<string> {
-		return this._withMonitoringDemand(() => super.connect(options));
+		this._requestDiscovery();
+		return super.connect(options);
 	}
 
 	private _watchDraftInput(widget: IChatWidget): DisposableStore {
@@ -454,7 +405,6 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					}
 				},
 			}));
-			store.add(taskList.onDidChangeChatSessionItems(() => this._updateMonitoringDemand()));
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_TASK_SCHEME, taskList));
 			store.add(this._editorChatSessionsService.registerChatSessionContribution({
 				type: CLOUD_SANDBOX_SESSION_TYPE,
@@ -483,7 +433,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
-					void this._requestDiscovery();
+					this._requestDiscovery();
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
 					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
@@ -628,8 +578,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	async refresh(token: CancellationToken, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		if (!token.isCancellationRequested) {
 			if (reason === 'manual') {
-				await this._withMonitoringDemand(discovery => discovery, 'manual');
-				return;
+				this._discoveryRequested = true;
 			}
 			if (reason === 'automatic') {
 				await this._refreshIfStale('automatic');
@@ -640,7 +589,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	async getNewChatSessionInputState(): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
-		void this._requestDiscovery();
+		this._requestDiscovery();
 		this._draftModels.value?.load();
 		return this._draftOptionGroups.get();
 	}
@@ -651,17 +600,14 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	 * there, where the environment's Agent Host handler runs it.
 	 */
 	private async _startSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-		if (!isUntitledChatSession(request.sessionResource)) {
-			throw new Error(`Sandbox session ${request.sessionResource.toString()} is served by its environment's session type.`);
+		const draftResource = request.sessionResource;
+		if (!isUntitledChatSession(draftResource)) {
+			throw new Error(`Sandbox session ${draftResource.toString()} is served by its environment's session type.`);
 		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return this._withMonitoringDemand(() => this._doStartSession(request, progress, token));
-	}
-
-	private async _doStartSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-		const draftResource = request.sessionResource;
+		this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);

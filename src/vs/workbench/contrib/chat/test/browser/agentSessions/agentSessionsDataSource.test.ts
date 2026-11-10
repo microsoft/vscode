@@ -4,24 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as sinon from 'sinon';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon, AgentSessionsIdentityProvider } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { AgentSessionsPicker, shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
+import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
-import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { IQuickInputService, QuickPickFocus } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { QuickPick } from '../../../../../../platform/quickinput/browser/quickInput.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -1453,75 +1446,7 @@ suite('AgentSessionsSorter', () => {
 
 suite('AgentSessionsPicker', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('requests an empty catalogue while open, receives discovered rows and reuses them on reopen', async () => {
-		const instantiation = workbenchInstantiationService(undefined, store);
-		const service = new MockChatSessionsService();
-		const changed = store.add(new Emitter<void>());
-		const sessions: IAgentSession[] = [];
-		const model = new class extends mock<IAgentSessionsModel>() {
-			override readonly sessions = sessions;
-			override readonly onDidChangeSessions = changed.event;
-		}();
-		instantiation.stub(IChatSessionsService, service);
-		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override readonly model = model;
-		}());
-		const quickInput = instantiation.get(IQuickInputService);
-		const createQuickPick = sinon.spy(quickInput, 'createQuickPick');
-		const sessionsPicker = instantiation.createInstance(AgentSessionsPicker, undefined, undefined);
-		await sessionsPicker.pickAgentSession();
-		const picker = createQuickPick.firstCall.returnValue;
-		const empty = { requested: service.sessionItemsRequested.get(), items: picker.items.length };
-		sessions.push(createSession({ id: 'discovered' }));
-		changed.fire();
-		const discovered = picker.items.map(item => item.label);
-		picker.hide();
-		const hidden = service.sessionItemsRequested.get();
-		await sessionsPicker.pickAgentSession();
-		const reopenedPicker = createQuickPick.secondCall.returnValue;
-		const reopened = reopenedPicker.items.map(item => item.label);
-		reopenedPicker.hide();
-		assert.deepStrictEqual({ empty, discovered, hidden, reopened, closed: service.sessionItemsRequested.get() }, {
-			empty: { requested: true, items: 0 }, discovered: ['Today', 'Session discovered'], hidden: false,
-			reopened: ['Today', 'Session discovered'], closed: false,
-		});
-	});
-
-	test('session updates preserve picker focus, scroll and the conversation accepted', async () => {
-		const instantiation = workbenchInstantiationService(undefined, store);
-		const changed = store.add(new Emitter<void>());
-		const sessions = Array.from({ length: 200 }, (_, index) => createSession({ id: `session-${index}` }));
-		const model = new class extends mock<IAgentSessionsModel>() {
-			override readonly sessions = sessions;
-			override readonly onDidChangeSessions = changed.event;
-		}();
-		instantiation.stub(IChatSessionsService, new MockChatSessionsService());
-		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override readonly model = model;
-		}());
-		const createQuickPick = sinon.spy(instantiation.get(IQuickInputService), 'createQuickPick');
-		let opened: URI | undefined;
-		const sessionsPicker = instantiation.createInstance(AgentSessionsPicker, undefined, {
-			overrideSessionOpen: async session => { opened = session.resource; },
-		});
-		await sessionsPicker.pickAgentSession();
-		const picker = createQuickPick.firstCall.returnValue;
-		assert.ok(picker instanceof QuickPick);
-		picker.focus(QuickPickFocus.Last);
-		const active = picker.activeItems[0];
-		const scrollTop = picker.scrollTop;
-		assert.ok(scrollTop > 0);
-		const newest = createSession({ id: 'newest' });
-		sessions.unshift({ ...newest, timing: { ...newest.timing, created: newest.timing.created + 10_000 } });
-		changed.fire();
-		const after = { activeId: picker.activeItems[0]?.id, scrollTop: picker.scrollTop };
-		picker.accept();
-		assert.deepStrictEqual({ after, opened: opened?.toString() }, {
-			after: { activeId: active.id, scrollTop }, opened: active.id,
-		});
-	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSession(overrides: Partial<{
 		id: string;

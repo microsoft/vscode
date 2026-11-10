@@ -69,6 +69,7 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../services/host/browser/host.js';
+import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
@@ -427,6 +428,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = Event.None;
+		override readonly onDidResume = Event.None;
+	}());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportSessionFeed() { }
@@ -3121,7 +3126,6 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				return result;
 			},
 		});
-		h.setFocused(false);
 		let lastCheckpoint = checkpoint();
 		for (const elapsed of [2, 2, 4, 6, 2]) {
 			await timeout(elapsed * 60_000);
@@ -3194,22 +3198,10 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		]);
 	});
 
-	test('a connected feed remains active without editor catalogue demand and processes hints and catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
-		let starts = 0;
-		let stops = 0;
-		let started = false;
 		const harness = await createContribution(store, [discoveredSession()], {
-			sessionFeed: {
-				connected: true,
-				start: async () => {
-					if (!started) {
-						started = true;
-						starts++;
-					}
-				},
-				dispose: () => { stops++; },
-			},
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
 			listSessions: async (_token, options) => {
 				requests.push(options);
 				return options?.incremental
@@ -3217,19 +3209,47 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					: { kind: 'complete', sessions: [discoveredSession()] };
 			},
 		});
-		await timeout(2 * 60_000);
 		await harness.contribution.refreshTasks(['changed-task']);
 		await harness.contribution.refreshFeed('renewal');
 		await harness.contribution.refreshFeed('reconnect');
 
-		assert.deepStrictEqual({ starts, stops, requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options) }, {
-			starts: 1, stops: 0,
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
+			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+			{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
+		]);
+	});
+
+	test('background Agents windows defer automatic monitoring and drain task hints on focus', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const h = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		h.setFocused(false);
+		await h.contribution.refreshTasks(['changed-task']);
+		await h.contribution.refreshTasks(['changed-task']);
+		await h.contribution.refreshFeed('renewal');
+		await h.runDiscovery('automatic');
+		await timeout(20 * 60_000);
+		const before = requests.length;
+		h.setFocused(true);
+		await h.runDiscovery('automatic');
+		assert.deepStrictEqual({
+			before, requests: requests.map(options => ({ incremental: options?.incremental, taskIds: options?.taskIds })),
+			disconnected: h.disconnectedFrom,
+		}, {
+			before: 1,
 			requests: [
-				{ incremental: false, includeArchived: false, trigger: 'startup' },
-				{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
-				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
-				{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
+				{ incremental: false, taskIds: undefined },
+				{ incremental: false, taskIds: undefined },
+				{ incremental: true, taskIds: ['changed-task'] },
 			],
+			disconnected: [],
 		});
 	}));
 
@@ -3245,7 +3265,6 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					: { kind: 'complete', sessions };
 			},
 		});
-		harness.setFocused(false);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		sessions = [];
 		await timeout(8 * 60_000);

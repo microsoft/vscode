@@ -19,7 +19,6 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -96,27 +95,14 @@ export class AgentSessionsPicker {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	async pickAgentSession(): Promise<void> {
 		const disposables = new DisposableStore();
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
 		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
-		const updateItems = () => {
-			const activeId = picker.activeItems[0]?.id;
-			const items = this.createPickerItems(filter);
-			picker.items = items;
-			for (const item of items) {
-				if (item.type !== 'separator' && item.id === activeId) {
-					picker.activeItems = [item];
-					break;
-				}
-			}
-		};
 
 		picker.anchor = this.anchor;
-		picker.keepScrollPosition = true;
 		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
@@ -163,13 +149,11 @@ export class AgentSessionsPicker {
 				await this.agentSessionsService.model.resolve(session.providerType);
 				this.pickAgentSession();
 			} else {
-				updateItems();
+				picker.items = this.createPickerItems(filter);
 			}
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
-		disposables.add(this.agentSessionsService.model.onDidChangeSessions(updateItems));
-		disposables.add(this.chatSessionsService.acquireSessionItems());
 		picker.show();
 	}
 
