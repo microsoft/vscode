@@ -1761,6 +1761,9 @@ export class ChatService extends Disposable implements IChatService {
 			// minting a second real session.
 			const realResource = await inFlight;
 			if (!realResource) {
+				if (this._sessionModels.get(untitledResource) !== untitledModel) {
+					throw new CancellationError();
+				}
 				this.trace('materializeUntitledSession', `In-flight materialization of ${untitledResource.toString()} produced no real session; keeping untitled`);
 				return undefined;
 			}

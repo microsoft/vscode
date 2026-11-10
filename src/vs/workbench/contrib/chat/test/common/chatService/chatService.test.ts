@@ -3485,7 +3485,7 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(service.getChatModelReferenceDebugInfo().models, []);
 		});
 
-		test('releases a late materialization reference when the untitled model was already disposed', async () => {
+		test('cancels both concurrent sends and releases a late reference when the untitled model was disposed', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-reference-late' });
 			const contentRequested = new DeferredPromise<void>();
 			const content = new DeferredPromise<IChatSession>();
@@ -3503,11 +3503,13 @@ suite('ChatService', () => {
 			const sending = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
 			const rejected = assert.rejects(sending, isCancellationError);
 			await contentRequested.p;
+			const concurrentSending = service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			const concurrentRejected = assert.rejects(concurrentSending, isCancellationError);
 			untitledRef.dispose();
 			await service.waitForModelDisposals();
 			content.complete({ sessionResource: realResource, history: [], onWillDispose: Event.None, dispose: () => { } });
 
-			await rejected;
+			await Promise.all([rejected, concurrentRejected]);
 			await service.waitForModelDisposals();
 			assert.deepStrictEqual(service.getChatModelReferenceDebugInfo().models, []);
 		});
