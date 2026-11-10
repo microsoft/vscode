@@ -20,7 +20,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -71,7 +71,7 @@ suite('SessionsListModelService', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		attention = observableValue('inboxAttention', new Map<string, IInboxSessionAttention>());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
@@ -1014,7 +1014,7 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -1029,7 +1029,7 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -1043,7 +1043,7 @@ suite('SessionsListModelService', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessionsListControl.sortOverrides', 'not-valid-json{', StorageScope.PROFILE, StorageTarget.USER);
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, {
@@ -1070,7 +1070,7 @@ suite('SessionsListModelService', () => {
 		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
 		const createService = () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
@@ -1098,7 +1098,7 @@ suite('SessionsListModelService', () => {
 			const readMarks: string[] = [];
 			const unreadMarks: string[] = [];
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storage);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
@@ -1158,7 +1158,7 @@ suite('SessionsListModelService', () => {
 			const unreadMarks: string[] = [];
 			const makeService = () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
-				instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+				instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 				instantiationService.stub(IStorageService, storage);
 				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {

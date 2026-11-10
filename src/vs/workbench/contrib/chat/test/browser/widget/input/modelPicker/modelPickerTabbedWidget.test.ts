@@ -820,6 +820,8 @@ suite('TabbedModelPicker', () => {
 					: undefined,
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
+			anchor.style.left = 'calc(100% - 500px)';
+			picker.show(anchor, context);
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
 			popup.style.setProperty('--vscode-strokeThickness', '1px');
 			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
@@ -860,6 +862,8 @@ suite('TabbedModelPicker', () => {
 			picker.show(anchor, context);
 			const reopened = bounds();
 			assert.deepStrictEqual({
+				initiallyBesideAnchor: first.bottom <= anchor.getBoundingClientRect().top || first.top >= anchor.getBoundingClientRect().bottom,
+				initiallyAligned: first.left === anchor.getBoundingClientRect().left,
 				sameListViewport: firstRows === initialRows,
 				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
 				stableHeight: reopened.height === first.height,
@@ -867,9 +871,46 @@ suite('TabbedModelPicker', () => {
 				aligned: reopened.left === anchor.getBoundingClientRect().left,
 				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
 				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
-			}, { sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
+			}, { initiallyBesideAnchor: true, initiallyAligned: true, sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
 		});
 	}
+
+	test('comparison stays vertically anchored when its list fills the fractional space above the trigger', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select two or more models to compare their responses side by side.',
+				summary: '', selectedModelIds: [], multiple: true, maxSelections: 10,
+				canGoBack: false, canGoNext: false, canFinish: true,
+			}, undefined),
+			cancel: () => { }, reset: () => { }, select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const manyModels = Array.from({ length: 25 }, (_, index) => model(`Model-${index}`));
+		const { picker, popup, anchor, context, dismiss } = createPicker({
+			comparison, realContextView: true, anchorTop: '400.5px', models: manyModels,
+			pinnedModelIds: manyModels.map(model => model.identifier),
+			controlModels: Object.fromEntries(manyModels.map(model => [model.metadata.id, { label: model.metadata.name, exists: true, featured: true }])),
+		});
+		dismiss();
+		for (const size of [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36]) {
+			anchor.parentElement!.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+		}
+		anchor.parentElement!.style.setProperty('--vscode-strokeThickness', '1px');
+		anchor.parentElement!.style.setProperty('--vscode-fontSize-label1', '13px');
+		anchor.style.left = 'calc(100% - 500px)';
+		picker.show(anchor, context);
+		element(popup, '[aria-label="Compare Models"]').click();
+		const bounds = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+		const trigger = anchor.getBoundingClientRect();
+		assert.ok(bounds.height > 300, `Expected a constrained list, got ${bounds.height}`);
+		assert.deepStrictEqual({
+			aligned: bounds.left === trigger.left,
+			above: bounds.bottom <= trigger.top,
+			fits: bounds.top >= 0,
+		}, { aligned: true, above: true, fits: true });
+	});
 
 	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
 		const copilot = models[0];

@@ -60,8 +60,8 @@ import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sess
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsListNotificationFocused } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
-import { getInboxPullRequestMergeOperation, IInboxNotificationsService } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
+import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 
 AccessibleViewRegistry.register({
 	name: 'sessions-list-notification',
@@ -1231,7 +1231,7 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		return;
 	}
 	const undo = modelService.setInboxState(targets, action);
-	const message = action === 'done' ? localize('inboxDismissed', "{0} dismissed from inbox", targets.length)
+	const message = action === 'done' ? localize('inboxCleared', "{0} cleared from inbox", targets.length)
 		: action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
 			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
 				: localize('inboxSnoozed', "{0} snoozed", targets.length);
@@ -1247,12 +1247,12 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 	});
 }
 
-registerAction2(class DismissInboxSessionAction extends Action2 {
+registerAction2(class ClearInboxSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.inboxDone',
-			title: localize2('inboxDismiss', "Dismiss from Inbox"),
-			icon: Codicon.mailRead,
+			title: localize2('inboxClear', "Clear from Inbox"),
+			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 				id,
@@ -1361,7 +1361,7 @@ registerAction2(class MergeInboxPullRequestAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionItemCanMergePullRequestContext, SessionItemIsMultiSelectionContext.negate()),
 			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 				id,
-				group: 'navigation',
+				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
 				order: 0,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemCanMergePullRequestContext),
 			})),
@@ -1370,7 +1370,7 @@ registerAction2(class MergeInboxPullRequestAction extends Action2 {
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessions = getSessionActionTargets(accessor, context);
 		const session = sessions.length === 1 ? sessions[0] : undefined;
-		const attention = accessor.get(IInboxNotificationsService).sessionAttention.get();
+		const attention = accessor.get(ISessionAttentionService).sessionAttention.get();
 		const model = accessor.get(ISessionsListModelService);
 		const merge = session && !session.isArchived.get()
 			&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyToMerge
@@ -1511,13 +1511,12 @@ for (const id of [Menus.SessionItemToolbar, SessionItemContextMenuId]) {
 	MenuRegistry.appendMenuItem(id, {
 		command: {
 			id: ARCHIVE_SESSION_COMMAND_ID,
-			title: localize2('inboxMarkSessionDone', "Mark Session as Done"),
-			icon: Codicon.check,
+			title: localize2('inboxArchiveSession', "Archive Session"),
+			icon: Codicon.archive,
 		},
 		group: id === Menus.SessionItemToolbar ? 'navigation' : '4_manage',
 		order: id === Menus.SessionItemToolbar ? 3 : 2.5,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
-			id === Menus.SessionItemToolbar ? SessionItemInboxStateContext.isEqualTo('done') : undefined),
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate()),
 	});
 }
 

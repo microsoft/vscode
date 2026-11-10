@@ -765,7 +765,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasClearWorkspace: true,
 			},
 			{
-				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. A one-time spotlight may explain this change. Activate Understood or press Escape to dismiss it, or activate the highlighted Add Context action to open the menu and dismiss the tip. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
@@ -1208,7 +1208,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
 			manualComparison: defaultHelp.includes('activate Compare Models'),
-		}, { tools: [false, true, false], manualComparison: true });
+			openComparison: enabledHelp.includes('Use Tab to reach Open Comparison in the tool result and Enter'),
+			scopedDiscovery: enabledHelp.includes('list comparisons started by this chat'),
+		}, { tools: [false, true, false], manualComparison: true, openComparison: true, scopedDiscovery: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

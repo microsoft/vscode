@@ -220,11 +220,15 @@ export function escapeMarkdownLinkText(text: string): string {
 }
 
 /**
+ * Wraps code in a fenced code block. A line that starts with at least as many
+ * backticks as the fence, after up to three spaces of indentation, would close
+ * it, so the fence is made longer than any such run.
+ *
  * @see https://github.com/microsoft/vscode/issues/193746
  */
 export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string) {
 	const longestFenceLength =
-		code.match(/^`+/gm)?.reduce((a, b) => (a.length > b.length ? a : b)).length ??
+		code.match(/^ {0,3}`+/gm)?.reduce((longest, fence) => Math.max(longest, fence.trimStart().length), 0) ??
 		0;
 	const desiredFenceLength =
 		longestFenceLength >= 3 ? longestFenceLength + 1 : 3;
