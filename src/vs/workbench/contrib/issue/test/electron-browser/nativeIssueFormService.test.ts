@@ -57,6 +57,8 @@ import { TestLifecycleService } from '../../../../test/common/workbenchTestServi
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IRecordingService } from '../../browser/recordingService.js';
 import { IScreenshotService } from '../../browser/screenshotService.js';
+import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
@@ -266,6 +268,7 @@ suite('NativeIssueFormService reporter windows', () => {
 				return controls.screenshotGate?.p;
 			}
 		});
+		instantiation.stub(IScreenshotToolService, createTestScreenshotToolService(store, false).service);
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IContextViewService, { getContextViewElement: () => $('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: $('div'), dispose: () => { } }) });

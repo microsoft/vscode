@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow, prepend } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IScreenshot } from './issueReporterOverlay.js';
+import './media/screenshotAnnotation.css';
 
 const enum AnnotationTool {
 	Select = 'select',
@@ -105,7 +105,18 @@ export interface IAnnotationEditorState {
 
 export interface IAnnotationSaveResult {
 	readonly dataUrl: string;
+	readonly width: number;
+	readonly height: number;
 	readonly state: IAnnotationEditorState;
+	/** Whether the image was drawn on or cropped. */
+	readonly annotated: boolean;
+}
+
+export const enum ScreenshotAnnotationEditorMode {
+	/** Edits an attached screenshot inside its parent, with Save and Discard. */
+	Edit = 'edit',
+	/** Annotates a new capture above the whole window before it is attached, with Attach and Cancel. */
+	Attach = 'attach',
 }
 
 function cloneDrawAction(action: IAnnotationDrawAction, identityMap: Map<IAnnotationDrawAction, IAnnotationDrawAction> = new Map()): IAnnotationDrawAction {
@@ -182,6 +193,8 @@ function moveSnapshotsEqual(a: IAnnotationMoveSnapshot, b: IAnnotationMoveSnapsh
 }
 
 export class ScreenshotAnnotationEditor {
+
+	private static hintIds = 0;
 
 	private readonly disposables = new DisposableStore();
 	private readonly toolOptionsDisposables = new DisposableStore();
@@ -282,20 +295,42 @@ export class ScreenshotAnnotationEditor {
 	private undoBtn: HTMLButtonElement | null = null;
 	private redoBtn: HTMLButtonElement | null = null;
 	private toolOptionsPopover: HTMLElement | null = null;
+	private primaryButton: Button | undefined;
 
 
 	constructor(
-		private readonly screenshot: IScreenshot,
+		private readonly screenshot: { readonly dataUrl: string },
 		private readonly parentElement: HTMLElement,
 		private readonly initialState?: IAnnotationEditorState,
+		private readonly mode = ScreenshotAnnotationEditorMode.Edit,
 	) {
 		this.createUI();
 		this.loadImage();
 	}
 
+	get element(): HTMLElement {
+		return this.container;
+	}
+
+	/** Moves focus into the editor, to its primary action when it attaches a new capture. */
+	focus(): void {
+		if (this.mode === ScreenshotAnnotationEditorMode.Attach && this.primaryButton?.enabled) {
+			this.primaryButton.focus();
+		} else {
+			this.container.focus();
+		}
+	}
+
 	private createUI(): void {
-		this.container = append(this.parentElement, $('div.issue-reporter-annotation-overlay'));
+		const attaching = this.mode === ScreenshotAnnotationEditorMode.Attach;
+		this.container = append(this.parentElement, $('div.screenshot-annotation-editor'));
 		this.container.tabIndex = -1;
+		this.container.setAttribute('role', 'dialog');
+		this.container.setAttribute('aria-modal', 'true');
+		this.container.setAttribute('aria-label', attaching ? localize('annotateScreenshot', "Annotate Screenshot") : localize('editScreenshot', "Edit Screenshot"));
+		if (attaching) {
+			this.container.classList.add('attach-mode');
+		}
 
 		// Main toolbar (hidden during crop mode)
 		const toolbar = append(this.container, $('div.annotation-toolbar'));
@@ -373,7 +408,7 @@ export class ScreenshotAnnotationEditor {
 
 		// 9. Discard button
 		const discardBtn = this.disposables.add(new Button(toolbar, { ...defaultButtonStyles, secondary: true }));
-		discardBtn.label = localize('discard', "Discard");
+		discardBtn.label = attaching ? localize('cancelAttach', "Cancel") : localize('discard', "Discard");
 		this.disposables.add(discardBtn.onDidClick(() => {
 			this.cancelTextEdit();
 			this._onDidCancel.fire();
@@ -382,11 +417,13 @@ export class ScreenshotAnnotationEditor {
 
 		// 10. Save button
 		const saveBtn = this.disposables.add(new Button(toolbar, defaultButtonStyles));
-		saveBtn.label = localize('save', "Save");
+		saveBtn.label = attaching ? localize('attach', "Attach") : localize('save', "Save");
+		this.primaryButton = saveBtn;
 		this.disposables.add(saveBtn.onDidClick(() => {
 			this.commitTextEdit();
-			const dataUrl = this.compositeToDataUrl();
-			this._onDidSave.fire({ dataUrl, state: this.captureState() });
+			const annotated = this.actions.length > 0 || this.currentCrop !== null;
+			const dataUrl = attaching && !annotated ? this.screenshot.dataUrl : this.compositeToDataUrl();
+			this._onDidSave.fire({ dataUrl, width: this.imageWidth, height: this.imageHeight, state: this.captureState(), annotated });
 			this.dispose();
 		}));
 
@@ -409,7 +446,11 @@ export class ScreenshotAnnotationEditor {
 
 		// Hint label
 		const hint = append(this.container, $('div.annotation-hint'));
-		hint.textContent = localize('annotationHint', "Edit screenshot to highlight the problem");
+		hint.textContent = attaching
+			? localize('attachAnnotationHint', "Optionally annotate the screenshot, then attach it. Press Escape to cancel.")
+			: localize('annotationHint', "Edit screenshot to highlight the problem");
+		hint.id = `screenshot-annotation-hint-${ScreenshotAnnotationEditor.hintIds++}`;
+		this.container.setAttribute('aria-describedby', hint.id);
 
 		// Canvas container
 		const canvasContainer = append(this.container, $('div.annotation-canvas-container'));
@@ -538,6 +579,21 @@ export class ScreenshotAnnotationEditor {
 		});
 		resizeObserver.observe(canvasContainer);
 		this.disposables.add({ dispose: () => resizeObserver.disconnect() });
+
+		this.trapFocus(
+			() => this.cropMode ? cropCancelBtn.element : this.toolButtons[0].element,
+			() => this.cropMode ? cropApplyBtn.element : saveBtn.element,
+		);
+	}
+
+	/** Keeps Tab and Shift+Tab inside the editor while it covers its parent, with focusable edges that pass focus around. */
+	private trapFocus(first: () => HTMLElement, last: () => HTMLElement): void {
+		const start = prepend(this.container, $('div'));
+		const end = append(this.container, $('div'));
+		start.tabIndex = 0;
+		end.tabIndex = 0;
+		this.disposables.add(addDisposableListener(start, EventType.FOCUS, () => last().focus()));
+		this.disposables.add(addDisposableListener(end, EventType.FOCUS, () => first().focus()));
 	}
 
 	private addToolButton(toolbar: HTMLElement, tool: AnnotationTool, label: string, icon: HTMLSpanElement): void {
@@ -1661,12 +1717,14 @@ export class ScreenshotAnnotationEditor {
 		return Math.max(1, this.getTextImageRight() - startX);
 	}
 
-	private cleanupTextEditor(): void {
+	private cleanupTextEditor(focusEditor = true): void {
 		this.stopTextCaretBlink();
 		this.textEditor?.remove();
 		this.textEditor = null;
 		this.textEditState = null;
-		this.container.focus();
+		if (focusEditor) {
+			this.container.focus();
+		}
 	}
 
 	private redraw(): void {
@@ -2417,7 +2475,8 @@ export class ScreenshotAnnotationEditor {
 			this.pendingZoom = null;
 		}
 		this.cancelTextPlacement();
-		this.cleanupTextEditor();
+		// Whoever opened the editor restores focus, so closing it must not move focus itself.
+		this.cleanupTextEditor(false);
 		this.container.remove();
 		this.toolOptionsDisposables.dispose();
 		this.disposables.dispose();

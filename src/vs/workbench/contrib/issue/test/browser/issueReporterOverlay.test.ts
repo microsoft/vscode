@@ -45,7 +45,7 @@ import { extractIssueData } from '../../browser/issueFormService.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
-import { ScreenshotAnnotationEditor } from '../../browser/screenshotAnnotation.js';
+import { ScreenshotAnnotationEditor } from '../../../screenshotTool/browser/screenshotAnnotation.js';
 import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
@@ -739,7 +739,7 @@ suite('IssueReporterOverlay', () => {
 			for (const name of ['A.png', 'B.png']) {
 				completeImport({ filePath: `/owned/${name}`, name, mimeType: 'image/png' });
 			}
-			store.add(overlay.onDidRequestScreenshot(id => {
+			store.add(overlay.onDidRequestScreenshot(({ id }) => {
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -753,7 +753,7 @@ suite('IssueReporterOverlay', () => {
 		test('keeps request order through mixed pending work, cancellation, removal and restoration', () => {
 			const { overlay, files, imports } = createReporter();
 			let captureId = '';
-			store.add(overlay.onDidRequestScreenshot(id => { captureId = id; }));
+			store.add(overlay.onDidRequestScreenshot(({ id }) => { captureId = id; }));
 			paste(files, [new File(['a'], 'A.png', { type: 'image/png' })]);
 			overlay.triggerCaptureScreenshot();
 			paste(files, [new File(['b'], 'B.zip')]);
@@ -787,7 +787,9 @@ suite('IssueReporterOverlay', () => {
 			mainWindow.document.querySelector<HTMLElement>('.wizard-segmented-dropdown')!.click();
 			await getMenu()!.getActions().find(action => action.id === 'delay-3')!.run();
 			getMenu()!.onHide?.(false);
-			store.add(overlay.onDidRequestScreenshot(id => {
+			const delayedRequests: boolean[] = [];
+			store.add(overlay.onDidRequestScreenshot(({ id, delayed }) => {
+				delayedRequests.push(delayed);
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -795,7 +797,7 @@ suite('IssueReporterOverlay', () => {
 			paste(files, images(1));
 			completeImport(attachment);
 			await timeout(3100);
-			assert.deepStrictEqual(attachmentNames(files), ['screenshot-1.png', 'bundle.zip']);
+			assert.deepStrictEqual({ cards: attachmentNames(files), delayedRequests }, { cards: ['screenshot-1.png', 'bundle.zip'], delayedRequests: [true] });
 		}));
 
 		test('retains visible uploaded badges after completion, rerender, removal and restore', () => {
@@ -1149,7 +1151,7 @@ suite('IssueReporterOverlay', () => {
 	});
 
 	function closeAnnotation(container: HTMLElement, action: 'Save' | 'Discard'): void {
-		const editor = [...container.querySelectorAll('.issue-reporter-annotation-overlay')].at(-1)!;
+		const editor = [...container.querySelectorAll('.screenshot-annotation-editor')].at(-1)!;
 		[...editor.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === action)!.click();
 	}
 
@@ -1171,9 +1173,46 @@ suite('IssueReporterOverlay', () => {
 		overlay.addScreenshot({ ...screenshot });
 		overlay.addScreenshot({ ...screenshot });
 		closeAnnotation(container, 'Discard');
-		const remaining = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		const remaining = container.querySelectorAll('.screenshot-annotation-editor').length;
 		overlay.dispose();
-		assert.deepStrictEqual({ remaining, afterClose: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { remaining: 1, afterClose: 0 });
+		assert.deepStrictEqual({ remaining, afterClose: container.querySelectorAll('.screenshot-annotation-editor').length }, { remaining: 1, afterClose: 0 });
+	});
+
+	test('edits a screenshot in a labelled dialog that keeps focus and returns it to the screenshot', () => {
+		const { overlay, files, container } = createReporter();
+		overlay.restoreAttachments([capturedScreenshot('capture')]);
+		const openEditor = () => {
+			files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
+			return container.querySelector<HTMLElement>('.screenshot-annotation-editor')!;
+		};
+		const focusedLabel = () => mainWindow.document.activeElement?.getAttribute('aria-label');
+		const editor = openEditor();
+		const dialog = {
+			role: editor.getAttribute('role'),
+			modal: editor.getAttribute('aria-modal'),
+			label: editor.getAttribute('aria-label'),
+			description: mainWindow.document.getElementById(editor.getAttribute('aria-describedby')!)?.textContent,
+			focused: focusedLabel(),
+		};
+		// The focusable edges of the dialog pass Tab and Shift+Tab around inside it.
+		const [start, end] = [editor.firstElementChild, editor.lastElementChild] as HTMLElement[];
+		end.dispatchEvent(new FocusEvent('focus'));
+		const afterLast = focusedLabel();
+		start.dispatchEvent(new FocusEvent('focus'));
+		const beforeFirst = mainWindow.document.activeElement?.textContent;
+		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+		const afterEscape = focusedLabel();
+		openEditor();
+		closeAnnotation(container, 'Save');
+		const card = files.querySelector<HTMLElement>('.wizard-screenshot-card');
+		assert.deepStrictEqual({ dialog, afterLast, beforeFirst, afterEscape, focusedCardAfterSave: mainWindow.document.activeElement === card, open: container.querySelectorAll('.screenshot-annotation-editor').length }, {
+			dialog: { role: 'dialog', modal: 'true', label: 'Edit Screenshot', description: 'Edit screenshot to highlight the problem', focused: 'Edit Screenshot' },
+			afterLast: 'Select / Move',
+			beforeFirst: 'Save',
+			afterEscape: 'Edit screenshot-1.png',
+			focusedCardAfterSave: true,
+			open: 0,
+		});
 	});
 
 	test('removes handlers from replaced screenshot cards', () => {
@@ -1182,9 +1221,9 @@ suite('IssueReporterOverlay', () => {
 		const oldCard = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		oldCard.click();
-		const old = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		const old = container.querySelectorAll('.screenshot-annotation-editor').length;
 		files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
-		assert.deepStrictEqual({ old, current: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { old: 0, current: 1 });
+		assert.deepStrictEqual({ old, current: container.querySelectorAll('.screenshot-annotation-editor').length }, { old: 0, current: 1 });
 	});
 
 	test('stops answering issue-data requests after disposal', async () => {

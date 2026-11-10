@@ -1,0 +1,132 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $ } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAnnotationEditorState } from './screenshotAnnotation.js';
+
+/** Experiment-controlled setting that routes the screenshot entry points through the screenshot tool. */
+export const SCREENSHOT_TOOL_ENABLED_SETTING_ID = 'workbench.screenshotTool.enabled';
+
+/** True while the screenshot tool lets the user select or annotate a capture. */
+export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or annotating a screenshot"));
+
+export const IScreenshotToolService = createDecorator<IScreenshotToolService>('screenshotToolService');
+
+/** A screenshot entry point, as reported in telemetry. */
+export const enum ScreenshotToolEntryPoint {
+	ChatAddContext = 'chatAddContext',
+	IssueReporter = 'issueReporter',
+	BrowserScreenshot = 'browserScreenshot',
+	BrowserAreaScreenshot = 'browserAreaScreenshot',
+	BrowserFullPageScreenshot = 'browserFullPageScreenshot',
+}
+
+/** What a screenshot shows; `none` when it was cancelled or failed before anything was captured. */
+export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'none';
+
+export type ScreenshotToolOutcome = 'attached' | 'cancelled' | 'failed';
+
+export interface IScreenshotToolImage {
+	/** A `data:` URL of a PNG or JPEG image. */
+	readonly dataUrl: string;
+	readonly width: number;
+	readonly height: number;
+}
+
+/** A capture that the user chose to attach. */
+export interface IScreenshotToolCapture {
+	readonly kind: 'attach';
+	readonly mode: ScreenshotToolMode;
+	/** The image to attach, including annotations. */
+	readonly image: IScreenshotToolImage;
+	/** The capture before it was annotated. */
+	readonly original: IScreenshotToolImage;
+	/** Annotations that can be edited again later. */
+	readonly annotationState: IAnnotationEditorState | undefined;
+	readonly annotated: boolean;
+	/** Whether the capture includes content of a layer, such as a browser page. */
+	readonly includesLayerContent: boolean;
+}
+
+export type ScreenshotToolResult = IScreenshotToolCapture | { readonly kind: 'cancelled' | 'failed'; readonly mode: ScreenshotToolMode };
+
+/** Native content, such as a browser page, that window captures do not include. */
+export interface IScreenshotToolLayer {
+	/** The element whose bounds the native content covers, or `undefined` while it shows no native content. */
+	readonly element: HTMLElement | undefined;
+	/** Whether a click on the layer captures only its content. */
+	readonly capturesOnClick: boolean;
+	/** Captures what the layer shows, or resolves `undefined` when it shows nothing. */
+	capture(): Promise<{ readonly data: VSBuffer; readonly mimeType: string } | undefined>;
+}
+
+export interface IScreenshotToolService {
+	readonly _serviceBrand: undefined;
+
+	/** Fires when the tool starts or stops covering a window to let the user capture or annotate. */
+	readonly onDidChangeActive: Event<{ readonly targetWindow: CodeWindow; readonly active: boolean }>;
+
+	/**
+	 * Call when a screenshot entry point runs. Where the tool is supported, logs the experiment
+	 * trigger before reading the experiment setting, and returns whether to use the tool.
+	 */
+	shouldUseTool(): boolean;
+
+	/**
+	 * Lets the user click to capture the window or a browser page, or drag to capture an area,
+	 * and then annotate the capture before it is attached.
+	 */
+	captureAndAnnotate(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
+
+	/** Captures the whole window, including its layers, without letting the user select. */
+	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
+
+	/** Opens an existing capture in the annotation editor before it is attached. */
+	annotate(targetWindow: CodeWindow, image: IScreenshotToolImage, mode: ScreenshotToolMode, token?: CancellationToken): Promise<ScreenshotToolResult>;
+
+	/** Moves focus back to the screenshot tool while it is active. */
+	focus(): void;
+
+	registerLayer(layer: IScreenshotToolLayer): IDisposable;
+
+	/** Reports how an entry point ended, in every experiment arm, where the tool is supported. */
+	logCapture(event: IScreenshotToolCaptureEvent): void;
+}
+
+/** Creates a captured image from its bytes. */
+export async function createScreenshotToolImage(data: VSBuffer, mimeType: string): Promise<IScreenshotToolImage> {
+	const dataUrl = `data:${mimeType};base64,${encodeBase64(data)}`;
+	const image = $<HTMLImageElement>('img');
+	image.src = dataUrl;
+	await image.decode();
+	return { dataUrl, width: image.naturalWidth, height: image.naturalHeight };
+}
+
+/** Returns the bytes and MIME type of a captured image. */
+export function getScreenshotToolImageData(image: IScreenshotToolImage): { readonly data: VSBuffer; readonly mimeType: string } {
+	const match = /^data:(?<mimeType>[^;,]+)[^,]*,(?<data>.*)$/.exec(image.dataUrl);
+	return {
+		data: decodeBase64(match?.groups?.data ?? ''),
+		mimeType: match?.groups?.mimeType ?? 'image/png',
+	};
+}
+
+export interface IScreenshotToolCaptureEvent {
+	readonly entryPoint: ScreenshotToolEntryPoint;
+	readonly outcome: ScreenshotToolOutcome;
+	readonly mode: ScreenshotToolMode;
+	readonly annotated: boolean;
+	readonly durationMs: number;
+	/** Whether the entry point used the screenshot tool, which is the experiment's treatment. */
+	readonly usedTool: boolean;
+}

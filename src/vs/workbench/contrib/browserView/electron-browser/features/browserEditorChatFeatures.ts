@@ -49,6 +49,8 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCapture, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -150,11 +152,11 @@ class BrowserElementCommentingAccessibilityHelp implements IAccessibleViewImplem
 AccessibleViewRegistry.register(new BrowserElementCommentingAccessibilityHelp());
 
 type IntegratedBrowserAddScreenshotToChatAddedEvent = {
-	screenshotType: 'viewport' | 'area' | 'fullPage';
+	screenshotType: 'viewport' | 'area' | 'fullPage' | 'window';
 };
 
 type IntegratedBrowserAddScreenshotToChatAddedClassification = {
-	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
+	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, fullPage, or window when the screenshot tool captured the whole window).' };
 	owner: 'jruales';
 	comment: 'A screenshot was successfully added to chat from Integrated Browser.';
 };
@@ -193,6 +195,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
@@ -757,6 +760,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
+		const stopWatch = StopWatch.create(false);
+		if (this.screenshotToolService.shouldUseTool()) {
+			const result = await this.screenshotToolService.captureAndAnnotate(this.editor.window);
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, model.url, stopWatch);
+		}
+
+		let outcome: ScreenshotToolOutcome = 'failed';
 		try {
 			// Capture the screenshot BEFORE revealing the chat panel or prompting the
 			// user so the image reflects what the user saw when they pressed the button,
@@ -765,6 +775,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				outcome = 'cancelled';
 				return;
 			}
 
@@ -780,12 +791,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			if (!await this._attachToChat(toAttach)) {
 				return;
 			}
+			outcome = 'attached';
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
 				screenshotType: 'viewport'
 			});
 		} catch (error) {
 			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
+		} finally {
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserScreenshot, outcome, 'page', false, stopWatch, false);
 		}
 	}
 
@@ -805,6 +819,12 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
+		const stopWatch = StopWatch.create(false);
+		if (this.screenshotToolService.shouldUseTool()) {
+			const result = await this.screenshotToolService.captureAndAnnotate(this.editor.window);
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, model.url, stopWatch);
+		}
+
 		this.editor.ensureBrowserFocus();
 
 		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
@@ -815,15 +835,18 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const rect = await pickPromise;
 
 		if (!rect) {
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, 'cancelled', 'none', false, stopWatch, false);
 			return;
 		}
 
+		let outcome: ScreenshotToolOutcome = 'failed';
 		try {
 			// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
 			// into the captured screenshot.
 			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				outcome = 'cancelled';
 				return;
 			}
 
@@ -839,12 +862,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			if (!await this._attachToChat(toAttach)) {
 				return;
 			}
+			outcome = 'attached';
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
 				screenshotType: 'area'
 			});
 		} catch (error) {
 			this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
+		} finally {
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserAreaScreenshot, outcome, 'area', false, stopWatch, false);
 		}
 	}
 
@@ -857,10 +883,24 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
+		const stopWatch = StopWatch.create(false);
+		if (this.screenshotToolService.shouldUseTool()) {
+			let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
+			try {
+				const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
+				result = await this.screenshotToolService.annotate(this.editor.window, image, 'fullPage');
+			} catch (error) {
+				this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
+			}
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, model.url, stopWatch);
+		}
+
+		let outcome: ScreenshotToolOutcome = 'failed';
 		try {
 			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				outcome = 'cancelled';
 				return;
 			}
 
@@ -876,14 +916,69 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			if (!await this._attachToChat(toAttach)) {
 				return;
 			}
+			outcome = 'attached';
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
 				screenshotType: 'fullPage'
 			});
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
+		} finally {
+			this._logScreenshotCapture(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, outcome, 'fullPage', false, stopWatch, false);
 		}
 	}
+
+	/**
+	 * Attaches what the user captured and annotated with the screenshot tool, after confirming
+	 * the risk of page content as the actions without the tool do.
+	 */
+	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
+		let outcome: ScreenshotToolOutcome = result.kind === 'attach' ? 'failed' : result.kind;
+		try {
+			if (result.kind !== 'attach') {
+				return;
+			}
+			const showsPage = result.mode === 'page' || result.mode === 'fullPage' || result.includesLayerContent;
+			if (showsPage && !await this._confirmContentAttachmentRisk(url)) {
+				outcome = 'cancelled';
+				return;
+			}
+			const name = getScreenshotToolAttachmentName(result);
+			const { data, mimeType } = getScreenshotToolImageData(result.image);
+			if (!await this._attachToChat([{ id: `browser-screenshot-${Date.now()}`, name, fullName: name, kind: 'image', value: data.buffer, mimeType }])) {
+				return;
+			}
+			outcome = 'attached';
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: result.mode === 'page' ? 'viewport' : result.mode === 'area' || result.mode === 'fullPage' ? result.mode : 'window'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor: Failed to attach a screenshot from the screenshot tool', error);
+		} finally {
+			this._logScreenshotCapture(entryPoint, outcome, result.mode, outcome === 'attached' && result.kind === 'attach' && result.annotated, stopWatch, true);
+		}
+	}
+
+	private _logScreenshotCapture(entryPoint: ScreenshotToolEntryPoint, outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, annotated: boolean, stopWatch: StopWatch, usedTool: boolean): void {
+		this.screenshotToolService.logCapture({ entryPoint, outcome, mode, annotated, durationMs: stopWatch.elapsed(), usedTool });
+	}
+}
+
+/**
+ * Names a screenshot tool capture after what it shows, like the attachments of the actions without the tool.
+ */
+function getScreenshotToolAttachmentName(capture: IScreenshotToolCapture): string {
+	if (capture.mode === 'page') {
+		return localize('browserScreenshot', 'Browser Screenshot');
+	}
+	if (capture.mode === 'fullPage') {
+		return localize('browserFullPageScreenshot', 'Browser Full Page Screenshot');
+	}
+	if (capture.mode === 'area' && capture.includesLayerContent) {
+		return localize('browserAreaScreenshot', 'Browser Area Screenshot');
+	}
+	return localize('screenshotToolScreenshot', "Screenshot");
 }
 
 // Register the contribution

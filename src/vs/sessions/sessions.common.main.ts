@@ -235,6 +235,7 @@ import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import '../workbench/contrib/chatWindow/browser/chatWindow.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+import '../workbench/contrib/screenshotTool/browser/screenshotTool.contribution.js';
 
 // Voice Mode (voice UI actions, settings and context keys)
 import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';

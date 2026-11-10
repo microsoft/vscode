@@ -42,7 +42,7 @@ import { IssueReporterModel } from './issueReporterModel.js';
 import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
 import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
-import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
+import { IAnnotationEditorState, ScreenshotAnnotationEditor } from '../../screenshotTool/browser/screenshotAnnotation.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -54,6 +54,13 @@ export interface IScreenshot extends IIssueReporterScreenshot {
 export interface IIssueReporterAttachmentImport {
 	readonly id: string;
 	readonly file: File;
+}
+
+export interface IIssueReporterScreenshotRequest {
+	/** The attachment slot reserved for the screenshot. */
+	readonly id: string;
+	/** Whether the request follows a countdown, after which the whole window is captured. */
+	readonly delayed: boolean;
 }
 
 type PendingAttachment = { readonly id: string; readonly kind: 'pending'; readonly source: 'import' | 'screenshot' | 'recording' };
@@ -73,8 +80,8 @@ export class IssueReporterOverlay {
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
 	readonly onDidSubmit: Event<{ title: string; body: string }> = this._onDidSubmit.event;
-	private readonly _onDidRequestScreenshot = new Emitter<string>();
-	readonly onDidRequestScreenshot: Event<string> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestScreenshot = new Emitter<IIssueReporterScreenshotRequest>();
+	readonly onDidRequestScreenshot: Event<IIssueReporterScreenshotRequest> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
 	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
@@ -142,6 +149,8 @@ export class IssueReporterOverlay {
 	private readonly attachments: (IssueReporterAttachment<IScreenshot> | PendingAttachment)[] = [];
 
 	private readonly attachmentCards = new Map<string, HTMLElement>();
+	/** Screenshot editors that are open over the panel, the topmost last. */
+	private readonly annotationEditors: ScreenshotAnnotationEditor[] = [];
 	private readonly diagnosticsDisposables = this.disposables.add(new DisposableStore());
 	private readonly diagnosticControls = new Map<DiagnosticOption, { include: HTMLElement; details: HTMLElement }>();
 	private readonly descriptionGuidanceDisposables = new DisposableStore();
@@ -1856,13 +1865,14 @@ export class IssueReporterOverlay {
 		if (this.uploading || this.screenshotCapturePending || this.delayedScreenshotPending) {
 			return;
 		}
+		const delayed = !!reservation;
 		reservation ??= this.reserveAttachment('screenshot');
 		if (!reservation || !this.attachments.includes(reservation)) {
 			return;
 		}
 		this.screenshotCapturePending = true;
 		this.updateAttachmentButtons();
-		this._onDidRequestScreenshot.fire(reservation.id);
+		this._onDidRequestScreenshot.fire({ id: reservation.id, delayed });
 	}
 
 	completeScreenshotCapture(id = this.getPendingAttachment('screenshot')?.id): void {
@@ -1900,7 +1910,8 @@ export class IssueReporterOverlay {
 		};
 	}
 
-	addScreenshot(screenshot: IScreenshot, id = this.getPendingAttachment('screenshot')?.id): void {
+	/** Attaches a screenshot and, unless it was already annotated, opens it for annotation. */
+	addScreenshot(screenshot: IScreenshot, id = this.getPendingAttachment('screenshot')?.id, annotate = true): void {
 		const reservation = id ? this.attachments.find(item => item.id === id && item.kind === 'pending' && item.source === 'screenshot') : this.reserveAttachment('screenshot');
 		if (this.disposed || !reservation) {
 			return;
@@ -1908,7 +1919,9 @@ export class IssueReporterOverlay {
 		const attachment: IssueReporterAttachment<IScreenshot> = { id: reservation.id, kind: 'screenshot', screenshot };
 		this.attachments[this.attachments.indexOf(reservation)] = attachment;
 		this.attachmentsChanged();
-		this.openAnnotationEditor(attachment.id);
+		if (annotate) {
+			this.openAnnotationEditor(attachment.id);
+		}
 	}
 
 	private updateAttachmentButtons(): void {
@@ -2071,6 +2084,23 @@ export class IssueReporterOverlay {
 		const screenshot = attachment.screenshot;
 		const editorDisposables = this.disposables.add(new DisposableStore());
 		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
+		this.annotationEditors.push(editor);
+		editorDisposables.add(toDisposable(() => {
+			const index = this.annotationEditors.indexOf(editor);
+			if (index !== -1) {
+				this.annotationEditors.splice(index, 1);
+			}
+		}));
+		const close = () => {
+			this.disposables.delete(editorDisposables);
+			// Focus returns to the editor underneath, or else to the screenshot that was edited.
+			const previousEditor = this.annotationEditors.at(-1);
+			if (previousEditor) {
+				previousEditor.focus();
+			} else {
+				(this.attachmentCards.get(id) ?? this.screenshotContainer).focus();
+			}
+		};
 
 		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
 			const index = this.attachments.findIndex(item => item.id === id);
@@ -2078,12 +2108,11 @@ export class IssueReporterOverlay {
 				this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: dataUrl, annotationState: state } };
 				this.attachmentsChanged();
 			}
-			this.disposables.delete(editorDisposables);
+			close();
 		}));
 
-		editorDisposables.add(editor.onDidCancel(() => {
-			this.disposables.delete(editorDisposables);
-		}));
+		editorDisposables.add(editor.onDidCancel(() => close()));
+		editor.focus();
 	}
 
 	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {
@@ -2306,7 +2335,13 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	focus(): void {
-		this.wizardPanel.focus();
+		// An open screenshot editor covers the panel, so it keeps focus.
+		const editor = this.annotationEditors.at(-1);
+		if (editor) {
+			editor.focus();
+		} else {
+			this.wizardPanel.focus();
+		}
 	}
 
 	getPanel(): HTMLElement {

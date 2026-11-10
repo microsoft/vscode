@@ -70,6 +70,14 @@ export class BrowserView extends Disposable {
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
 
+	/**
+	 * Set while a full-page screenshot temporarily enlarges the page beyond its view. Showing, hiding or
+	 * moving the view meanwhile cuts that short, and the screenshot then repeats the visible area, so such
+	 * changes wait in {@link _changesAfterFullPageCapture}, and other screenshots wait as well.
+	 */
+	private _fullPageCapture: Promise<void> | undefined;
+	private readonly _changesAfterFullPageCapture: (() => void)[] = [];
+
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
 
@@ -724,6 +732,10 @@ export class BrowserView extends Disposable {
 	 * Update the layout bounds of this view
 	 */
 	layout(bounds: IBrowserViewBounds): void {
+		this._applyAfterFullPageCapture(() => this._layout(bounds));
+	}
+
+	private _layout(bounds: IBrowserViewBounds): void {
 		if (this._currentWindow?.win?.id !== bounds.windowId) {
 			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
@@ -767,17 +779,27 @@ export class BrowserView extends Disposable {
 			return;
 		}
 
-		// If the view is focused, pass focus back to the window when hiding
-		if (!visible && this._view.webContents.isFocused()) {
-			this._currentWindow?.win?.webContents.focus();
-		}
+		this._applyAfterFullPageCapture(() => {
+			// If the view is focused, pass focus back to the window when hiding
+			if (!visible && this._view.webContents.isFocused()) {
+				this._currentWindow?.win?.webContents.focus();
+			}
 
-		if (this._hasBeenLaidOut || !visible) {
-			this._view.setVisible(visible);
-		}
+			if (this._hasBeenLaidOut || !visible) {
+				this._view.setVisible(visible);
+			}
+		});
 
 		this._wantsVisibility = visible;
 		this._onDidChangeVisibility.fire({ visible });
+	}
+
+	private _applyAfterFullPageCapture(change: () => void): void {
+		if (this._fullPageCapture) {
+			this._changesAfterFullPageCapture.push(change);
+		} else {
+			change();
+		}
 	}
 
 	/**
@@ -868,6 +890,10 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		while (this._fullPageCapture) {
+			await this._fullPageCapture;
+		}
+
 		if (!this._view.getVisible()) {
 			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
 			this._view.setVisible(true);
@@ -930,6 +956,23 @@ export class BrowserView extends Disposable {
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
 	private async _captureFullPageScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
+		let completeCapture!: () => void;
+		this._fullPageCapture = new Promise<void>(resolve => completeCapture = resolve);
+		try {
+			return await this._captureBeyondViewport(format, quality);
+		} finally {
+			this._fullPageCapture = undefined;
+			const changes = this._changesAfterFullPageCapture.splice(0);
+			if (!this._isDisposed && !this._view.webContents.isDestroyed()) {
+				for (const change of changes) {
+					change();
+				}
+			}
+			completeCapture();
+		}
+	}
+
+	private async _captureBeyondViewport(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
 		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
 		// Size in CSS pixels
 		const size = metrics.cssContentSize;
@@ -959,8 +1002,6 @@ export class BrowserView extends Disposable {
 				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
 				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
 				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
-				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
-				// visual content from the top at the bottom, instead of showing the bottom of the page.
 				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
 				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
 				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream

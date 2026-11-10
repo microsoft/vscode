@@ -46,6 +46,8 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolOutcome, ScreenshotToolResult } from '../../screenshotTool/browser/screenshotTool.js';
 
 /** True while a report is open, including a dedicated window or an inactive editor tab. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -105,6 +107,7 @@ export class IssueReporterController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		IssueReporterController.liveInstances.add(this);
@@ -220,9 +223,30 @@ export class IssueReporterController extends Disposable {
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
 
+		// The floating bar floats above the screenshot tool, so it hides while the tool is active in its window.
+		let barHiddenForScreenshotTool = false;
+		this.inputDisposables.add(this.screenshotToolService.onDidChangeActive(({ targetWindow, active }) => {
+			if (targetWindow !== mainWindow) {
+				return;
+			}
+			if (active) {
+				barHiddenForScreenshotTool = true;
+				wizard.hideFloatingBar();
+			} else if (barHiddenForScreenshotTool) {
+				barHiddenForScreenshotTool = false;
+				wizard.showFloatingBar();
+			}
+		}));
+
 		// Wire screenshot capture
-		this.inputDisposables.add(wizard.onDidRequestScreenshot(async id => {
+		this.inputDisposables.add(wizard.onDidRequestScreenshot(async ({ id, delayed }) => {
+			const stopWatch = StopWatch.create(false);
+			if (this.screenshotToolService.shouldUseTool()) {
+				await this.captureWithScreenshotTool(wizard, id, delayed, stopWatch, mediaCancellation.token);
+				return;
+			}
 			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
+			let outcome: ScreenshotToolOutcome = 'failed';
 			try {
 				// Conditionally hide the floating bar based on user setting
 				const shouldHide = wizard.shouldHideToolbarForCapture;
@@ -241,14 +265,17 @@ export class IssueReporterController extends Disposable {
 				}
 
 				if (!dataUrl || !isCurrent()) {
+					outcome = dataUrl ? 'cancelled' : 'failed';
 					return;
 				}
 
 				const dimensions = await this.readAttachmentImage(dataUrl, mediaCancellation.token);
 				if (!isCurrent()) {
+					outcome = 'cancelled';
 					return;
 				}
 				wizard.addScreenshot({ dataUrl, ...dimensions }, id);
+				outcome = 'attached';
 
 				// Bring the wizard back into focus after the capture in case
 				// the user switched editors/groups while setting up the shot.
@@ -257,9 +284,12 @@ export class IssueReporterController extends Disposable {
 				if (isCurrent()) {
 					disposableTimeout(() => wizard.showFloatingBar(), 1000, this.inputDisposables);
 					this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
+				} else if (outcome !== 'attached') {
+					outcome = 'cancelled';
 				}
 			} finally {
 				wizard.completeScreenshotCapture(id);
+				this.screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.IssueReporter, outcome, mode: 'window', annotated: false, durationMs: stopWatch.elapsed(), usedTool: false });
 			}
 		}));
 
@@ -376,6 +406,65 @@ export class IssueReporterController extends Disposable {
 
 	protected readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
 		return readIssueReporterImage(dataUrl, token);
+	}
+
+	/** Captures the window the report is about, never the reporter's own window, and lets the user annotate it before attaching. */
+	private async captureWithScreenshotTool(wizard: IssueReporterOverlay, id: string, delayed: boolean, stopWatch: StopWatch, token: CancellationToken): Promise<void> {
+		const isCurrent = () => this.wizard === wizard && !token.isCancellationRequested;
+		// The tool hides the bar while it is active, but the delayed capture happens before that.
+		const shouldHide = delayed && wizard.shouldHideToolbarForCapture;
+		let result: ScreenshotToolResult = { kind: 'failed', mode: delayed ? 'window' : 'none' };
+		let outcome: ScreenshotToolOutcome = 'failed';
+		try {
+			if (delayed) {
+				if (shouldHide) {
+					wizard.hideFloatingBar();
+					await timeout(100, token);
+				}
+				const image = await this.screenshotToolService.captureWindow(mainWindow);
+				if (image && isCurrent()) {
+					result = await this.screenshotToolService.annotate(mainWindow, image, 'window', token);
+				}
+			} else {
+				result = await this.screenshotToolService.captureAndAnnotate(mainWindow, token);
+			}
+			if (!isCurrent()) {
+				outcome = 'cancelled';
+				return;
+			}
+			if (result.kind !== 'attach') {
+				outcome = result.kind;
+				return;
+			}
+			wizard.addScreenshot({
+				dataUrl: result.original.dataUrl,
+				width: result.original.width,
+				height: result.original.height,
+				annotatedDataUrl: result.annotated ? result.image.dataUrl : undefined,
+				annotationState: result.annotationState,
+			}, id, false);
+			outcome = 'attached';
+			await this.revealAndActivate();
+		} catch (err) {
+			if (isCurrent()) {
+				this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
+			} else if (outcome !== 'attached') {
+				outcome = 'cancelled';
+			}
+		} finally {
+			if (shouldHide && isCurrent()) {
+				wizard.showFloatingBar();
+			}
+			wizard.completeScreenshotCapture(id);
+			this.screenshotToolService.logCapture({
+				entryPoint: ScreenshotToolEntryPoint.IssueReporter,
+				outcome,
+				mode: result.mode,
+				annotated: outcome === 'attached' && result.kind === 'attach' && result.annotated,
+				durationMs: stopWatch.elapsed(),
+				usedTool: true,
+			});
+		}
 	}
 
 	/** Use the default-profile file root already trusted by the native resource protocol. */

@@ -52,6 +52,8 @@ import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js'
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService, TestScreenshotToolService, TestScreenshotToolTelemetryService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 
 interface INativeResourceAccess {
 	status: number;
@@ -230,7 +232,7 @@ suite('Issue reporter media import lifecycle', () => {
 		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }));
 	}
 
-	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService) {
+	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService, screenshotTool: TestScreenshotToolService = createTestScreenshotToolService(store, false).service) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
@@ -240,6 +242,7 @@ suite('Issue reporter media import lifecycle', () => {
 				instantiation.stub(dependency.id, {});
 			}
 		}
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		const submit = spy(async () => false);
 		const openEditor = spy(async (_input: EditorInput | IUntypedEditorInput) => undefined);
 		const errors: string[] = [];
@@ -652,22 +655,96 @@ suite('Issue reporter media import lifecycle', () => {
 		assert.deepStrictEqual({
 			imports: pane.imports.length, attachments: savedFiles(input)?.map(file => ({ name: file.name, mimeType: file.mimeType, thumbnailDataUrl: file.thumbnailDataUrl })),
 			writes: files.writes.length, submissions: submit.callCount, focus: mainWindow.document.activeElement === editor,
-			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
+			annotation: !!container.querySelector('.screenshot-annotation-editor'),
 		}, { imports: 1, attachments: [{ name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture }], writes: 1, submissions: 0, focus: true, annotation: false });
 	});
 
 	test('still opens annotation for a captured screenshot and releases the pending capture slot', async () => {
-		const { pane, input, container } = await createPane();
-		const captured = new DeferredPromise<void>();
-		store.add(pane.getWizard()!.onDidChangeAttachments(() => { void captured.complete(); }));
+		const { service, telemetry } = createTestScreenshotToolService(store, false);
+		const { pane, input, container } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+		const logged = Event.toPromise(telemetry.onDidLogCapture);
 		pane.getWizard()!.triggerCaptureScreenshot();
-		await captured.p;
-		await timeout(0);
+		await logged;
 		assert.deepStrictEqual({
 			screenshots: input.savedAttachments?.filter(attachment => attachment.kind === 'screenshot').length,
-			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
+			annotation: !!container.querySelector('.screenshot-annotation-editor'),
 			pending: pane.getWizard()!['screenshotCapturePending'],
-		}, { screenshots: 1, annotation: true, pending: false });
+			tool: service.requests,
+			triggers: telemetry.triggers,
+			captures: telemetry.captures,
+		}, {
+			screenshots: 1, annotation: true, pending: false, tool: [], triggers: ['config.workbench.screenshotTool.enabled'],
+			captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', annotated: false, usedTool: false }],
+		});
+	});
+
+	suite('with the screenshot tool', () => {
+		const original = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+		const annotated = { dataUrl: 'data:image/png;base64,YW5ub3RhdGVk', width: 24, height: 16 };
+		const annotationState = { actions: [], undoneActions: [], crop: { x: 0, y: 0, width: 24, height: 16 } };
+
+		async function capture(service: TestScreenshotToolService, telemetry: TestScreenshotToolTelemetryService, delayed: boolean) {
+			const { pane, input, container } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const wizard = pane.getWizard()!;
+			const logged = Event.toPromise(telemetry.onDidLogCapture);
+			if (delayed) {
+				wizard['requestScreenshot'](wizard['reserveAttachment']('screenshot'));
+			} else {
+				wizard.triggerCaptureScreenshot();
+			}
+			await logged;
+			const screenshot = input.savedAttachments?.find(attachment => attachment.kind === 'screenshot');
+			return {
+				screenshot: screenshot?.kind === 'screenshot' ? screenshot.screenshot : undefined,
+				annotationEditor: !!container.querySelector('.screenshot-annotation-editor'),
+				pending: wizard['screenshotCapturePending'],
+				tool: service.requests,
+			};
+		}
+
+		test('attaches the annotated capture of the source window without annotating it again', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store, true);
+			service.result = { kind: 'attach', mode: 'area', image: annotated, original, annotationState, annotated: true, includesLayerContent: false };
+			assert.deepStrictEqual({ ...await capture(service, telemetry, false), triggers: telemetry.triggers, captures: telemetry.captures }, {
+				screenshot: { ...original, annotatedDataUrl: annotated.dataUrl, annotationState },
+				annotationEditor: false, pending: false, tool: ['captureAndAnnotate'], triggers: ['config.workbench.screenshotTool.enabled'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'area', annotated: true, usedTool: true }],
+			});
+		});
+
+		test('captures the whole window after the countdown and opens it in the screenshot tool', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store, true);
+			service.windowImage = original;
+			service.result = { kind: 'attach', mode: 'window', image: original, original, annotationState: undefined, annotated: false, includesLayerContent: false };
+			assert.deepStrictEqual({ ...await capture(service, telemetry, true), captures: telemetry.captures }, {
+				screenshot: { ...original, annotatedDataUrl: undefined, annotationState: undefined },
+				annotationEditor: false, pending: false, tool: ['captureWindow', 'annotate window 48x32'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window', annotated: false, usedTool: true }],
+			});
+		});
+
+		test('releases the capture slot without attaching when the screenshot is cancelled', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store, true);
+			service.result = { kind: 'cancelled', mode: 'none' };
+			assert.deepStrictEqual({ ...await capture(service, telemetry, false), captures: telemetry.captures }, {
+				screenshot: undefined, annotationEditor: false, pending: false, tool: ['captureAndAnnotate'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'cancelled', mode: 'none', annotated: false, usedTool: true }],
+			});
+		});
+
+		test('hides the floating bar while the tool is active, also when the bar may appear in screenshots', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store, true);
+			const { pane } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const wizard = pane.getWizard()!;
+			wizard['_hideToolbarInScreenshots'] = false;
+			const bar = wizard['floatingBar']!;
+			let barDuringSession: string | undefined;
+			service.duringSession = () => barDuringSession = bar.style.display;
+			const logged = Event.toPromise(telemetry.onDidLogCapture);
+			wizard.triggerCaptureScreenshot();
+			await logged;
+			assert.deepStrictEqual({ barDuringSession, barAfter: bar.style.display }, { barDuringSession: 'none', barAfter: '' });
+		});
 	});
 
 	test('drops an actual MP4 into an owned copy without decoding or modifying the original', async () => {
@@ -852,7 +929,7 @@ suite('Issue reporter media import lifecycle', () => {
 		await captured.p;
 		await pending.readGate.complete();
 		await first.pane.waitForImports();
-		const annotation = first.container.querySelector('.issue-reporter-annotation-overlay')!;
+		const annotation = first.container.querySelector('.screenshot-annotation-editor')!;
 		[...annotation.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'Save')!.click();
 		const saved = first.input.savedAttachments!;
 		const annotated = saved.find(attachment => attachment.kind === 'screenshot')!;

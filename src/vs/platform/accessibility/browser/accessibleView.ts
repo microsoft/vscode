@@ -67,6 +67,7 @@ export const enum AccessibleViewProviderId {
 	AgentsWindowExtensions = 'agentsWindowExtensions',
 	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
+	ScreenshotTool = 'screenshotTool',
 	ChatPetAchievements = 'chatPetAchievements',
 	/** Shared by the jump game's accessibility help and current-state view. */
 	ChatPetJumpGame = 'chatPetJumpGame',
