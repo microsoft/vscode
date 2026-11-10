@@ -75,7 +75,7 @@ import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKi
 import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
-import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { measureProtocolMessageBySerialization, parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
 import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension } from '../../node/protocolServerHandler.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
@@ -4006,6 +4006,55 @@ suite('ProtocolServerHandler', () => {
 				ordinary: hasKey(ordinaryResponse, { result: true }) ? Object.keys(ordinaryResponse.result as SubscribeResult) : [],
 				methods: transport.sent.filter(isJsonRpcNotification).map(message => message.method),
 			}, { root: ['snapshot'], ordinary: ['snapshot'], methods: ['action'] });
+		});
+
+		test('accepts relay offers only when the lane and client declare relay windows, and accepts relayed credit', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const relayed = (message: ProtocolMessage) => {
+				measureProtocolMessageBySerialization(message);
+				return message;
+			};
+			const results: Record<string, object> = {};
+			for (const [name, laneDeclares, clientDeclares] of [['both', true, true], ['lane', true, false], ['client', false, true]] as const) {
+				const clientId = `relay-window-${name}`;
+				const transport = disposables.add(new class extends MockProtocolTransport {
+					readonly relayHandshakeMeta = laneDeclares ? { 'vscode.relayChannelWindows': true } : undefined;
+				}(AgentHostTransportKind.WebSocket, clientId, false, AgentHostClientConnectionKind.MissionControl));
+				transport.relayAuthenticated = true;
+				server.simulateConnection(transport);
+				const initialized = waitForResponse(transport, 1);
+				transport.simulateMessage(relayed(request(1, 'initialize', {
+					protocolVersions: [PROTOCOL_VERSION], clientId, _meta: clientDeclares ? { 'vscode.relayChannelWindows': true } : undefined,
+				})));
+				await initialized;
+				const subscribed = waitForResponse(transport, 2);
+				transport.simulateMessage(relayed(request(2, 'subscribe', { channel: sessionUri, flowControl: { receive: agentHostStateReceiveLimits } })));
+				const response = await subscribed;
+				await timeout(0);
+				const snapshots = findNotifications(transport.sent, 'channel/snapshot');
+				if (snapshots.length > 0) {
+					const consumedBytes = snapshots.reduce((bytes, message) => bytes + JSON.stringify(message).length * 2, 0);
+					transport.simulateMessage(relayed(notification('channel/credit', { channel: sessionUri, consumedBytes })));
+					await timeout(0);
+				}
+				transport.sent.length = 0;
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: `After ${name}` });
+				await timeout(0);
+				results[name] = {
+					result: hasKey(response, { result: true }) ? Object.keys(response.result as SubscribeResult) : [],
+					snapshots: snapshots.length,
+					methods: transport.sent.filter(isJsonRpcNotification).map(message => message.method),
+					closed: transport.isDisposed,
+				};
+			}
+			assert.deepStrictEqual({ results, failures: telemetryService.events.filter(event => event.eventName === 'agentHost.channelFailure') }, {
+				results: {
+					both: { result: ['flowControl'], snapshots: 1, methods: ['action'], closed: false },
+					lane: { result: ['snapshot'], snapshots: 0, methods: ['action'], closed: false },
+					client: { result: ['snapshot'], snapshots: 0, methods: ['action'], closed: false },
+				},
+				failures: [],
+			});
 		});
 
 		test('refreshes the snapshot when an ordinary resubscribe replaces a window with queued actions', async () => {

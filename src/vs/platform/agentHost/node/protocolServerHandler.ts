@@ -10,6 +10,7 @@ import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultVali
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { servesAgentHostRelayChannelWindows, supportsAgentHostRelayChannelWindows } from '../common/meta/agentHostRelayChannelWindowsMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -483,6 +484,8 @@ interface IConnectedClient {
 	readonly legacySessionUris: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
+	/** A relay client and lane that both declared `vscode.relayChannelWindows`, so the lane can use windowed delivery. */
+	readonly relayChannelWindows: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
@@ -1023,6 +1026,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& transport.relayClientId === undefined && !transport.relayPassive;
 	}
 
+	/**
+	 * A relay does not keep a message's text, so windowed sizes cannot be measured as received. A relay
+	 * lane uses windows only when its transport and the client both measure relayed messages by serialization.
+	 */
+	private _supportsRelayChannelWindows(transport: IProtocolTransport, params: InitializeParams | ReconnectParams): boolean {
+		return transport.relayClientId !== undefined
+			&& supportsAgentHostRelayChannelWindows(params)
+			&& servesAgentHostRelayChannelWindows({ _meta: transport.relayHandshakeMeta });
+	}
+
 	private _handleInitialize(
 		params: InitializeParams,
 		transport: IProtocolTransport,
@@ -1066,6 +1079,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			legacyChatUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
+			relayChannelWindows: this._supportsRelayChannelWindows(transport, params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 			telemetryContext,
@@ -1310,7 +1324,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _negotiateStateWindow(client: IConnectedClient, channel: string, offer: SubscribeParams['flowControl']): ChannelFlowControl | undefined {
-		if (offer === undefined || client.transport.relayClientId !== undefined || isAhpRootChannel(channel) || classifyChannel(channel)?.kind !== ChannelKind.State) {
+		if (offer === undefined || (client.transport.relayClientId !== undefined && !client.relayChannelWindows) || isAhpRootChannel(channel) || classifyChannel(channel)?.kind !== ChannelKind.State) {
 			return undefined;
 		}
 		try {
@@ -1411,6 +1425,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			legacyChatUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
+			relayChannelWindows: this._supportsRelayChannelWindows(transport, params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),

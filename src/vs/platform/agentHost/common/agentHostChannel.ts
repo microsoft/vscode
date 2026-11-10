@@ -199,6 +199,11 @@ export class AgentHostChannelSubscription extends Disposable {
 		return this._delivery.drain();
 	}
 
+	/** Queued data messages that the peer has not completely received. */
+	get unsent(): readonly JsonRpcNotification[] {
+		return this._delivery.unsent;
+	}
+
 	/** Sends any credit that is waiting to be batched. */
 	flushCredit(): void {
 		this._delivery.flushCredit();

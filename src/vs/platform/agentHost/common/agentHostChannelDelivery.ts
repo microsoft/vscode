@@ -401,6 +401,11 @@ export class AgentHostChannelDelivery extends Disposable {
 		return !this._error && this._outgoing.length > 0 && this._sentBytes - this._peerConsumed < this._sendLimits.windowBytes;
 	}
 
+	/** Queued data messages that were not completely sent, including one that was partly sent in fragments. */
+	get unsent(): readonly JsonRpcNotification[] {
+		return this._outgoing.map(next => next.message);
+	}
+
 	sendFrame(): number {
 		if (!this.canSend) {
 			return 0;

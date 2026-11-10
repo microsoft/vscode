@@ -39,6 +39,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostRelayChannelWindowsCapabilityMetaKey, servesAgentHostRelayChannelWindows } from '../common/meta/agentHostRelayChannelWindowsMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { Credentials } from '../../request/common/request.js';
@@ -374,7 +375,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	private _initialAuthenticationResource: string | undefined;
-	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string } | undefined;
+	/**
+	 * An expired relay identity on a connection with relay windows. State-channel data is held, after the data the
+	 * host never received at expiry, and resent in order once renewal restores the subscriptions.
+	 */
+	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string; readonly held: { readonly message: ProtocolMessage; readonly bytes: number }[]; heldBytes: number } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
@@ -1253,7 +1258,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const windowSnapshots = new Map<string, Promise<IStateSnapshot>>();
 		const windowGenerations = new Map(this._windowedStateChannels);
 		const windowed = subscriptions.filter(channel => windowGenerations.has(channel));
-		const requestedWindows = this._isWebPubSubRelay() ? [] : windowed;
+		const requestedWindows = this._offersStateWindows() ? windowed : [];
 		const freshInitialize = this._freshInitializeRequested;
 		this._freshInitializeRequested = false;
 		try {
@@ -1549,6 +1554,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl ? { [AgentHostRelayChannelWindowsCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -2073,7 +2079,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _requestSnapshot(resource: URI, bypassReconnectGate = false): Promise<IStateSnapshot> {
 		const channel = resource.toString();
-		const receive = !isAhpRootChannel(channel) && !this._isWebPubSubRelay() ? agentHostStateReceiveLimits : undefined;
+		const receive = !isAhpRootChannel(channel) && this._offersStateWindows() ? agentHostStateReceiveLimits : undefined;
 		let pending: Promise<IStateSnapshot> | undefined;
 		const result = await this._subscribeWindowedChannel(channel, receive, flowControl => {
 			pending = this._acceptStateChannel(channel, flowControl);
@@ -2664,6 +2670,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (this._expiredRelayAuthentication === expired && this._transport === transport && !operation.token.isCancellationRequested) {
 				this._expiredRelayAuthentication = undefined;
+				// Resent in order on the restored subscriptions. A transport loss before this point replays them as pending actions instead.
+				for (const { message } of expired.held) {
+					this._sendMessage(message);
+				}
 				this._onDidReconnect.fire();
 			}
 		}
@@ -3248,7 +3258,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (msg.method === 'auth/required' && this._isWebPubSubRelay()
 					&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
 					&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
-					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
+					const held = this._discardStateWindows();
+					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource, held, heldBytes: held.reduce((bytes, entry) => bytes + entry.bytes, 0) };
 					this._markSubscriptionsAwaitingRestore([]);
 				}
 				this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
@@ -3622,6 +3633,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _sendMessage(message: ProtocolMessage, bypassSubscribeQueue = false): void {
 		if (isJsonRpcNotification(message) && countsAgainstWindow(message.method)) {
+			const expired = this._expiredRelayAuthentication;
+			if (expired?.transport === this._transport && this._offersStateWindows() && !isAhpRootChannel(message.params.channel)) {
+				// Newer state-channel data must not overtake the data the discarded windows never sent.
+				const bytes = JSON.stringify(message).length * 2;
+				if (expired.held.length >= 1024 || expired.heldBytes + bytes > agentHostStateChannelPolicy.maximumBufferedBytes) {
+					const error = new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Relay renewal send queue capacity exceeded');
+					reportAgentHostChannelFailure(this._logService, this._telemetryService, 'client', message.params.channel, error, true);
+					this._transport.dispose();
+					return;
+				}
+				expired.held.push({ message, bytes });
+				expired.heldBytes += bytes;
+				return;
+			}
 			const pending = this._pendingChannelSubscriptions.get(message.params.channel);
 			if (pending?.windowed && !bypassSubscribeQueue) {
 				const bytes = JSON.stringify(message).length * 2;
@@ -3959,6 +3984,44 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _isWebPubSubRelay(): boolean {
 		return this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub
 			|| this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl;
+	}
+
+	/**
+	 * Whether to offer windowed delivery for state channels. A relay does not keep a message's text, so
+	 * windows need a host that confirmed measuring relayed messages the same way. Mission Control relays
+	 * need windows most: a relay message cannot exceed the relay's reassembly limit.
+	 */
+	private _offersStateWindows(): boolean {
+		return !this._isWebPubSubRelay()
+			|| (this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl && servesAgentHostRelayChannelWindows(this._initializeResult.get()));
+	}
+
+	/**
+	 * The host drops its windows when the relay identity expires; restored subscriptions start new ones.
+	 * Returns the data the host never received, oldest first: what the windows had not completely sent,
+	 * then what waited for a windowed subscribe, which is newer than its channel's window.
+	 */
+	private _discardStateWindows(): { readonly message: ProtocolMessage; readonly bytes: number }[] {
+		const unsent: { readonly message: ProtocolMessage; readonly bytes: number }[] = [];
+		for (const channel of [...this._windowedStateChannels.keys()]) {
+			const window = this._windowedChannels.get(channel);
+			if (window instanceof AgentHostChannelSubscription) {
+				// The client's own data notifications, which it queued through `_sendMessage`.
+				for (const message of window.unsent as readonly ProtocolMessage[]) {
+					unsent.push({ message, bytes: JSON.stringify(message).length * 2 });
+				}
+			}
+			this._windowedChannels.deleteAndDispose(channel);
+			this._windowedStateChannels.delete(channel);
+			// Delayed credit for a discarded window must not reach the host's restored window.
+			this._channelScheduler.value?.clearControls(channel);
+		}
+		for (const pending of this._pendingChannelSubscriptions.values()) {
+			unsent.push(...pending.messages);
+			pending.messages.length = 0;
+			pending.bufferedBytes = 0;
+		}
+		return unsent;
 	}
 
 	private _cancelLivenessTimers(): void {

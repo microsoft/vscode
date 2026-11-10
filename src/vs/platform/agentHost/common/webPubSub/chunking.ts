@@ -61,6 +61,13 @@ export class ChunkingError extends Error {
 	}
 }
 
+/** Thrown by {@link chunk} when a serialized payload exceeds the reassembly ceiling that receivers enforce. */
+export class ChunkingPayloadTooLargeError extends ChunkingError {
+	constructor(readonly byteLength: number, readonly limit: number) {
+		super(`serialized payload is ${byteLength} bytes, exceeds ${limit}-byte ceiling`);
+	}
+}
+
 /** Options accepted by {@link chunk}. */
 export interface ChunkOptions {
 	/** Per-segment ceiling in serialised-bytes. Defaults to {@link DEFAULT_MAX_CHUNK_BYTES}. */
@@ -112,9 +119,7 @@ export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelo
 	}
 	const rawBytes = textEncoder.encode(payloadSerialised);
 	if (rawBytes.byteLength > DEFAULT_MAX_REASSEMBLY_BYTES) {
-		throw new ChunkingError(
-			`serialized payload is ${rawBytes.byteLength} bytes, exceeds ${DEFAULT_MAX_REASSEMBLY_BYTES}-byte ceiling`,
-		);
+		throw new ChunkingPayloadTooLargeError(rawBytes.byteLength, DEFAULT_MAX_REASSEMBLY_BYTES);
 	}
 
 	const singleSerialised = JSON.stringify({ kind: 'message', data: payload });

@@ -339,7 +339,7 @@ suite('Mission Control host integration', () => {
 				meanQueueWaitMs: 4, maxQueueWaitMs: 6, meanAckLatencyMs: 8, maxAckLatencyMs: 24,
 				meanPublishDurationMs: 20, maxPublishDurationMs: 30,
 				peakInFlight: 3, peakOutstandingFrames: 40, peakOutstandingBytes: 50_000,
-				ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 1, mirrorBackpressureCount: 1,
+				ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 1, messageTooLargeCount: 0, mirrorBackpressureCount: 1,
 			};
 			assert.deepStrictEqual(f.summaries(), [{ eventName: 'agentHost.missionControlPublishSummary', data: expected }]);
 		});
