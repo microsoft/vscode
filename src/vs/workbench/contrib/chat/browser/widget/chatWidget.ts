@@ -104,6 +104,7 @@ import { ChatEditorOverflowWidgetsHost } from './chatEditorOverflowWidgetsHost.j
 import { ChatWindowBlurListener } from './chatWindowBlurListener.js';
 import { resolveEditedRequestSelection } from './input/chatInputModelUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
+import { getSandboxPlaceholder } from './input/editor/chatInputSandboxContribution.js';
 import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
@@ -3490,7 +3491,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/** Shows `placeholder` in the input, unless the host supplies its own. */
 	private _updateInputPlaceholder(placeholder: string | undefined): void {
-		this.inputEditor?.updateOptions({ placeholder: this.viewOptions.inputPlaceholder ?? placeholder });
+		const base = this.viewOptions.inputPlaceholder ?? placeholder;
+		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
 	}
 
 	setInput(value = ''): void {
