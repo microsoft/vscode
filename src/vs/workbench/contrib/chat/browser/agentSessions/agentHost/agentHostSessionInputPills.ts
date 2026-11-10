@@ -15,7 +15,8 @@ import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -71,8 +72,10 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
-import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ChatInputPills, IChatInputOwnPillContext, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
+import { ChatResourcesControl, IChatResource } from '../../chatResources/chatResourcesControl.js';
+import { ChatResourcesEnabledSettingId } from '../../chatResources/chatResources.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -261,6 +264,16 @@ function parseUri(value: string | undefined): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * The file a recorded artifact names, in this window's URI space as its connection maps it (a `vscode-remote` file in a
+ * remote window), so that the chat reads and renders the agent host's file. Agents record files with the `file` and the
+ * `resource` type; resources that are no files, such as settings, have none.
+ */
+function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
+	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
+	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : undefined;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -966,6 +979,33 @@ export class AgentHostSessionInputPills extends Disposable {
 				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
+		// The files among artifacts and references, whether the agent host or a chat tool recorded them, can open in the chat
+		// once pinned.
+		const recordedResources = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			const currentResolution = resolution.read(reader);
+			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
+			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
+				const artifact = recordedById.get(entry.id);
+				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
+				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
+				// The agent's label describes the resource for people; lists show files by their name.
+				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource }] : [];
+			}));
+		});
+		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
+		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
+		const chatResourcesSession = derived(this, reader => subagentChat.read(reader) ? undefined : sessionResource.read(reader));
+		// The pill sources know which entries are pinned, and are created with the decoration of their pinned pills below.
+		const pillSources = observableValue<StandardChatInputPillSources | undefined>(this, undefined);
+		const isPinned = (id: string, reader: IReader) => {
+			const current = pillSources.read(reader);
+			return !!current && (current.getPinned(SessionChatPillKind.Artifacts, reader).has(id) || current.getPinned(SessionChatPillKind.References, reader).has(id));
+		};
+		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
+			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources, isPinned)
+			: undefined);
+		const presentOwnPill = (entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader) => chatResourcesControl.read(reader)?.presentOwnPill(entry, context, reader) ?? entry;
 		const browserSections = derived(this, reader => {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
@@ -1046,8 +1086,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
-			artifacts: { sections: artifactSections },
-			references: { sections: referenceSections },
+			artifacts: { sections: artifactSections, presentOwnPill },
+			references: { sections: referenceSections, presentOwnPill },
 			customizations: sessionCustomizations,
 			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
@@ -1075,18 +1115,21 @@ export class AgentHostSessionInputPills extends Disposable {
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));
+		pillSources.set(sources, undefined);
 		inputPills.element.classList.add('agent-host-session-input-pills');
 
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: inputPills.onDidChange,
 			getElements: () => inputPills.getPillElements(),
 		}));
-		const updateVisibility = (visible: boolean) => {
+		const pillsVisible = observableFromEvent(this, inputPills.onDidChangeVisibility, () => inputPills.visible);
+		this._register(autorun(reader => {
+			const visible = pillsVisible.read(reader);
+			// Resources shown above the chat input float with the pills, so the transcript reserves room for both.
+			const height = (visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : 0) + (chatResourcesControl.read(reader)?.height.read(reader) ?? 0);
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
-			this._widget.setPersistentContentHeight(visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
-		};
-		this._register(inputPills.onDidChangeVisibility(updateVisibility));
-		updateVisibility(inputPills.visible);
+			this._widget.setPersistentContentHeight(height > 0 ? height : undefined);
+		}));
 	}
 
 	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */

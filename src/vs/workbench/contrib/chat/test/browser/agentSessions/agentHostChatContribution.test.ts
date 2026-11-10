@@ -95,7 +95,7 @@ import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, Notifica
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type CreateChatParams, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -2409,6 +2409,55 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 		}
+
+		test('a running command asked for approval again shows where it runs, and the answer is sent back as before', async () => {
+			const { startRequest, fire, peer, echo } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			const terminal = { toolKind: 'terminal' };
+			const observed = [];
+			for (const [toolCallId, workingDirectory, approved] of [['web', '/work/web', true], ['api', '/work/api', false]] as const) {
+				// The same relative command, started and then asked for approval as Codex does.
+				fire(chatToolCallStart(turnId, toolCallId, 'shell', 'Run shell command', { _meta: terminal }));
+				fire(chatToolCallReady(turnId, toolCallId, './test.sh', { toolInput: './test.sh', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: terminal }));
+				fire(chatToolCallReady(turnId, toolCallId, './test.sh', {
+					toolInput: './test.sh', confirmationTitle: 'Run the tests',
+					_meta: { ...terminal, 'vscode.terminalWorkingDirectory': workingDirectory },
+				}));
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === toolCallId);
+				assert.ok(invocation);
+				const data = invocation.toolSpecificData;
+				const state = invocation.state.get().type;
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, approved ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied, source: 'user' });
+				const sent = await confirmation;
+				echo(sent);
+				fire(chatToolCallComplete(turnId, toolCallId, { success: approved, pastTenseMessage: 'Ran ./test.sh', content: [] }));
+				observed.push({
+					state,
+					executionTarget: data?.kind === 'terminal' && hasKey(data, { commandLine: true }) ? data.executionTarget : undefined,
+					sent: sent.action,
+				});
+			}
+			await finish();
+			assert.deepStrictEqual(observed, [
+				{
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					executionTarget: { workingDirectory: '/work/web' },
+					sent: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'web', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+						_meta: { ...terminal, 'vscode.terminalWorkingDirectory': '/work/web', 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				},
+				{
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					executionTarget: { workingDirectory: '/work/api' },
+					sent: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'api', approved: false, reason: ToolCallCancellationReason.Denied,
+						_meta: { ...terminal, 'vscode.terminalWorkingDirectory': '/work/api', 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				},
+			]);
+		});
 
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
@@ -9854,6 +9903,32 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('a model router row that is picking a model settles when its router keeps the chat\'s pick', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:model-router:daily', upcastPartial<ILanguageModelChatMetadata>({ name: 'Daily Driver' })],
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: 'agent-host-copilot:model-router:daily',
+			});
+
+			// No earlier turn says this router picks once per chat, so the row is already showing when the kept pick arrives.
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true, firstTurnOnly: true } } },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().flatMap(part => part.kind === 'autoModeResolution' ? [[part.router, part.resolved?.name, part.kept]] : []), [
+				['Daily Driver', undefined, undefined],
+				['daily', 'GPT-5.4 mini', true],
+			]);
+		}));
+
 		test('Copilot Fusion routing shows only the resolved part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion', autoModelFusion: true })],
@@ -11052,6 +11127,47 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			fire({ type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('freeform input request submission preserves the advertised single-select kind', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					questions: [{
+						kind: ChatInputQuestionKind.SingleSelect,
+						id: 'answer',
+						message: 'Which release?',
+						required: true,
+						options: [{ id: 'preview', label: 'Preview' }],
+						allowFreeformInput: true,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData);
+			carousel.dismiss({ answer: { freeformValue: 'latest' } });
+			await timeout(10);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatInputCompleted)?.action, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'input-1',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					answer: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['latest'] },
+					},
+				},
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 

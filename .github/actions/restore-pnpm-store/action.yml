@@ -20,6 +20,11 @@ outputs:
 # keeps the log of the lockfiles that passed the supply-chain policies, which pnpm then doesn't check
 # again (https://pnpm.io/continuous-integration).
 #
+# actions/cache doesn't save paths with `..` segments, and an absolute path would make the cache
+# version differ between runners whose workspaces have other paths. So the cache restores the store to
+# `.build/pnpm-store`, which has the same path on every runner, and the store is then moved beside the
+# workspace, which renames it on the same volume. save-pnpm-store moves it back to save it.
+#
 # A store holds the files of every package that it ever installed, so when the cache doesn't have the
 # store of these lockfiles, for example after a dependency change, the latest store of the same prefix
 # is restored, and pnpm downloads only the packages that it is missing. Save the store with
@@ -44,7 +49,7 @@ runs:
       continue-on-error: true
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ../.pnpm-store
+        path: .build/pnpm-store
         key: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-${{ hashFiles('.build/pnpmstorelockfiles') }}
         lookup-only: 'true'
 
@@ -54,9 +59,18 @@ runs:
       continue-on-error: true
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ../.pnpm-store
+        path: .build/pnpm-store
         key: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-${{ hashFiles('.build/pnpmstorelockfiles') }}
         restore-keys: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-
+
+    - name: Move pnpm store beside the workspace
+      if: steps.restore.outputs.cache-matched-key != ''
+      continue-on-error: true
+      shell: node {0}
+      run: |
+        const fs = require('fs');
+        fs.rmSync(process.env.pnpm_config_store_dir, { recursive: true, force: true });
+        fs.renameSync('.build/pnpm-store', process.env.pnpm_config_store_dir);
 
     - name: Export pnpm store cache key
       shell: node {0}

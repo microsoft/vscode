@@ -2471,7 +2471,7 @@ suite('SessionChatInputToolbar', () => {
 			return {
 				label: pill?.getAttribute('aria-label'),
 				closed: !!pill?.querySelector(`.codicon-${Codicon.issueClosed.id}`),
-				open: !!pill?.querySelector(`.codicon-${Codicon.issueOpened.id}`),
+				open: !!pill?.querySelector(`.codicon-${Codicon.issues.id}`),
 			};
 		};
 		const allClosed = presentation();

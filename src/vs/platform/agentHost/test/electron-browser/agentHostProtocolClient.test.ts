@@ -743,6 +743,21 @@ suite('AgentHostProtocolClient', () => {
 			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 123 } });
 			await assert.rejects(status, /invalid worktree cleanup status/);
 		});
+
+		test('requires explicit preparation support and preserves opaque session identities', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.worktreeCleanup': true });
+			await assert.rejects(unsupported.client.prepareSessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id')), /does not support preparing/);
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.prepareSessionWorktreeCleanup': true });
+			const preparation = client.prepareSessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await preparation;
+			assert.deepStrictEqual({ method: request.method, params: request.params }, {
+				method: 'vscode/prepareSessionWorktreeCleanup', params: { session: 'opaque-session://tenant/exact-id' },
+			});
+		});
 	});
 
 	suite('worktree disk usage', () => {

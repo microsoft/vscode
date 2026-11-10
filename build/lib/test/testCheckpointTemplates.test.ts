@@ -361,11 +361,11 @@ suite('Product test checkpoint templates', () => {
 			displayNames: [
 				{ name: 'UnitElectron', displayName: 'Unit Tests (Electron)' },
 				{ name: 'Unit', displayName: 'Unit Tests (Node.js & Browser)' },
-				{ name: 'Copilot', displayName: 'Copilot Tests' },
 				{ name: 'BrowserRemote', displayName: 'Browser & Remote Tests' },
 				{ name: 'Integration', displayName: 'Integration Tests (Electron)' },
 				{ name: 'AgentHostE2E', displayName: 'Agent Host E2E Tests (Electron)' },
 				{ name: 'Smoke', displayName: 'Smoke Tests (Electron)' },
+				{ name: 'Copilot', displayName: 'Copilot Tests' },
 			],
 			sameJobsInEachPipeline: true,
 			uniqueJobNames: true,
@@ -477,7 +477,7 @@ suite('Product test checkpoint templates', () => {
 					.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 			};
 		});
-		const jobDisplayNames = ['Unit Tests (Electron)', 'Unit Tests (Node.js & Browser)', 'Copilot Tests', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
+		const jobDisplayNames = ['Unit Tests (Electron)', 'Unit Tests (Node.js & Browser)', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)', 'Copilot Tests'];
 		// The Copilot tests run on Windows and Linux only
 		const darwinJobDisplayNames = jobDisplayNames.filter(displayName => displayName !== 'Copilot Tests');
 		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
@@ -690,6 +690,9 @@ suite('Product test checkpoint templates', () => {
 		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
 			sequence: [
 				{ displayName: 'Restore WSL installer cache', condition: gated },
+				{ displayName: 'Compute WSL distribution cache key', condition: gated },
+				{ displayName: 'Restore WSL distribution cache', condition: gated },
+				{ displayName: 'Build WSL distribution if not cached', condition: gated },
 				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 				{ testId: 'smoke-electron' },
 				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: proxyGated },

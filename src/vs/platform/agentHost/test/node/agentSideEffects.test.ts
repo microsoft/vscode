@@ -3081,6 +3081,33 @@ suite('AgentSideEffects', () => {
 			assert.ok(terminalManager.sentTexts.some(s => s.data.includes('echo hi')));
 		});
 
+		test('forwards an agent-originated ! message to the agent without creating a terminal', async () => {
+			setupSession();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			let turnService: IAgentHostTurnService | undefined;
+			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onDidCreateTurnService: service => turnService = service,
+			}, undefined, undefined, undefined, terminalManager);
+			disposables.add(bangSideEffects.registerProgressListener(agent));
+
+			turnService!.startTurnMessage(URI.parse(defaultChatUri), {
+				text: '!echo hi',
+				origin: { kind: MessageKind.Agent },
+			});
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({
+				prompts: agent.sendMessageCalls.map(call => call.prompt),
+				terminalCount: terminalManager.created.length,
+			}, {
+				prompts: ['!echo hi'],
+				terminalCount: 0,
+			});
+		});
+
 		test('a cancelled ! command that finishes late does not release the next turn\'s workspace snapshot', async () => {
 			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');

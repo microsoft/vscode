@@ -413,6 +413,8 @@ export interface ArtifactRun {
 	readonly source: 'manual' | 'automation';
 	/** Who asked for a manual run. */
 	readonly requestedBy?: ArtifactActor;
+	/** Whether a manual run was requested through a general action, recorded because the presentation may later change. */
+	readonly generalAction?: boolean;
 	readonly requestId: string;
 	readonly state: ArtifactRunState;
 	readonly createdAt: number;

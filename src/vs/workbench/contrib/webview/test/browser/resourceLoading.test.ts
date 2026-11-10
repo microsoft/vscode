@@ -300,7 +300,7 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 				{ os: OperatingSystem.Linux, root: '/home/user/allowed', path: '/home/user/allowed/../outside.txt' },
 			];
 			assert.deepStrictEqual(await Promise.all(cases.map(async ({ os, root, path }) =>
-				(await getResourceToLoad(remote(decodeURIComponent(path)), [remote(root)], uriIdentityService, fileService, os))
+			(await getResourceToLoad(remote(decodeURIComponent(path)), [remote(root)], uriIdentityService, fileService, os))
 			)), cases.map(() => undefined));
 		});
 

@@ -16,9 +16,8 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobileLayout.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/agentsSizes.js';
 import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout, SessionsPartContentRegistry } from './sessionsPartContent.js';
 
@@ -189,6 +188,11 @@ export class SessionsPart extends Part implements ISessionsPartContentHost {
 
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const compactLayout = this.layoutService.isModernUICompact();
+		const spacing = this.layoutService.getPanelSpacing();
+		const container = this.layoutService.mainContainer;
+		const borderWidth = !phoneLayout && container.classList.contains('modern-ui-tabs')
+			? getSessionsPartFrameInset(container, spacing)
+			: 1;
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
@@ -196,14 +200,15 @@ export class SessionsPart extends Part implements ISessionsPartContentHost {
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
 			phoneLayout,
 			compactLayout,
-			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
+			getSessionsPartCardMarginRight(container, spacing),
+			borderWidth
 		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the content within the content area.
-		const gap = phoneLayout || compactLayout ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gap = phoneLayout || compactLayout ? 0 : spacing;
 		this.layoutContent(contentSize.width, contentSize.height, top, left, { phoneLayout, gap });
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.

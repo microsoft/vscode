@@ -3774,7 +3774,9 @@ export class ActionList<T> extends Disposable {
 		const viewportMaxHeight = this._useFullHeight ? targetWindow.innerHeight : Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
 		if (this._anchorPosition !== undefined || this._preferredAnchorPosition !== undefined) {
-			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
+			// ContextView measures integer offsetHeight. Rounding up a fractional fit
+			// would make it overflow the anchor's space and fall back to its side.
+			const maxHeight = Math.floor(Math.min(availableHeight, viewportMaxHeight));
 			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
 			return Math.max(0, height - chromeHeight);
 		}
