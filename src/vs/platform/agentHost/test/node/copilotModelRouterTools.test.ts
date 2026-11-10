@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { parseModelRouter } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import type { IModelRouterFile } from '../../node/copilot/copilotModelRouterCatalog.js';
@@ -18,6 +19,9 @@ const models: IAgentModelInfo[] = [
 	{ provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: true },
 	{ provider: 'copilotcli', id: 'haiku', name: 'Haiku', supportsVision: true, configSchema: { type: 'object', properties: { [ReasoningEffortConfigKey]: { type: 'string', title: 'Effort', enum: ['low', 'high'] } } } },
 	{ provider: 'copilotcli', id: 'opus', name: 'Opus', supportsVision: true, _meta: { warningText: { model_pending_deprecation: 'Retires soon.' } } },
+	{ provider: 'copilotcli', id: 'sonnet', name: 'Sonnet', supportsVision: true, configSchema: { type: 'object', properties: { [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000)! } }, _meta: { inputCost: 3, longContextInputCost: 6 } },
+	// A larger window that is billed at a lower rate is not one that costs more.
+	{ provider: 'copilotcli', id: 'sonnet-lite', name: 'Sonnet Lite', supportsVision: true, configSchema: { type: 'object', properties: { [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000)! } }, _meta: { inputCost: 3, longContextInputCost: 2 } },
 ];
 
 const goodPath = '/home/.agents/model-routers/daily.model-router.yaml';
@@ -88,6 +92,8 @@ suite('check_model_router', () => {
 			availableModels: [
 				{ id: 'haiku', name: 'Haiku', efforts: ['low', 'high'] },
 				{ id: 'opus', name: 'Opus', efforts: [], retiring: 'Retires soon.' },
+				{ id: 'sonnet', name: 'Sonnet', efforts: [], contextSizes: [200_000, 1_000_000], longContextCostsMore: true },
+				{ id: 'sonnet-lite', name: 'Sonnet Lite', efforts: [], contextSizes: [200_000, 1_000_000] },
 			],
 		});
 	});

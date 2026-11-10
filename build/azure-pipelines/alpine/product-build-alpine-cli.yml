@@ -20,14 +20,9 @@ jobs:
   variables:
     VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
   templateContext:
-    # Defender for Linux can fold the 1ES PT antimalware scan of the outputs into a scan of system
-    # folders (/opt, /usr/lib) that started before the job, which blocks it for 45-55 min, so the
-    # job times out before publishing the outputs. A scan that times out completes the step with
-    # issues and the outputs are published. Until that's fixed the cap is 2 min, which also stops
-    # some scans that aren't blocked (up to 6 min).
     sdl:
       antimalwareScan:
-        scanTimeoutInMinutes: '2'
+        scanTimeoutInMinutes: '10'
     outputs:
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
         - output: pipelineArtifact
@@ -109,10 +104,10 @@ jobs:
     # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
     - bash: |
         set -e
-        sudo apt-get update
-        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
+        ./build/azure-pipelines/linux/apt-install-with-retry.sh build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
         sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
       displayName: Install musl build dependencies
+      timeoutInMinutes: 25
 
     - template: ../cli/install-rust-posix.yml@self
       parameters:

@@ -169,10 +169,12 @@ suite('pluginListWidget', () => {
 		assert.deepStrictEqual([
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'error', statusMessage: 'Invalid plugin manifest' } }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
 		], [
 			'host-plugin. Agent host',
 			'host-plugin. Agent host. Status: Loaded',
+			'host-plugin. Agent host. Status: Error: Invalid plugin manifest',
 			'host-plugin. Organization: contoso. Agent host',
 		]);
 	});

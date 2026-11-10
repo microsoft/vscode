@@ -21,7 +21,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { IWorkbenchGitHubService } from '../../services/github/common/githubService.js';
 import { GitHubErrorCodeDto, GitHubResultDto, IGitHubCreateGistDto, IGitHubErrorDto, IGitHubGistDto, MainContext, MainThreadGitHubShape } from '../common/extHost.protocol.js';
 
-/** The initial proposal binds only GitHub.com sessions; Enterprise sessions are not selectable. */
+/** The internal module binds only GitHub.com sessions; Enterprise sessions are not selectable. */
 const gitHubProviderId = 'github';
 
 /** One extension-host lease; the client is set once acquisition completes. */
@@ -44,7 +44,7 @@ class GitHubOperationError extends Error {
 }
 
 /**
- * Executes the proposed `vscode.github` API through the workbench GitHub service, which routes to the shared
+ * Executes the internal `@vscode/internal-github` module through the workbench GitHub service, which routes to the shared
  * process on desktop and runs locally in browser deployments. The extension host only chooses a session id;
  * this side resolves it, enforces the extension's account access, and never returns credentials.
  */

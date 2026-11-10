@@ -7,6 +7,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { parse, type YamlNode, type YamlParseError, type YamlScalarNode } from '../../../base/common/yaml.js';
 import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
+import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
@@ -18,6 +19,7 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *
  * ```yaml
  * version: 1
+ * display-name: Daily Driver
  * description: Haiku by default, Opus for planning.
  * guidance: Prefer the cheapest model that can do the job.
  * routes:
@@ -28,6 +30,7 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *   - model: [claude-opus-5.5, claude-opus-5]
  *     when: Planning, design and multi-file implementation.
  *     effort: high
+ *     context-size: long
  * ```
  *
  * Only a documented subset of YAML is accepted (block maps and lists, flow lists of values,
@@ -55,6 +58,7 @@ export const MODEL_ROUTER_MAX_FILE_BYTES = 32 * 1024;
 /** The most router text (guidance, `when` and examples) sent with a decision, as UTF-8 bytes after JSON escaping. */
 export const MODEL_ROUTER_MAX_DECISION_TEXT_BYTES = 64 * 1024;
 const MAX_DESCRIPTION_CHARS = 1024;
+const MAX_DISPLAY_NAME_CHARS = 64;
 const MAX_EXAMPLES = 10;
 const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -63,6 +67,8 @@ export type ModelRouterEffortLevel = typeof reasoningEffortLevels[number];
 export type ModelRouterEffort = 'auto' | 'off' | ModelRouterEffortLevel;
 /** `first-turn` (the default) routes once and keeps that model; `auto` re-routes every turn but keeps the current model in long chats. */
 export type ModelRouterSwitching = 'auto' | 'first-turn';
+/** `long` is a model's larger context window, where it offers one; `default` is its standard one. */
+export type ModelRouterContextSize = 'default' | 'long';
 
 export interface IModelRouterRoute {
 	/** Model ids in preference order; the first one the user has is used. */
@@ -71,12 +77,18 @@ export interface IModelRouterRoute {
 	readonly examples: readonly string[];
 	/** A fixed effort for this route, overriding the router's unless that is `off`. */
 	readonly effort?: ModelRouterEffortLevel;
+	/** The context window for this route, overriding the router's. */
+	readonly contextSize?: ModelRouterContextSize;
 }
 
 export interface IModelRouter {
 	readonly name: string;
+	/** The name the model picker and the chat show, when the file gives one. */
+	readonly displayName?: string;
 	readonly description: string;
 	readonly effort: ModelRouterEffort;
+	/** The context window for routes that set none; without it each model keeps its own default. */
+	readonly contextSize?: ModelRouterContextSize;
 	readonly switching: ModelRouterSwitching;
 	/** Sent with every routing decision; empty when the file has none. */
 	readonly guidance: string;
@@ -111,10 +123,10 @@ interface IRange {
 	readonly endOffset: number;
 }
 
-const topLevelKeys = new Set(['version', 'name', 'description', 'effort', 'switching', 'guidance', 'routes']);
+const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes']);
 /** Keys the format reserves for later versions; a router using them still loads. */
 const reservedTopLevelKeys = new Set(['subagents', 'phases', 'mid-turn']);
-const routeKeys = new Set(['model', 'when', 'examples', 'effort']);
+const routeKeys = new Set(['model', 'when', 'examples', 'effort', 'context-size']);
 const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
 /** The router name a file name implies: `daily-driver.model-router.yaml` → `daily-driver`. */
@@ -247,7 +259,17 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		report.error(`The description is longer than ${MAX_DESCRIPTION_CHARS} characters.`, descriptionProperty?.value);
 	}
 
+	const displayNameProperty = values.get('display-name');
+	// The picker shows it on one line.
+	const displayName = displayNameProperty ? scalar(displayNameProperty.value)?.trim().replace(/\s+/g, ' ') : undefined;
+	if (displayNameProperty && !displayName) {
+		report.error('`display-name` is the name the model picker shows.', displayNameProperty.value);
+	} else if (displayName && displayName.length > MAX_DISPLAY_NAME_CHARS) {
+		report.error(`The display name is longer than ${MAX_DISPLAY_NAME_CHARS} characters.`, displayNameProperty?.value);
+	}
+
 	const effort = parseEffort(values.get('effort')?.value, ['auto', 'off'], 'auto', '`effort`', report) as ModelRouterEffort;
+	const contextSize = parseContextSize(values.get('context-size')?.value, '`context-size`', report);
 
 	const switchingProperty = values.get('switching');
 	let switching: ModelRouterSwitching = 'first-turn';
@@ -305,7 +327,15 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 	if (hasError(diagnostics) || !name || !description || guidance === undefined) {
 		return fail();
 	}
-	return { router: { name, description, effort, switching, guidance, routes }, diagnostics, name };
+	return {
+		router: {
+			name, description, effort, switching, guidance, routes,
+			...(displayName ? { displayName } : {}),
+			...(contextSize ? { contextSize } : {}),
+		},
+		diagnostics,
+		name,
+	};
 }
 
 /** The size of the router text sent with each decision, measured as the runtime measures requests. */
@@ -368,7 +398,8 @@ function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRou
 	}
 
 	const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
-	return { models, when, examples, ...(effort ? { effort } : {}) };
+	const contextSize = parseContextSize(values.get('context-size')?.value, `${label}'s \`context-size\``, report);
+	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) };
 }
 
 function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {
@@ -381,6 +412,18 @@ function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fa
 	}
 	report.error(`${label} is ${[...keywords, ...effortLevels].map(level => `\`${level}\``).join(', ')}.`, node);
 	return fallback;
+}
+
+function parseContextSize(node: YamlNode | undefined, label: string, report: IReporter): ModelRouterContextSize | undefined {
+	if (!node) {
+		return undefined;
+	}
+	const value = scalar(node);
+	if (value === 'default' || value === 'long') {
+		return value;
+	}
+	report.error(`${label} is \`default\` or \`long\`.`, node);
+	return undefined;
 }
 
 function scalar(node: YamlNode): string | undefined {
@@ -584,6 +627,23 @@ export function supportedModelEfforts(model: IAgentModelInfo | undefined): reado
 	return reasoningEffortLevels.filter(level => supported.has(level));
 }
 
+/** A model's context windows in tokens, smallest first. Fewer than two means it offers no choice. */
+export function modelContextSizes(model: IAgentModelInfo | undefined): readonly number[] {
+	const values = model?.configSchema?.properties[ContextSizeConfigKey]?.enum ?? [];
+	return values.filter((value): value is number => typeof value === 'number' && value > 0).sort((a, b) => a - b);
+}
+
+/** The context window, in tokens, a model runs on when nothing selects one. For some models that is the larger window. */
+export function modelDefaultContextSize(model: IAgentModelInfo | undefined): number | undefined {
+	const value = model?.configSchema?.properties[ContextSizeConfigKey]?.default;
+	return typeof value === 'number' ? value : undefined;
+}
+
+/** The name a router is shown by: its `display-name`, else its file name. */
+export function modelRouterLabel(router: Pick<IModelRouter, 'name' | 'displayName'>): string {
+	return router.displayName ?? router.name;
+}
+
 // ---- Resolution against the user's models ------------------------------------
 
 export interface IResolvedModelRoute {
@@ -594,6 +654,8 @@ export interface IResolvedModelRoute {
 	readonly supportedEfforts: readonly ModelRouterEffortLevel[];
 	/** The fixed effort for this route (the route's, else the router's), when the model supports it. */
 	readonly effort?: ModelRouterEffortLevel;
+	/** The context window for this route (the route's, else the router's), when the model offers a choice. */
+	readonly contextSize?: ModelRouterContextSize;
 	/** The model's retirement notice, when the service has announced one. */
 	readonly retiring?: string;
 }
@@ -661,12 +723,21 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 				warning(`${label}: ${match.model.name} doesn't support effort \`${fixedEffort}\`; it supports ${supportedEfforts.map(level => `\`${level}\``).join(', ')}.`);
 			}
 		}
+		const hasContextChoice = modelContextSizes(match.model).length > 1;
+		const contextSize = hasContextChoice ? route.contextSize ?? router.contextSize : undefined;
+		// Only a route that asks for it itself is told; a router-wide setting applies where it can.
+		if (route.contextSize === 'long' && !hasContextChoice) {
+			warning(`${label}: ${match.model.name} has one context size, so \`context-size: long\` is ignored.`);
+		}
 		const retiring = readAgentModelNoticesMeta(match.model).warningText?.model_pending_deprecation;
 		if (retiring) {
 			warning(`${label}: ${match.model.name} is being retired. ${retiring} Add a newer model to its \`model\` list.`);
 		}
-		routes.push({ route, model: match.model, reference: match.reference, supportedEfforts, ...(effort ? { effort } : {}), ...(retiring ? { retiring } : {}) });
+		routes.push({ route, model: match.model, reference: match.reference, supportedEfforts, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(retiring ? { retiring } : {}) });
 	});
+	if (router.contextSize === 'long' && routes.length > 0 && !routes.some(route => route.contextSize)) {
+		warning('None of this router\'s models has a larger context size, so `context-size: long` is ignored.');
+	}
 	if (routes.length < MODEL_ROUTER_MIN_ROUTES) {
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}

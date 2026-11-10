@@ -50,6 +50,11 @@ env:
   NPM_ARCH: x64
   VSCODE_ARCH: x64
   VSCODE_SKIP_PRELAUNCH: '1'
+  # esbuild follows pnpm's junctions with Go's os.Readlink, which by default for esbuild (its go.mod
+  # says go 1.13) turns the volume behind a mount point into a drive letter path. The Dev Drive and
+  # the workspace image are mounted at the parent of the workspace without a drive letter, so esbuild
+  # couldn't resolve the dependencies of a package. This keeps the volume path (\\?\Volume{...}\).
+  GODEBUG: winreadlinkvolume=1
 
 # Each job reports as "Windows / <job name>", for example "Windows / Electron-Unit", whether it runs
 # or not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped
