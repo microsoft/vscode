@@ -700,6 +700,32 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
+		test('omits user clicks on footer actions but keeps automatic, agent and unreconciled runs of them', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const current = a.snapshot.get();
+			a.snapshot.set({
+				...current, contributions: current.contributions.map(contribution => ({
+					...contribution, actions: [...contribution.actions, { id: 'branch', label: 'Copy Branch', iconId: 'git-branch', kind: 'code' }],
+					view: { ...contribution.view, generalActions: [{ id: 'branch', enabled: true }] },
+				})),
+			}, undefined);
+			setActivities(a, [
+				activity(a, 'state', { createdAt: 1 }),
+				activity(a, 'footer', { actionId: 'branch', actionKind: 'code', createdAt: 2 }),
+				activity(a, 'automatic', { actionId: 'branch', actionKind: 'code', source: 'automation', createdAt: 3 }),
+				activity(a, 'agent', { actionId: 'branch', actionKind: 'code', requestedBy: { kind: 'agent', chat: 'artifact-chat:/agent' }, createdAt: 4 }),
+				activity(a, 'unknown', { actionId: 'branch', actionKind: 'code', state: 'interrupted', indeterminate: true, createdAt: 5 }),
+			]);
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const text = store.add(f.controller.getAccessibilityProvider(AccessibleViewType.View)!).provideContent();
+			assert.deepStrictEqual({
+				rows: rows(panel).length,
+				shown: ['state', 'footer', 'automatic', 'agent', 'unknown'].filter(id => text.includes(`Activity ${id}\n`)),
+			}, { rows: 4, shown: ['state', 'automatic', 'agent', 'unknown'] });
+		});
+
 		for (const destination of ['turn', 'queued', 'response'] as const) {
 			test(`reveals a ${destination} destination through Sessions navigation`, async () => {
 				const f = fixture();
