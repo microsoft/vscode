@@ -5776,6 +5776,10 @@ suite('CopilotAgent', () => {
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'select', discoveryId: 'not-offered', selectionId: 'not-offered' }) },
 			}, connection.token));
 			assert.deepStrictEqual(accounts.state.get(), { kind: 'legacy' });
+			await authenticationService.authenticate({
+				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }),
+			}, [agent], undefined, connection.token);
 			await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
@@ -5814,7 +5818,7 @@ suite('CopilotAgent', () => {
 				result, current: accounts.state.get(), token: agent['_githubCredentials'].token,
 				resource: agent.getProtectedResources()[0].resource, models: agent.models.get().map(model => model.id),
 			}, {
-				pending: { kind: 'incomplete', entraAccountId: 'intended' }, backgroundMicrosoftAccepted: false, backgroundAccepted: false,
+				pending: { kind: 'incomplete', entraAccountId: 'intended' }, backgroundMicrosoftAccepted: true, backgroundAccepted: false,
 				afterRejected: pending, afterRevocation: { kind: 'signedOut' }, revokedBackgroundAccepted: false,
 				result: { authenticated: true }, current: { kind: 'legacy' }, token: 'chosen-github',
 				resource: resource.resource, models: ['gpt-4o'],
