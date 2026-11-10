@@ -705,14 +705,12 @@
 
 .remotes-widget .remotes-actions-column {
 	opacity: 0;
-	pointer-events: none;
 }
 
 .remotes-widget .monaco-list-row:is(:hover, .hovered, :focus-within) .remotes-actions-column,
 .remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column,
 .remotes-widget .remotes-actions-column.remotes-connection-pending {
 	opacity: 1;
-	pointer-events: auto;
 }
 
 .remotes-widget .remotes-row-hidden .remotes-name {

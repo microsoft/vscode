@@ -30,7 +30,6 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -141,7 +140,6 @@ export class RemotesWidget extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -188,21 +186,10 @@ export class RemotesWidget extends Disposable {
 		toolbar.setActions([this.refreshAction]);
 		const addButton = this._register(new Button(dom.append(searchRow, dom.$('.remotes-add')), {
 			...defaultButtonStyles, secondary: true, hoverDelegate: actionHoverDelegate,
-			title: localize('remotes.addHost', "Add remote host"),
+			title: localize('remotes.configureSSHHosts', "Configure SSH hosts"),
 		}));
-		addButton.label = localize('remotes.add', "Add remote host");
-		this._register(addButton.onDidClick(async () => {
-			try {
-				await commandService.executeCommand('sessions.remoteAgentHost.add');
-				if (!this._store.isDisposed) {
-					await this.refresh();
-				}
-			} catch (error) {
-				if (!isCancellationError(error)) {
-					this.notificationService.error(error);
-				}
-			}
-		}));
+		addButton.label = localize('remotes.configureSSHHosts', "Configure SSH hosts");
+		this._register(addButton.onDidClick(() => this.openConfiguration('ssh')));
 		this.message = dom.append(this.overview, dom.$('.remotes-message'));
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
@@ -390,7 +377,7 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private openDetails(remote: ICustomizationRemote, mode: RemoteEnvironmentDetailsMode): void {
-		if (this.details.value?.isBusy) {
+		if (this.details.value?.isBusy || this.pendingActions.has(remote.id)) {
 			return;
 		}
 		if (this.detailsRemoteId === remote.id && this.details.value?.mode === mode) {
@@ -634,24 +621,24 @@ export class RemotesWidget extends Disposable {
 				&& (this.groupBy === 'type' || RemoteAgentHostConnectionStatus.isIncompatible(remote.connectionStatus)),
 		});
 		if (this.groupBy === 'status') {
+			for (const kind of this.getDiscoveryNoticeKinds(remotes)) {
+				const id = `remote-notice-${kind}`;
+				const collapsed = this.collapsedGroups.has(id);
+				const members = remotes.filter(remote => remote.kind === kind);
+				entries.push({
+					type: 'group', id, kind, label: remoteKindLabels[kind], count: members.length, collapsed,
+					refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
+					documentation: remoteSetup[kind].documentation,
+				});
+				if (!collapsed) {
+					entries.push(this.getEmptyEntry(kind, members.length > 0));
+				}
+			}
 			for (const group of statusGroups) {
 				const members = remotes.filter(remote => getRemoteStatusGroup(remote) === group.key)
 					.sort((a, b) => a.name.localeCompare(b.name));
 				if (!members.length) {
 					continue;
-				}
-				for (const kind of this.getDiscoveryNoticeKinds(remotes)) {
-					const id = `remote-notice-${kind}`;
-					const collapsed = this.collapsedGroups.has(id);
-					const members = remotes.filter(remote => remote.kind === kind);
-					entries.push({
-						type: 'group', id, kind, label: remoteKindLabels[kind], count: members.length, collapsed,
-						refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
-						documentation: remoteSetup[kind].documentation,
-					});
-					if (!collapsed) {
-						entries.push(this.getEmptyEntry(kind, members.length > 0));
-					}
 				}
 				const id = `remote-status-${group.key}`;
 				const collapsed = this.collapsedGroups.has(id);

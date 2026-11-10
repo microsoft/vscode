@@ -354,7 +354,7 @@ suite('RemotesWidget', () => {
 
 	test('status grouping scopes discovery failures and omits unrelated tunnel authentication', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status');
-		model.remotes.set([model.remotes.get()[0]], undefined);
+		model.remotes.set([model.remotes.get()[0], model.remotes.get()[1]], undefined);
 		model.tunnelAuthenticationRequired.set('github', undefined);
 		model.failedKinds = ['ssh'];
 		widget.setVisible(true);
@@ -372,7 +372,17 @@ suite('RemotesWidget', () => {
 			statusRows: accessible.split('\n').filter(line => ['SSH', 'WSL', 'Dev Tunnels'].includes(line)),
 			...noticeState,
 			typeGroups: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
-		}, { statusGroups: ['Ready to use', 'SSH'], statusRows: ['SSH'], hidden: true, signIn: false, typeGroups: ['Dev Tunnels', 'WSL', 'SSH'] });
+		}, { statusGroups: ['Available', 'Ready to use', 'SSH'], statusRows: ['SSH'], hidden: true, signIn: false, typeGroups: ['Dev Tunnels', 'WSL', 'SSH'] });
+	});
+
+	test('SSH configuration entry opens its inventory source without connecting', async () => {
+		const { parent, model, opened, commands, configRequests } = createWidget();
+		parent.querySelector<HTMLElement>('.remotes-add .monaco-button')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			files: opened.map(({ input, group }) => ({ path: input.resource?.path, group })),
+			configRequests: configRequests(), commands, connections: model.connectionChanges,
+		}, { files: [{ path: '/home/test/.ssh/config', group: MODAL_GROUP }], configRequests: 1, commands: [], connections: [] });
 	});
 
 	function selectType(parent: HTMLElement, label: string): void {
@@ -663,7 +673,7 @@ suite('RemotesWidget', () => {
 		}, {
 			icons: ['codicon codicon-circle-filled-compact', 'codicon codicon-circle-outline', 'codicon codicon-circle-slash-compact'],
 			counts: ['1', '2', '1'], colors: ['rgb(34, 170, 34)', 'rgb(34, 102, 255)', 'rgb(136, 136, 136)'],
-			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true, standardAdd: 'Add remote host',
+			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true, standardAdd: 'Configure SSH hosts',
 		});
 	});
 
@@ -907,7 +917,7 @@ suite('RemotesWidget', () => {
 		getConnectionAction(parent, 'ssh:build').focus();
 		const focused = snapshot();
 		assert.deepStrictEqual({ idle, hovered, focused, alignment: dom.getWindow(actions).getComputedStyle(actions).justifyContent }, {
-			idle: { opacity: '0', pointerEvents: 'none' },
+			idle: { opacity: '0', pointerEvents: 'auto' },
 			hovered: { opacity: '1', pointerEvents: 'auto' },
 			focused: { opacity: '1', pointerEvents: 'auto' },
 			alignment: 'flex-start',
@@ -1663,6 +1673,26 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ errors, enabled: getMenuAction(parent, 'ssh:build', 'updateServer').enabled, updates: model.serverUpdates }, {
 			errors: [error], enabled: true, updates: ['ssh:build'],
 		});
+	});
+
+	test('troubleshooting respects the shared busy state of an overflow update', async () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([{
+			...model.remotes.get()[0],
+			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
+		}], undefined);
+		model.pendingManagement = new DeferredPromise<void>();
+		runMenuAction(parent, 'ssh:build', 'updateServer');
+		runMenuAction(parent, 'ssh:build', 'troubleshoot');
+		const blocked = !parent.querySelector('.remotes-environment-details');
+		const stillBusy = !getMenuAction(parent, 'ssh:build', 'updateServer').enabled;
+		await model.pendingManagement.complete();
+		await timeout(0);
+		runMenuAction(parent, 'ssh:build', 'troubleshoot');
+		assert.deepStrictEqual({
+			blocked, stillBusy, updates: model.serverUpdates,
+			openedAfterCompletion: !!parent.querySelector('.remotes-environment-details'),
+		}, { blocked: true, stillBusy: true, updates: ['ssh:build'], openedAfterCompletion: true });
 	});
 
 	test('task actions report failures and location changes re-enable for retry', async () => {
