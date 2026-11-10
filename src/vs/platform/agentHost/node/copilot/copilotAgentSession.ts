@@ -86,6 +86,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
+import { readByokContextSizeHeader } from './byokLmProxyService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
@@ -7570,6 +7571,20 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/**
+	 * Whether BYOK model `model` is registered at a context size other than the one `selection`
+	 * resolves to, in its token limits or in the size its provider is told.
+	 */
+	private async _isRegisteredAtOtherContextSize(model: string, selection: ModelSelection): Promise<boolean> {
+		const sizeOf = (config: ICopilotByokSessionConfig) => {
+			const entry = config.models?.find(m => `${m.provider}/${m.id}` === model);
+			return entry && [entry.maxPromptTokens, entry.maxContextWindowTokens, readByokContextSizeHeader(config.providers?.find(p => p.name === entry.provider)?.headers, entry.id)];
+		};
+		const registered = sizeOf(this._registeredByokConfig);
+		const wanted = registered && sizeOf(await this._sessionLauncher.resolveByokSessionConfig(this.sessionId, selection));
+		return !!wanted && !equals(wanted, registered);
+	}
+
 	/** The requested selection last successfully applied, before resolving configuration overrides. */
 	get appliedModelSelection(): ModelSelection | undefined {
 		return this._appliedModelSelection;
@@ -7585,7 +7600,11 @@ export class CopilotAgentSession extends Disposable {
 			try {
 				await this.syncByokModels();
 			} catch (err) {
-				// Deliberately non-fatal: let `setModel` report the runtime's own error
+				// The runtime would accept the switch at the size the model is still registered at.
+				if (await this._isRegisteredAtOtherContextSize(model, selection)) {
+					throw err;
+				}
+				// Otherwise non-fatal: let `setModel` report the runtime's own error
 				// rather than this one. Note a timed-out `provider.sync` still marks the
 				// session control-plane desynchronized, so the failure is not dropped.
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);

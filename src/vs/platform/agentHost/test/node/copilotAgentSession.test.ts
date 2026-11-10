@@ -112,6 +112,7 @@ import type { ICopilotConnectorServers } from '../../node/copilot/copilotConnect
 import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
+import { byokContextSizeHeaders } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -256,6 +257,9 @@ class MockCopilotSession {
 	readonly modelOperations: string[] = [];
 	contextTierUpdateSuccess = true;
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
+	providerSyncError: Error | undefined;
+	/** Completed when `provider.sync` next registers a config, for tests that wait on a sync they do not start. */
+	providerSynced: DeferredPromise<void> | undefined;
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly agentSelections: (string | null)[] = [];
@@ -578,7 +582,11 @@ class MockCopilotSession {
 		},
 		provider: {
 			sync: async (config: ICopilotByokSessionConfig) => {
+				if (this.providerSyncError) {
+					throw this.providerSyncError;
+				}
 				this.providerSyncCalls.push(config);
+				this.providerSynced?.complete();
 				return { models: [], selectionIds: (config.models ?? []).map(m => `${m.provider}/${m.id}`) };
 			},
 		},
@@ -3918,14 +3926,20 @@ suite('CopilotAgentSession', () => {
 
 	test('a rejected model change restores the BYOK registration to the previous selection', async () => {
 		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const sdkSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = sdkSwitch.p;
 		mockSession.modelError = new Error('switch rejected');
+		mockSession.setModelEntered = new DeferredPromise<void>();
 
-		await assert.rejects(session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } }), /switch rejected/);
-		// The pre-switch registration went out at 200K. The session is still on 968K,
-		// so the registration is put back without anything else calling a sync.
-		await session.syncByokModels();
+		const change = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		// The pre-switch registration went out at 200K. The next one can only be the restore.
+		await mockSession.setModelEntered.p;
+		mockSession.providerSynced = new DeferredPromise<void>();
+		sdkSwitch.complete();
+		await assert.rejects(change, /switch rejected/);
+		// Nothing here calls a sync: the session is still on 968K and puts the registration back itself.
+		await mockSession.providerSynced.p;
 
-		// The trailing sync here only waits for the queued restore; it changes nothing itself.
 		assert.deepStrictEqual(registeredSizes(), [200_000, 968_000]);
 	});
 
@@ -3952,6 +3966,34 @@ suite('CopilotAgentSession', () => {
 		// 200K from the first pre-switch sync, 500K from the second; the first's rejection
 		// restores nothing because the second owns the selection by then.
 		assert.deepStrictEqual(registeredSizes(), [200_000, 500_000]);
+	});
+
+	test('a failed BYOK registration blocks a model change only when it leaves the model at another context size', async () => {
+		const provider = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const big = (maxPromptTokens: number) => ({ id: 'big', provider: 'acme', maxPromptTokens });
+		const { session, mockSession } = await createAgentSession(disposables, {
+			modelId: 'acme/big',
+			launchByokConfig: { providers: [provider], models: [big(968_000)] },
+			// Stands in for `synthesizeByokSessionConfig`. A size above the model's 968K prompt limit keeps
+			// its limits and only changes what the provider is told. The model reported after launch keeps
+			// every change below attempting a registration.
+			resolveByokSessionConfig: model => {
+				const contextSize = Number(model?.config?.contextSize ?? 968_000);
+				return {
+					providers: [contextSize > 968_000 ? { ...provider, headers: byokContextSizeHeaders('big', contextSize) } : provider],
+					models: [big(Math.min(contextSize, 968_000)), { id: 'late', provider: 'acme' }],
+				};
+			},
+		});
+		mockSession.providerSyncError = new Error('sync rejected');
+		const change = (contextSize: number) => session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize } });
+
+		await assert.rejects(change(200_000), /sync rejected/);
+		await assert.rejects(change(2_000_000), /sync rejected/);
+		await change(968_000);
+
+		// The runtime was only asked to switch to the size the model is registered at.
+		assert.deepStrictEqual(mockSession.setModelCalls.map(([model]) => model), ['acme/big']);
 	});
 
 	test('a failed BYOK registration does not block the model change (#337742)', async () => {
