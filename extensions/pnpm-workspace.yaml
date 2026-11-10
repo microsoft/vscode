@@ -40,9 +40,9 @@ packages:
   - vscode-colorize-perf-tests
   - vscode-test-resolver
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
-# Don't link the extensions into extensions/node_modules by their names (emmet, gulp, npm, git, ...),
-# where they would hide the npm packages of the same name.
+nodeLinker: isolated
+# Don't hoist the extensions by their names (emmet, gulp, npm, git, ...) into
+# extensions/node_modules/.pnpm/node_modules, where they would hide the npm packages of the same name.
 hoistWorkspacePackages: false
 strictPeerDependencies: false
 autoInstallPeers: false

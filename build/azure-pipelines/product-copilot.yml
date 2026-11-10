@@ -93,7 +93,7 @@ jobs:
 
       - script: |
           set -e
-          pnpm exec vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
+          pnpm run package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot

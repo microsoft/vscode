@@ -1,8 +1,8 @@
 packages:
   - chat-lib
-nodeLinker: hoisted
-# Don't link chat-lib into node_modules: `vsce package` runs `npm list --production`, which fails on
-# a linked package that no dependency requires.
+nodeLinker: isolated
+# Don't hoist chat-lib into node_modules/.pnpm/node_modules: `vsce package` runs
+# `npm list --production`, which fails on a linked package that no dependency requires.
 hoistWorkspacePackages: false
 strictPeerDependencies: false
 autoInstallPeers: false

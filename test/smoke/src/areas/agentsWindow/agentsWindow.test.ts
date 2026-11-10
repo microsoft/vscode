@@ -680,17 +680,29 @@ export function setup(logger: Logger, quality: Quality) {
 			// fail fast here (from source) instead of timing out at spawn time.
 			if (process.env.VSCODE_DEV === '1') {
 				const repoRoot = path.resolve(process.cwd(), '..', '..');
-				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
-				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-				let codexBinaryFound = false;
+				// A flat node_modules has the platform package next to `@openai/codex`. pnpm's
+				// isolated layout only has it next to the real folder of `@openai/codex`, where
+				// the agent host also looks (see resolveCodexBinaryPath).
+				const scopeDir = path.join(repoRoot, 'node_modules', '@openai');
+				const scopeDirs = [scopeDir];
 				try {
-					const vendorDir = path.join(platformPkgDir, 'vendor');
-					codexBinaryFound = fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					scopeDirs.push(path.dirname(fs.realpathSync(path.join(scopeDir, 'codex'))));
 				} catch {
-					// vendor dir (or the whole platform package) is missing → treated as not found
+					// `@openai/codex` is missing → only the flat location is checked
 				}
+				const platformPkgDirs = [...new Set(scopeDirs)].map(dir => path.join(dir, `codex-${process.platform}-${process.arch}`));
+				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+				const codexBinaryFound = platformPkgDirs.some(platformPkgDir => {
+					try {
+						const vendorDir = path.join(platformPkgDir, 'vendor');
+						return fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					} catch {
+						// vendor dir (or the whole platform package) is missing → treated as not found
+						return false;
+					}
+				});
 				if (!codexBinaryFound) {
-					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDirs.join(' and ')}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
 				}
 			}
 

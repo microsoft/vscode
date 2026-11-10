@@ -1,4 +1,4 @@
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false

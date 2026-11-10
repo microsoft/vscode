@@ -588,7 +588,7 @@ jobs:
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
         working-directory: extensions/copilot
@@ -682,7 +682,7 @@ jobs:
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
         working-directory: extensions/copilot
@@ -777,7 +777,7 @@ jobs:
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
       - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
 
       - name: Install copilot dependencies
         working-directory: extensions/copilot
