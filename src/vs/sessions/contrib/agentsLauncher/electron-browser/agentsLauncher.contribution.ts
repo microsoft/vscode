@@ -27,8 +27,10 @@ import { InQuickInputContextKey } from '../../../../platform/quickinput/browser/
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IRectangle } from '../../../../platform/window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, IRectangle } from '../../../../platform/window/common/window.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { AGENTS_LAUNCHER_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -523,7 +525,26 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 }
 
+/** Toggles the Agents Launcher when an editor window, such as the owner of a system-wide keybinding, asks the Agents window to. */
+class AgentsLauncherContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.agentsLauncher';
+
+	constructor(
+		@IAgentsLauncherService agentsLauncherService: IAgentsLauncherService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		const handleToggle = () => {
+			void agentsLauncherService.toggle().catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
+		};
+		ipcRenderer.on(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle);
+		this._register(toDisposable(() => ipcRenderer.removeListener(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle)));
+	}
+}
+
 registerSingleton(IAgentsLauncherService, AgentsLauncherService, InstantiationType.Delayed);
+registerWorkbenchContribution2(AgentsLauncherContribution.ID, AgentsLauncherContribution, WorkbenchPhase.BlockStartup);
 
 registerAction2(class ShowAgentsLauncherAction extends Action2 {
 	constructor() {

@@ -298,6 +298,12 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
+	/**
+	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
+	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
+	 */
+	showAgentsLauncher(): Promise<void>;
+
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
 	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;

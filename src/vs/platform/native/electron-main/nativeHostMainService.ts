@@ -34,7 +34,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -381,6 +381,27 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (windows.length > 0) {
 			// Transfer focus is a no-op on macOS while VS Code is hidden, e.g. when run from a system-wide keybinding
 			windows[0].focus({ mode: FocusMode.Force });
+		}
+	}
+
+	async showAgentsLauncher(windowId: number | undefined): Promise<void> {
+		this.logService.trace('nativeHostMainService#showAgentsLauncher');
+
+		const agentsWindow = this.windowsMainService.getWindows().find(window => window.config?.isSessionsWindow);
+		if (agentsWindow) {
+			this.logService.trace('nativeHostMainService#showAgentsLauncher: reusing open Agents window');
+			agentsWindow.sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+			return;
+		}
+
+		this.logService.trace('nativeHostMainService#showAgentsLauncher: opening Agents window');
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, undefined, undefined, AgentsWindowOpenSource.AgentsLauncher);
+		if (windows.length > 0) {
+			windows[0].sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
 		}
 	}
 
