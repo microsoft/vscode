@@ -543,7 +543,7 @@ export class InstallAction extends ExtensionAction {
 					run: () => false
 				}
 			});
-			if (!result) {
+			if (!result || !this.extension || this.extension.deprecationInfo?.disallowInstall) {
 				return;
 			}
 		}
@@ -614,6 +614,10 @@ export class InstallAction extends ExtensionAction {
 			if (result !== DeprecationChoice.InstallAnyway) {
 				return;
 			}
+		}
+
+		if (!this.extension || this.extension.deprecationInfo?.disallowInstall) {
+			return;
 		}
 
 		if (this.opensExtensionEditor) {

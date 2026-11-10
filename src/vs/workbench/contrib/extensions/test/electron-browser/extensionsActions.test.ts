@@ -77,8 +77,12 @@ import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelega
 import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ExtensionsInput } from '../../common/extensionsInput.js';
 
 let instantiationService: TestInstantiationService;
+let editors: ExtensionsInput[];
 let installEvent: Emitter<InstallExtensionEvent>,
 	didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
 	uninstallEvent: Emitter<UninstallExtensionEvent>,
@@ -103,6 +107,8 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
+	editors = [];
+	instantiationService.stub(IEditorService, { editors });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IWorkspaceTrustEnablementService, { isWorkspaceTrustEnabled: () => true });
@@ -295,6 +301,82 @@ suite('ExtensionsActions', () => {
 			});
 		});
 	}
+
+	for (const confirmation of ['signature', 'deprecation']) {
+		test(`Marketplace deprecation prevents installation after pending ${confirmation} confirmation`, async () => {
+			await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+			const prompted = new DeferredPromise<void>();
+			const accepted = new DeferredPromise<void>();
+			let prompts = 0;
+			let installs = 0;
+			instantiationService.stub(IExtensionGalleryManifestService, {
+				getExtensionGalleryManifest: async () => ({
+					version: '1.0.0', resources: [],
+					capabilities: { extensionQuery: {}, signing: { allPublicRepositorySigned: true } }
+				})
+			});
+			instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
+			instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
+			instantiationService.stub(IDialogService, {
+				prompt: async <T>(prompt: IPrompt<T>) => {
+					if (++prompts === 1) {
+						await prompted.complete();
+					}
+					await accepted.p;
+					return { result: await prompt.buttons![0].run({}) };
+				}
+			});
+			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { isSigned: confirmation !== 'signature' }), undefined);
+			if (confirmation === 'deprecation') {
+				extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: {} } });
+			}
+			action.extension = extension;
+			const running = action.run();
+			await prompted.p;
+			extension.setMarketplaceDeprecationInfo({ source: 'marketplace', disallowInstall: true });
+			await accepted.complete();
+			await running;
+			assert.deepStrictEqual({ prompts, installs }, { prompts: 1, installs: 0 });
+		});
+	}
+
+	test('open uninstalled extension guidance refreshes without changing its selected version', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		instantiationService.stub(IMarkdownRendererService, { render: renderMarkdown });
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		const initialGallery = aGalleryExtension('deprecated');
+		let gallery = initialGallery;
+		instantiationService.stub(IExtensionGalleryService, instantiationService.get(IExtensionGalleryService), 'query', async () => aPage(gallery));
+		const [extension] = (await workbenchService.queryGallery(CancellationToken.None)).firstPage;
+		const input = disposables.add(new ExtensionsInput(extension));
+		editors.push(input);
+		const install = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		const status = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionStatusAction));
+		const container = document.createElement('div');
+		disposables.add(instantiationService.createInstance(ExtensionStatusWidget, container, status));
+		const containers = disposables.add(instantiationService.createInstance(ExtensionContainers, [install, status]));
+		containers.extension = extension;
+		await status.recomputeStatus();
+		const states: { hidden: boolean; message: string | null; retainedGallery: boolean }[] = [];
+		const records: (IDeprecationInfo | undefined)[] = [
+			{ source: 'marketplace', disallowInstall: true, additionalInfo: 'First advice' },
+			{ source: 'marketplace', disallowInstall: true, additionalInfo: 'Updated advice' },
+			undefined
+		];
+		for (const deprecationInfo of records) {
+			gallery = aGalleryExtension('deprecated', { version: '2.0.0', deprecationInfo });
+			gallery.identifier = initialGallery.identifier;
+			await workbenchService.queryGallery(CancellationToken.None);
+			await status.recomputeStatus();
+			states.push({ hidden: install.hidden, message: container.textContent?.trim() ?? '', retainedGallery: input.extension.gallery === initialGallery && install.extension?.gallery === initialGallery });
+		}
+		assert.deepStrictEqual(states, [
+			{ hidden: true, message: 'This extension is deprecated as it is no longer being maintained.First advice', retainedGallery: true },
+			{ hidden: true, message: 'This extension is deprecated as it is no longer being maintained.Updated advice', retainedGallery: true },
+			{ hidden: false, message: '', retainedGallery: true }
+		]);
+	});
 
 	test('deprecation confirmation preserves Install Anyway and legacy replacement presentation', async () => {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
