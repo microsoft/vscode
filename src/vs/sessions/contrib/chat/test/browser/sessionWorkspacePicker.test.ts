@@ -3542,7 +3542,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			{ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [local.id] },
 			{ id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [cloud.id] },
 		], reloaded.selectedFolderUri, reloaded.selectedResolved?.providerId, false, undefined,
-		reloaded.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
+			reloaded.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
 		assert.deepStrictEqual({
 			folder: reloaded.selectedFolderUri?.toString(),
 			provider: reloaded.selectedResolved?.providerId,
