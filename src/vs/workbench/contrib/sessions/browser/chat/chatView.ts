@@ -644,7 +644,8 @@ export class ChatView extends AbstractChatView {
 		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
-			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			useActionMenu: () => true,
+			showOnSelection: configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false,
 			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
 		}));
 
@@ -711,6 +712,9 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
+			}
+			if (e.affectsConfiguration(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
+				this._selectionSideChatController.setShowOnSelection(this.configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false);
 			}
 		}));
 

@@ -2661,8 +2661,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* A theme icon is centered in its box, so the box takes the height of the pill rather than the taller height of a list row. */
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {
-	padding-top: 2px;
+	height: auto;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -2873,6 +2874,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+.interactive-item-container.interactive-request .chat-resource-widget {
+	vertical-align: middle;
+	line-height: normal;
+}
 
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {

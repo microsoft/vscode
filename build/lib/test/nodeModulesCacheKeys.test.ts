@@ -49,7 +49,7 @@ suite('node_modules cache keys', () => {
 			key: computePnpmStoreCacheKey(reader(files)) !== key,
 		});
 		assert.deepStrictEqual({
-			lockfile: changes({ 'extensions/pnpm-lock.yaml': 'lockfileVersion: \'9.0\'' }),
+			lockfile: changes({ 'remote/pnpm-lock.yaml': 'lockfileVersion: \'9.0\'' }),
 			nativeBuildHooks: changes({ '.pnpmfile.mjs': 'export const hooks = {};' }),
 			salt: changes({ 'build/.cachesalt': 'salt' }),
 			pnpmVersion: changes({ 'package.json': '{"packageManager":"pnpm@13.0.0"}' }),

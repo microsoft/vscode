@@ -87,7 +87,7 @@ import {
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { registerMcpInlineButtonAction, registerMcpSignInButtonAction, renderMcpServerSignInButton } from '../../../browser/aiCustomization/mcpServerSignInButton.js';
-import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getEffectiveMcpServerCounts, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -910,6 +910,20 @@ suite('mcpListWidget', () => {
 		const count = derived(reader => getEffectiveMcpServerCount([], servers, reader, undefined));
 
 		assert.strictEqual(count.get(), 1);
+	});
+
+	test('authentication count excludes disabled and silently authenticating MCP servers', () => {
+		const servers = [
+			createAgentHostServer({ id: 'auth', name: 'auth', status: McpServerStatus.AuthRequired }),
+			createAgentHostServer({ id: 'ready', name: 'ready' }),
+			createAgentHostServer({ id: 'silent', name: 'silent', status: McpServerStatus.AuthRequired, authenticating: true }),
+			createAgentHostServer({ id: 'disabled', name: 'disabled', status: McpServerStatus.AuthRequired, enabled: false }),
+			createAgentHostServer({ id: 'plugin-disabled', name: 'plugin-disabled', status: McpServerStatus.AuthRequired, disabledReason: { source: 'plugin', plugin: { id: 'p', name: 'p', uri: 'file:///p', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] } } }),
+		];
+		const counts = getEffectiveMcpServerCounts([], servers, undefined, undefined);
+		assert.deepStrictEqual({ ...counts, authRequiredServers: counts.authRequiredServers.map(server => server.id) }, {
+			total: 3, authRequired: 1, authRequiredServers: ['auth'],
+		});
 	});
 
 	test('one native publication per source matches local rows and preserves disabled counts', () => {

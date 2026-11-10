@@ -9,6 +9,7 @@ import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFi
 import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import './media/review.css';
 import { ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -23,14 +24,17 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentInfo, ICommentService } from './commentService.js';
-import { CommentWidgetFocus, isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from './commentThreadZoneWidget.js';
+import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from './commentThreadZoneWidget.js';
+import { CommentWidgetFocus, ICommentThreadEditorWidget } from './commentThreadEditorWidget.js';
+import { ICommentThreadFloatingWidgetHost, ReviewFloatingWidget } from './commentThreadFloatingWidget.js';
+import { ICommentThreadFloatingWidgetLayout, IRect } from './commentThreadFloatingWidgetLayout.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { COMMENTS_VIEW_ID } from './commentsTreeViewer.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { COMMENTS_SECTION, COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING, CommentThreadStyle, ICommentsConfiguration } from '../common/commentsConfiguration.js';
 import { COMMENTEDITOR_DECORATION_KEY } from './commentReply.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -451,9 +455,15 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 }
 
 export class CommentController extends Disposable implements IEditorContribution {
+	/**
+	 * Where floating comment thread widgets were placed, so that they come back at the same place when
+	 * they are recreated during the window session.
+	 */
+	private static readonly _floatingWidgetLayouts = new LRUCache<string, ICommentThreadFloatingWidgetLayout>(500);
+
 	private readonly localToDispose: DisposableStore = this._register(new DisposableStore());
 	private editor: ICodeEditor | undefined;
-	private _commentWidgets: ReviewZoneWidget[];
+	private _commentWidgets: ICommentThreadEditorWidget[];
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
 	private _commentThreadRangeDecorator!: CommentThreadRangeDecorator;
@@ -474,6 +484,20 @@ export class CommentController extends Disposable implements IEditorContribution
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
 	private _commentWidgetVisible: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
+	private readonly _floatingWidgetHost: ICommentThreadFloatingWidgetHost = {
+		getLayout: widget => CommentController._floatingWidgetLayouts.get(this._getFloatingWidgetLayoutKey(widget)),
+		setLayout: (widget, layout) => CommentController._floatingWidgetLayouts.set(this._getFloatingWidgetLayoutKey(widget), layout),
+		getOccupiedRects: widget => {
+			const rects: IRect[] = [];
+			for (const other of this._commentWidgets) {
+				const rect = other !== widget && other instanceof ReviewFloatingWidget ? other.getDocumentRect() : undefined;
+				if (rect) {
+					rects.push(rect);
+				}
+			}
+			return rects;
+		}
+	};
 
 	constructor(
 		editor: ICodeEditor,
@@ -517,7 +541,8 @@ export class CommentController extends Disposable implements IEditorContribution
 			}
 		}));
 
-		this._register(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
+		this._register(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService,
+			() => this.configurationService.getValue<CommentThreadStyle>(COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING) !== 'floating'));
 
 		this._register(this.commentService.onDidDeleteDataProvider(ownerId => {
 			if (ownerId) {
@@ -556,7 +581,7 @@ export class CommentController extends Disposable implements IEditorContribution
 		this._register(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
 		this._register(this.editor.onDidChangeModel(_ => this.onModelChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+			if (e.affectsConfiguration('diffEditor.renderSideBySide') || e.affectsConfiguration(COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING)) {
 				this.beginCompute();
 			}
 		}));
@@ -841,7 +866,7 @@ export class CommentController extends Disposable implements IEditorContribution
 			return false;
 		});
 
-		const nextWidget: ReviewZoneWidget | undefined = sortedWidgets[idx];
+		const nextWidget: ICommentThreadEditorWidget | undefined = sortedWidgets[idx];
 		if (nextWidget !== undefined) {
 			this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
 			nextWidget.reveal(undefined, focusThread ? CommentWidgetFocus.Widget : CommentWidgetFocus.None);
@@ -1097,12 +1122,20 @@ export class CommentController extends Disposable implements IEditorContribution
 		if (thread.range && !pendingComment) {
 			continueOnCommentReply = this.commentService.removeContinueOnComment({ uniqueOwner, uri: editor.uri, range: thread.range, isReply: true });
 		}
-		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pendingComment ?? continueOnCommentReply?.comment, pendingEdits);
-		await zoneWidget.display(thread.range, shouldReveal);
-		this._commentWidgets.push(zoneWidget);
-		this.localToDispose.add(zoneWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext()));
-		this.localToDispose.add(zoneWidget.onDidClose(() => this._updateCommentWidgetVisibleContext()));
+		const threadStyle = this.configurationService.getValue<CommentThreadStyle>(COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING);
+		const pending = pendingComment ?? continueOnCommentReply?.comment;
+		const commentWidget: ICommentThreadEditorWidget = threadStyle === 'floating'
+			? this.instantiationService.createInstance(ReviewFloatingWidget, this.editor, uniqueOwner, thread, pending, pendingEdits, this._floatingWidgetHost)
+			: this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pending, pendingEdits);
+		await commentWidget.display(thread.range, shouldReveal);
+		this._commentWidgets.push(commentWidget);
+		this.localToDispose.add(commentWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext()));
+		this.localToDispose.add(commentWidget.onDidClose(() => this._updateCommentWidgetVisibleContext()));
 		this.openCommentsView(thread);
+	}
+
+	private _getFloatingWidgetLayoutKey(widget: ReviewFloatingWidget): string {
+		return JSON.stringify([widget.editor.getModel()?.uri.toString(), widget.uniqueOwner, widget.commentThread.threadId]);
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
@@ -1145,7 +1178,7 @@ export class CommentController extends Disposable implements IEditorContribution
 		}
 	}
 
-	public getCommentsAtLine(commentRange: Range | undefined): ReviewZoneWidget[] {
+	public getCommentsAtLine(commentRange: Range | undefined): ICommentThreadEditorWidget[] {
 		return this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
 	}
 

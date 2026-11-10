@@ -1928,6 +1928,7 @@ export default defineConfig(
 					'target': 'src/vs/workbench/api/~',
 					'restrictions': [
 						'vscode',
+						'@vscode/internal-github',
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',

@@ -382,26 +382,10 @@
 
 /* Session Item */
 
-.sessions-list-primary,
-.sessions-list-inbox-footer {
+.sessions-list-primary {
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
-}
-
-.sessions-list-inbox-resize {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: var(--vscode-spacing-size40);
-	pointer-events: none;
-	z-index: 1;
-
-	&:focus-visible {
-		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
 }
 
 .sessions-list-control.inbox-layout {
@@ -414,7 +398,7 @@
 		}
 	}
 
-	.sessions-list-inbox-footer .session-section {
+	.session-section {
 		font-weight: var(--vscode-fontWeight-regular);
 
 		.session-section-count {
@@ -1031,6 +1015,29 @@
 			text-overflow: ellipsis;
 			font-size: var(--vscode-fontSize-label1, 12px);
 		}
+
+		.session-approval-working-directory {
+			display: flex;
+			align-items: center;
+			gap: var(--vscode-spacing-size40);
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-label1);
+
+			.codicon {
+				flex-shrink: 0;
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+		}
+
+		/* Right-to-left so a long path is cut at its start, keeping the folders nearest the command.
+			`pre` rather than `nowrap` keeps repeated spaces, which can be all that tells two paths apart. */
+		.session-approval-working-directory-path {
+			min-width: 0;
+			overflow: hidden;
+			white-space: pre;
+			text-overflow: ellipsis;
+			direction: rtl;
+		}
 	}
 
 	.session-approval-button {
@@ -1042,6 +1049,11 @@
 			white-space: nowrap;
 		}
 	}
+}
+
+/* The approval row's hover shows the working directory as inline code; keep its repeated spaces too. */
+.monaco-hover.session-approval-hover code {
+	white-space: pre-wrap;
 }
 
 /*
@@ -1455,24 +1467,6 @@
 		margin-right: 4px;
 	}
 
-	&.session-section-inbox .session-section-count {
-		opacity: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		box-sizing: border-box;
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0 var(--vscode-spacing-size40);
-		margin-left: var(--vscode-spacing-size40);
-		margin-right: var(--vscode-spacing-size40);
-		border-radius: var(--vscode-cornerRadius-circle);
-		background-color: var(--vscode-activityBarBadge-background);
-		color: var(--vscode-activityBarBadge-foreground);
-		font-size: var(--vscode-fontSize-label3);
-		font-weight: var(--vscode-fontWeight-semiBold);
-	}
-
 	.session-section-keybinding {
 		display: none;
 		flex-shrink: 0;
@@ -1511,11 +1505,6 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
-}
-
-.hc-black .session-section.session-section-inbox .session-section-count,
-.hc-light .session-section.session-section-inbox .session-section-count {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,

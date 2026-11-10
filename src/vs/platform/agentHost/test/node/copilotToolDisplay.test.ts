@@ -88,6 +88,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['task_complete', 'Task Complete'],
 			['ask_user', 'Ask User'],
 			['skill', 'Invoke Skill'],
+			['read_resource', 'Read MCP Resource'],
 			['task', 'Delegate Task'],
 			['list_agents', 'List Agents'],
 			['read_agent', 'Read Agent'],
@@ -115,6 +116,24 @@ suite('copilotToolDisplay — friendly tool names', () => {
 		for (const [toolName, displayName] of cases) {
 			assert.strictEqual(getToolDisplayName(toolName), displayName, toolName);
 		}
+	});
+
+	test('read_resource names the MCP resource and handles missing input and failure', () => {
+		const displayName = getToolDisplayName('read_resource');
+		const parameters = { server: 'skills', uri: 'skill://review/template.md' };
+		assert.deepStrictEqual({
+			invocation: getInvocationMessage('read_resource', displayName, parameters),
+			completed: getPastTenseMessage('read_resource', displayName, parameters, true),
+			withoutInput: getInvocationMessage('read_resource', displayName, undefined),
+			completedWithoutInput: getPastTenseMessage('read_resource', displayName, undefined, true),
+			failed: getPastTenseMessage('read_resource', displayName, parameters, false),
+		}, {
+			invocation: { markdown: 'Reading MCP resource `skill://review/template.md`' },
+			completed: { markdown: 'Read MCP resource `skill://review/template.md`' },
+			withoutInput: 'Reading MCP resource',
+			completedWithoutInput: 'Read MCP resource',
+			failed: '"Read MCP Resource" failed',
+		});
 	});
 
 	test('falls back to the raw tool name for unknown tools', () => {

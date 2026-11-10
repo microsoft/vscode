@@ -734,7 +734,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask in a Side Chat, Quote, and Copy when selecting assistant response text in the Agents Window."),
+			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Controls whether an action menu with Ask in a Side Chat, Quote, and Copy appears when selecting assistant response text in the Agents Window."),
 		},
 		[SESSION_ARCHIVE_NUDGE_SETTING]: {
 			type: 'boolean',
@@ -788,6 +788,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('sessions.chat.compareAgents.showSpotlight', "Show a one-time spotlight on Compare Models when an eligible model picker opens, introducing parallel models and agent harnesses, with an optional judge and synthesis where available. Does not appear if comparison setup has already been opened. Requires `#sessions.chat.compareAgents.enabled#` and `#onboarding.enabled#`."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
 			type: 'boolean',
@@ -835,7 +836,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other clients. Requires Remote Environments management."),
+			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other devices. Requires Remote Environments management."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
