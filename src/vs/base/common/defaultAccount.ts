@@ -45,6 +45,11 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
+	/** Who pays for the user's Copilot (enterprise, organization or the user), when the server sends it. */
+	readonly billable_owner?: {
+		readonly universal_key: string;
+		readonly account_type: string;
+	} | null;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;

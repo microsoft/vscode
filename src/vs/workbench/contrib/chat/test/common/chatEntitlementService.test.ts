@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyValue, IContextKey, IContextKeyChangeEvent } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, getQuotaUsage, parseBillableOwner, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -501,6 +503,40 @@ suite('parseQuotas', () => {
 	});
 });
 
+suite('parseBillableOwner', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns the universal key only when the key and account type are non-empty strings', () => {
+		const entitlementsData: IEntitlementsData = {
+			access_type_sku: 'copilot_enterprise_seat',
+			chat_enabled: true,
+			assigned_date: '2026-04-17T12:53:45-07:00',
+			can_signup_for_limited: false,
+			copilot_plan: 'enterprise',
+			organization_login_list: [],
+			analytics_tracking_id: 'test',
+		};
+		const billableOwners = [
+			{ universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' },
+			{ universal_key: 'user:dotcom:7', account_type: 'User' },
+			{ universal_key: 'ea:dotcom:42', account_type: '' },
+			{ universal_key: 'ea:dotcom:42' },
+			{ universal_key: '', account_type: 'User' },
+			{ universal_key: 42, account_type: 'User' },
+			'ea:dotcom:42',
+			null,
+			undefined,
+		];
+
+		assert.deepStrictEqual(billableOwners.map(billableOwner => parseBillableOwner({
+			...entitlementsData,
+			// Malformed values are what an unvalidated server response can contain.
+			billable_owner: billableOwner as IEntitlementsData['billable_owner'],
+		})), ['ea:dotcom:42', 'user:dotcom:7', undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+});
+
 suite('getQuotaUsage', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -557,18 +593,61 @@ suite('getQuotaReset', () => {
 suite('ChatEntitlementService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(): ChatEntitlementService {
+	function createService(contextKeyService = store.add(new MockContextKeyService())): ChatEntitlementService {
 		return store.add(new ChatEntitlementService(
 			store.add(new TestInstantiationService()),
 			new class extends mock<IProductService>() { },
 			new class extends mock<IWorkbenchEnvironmentService>() { },
-			store.add(new MockContextKeyService()),
+			contextKeyService,
 			new TestConfigurationService(),
 			NullTelemetryService,
 			new NullLogService(),
 			store.add(new TestStorageService()),
 		));
 	}
+
+	/** Fires a context change event when a key's value changes, like the real context key service. */
+	class EventedContextKeyService extends MockContextKeyService {
+		private readonly onDidChange = new Emitter<IContextKeyChangeEvent>();
+		override get onDidChangeContext() { return this.onDidChange.event; }
+
+		override createKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
+			const contextKey = super.createKey(key, defaultValue);
+			return {
+				get: () => contextKey.get(),
+				reset: () => contextKey.reset(),
+				set: value => {
+					if (contextKey.get() !== value) {
+						contextKey.set(value);
+						this.onDidChange.fire({ affectsSome: keys => keys.has(key), allKeysContainedIn: keys => keys.has(key) });
+					}
+				},
+			};
+		}
+
+		override dispose(): void {
+			this.onDidChange.dispose();
+			super.dispose();
+		}
+	}
+
+	test('signals an entitlement change when only the billable owner changes', async () => {
+		const contextKeyService = store.add(new EventedContextKeyService());
+		const service = createService(contextKeyService);
+		const context = store.add(new ChatEntitlementContext(contextKeyService, store.add(new TestStorageService()), new NullLogService(), new TestConfigurationService(), NullTelemetryService));
+		const entitlement = { entitlement: ChatEntitlement.Enterprise, organisations: undefined, isStaff: false, sku: 'copilot_enterprise_seat', copilotTrackingId: 'tid' };
+		await context.update({ ...entitlement, billableOwnerKey: 'ea:dotcom:42' });
+		let changes = 0;
+		store.add(service.onDidChangeEntitlement(() => changes++));
+
+		const seen: [string | undefined, number][] = [];
+		for (const billableOwnerKey of ['user:dotcom:7', 'user:dotcom:7', undefined]) {
+			await context.update({ ...entitlement, billableOwnerKey });
+			seen.push([service.billableOwnerKey, changes]);
+		}
+
+		assert.deepStrictEqual(seen, [['user:dotcom:7', 1], ['user:dotcom:7', 1], [undefined, 2]]);
+	});
 
 	test('signals changed usage when only consumed credits move on an unlimited plan', () => {
 		const service = createService();
@@ -717,7 +796,7 @@ suite('ChatEntitlementContext', () => {
 			NullTelemetryService,
 		));
 
-		await context.update({ entitlement: ChatEntitlement.Pro, organisations, isStaff, sku: undefined, copilotTrackingId: undefined });
+		await context.update({ entitlement: ChatEntitlement.Pro, organisations, isStaff, sku: undefined, copilotTrackingId: undefined, billableOwnerKey: undefined });
 
 		return contextKeyService.getContextKeyValue(ChatEntitlementContextKeys.Entitlement.internal.key);
 	}

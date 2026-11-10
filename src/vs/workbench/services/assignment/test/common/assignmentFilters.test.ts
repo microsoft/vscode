@@ -155,6 +155,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 
 		override copilotTrackingId: string | undefined;
 		override organisations: string[] | undefined;
+		override billableOwnerKey: string | undefined;
 		isStaff: boolean | undefined;
 
 		override get isInternal(): boolean {
@@ -176,6 +177,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 		const entitlement = new TestChatEntitlementService();
 		entitlement.copilotTrackingId = 'tid-1';
 		entitlement.organisations = ['github'];
+		entitlement.billableOwnerKey = 'ea:dotcom:42';
 
 		const provider = createProvider(entitlement);
 
@@ -184,6 +186,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 			[GitHubAssignmentsFilter.CopilotTrackingId, 'tid-1'],
 			[GitHubAssignmentsFilter.IsGhOrMsftStaff, '1'],
 			[GitHubAssignmentsFilter.GhMsftOrExternal, 'github'],
+			[GitHubAssignmentsFilter.CopilotBillableEntityId, 'ea:dotcom:42'],
 		]);
 	});
 
@@ -262,6 +265,24 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 			['0', 'external', 1],
 			['1', 'external', 2],
 			['0', 'external', 3],
+		]);
+	});
+
+	test('sends the billable owner only while known and notifies when only it changes', () => {
+		const entitlement = new TestChatEntitlementService();
+		const provider = createProvider(entitlement);
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
+
+		assert.deepStrictEqual(['ea:dotcom:42', 'ea:dotcom:42', 'user:dotcom:7', undefined].map(billableOwnerKey => {
+			entitlement.billableOwnerKey = billableOwnerKey;
+			entitlement.fireChange();
+			return [provider.getFilters().get(GitHubAssignmentsFilter.CopilotBillableEntityId), changes];
+		}), [
+			['ea:dotcom:42', 1],
+			['ea:dotcom:42', 1],
+			['user:dotcom:7', 2],
+			[null, 3],
 		]);
 	});
 

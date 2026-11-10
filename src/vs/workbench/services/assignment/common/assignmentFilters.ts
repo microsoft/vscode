@@ -264,6 +264,8 @@ export enum GitHubAssignmentsFilter {
 	/** Whether the account is staff or belongs to a recognized internal organization. */
 	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
 	GhMsftOrExternal = 'github_core_ghmsftorexternal',
+	/** The universal key of who pays for the user's Copilot. */
+	CopilotBillableEntityId = 'github_core_copilotbillableentityid',
 }
 
 /**
@@ -274,6 +276,7 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 	private copilotTrackingId: string | undefined;
 	private internalOrg: 'vscode' | 'github' | 'microsoft' | undefined;
 	private isInternal = false;
+	private billableOwnerKey: string | undefined;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -291,14 +294,16 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 		const newTrackingId = this._chatEntitlementService.copilotTrackingId ?? this.copilotTrackingId;
 		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
 		const newIsInternal = this._chatEntitlementService.isInternal;
+		const newBillableOwnerKey = this._chatEntitlementService.billableOwnerKey;
 
-		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg && this.isInternal === newIsInternal) {
+		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg && this.isInternal === newIsInternal && this.billableOwnerKey === newBillableOwnerKey) {
 			return;
 		}
 
 		this.copilotTrackingId = newTrackingId;
 		this.internalOrg = newInternalOrg;
 		this.isInternal = newIsInternal;
+		this.billableOwnerKey = newBillableOwnerKey;
 
 		this._onDidChangeFilters.fire();
 	}
@@ -320,6 +325,8 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 				return this._chatEntitlementService.isInternal ? '1' : '0';
 			case GitHubAssignmentsFilter.GhMsftOrExternal:
 				return internalOrg ?? 'external';
+			case GitHubAssignmentsFilter.CopilotBillableEntityId:
+				return this._chatEntitlementService.billableOwnerKey ?? null;
 			default:
 				return null;
 		}

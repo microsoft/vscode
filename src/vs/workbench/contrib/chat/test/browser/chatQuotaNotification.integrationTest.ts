@@ -90,6 +90,7 @@ function createEntitlementService(opts?: {
 		isInternal: false,
 		sku: undefined,
 		copilotTrackingId: undefined,
+		billableOwnerKey: undefined,
 		clientByokEnabled: false,
 		hasByokModels: false,
 		onDidChangeSentiment: Event.None,

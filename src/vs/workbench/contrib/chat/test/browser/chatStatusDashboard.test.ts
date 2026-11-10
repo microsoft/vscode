@@ -53,6 +53,7 @@ function createEntitlementService(opts: {
 		isInternal: false,
 		sku: undefined,
 		copilotTrackingId: undefined,
+		billableOwnerKey: undefined,
 		onDidChangeQuotaExceeded: Event.None,
 		onDidChangeQuotaRemaining: Event.None,
 		onDidChangeUsageBasedBilling: Event.None,
