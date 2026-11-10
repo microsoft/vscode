@@ -957,6 +957,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[BrowserDimOverlaySettingId]: {
 			type: 'boolean',
 			default: true,
+			experiment: { mode: 'startup' },
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.dimOnOverlay' },
 				"Controls whether the Integrated Browser page is dimmed when a temporary element, such as a context menu or tooltip, overlaps it and causes it to pause. The page is paused regardless of this setting."
