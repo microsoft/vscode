@@ -76,6 +76,8 @@ export interface IAgentFeedback {
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly sessionResource: URI;
+	/** Chat where this feedback was authored; absent on legacy session-scoped feedback. */
+	readonly chatResource?: URI;
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;

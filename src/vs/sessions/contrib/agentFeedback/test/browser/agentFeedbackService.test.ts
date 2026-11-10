@@ -11,7 +11,7 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { AgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
@@ -30,8 +30,10 @@ import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessi
 import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ITestSessionWithChat, ITestShownChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ChatRequestQueueKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -975,16 +977,38 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let backgroundChat: IChat;
 	let backgroundCalls: { chat: IChat; options: ISendRequestOptions }[];
 	let backgroundAcceptance: DeferredPromise<void>;
+	let mainChat: IChat;
+	let backgroundSession: ISession;
+	let availableChats: ISettableObservable<readonly IChat[]>;
+	let focusedChat: ISettableObservable<ITestShownChat | undefined>;
+	let notifications: string[];
+	let backendProvider: ISessionsProvider | undefined;
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
 		widgetLookups = [];
 		backgroundCalls = [];
+		notifications = [];
+		backendProvider = undefined;
 		backgroundAcceptance = new DeferredPromise<void>();
 		backgroundChat = new class extends mock<IChat>() {
-			override readonly resource = URI.parse('test:/session/1/peer');
+			override readonly resource = URI.parse('test://session/1#peer');
 		}();
+		mainChat = new class extends mock<IChat>() {
+			override readonly resource = URI.parse('test://session/1');
+		}();
+		availableChats = observableValue<readonly IChat[]>('chats', [mainChat, backgroundChat]);
+		focusedChat = observableValue<ITestShownChat | undefined>('focusedChat', undefined);
+		backgroundSession = upcastPartial<ISession>({
+			resource: mainChat.resource,
+			get providerId() { return providerId; },
+			sessionId: 'session-1',
+			chats: availableChats,
+			mainChat: observableValue('mainChat', mainChat),
+			status: observableValue('status', SessionStatus.Completed),
+			workspace: observableValue('workspace', undefined),
+		});
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -992,26 +1016,33 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override info(message: string): void { notifications.push(message); }
+			override error(message: string): void { notifications.push(message); }
+		}());
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override onDidChangeProviders = Event.None;
-			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
+			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return backendProvider as T | undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
 			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
-				return { providerId, sessionId: 'session-1', chats: observableValue('chats', [backgroundChat]) } as unknown as ISession;
+				return backgroundSession;
 			}
 			override async sendRequestInBackground(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
 				backgroundCalls.push({ chat, options });
 				await backgroundAcceptance.p;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = focusedChat;
+			override readonly panes = observableValue<readonly ISessionGridPane[]>('panes', []);
+		}());
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
@@ -1051,6 +1082,109 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
 		fileA = URI.parse('file:///a.ts');
+	});
+
+	test('background submission preserves parent and child authorship after navigation and queues each target without a widget', async () => {
+		focusedChat.set({ session: backgroundSession, chat: backgroundChat }, undefined);
+		const child = service.addFeedback(session, fileA, r(1), 'Child feedback');
+		service.updateFeedback(session, child.id, 'Edited child feedback');
+		service.addReply(session, child.id, 'Child reply');
+		focusedChat.set({ session: backgroundSession, chat: mainChat }, undefined);
+		const parent = service.addFeedback(session, fileA, r(2), 'Parent feedback');
+		focusedChat.set(undefined, undefined);
+		const legacy = service.addFeedback(session, fileA, r(3), 'Session feedback');
+		const pending = service.submitFeedback(session, { background: true });
+		await backgroundAcceptance.complete();
+
+		assert.deepStrictEqual({
+			submitted: await pending,
+			calls: backgroundCalls.map(({ chat, options }) => ({
+				chat: chat.resource.toString(),
+				queue: options.queue,
+				comments: options.attachedContext?.flatMap(entry => entry.kind === 'agentFeedback' ? entry.feedbackItems.map(item => item.id) : []),
+			})),
+			authorship: service.getFeedback(session).map(item => item.chatResource?.toString()),
+			states: service.getFeedback(session).map(item => item.state),
+			widgetLookups,
+		}, {
+			submitted: true,
+			calls: [
+				{ chat: backgroundChat.resource.toString(), queue: ChatRequestQueueKind.Queued, comments: [child.id] },
+				{ chat: mainChat.resource.toString(), queue: ChatRequestQueueKind.Queued, comments: [parent.id, legacy.id] },
+			],
+			authorship: [backgroundChat.resource.toString(), mainChat.resource.toString(), undefined],
+			states: [AgentFeedbackState.Submitted, AgentFeedbackState.Submitted, AgentFeedbackState.Submitted],
+			widgetLookups: [],
+		});
+	});
+
+	test('a retained backend chat identity resolves against the hydrated child catalog', async () => {
+		const opaqueResource = URI.parse('other-host:/opaque-child');
+		const opaqueChat = upcastPartial<IChat>({ resource: opaqueResource });
+		focusedChat.set({ session: backgroundSession, chat: opaqueChat }, undefined);
+		service.addFeedback(session, fileA, r(1), 'Restored child feedback');
+		focusedChat.set({ session: backgroundSession, chat: mainChat }, undefined);
+		backendProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override getBackendChatResource(resource: URI): URI | undefined {
+				return resource.toString() === backgroundChat.resource.toString() ? opaqueResource : undefined;
+			}
+		}();
+		const pending = service.submitFeedback(session, { background: true });
+		await backgroundAcceptance.complete();
+
+		assert.deepStrictEqual({
+			submitted: await pending,
+			targets: backgroundCalls.map(call => call.chat.resource.toString()),
+			states: service.getFeedback(session).map(item => item.state),
+		}, { submitted: true, targets: [backgroundChat.resource.toString()], states: [AgentFeedbackState.Submitted] });
+	});
+
+	test('accepting a review comment records the child and keeps it through later edits and replies', () => {
+		focusedChat.set({ session: backgroundSession, chat: backgroundChat }, undefined);
+		const item = service.addFeedback(session, fileA, r(1), 'Review feedback', undefined, undefined, undefined, AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		service.acceptFeedback(session, item.id);
+		focusedChat.set({ session: backgroundSession, chat: mainChat }, undefined);
+		service.updateFeedback(session, item.id, 'Edited review feedback');
+		service.addReply(session, item.id, 'Reply from the parent view');
+
+		assert.deepStrictEqual(service.getFeedback(session).map(feedback => ({
+			chat: feedback.chatResource?.toString(), text: feedback.text, replies: feedback.replies?.map(reply => reply.text),
+		})), [{ chat: backgroundChat.resource.toString(), text: 'Edited review feedback', replies: ['Reply from the parent view'] }]);
+	});
+
+	test('a deleted authorship chat fails before any comments are sent instead of falling back to the parent', async () => {
+		focusedChat.set({ session: backgroundSession, chat: backgroundChat }, undefined);
+		service.addFeedback(session, fileA, r(1), 'Child feedback');
+		focusedChat.set({ session: backgroundSession, chat: mainChat }, undefined);
+		service.addFeedback(session, fileA, r(2), 'Parent feedback');
+		availableChats.set([mainChat], undefined);
+
+		await assert.rejects(service.submitFeedback(session, { background: true }), /target session or chat is no longer available/);
+		assert.deepStrictEqual({
+			calls: backgroundCalls,
+			states: service.getFeedback(session).map(item => item.state),
+			widgetLookups,
+		}, { calls: [], states: [AgentFeedbackState.Accepted, AgentFeedbackState.Accepted], widgetLookups: [] });
+	});
+
+	test('add and submit accepts child feedback without waiting for a child widget or response completion', async () => {
+		focusedChat.set({ session: backgroundSession, chat: backgroundChat }, undefined);
+		sessionLoaded = false;
+		const pending = service.addFeedbackAndSubmit(session, fileA, r(1), 'Child feedback');
+		await backgroundAcceptance.complete();
+		await pending;
+
+		assert.deepStrictEqual({
+			chat: backgroundCalls[0]?.chat.resource.toString(),
+			state: service.getFeedback(session)[0].state,
+			widgetLookups,
+			notifications,
+		}, {
+			chat: backgroundChat.resource.toString(),
+			state: AgentFeedbackState.Submitted,
+			widgetLookups: [],
+			notifications: ['Feedback accepted for submission. Queued requests will run when the chat is ready.'],
+		});
 	});
 
 	for (const agentHost of [true, false]) {

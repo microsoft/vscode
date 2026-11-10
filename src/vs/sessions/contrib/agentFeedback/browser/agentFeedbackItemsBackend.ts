@@ -6,8 +6,9 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -253,7 +254,7 @@ function entryText(text: StringOrMarkdown): string {
 	return typeof text === 'string' ? text : text.markdown;
 }
 
-function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection): Annotation {
+function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection, chatResource: URI | undefined): Annotation {
 	const entries: AnnotationEntry[] = [{
 		id: `${feedback.id}:0`,
 		text: feedback.text,
@@ -277,7 +278,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 	return {
 		id: feedback.id,
-		origin: { session: feedback.sessionResource.toString() },
+		origin: { session: feedback.sessionResource.toString(), ...(chatResource ? { chat: chatResource.toString() } : {}) },
 		resource: connection.resourceUris.toAgentHost(feedback.resourceUri).toString(),
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,
@@ -286,7 +287,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 }
 
-function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
+function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection, chatResource: URI | undefined): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
@@ -306,6 +307,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
 		range: fromTextRange(annotation.range),
 		sessionResource,
+		...(chatResource ? { chatResource } : {}),
 		suggestion: meta?.suggestion,
 		codeSelection: meta?.codeSelection,
 		diffHunks: meta?.diffHunks,
@@ -351,6 +353,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	private readonly _sessionResourceByKey = new Map<string, URI>();
 	/** Optimistic local state, reconciled from each annotations snapshot/action. */
 	private readonly _cacheBySession = new Map<string, IAgentFeedback[]>();
+	private readonly _originChatsBySession = new Map<string, Map<string, URI>>();
 	/**
 	 * Signature of the feedback set we last fired {@link onDidChangeItems} for,
 	 * per session. The annotations channel is shared and may carry non-feedback
@@ -417,7 +420,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return orderFeedbackItems(cached);
 		}
 		if (channel && this._hasSnapshot(channel.subscription)) {
-			const items = this._decode(channel, sessionResource);
+			const items = this._decode(channel, sessionResource, true);
 			this._cacheBySession.set(sessionResource.toString(), items);
 			return orderFeedbackItems(items);
 		}
@@ -459,6 +462,25 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 	upsert(feedback: IAgentFeedback): void {
 		const channel = this._ensureChannel(feedback.sessionResource);
+		let chatResource: URI | undefined;
+		if (feedback.chatResource && channel) {
+			chatResource = channel.provider.getBackendChatResource(feedback.chatResource);
+			if (!chatResource) {
+				chatResource = this._originChatsBySession.get(feedback.sessionResource.toString())?.get(feedback.id);
+				if (!chatResource) {
+					throw new Error(localize('agentFeedback.targetUnavailable', "The target session or chat is no longer available."));
+				}
+			}
+		}
+		if (chatResource) {
+			const key = feedback.sessionResource.toString();
+			let origins = this._originChatsBySession.get(key);
+			if (!origins) {
+				origins = new Map();
+				this._originChatsBySession.set(key, origins);
+			}
+			origins.set(feedback.id, chatResource);
+		}
 		this._cacheUpsert(feedback);
 		this._emitIfChanged(feedback.sessionResource);
 		if (!channel) {
@@ -466,12 +488,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsSet,
-			annotation: feedbackToAnnotation(feedback, channel.connection),
+			annotation: feedbackToAnnotation(feedback, channel.connection, chatResource),
 		});
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {
 		const channel = this._ensureChannel(sessionResource);
+		this._originChatsBySession.get(sessionResource.toString())?.delete(feedbackId);
 		this._cacheRemove(sessionResource, feedbackId);
 		this._emitIfChanged(sessionResource);
 		if (!channel) {
@@ -487,6 +510,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		const key = sessionResource.toString();
 		const items = this.getItems(sessionResource);
 		const channel = this._ensureChannel(sessionResource);
+		this._originChatsBySession.delete(key);
 		this._cacheBySession.set(key, []);
 		this._emitIfChanged(sessionResource);
 		if (channel) {
@@ -529,17 +553,29 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return value !== undefined && !(value instanceof Error);
 	}
 
-	private _decode(channel: Pick<ITrackedChannel, 'connection' | 'subscription'>, sessionResource: URI): IAgentFeedback[] {
+	private _decode(channel: Pick<ITrackedChannel, 'connection' | 'subscription'>, sessionResource: URI, retainOrigins = false): IAgentFeedback[] {
 		const value = channel.subscription.value;
 		if (!value || value instanceof Error) {
 			return [];
 		}
 		const items: IAgentFeedback[] = [];
+		const origins = new Map<string, URI>();
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const provider = session && this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		for (const annotation of value.annotations) {
-			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection);
+			const originChat = annotation.origin.chat ? URI.parse(annotation.origin.chat) : undefined;
+			// Keep an unavailable chat's opaque identity so submission fails rather than retargeting the parent.
+			const chatResource = originChat && (session?.chats.get().find(chat => isEqual(provider?.getBackendChatResource(chat.resource), originChat))?.resource ?? originChat);
+			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection, chatResource);
 			if (feedback) {
 				items.push(feedback);
+				if (originChat) {
+					origins.set(feedback.id, originChat);
+				}
 			}
+		}
+		if (retainOrigins) {
+			this._originChatsBySession.set(sessionResource.toString(), origins);
 		}
 		return items;
 	}
@@ -562,7 +598,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!this._hasSnapshot(channel.subscription)) {
 			return;
 		}
-		this._cacheBySession.set(key, this._decode(channel, sessionResource));
+		this._cacheBySession.set(key, this._decode(channel, sessionResource, true));
 		// Fire once when the snapshot first arrives so consumers learn that the
 		// feedback set is now authoritative, even if it is empty (and thus has
 		// the same — empty — signature as before loading).
@@ -598,6 +634,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 				item.range.endLineNumber,
 				item.range.endColumn,
 				getComparisonKey(item.sessionResource),
+				item.chatResource ? getComparisonKey(item.chatResource) : null,
 				item.suggestion ?? null,
 				item.codeSelection ?? null,
 				item.diffHunks ?? null,
@@ -652,6 +689,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._suspendChannel(sessionResource);
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
+		this._originChatsBySession.delete(key);
 		this._signatureBySession.delete(key);
 	}
 
@@ -726,7 +764,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		};
 		if (this._hasSnapshot(ref.object)) {
 			this._loadedBySession.add(key);
-			const items = this._decode(channel, sessionResource);
+			const items = this._decode(channel, sessionResource, true);
 			this._cacheBySession.set(key, items);
 			this._signatureBySession.set(key, this._feedbackSignature(items));
 		}

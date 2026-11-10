@@ -219,7 +219,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 				override async sendRequest(resource: URI): Promise<ChatSendResult> {
 					calls.push(`send:${resource}`);
 					started.complete();
-					return outcome === 'queued' ? { kind: 'queued', deferred: sent.p } : sent.p;
+					return outcome === 'queued' ? { kind: 'queued', requestId: 'queued', deferred: sent.p } : sent.p;
 				}
 			}();
 			const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() {

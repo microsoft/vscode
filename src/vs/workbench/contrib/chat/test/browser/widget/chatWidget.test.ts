@@ -2963,7 +2963,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			await timeout(0);
 			Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('agent-host-copilot:/other')).viewModel });
 			await sendResult.complete(kind === 'sent' ? fixture.sent
-				: kind === 'queued' ? { kind, deferred: queued.p } : { kind, reason: 'Rejected' });
+				: kind === 'queued' ? { kind, requestId: 'queued', deferred: queued.p } : { kind, reason: 'Rejected' });
 			await timeout(0);
 			assert.deepStrictEqual(fixture.acceptedRequests, kind === 'rejected' ? [] : [fixture.original.model.sessionResource]);
 			if (kind === 'queued') {
@@ -3547,7 +3547,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			fixture.chatService.sendRequest.callsFake(async (_resource: URI, _message: string, options: IChatSendRequestOptions) => {
 				options.onDidCreateResponse?.(undefined, 'queued');
 				entered.complete();
-				return { kind: 'queued', deferred: queued.p };
+				return { kind: 'queued', requestId: 'queued', deferred: queued.p };
 			});
 			const sending = fixture.widget.acceptInput('Test request', { ...fixture.options, queue: explicit ? ChatRequestQueueKind.Queued : undefined });
 			await entered.p;
@@ -3717,7 +3717,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued', deferred: deferred.p }, () => accepted++);
 		// The queued request has not run yet, so `pending` is still unresolved here.
 		const acceptedWhileQueued = accepted === 1;
 
@@ -3743,7 +3743,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued', deferred: deferred.p }, () => accepted++);
 		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
 
 		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });

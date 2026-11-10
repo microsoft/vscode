@@ -42,7 +42,7 @@ import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWo
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, PendingMessageKind, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
@@ -70,7 +70,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -11291,6 +11291,132 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
 			return session!;
 		}
+
+		for (const status of [ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded, ProtocolSessionStatus.Idle]) {
+			test(`feedback queue is forwarded to the child without clearing its draft or waiting for execution: ${status}`, async () => {
+				const queuedExecution = new DeferredPromise<ChatSendResult>();
+				const inputStates: Partial<IChatModelInputState>[] = [];
+				const sends: { resource: URI; message: string; queue: IChatSendRequestOptions['queue'] }[] = [];
+				const provider = createProvider(disposables, agentHost, undefined, {
+					acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+						override readonly inputModel = new class extends mock<IInputModel>() {
+							override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+							override setState(state: Partial<IChatModelInputState>): void { inputStates.push(state); }
+						}();
+					}()),
+					sendRequest: async (resource, message, options) => {
+						sends.push({ resource, message, queue: options?.queue });
+						agentHost.fireAction({
+							channel: buildChatUri(backend, 'child'),
+							action: { type: ActionType.ChatPendingMessageSet, id: 'feedback', kind: PendingMessageKind.Queued, message: { text: message, origin: { kind: MessageKind.User } } },
+							origin: { clientId: agentHost.clientId, clientSeq: 1 }, serverSeq: 1,
+						});
+						return { kind: 'queued', requestId: 'feedback', deferred: queuedExecution.p };
+					},
+				});
+				const session = setupMultiChatSession(provider, 'queued-feedback');
+				const backend = AgentSession.uri('copilotcli', 'queued-feedback').toString();
+				agentHost.setSessionState('queued-feedback', 'copilotcli', makeState([
+					makeChatSummary(buildDefaultChatUri(backend), 'Main'),
+					makeChatSummary(buildChatUri(backend, 'child'), 'Child', status),
+				]));
+				const child = session.chats.get().find(chat => chat.resource.fragment === 'child')!;
+				await provider.sendRequest(session.sessionId, child.resource, {
+					query: '/act-on-feedback',
+					queue: ChatRequestQueueKind.Queued,
+				});
+				assert.deepStrictEqual({
+					sends: sends.map(send => ({ resource: send.resource.toString(), message: send.message, queue: send.queue })),
+					draftChanges: inputStates.filter(state => state.inputText !== undefined || state.attachments !== undefined || state.selections !== undefined),
+					executed: queuedExecution.isSettled,
+				}, {
+					sends: [{ resource: child.resource.toString(), message: '/act-on-feedback', queue: ChatRequestQueueKind.Queued }],
+					draftChanges: [],
+					executed: false,
+				});
+				await queuedExecution.complete({ kind: 'rejected', reason: 'Test cleanup' });
+			});
+		}
+
+		for (const rejects of [false, true]) {
+			test(`feedback queue waits for its own host acknowledgement and propagates rejection: ${rejects}`, async () => {
+				const queuedExecution = new DeferredPromise<ChatSendResult>();
+				const entered = new DeferredPromise<void>();
+				const provider = createProvider(disposables, agentHost, undefined, {
+					acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+						override readonly inputModel = new class extends mock<IInputModel>() {
+							override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+							override setState(): void { }
+						}();
+					}()),
+					sendRequest: async () => {
+						entered.complete();
+						return { kind: 'queued', requestId: 'feedback', deferred: queuedExecution.p };
+					},
+				});
+				const session = setupMultiChatSession(provider, 'ack-feedback');
+				const backend = AgentSession.uri('copilotcli', 'ack-feedback').toString();
+				const childChannel = buildChatUri(backend, 'child');
+				agentHost.setSessionState('ack-feedback', 'copilotcli', makeState([
+					makeChatSummary(buildDefaultChatUri(backend), 'Main'),
+					makeChatSummary(childChannel, 'Child', ProtocolSessionStatus.InProgress),
+				]));
+				const child = session.chats.get().find(chat => chat.resource.fragment === 'child')!;
+				let settled = false;
+				const sending = provider.sendRequest(session.sessionId, child.resource, {
+					query: '/act-on-feedback', queue: ChatRequestQueueKind.Queued,
+				});
+				const result = sending.then(() => { settled = true; return 'accepted'; }, error => { settled = true; return error.message; });
+				await entered.p;
+				agentHost.fireAction({
+					channel: childChannel,
+					action: { type: ActionType.ChatPendingMessageSet, id: 'feedback', kind: PendingMessageKind.Queued, message: { text: '/act-on-feedback', origin: { kind: MessageKind.User } } },
+					origin: { clientId: 'another-client', clientSeq: 1 }, serverSeq: 1,
+				});
+				await timeout(0);
+				const settledBeforeHost = settled;
+				agentHost.fireAction({
+					channel: childChannel,
+					action: { type: ActionType.ChatPendingMessageSet, id: 'feedback', kind: PendingMessageKind.Queued, message: { text: '/act-on-feedback', origin: { kind: MessageKind.User } } },
+					origin: { clientId: agentHost.clientId, clientSeq: 2 }, serverSeq: 2,
+					...(rejects ? { rejectionReason: 'Chat workspace is changing' } : {}),
+				});
+				assert.deepStrictEqual({
+					settledBeforeHost, result: await result, executed: queuedExecution.isSettled,
+				}, {
+					settledBeforeHost: false, result: rejects ? 'Chat workspace is changing' : 'accepted', executed: false,
+				});
+				await queuedExecution.complete({ kind: 'rejected', reason: 'Test cleanup' });
+			});
+		}
+
+		test('feedback queue acknowledgement is cancelled when the provider is disposed', async () => {
+			const entered = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+					override readonly inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(): void { }
+					}();
+				}()),
+				sendRequest: async () => {
+					entered.complete();
+					return { kind: 'queued', requestId: 'feedback', deferred: Promise.resolve({ kind: 'rejected', reason: 'Not executed' }) };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'dispose-feedback');
+			const backend = AgentSession.uri('copilotcli', 'dispose-feedback').toString();
+			agentHost.setSessionState('dispose-feedback', 'copilotcli', makeState([
+				makeChatSummary(buildDefaultChatUri(backend), 'Main'),
+			]));
+			const sending = provider.sendRequest(session.sessionId, session.mainChat.get().resource, {
+				query: '/act-on-feedback', queue: ChatRequestQueueKind.Queued,
+			});
+			const rejected = assert.rejects(sending, /Canceled/);
+			await entered.p;
+			provider.dispose();
+			await rejected;
+		});
 
 		test('agent effort and explicit model configuration stay scoped to each running chat', async () => {
 			const modelId = 'agent-host-copilotcli:sonnet';

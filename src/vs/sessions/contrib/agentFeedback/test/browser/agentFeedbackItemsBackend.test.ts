@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction, autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -22,7 +22,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
@@ -62,20 +62,33 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	function createConnectedBackend(sessionCount: number) {
 		const clientId = 'client';
 		const resourceUris = createAgentHostResourceUriMapper('test');
-		const sessions = Array.from({ length: sessionCount }, (_, i) => new class extends mock<ITestSessionWithChat>() {
-			override readonly resource = URI.parse(`agent-host-test:/s${i + 1}`);
-			override readonly providerId = 'agenthost-test';
-			override readonly sessionId = `s${i + 1}`;
-		}());
+		const backendChats = new Map<string, URI>();
+		const sessions = Array.from({ length: sessionCount }, (_, i) => {
+			const resource = URI.parse(`agent-host-test:/s${i + 1}`);
+			const chats = [resource, resource.with({ fragment: 'child' })].map((chatResource, index) => {
+				backendChats.set(chatResource.toString(), URI.parse(`other-host:/opaque-threads/${i}-${index}`));
+				return upcastPartial<IChat>({ resource: chatResource });
+			});
+			return new class extends mock<ITestSessionWithChat>() {
+				override readonly resource = resource;
+				override readonly providerId = 'agenthost-test';
+				override readonly sessionId = `s${i + 1}`;
+				override readonly chats = observableValue<readonly IChat[]>('chats', chats);
+				override readonly mainChat = constObservable(chats[0]);
+			}();
+		});
 		const annotationsUri = (session: ISession) => URI.parse(`test:/${session.sessionId}/annotations`);
 		const hostState = new Map<string, AnnotationsState>();
 		// Channels subscribed on the host.
 		const open = new Set<string>();
 		let serverSeq = 0;
 		let clientSeq = 0;
+		let snapshotBarrier: DeferredPromise<void> | undefined;
 		const manager = store.add(new AgentSubscriptionManager(clientId, () => ++clientSeq, () => { }, async resource => {
 			open.add(resource.toString());
-			return { resource: resource.toString(), state: hostState.get(resource.toString()) ?? { annotations: [] }, fromSeq: serverSeq };
+			const snapshot = { resource: resource.toString(), state: hostState.get(resource.toString()) ?? { annotations: [] }, fromSeq: serverSeq };
+			await snapshotBarrier?.p;
+			return snapshot;
 		}, resource => open.delete(resource.toString())));
 		const hostApply = (channel: string, action: ClientAnnotationsAction, origin?: { clientId: string; clientSeq: number }) => {
 			hostState.set(channel, annotationsReducer(hostState.get(channel) ?? { annotations: [] }, action));
@@ -84,8 +97,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const host = {
 			connected: true,
 			open,
+			holdSnapshots: () => { snapshotBarrier = new DeferredPromise<void>(); },
+			releaseSnapshots: async () => { await snapshotBarrier?.complete(); snapshotBarrier = undefined; },
 			/** Feedback texts the host holds for the session. */
 			items: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations.map(annotation => annotation.entries[0].text) ?? [],
+			annotations: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations ?? [],
 			/** Adds feedback from another client, such as the agent. */
 			addFeedback: (session: ISession, id: string) => hostApply(annotationsUri(session).toString(), {
 				type: ActionType.AnnotationsSet,
@@ -115,6 +131,9 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			}
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override getBackendChatResource(resource: URI): URI | undefined {
+				return sessions.some(session => session.chats.get().some(chat => chat.resource.toString() === resource.toString())) ? backendChats.get(resource.toString()) : undefined;
+			}
 			override getFeedbackAnnotationsChannel(sessionId: string) {
 				const session = sessions.find(candidate => candidate.sessionId === sessionId)!;
 				return { connection, annotationsUri: annotationsUri(session) };
@@ -148,8 +167,88 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted,
 		});
-		return { backend, host, sessions, showPanes, feedback };
+		return { backend, host, sessions, showPanes, feedback, recreateBackend: () => store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend)) };
 	}
+
+	test('persists child authorship in the advertised annotation origin across backend recreation and child deletion', async () => {
+		const { backend, host, sessions: [session], feedback, recreateBackend } = createConnectedBackend(1);
+		backend.getItems(session.resource);
+		await timeout(0);
+		const child = session.chats.get()[1];
+		backend.upsert({ ...feedback('child-feedback', session), chatResource: child.resource });
+		const originalOrigin = host.annotations(session)[0].origin.chat;
+		backend.dispose();
+		const restored = recreateBackend();
+		restored.getItems(session.resource);
+		await timeout(0);
+		const restoredChat = restored.getItems(session.resource)[0].chatResource;
+
+		session.chats.set([session.mainChat.get()], undefined);
+		restored.dispose();
+		const afterDeletion = recreateBackend();
+		afterDeletion.getItems(session.resource);
+		await timeout(0);
+		const missingChatFeedback = afterDeletion.getItems(session.resource)[0];
+		afterDeletion.upsert({ ...missingChatFeedback, text: 'Keep the deleted target' });
+
+		assert.deepStrictEqual({
+			origin: originalOrigin,
+			restoredChat: restoredChat?.toString(),
+			deletedTarget: missingChatFeedback.chatResource?.toString(),
+			updatedOrigin: host.annotations(session)[0].origin.chat,
+		}, {
+			origin: 'other-host:/opaque-threads/0-1',
+			restoredChat: child.resource.toString(),
+			deletedTarget: 'other-host:/opaque-threads/0-1',
+			updatedOrigin: originalOrigin,
+		});
+	});
+
+	test('legacy feedback remains session-scoped when no annotation chat was recorded', async () => {
+		const { backend, host, sessions: [session] } = createConnectedBackend(1);
+		backend.getItems(session.resource);
+		await timeout(0);
+		host.addFeedback(session, 'legacy');
+		assert.deepStrictEqual(backend.getItems(session.resource).map(item => ({ id: item.id, chat: item.chatResource })), [{ id: 'legacy', chat: undefined }]);
+	});
+
+	for (const opaque of [false, true]) {
+		test(`updates a cached deleted child's feedback while its replacement snapshot is pending (opaque=${opaque})`, async () => {
+			const { backend, host, sessions: [session], showPanes, feedback } = createConnectedBackend(1);
+			showPanes([session]);
+			backend.getItems(session.resource);
+			await timeout(0);
+			const child = session.chats.get()[1];
+			backend.upsert({ ...feedback('child', session), chatResource: child.resource });
+			session.chats.set([session.mainChat.get()], undefined);
+			if (opaque) {
+				backend.upsert(backend.getItems(session.resource)[0]);
+			}
+			showPanes([]);
+			const suspended = host.open.size === 0;
+			host.holdSnapshots();
+			showPanes([session]);
+			const cached = backend.getItems(session.resource)[0];
+			const loading = !backend.hasLoaded(session.resource);
+			try {
+				backend.upsert({ ...cached, text: 'Edited while loading' });
+				backend.upsert({ ...backend.getItems(session.resource)[0], replies: [{ text: 'Reply while loading', author: 'user' }] });
+				assert.deepStrictEqual({
+					suspended, loading,
+					origin: host.annotations(session)[0].origin.chat,
+					entries: host.annotations(session)[0].entries.map(entry => entry.text),
+				}, {
+					suspended: true, loading: true,
+					origin: 'other-host:/opaque-threads/0-1',
+					entries: ['Edited while loading', 'Reply while loading'],
+				});
+			} finally {
+				await host.releaseSnapshots();
+				await timeout(0);
+			}
+		});
+	}
+
 	test('scoped observation shares and releases annotations without populating the persistent cache', async () => {
 		const sessionResource = URI.parse('agent-host-claude:/saved');
 		const annotationsUri = URI.parse('claude:/saved/annotations');

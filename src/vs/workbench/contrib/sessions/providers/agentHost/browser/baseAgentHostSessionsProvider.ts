@@ -4934,6 +4934,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _activeSessionScopeSessionType: string | undefined;
 	private _activeSessionScopeRoots: readonly URI[] | undefined;
 	private readonly _lastPublishedActiveClients = new Map<string, { readonly connection: IAgentConnection; readonly activeClient: SessionActiveClient }>();
+	private readonly _queuedSendCancellation = new CancellationTokenSource();
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
@@ -4955,6 +4956,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this._register(toDisposable(() => this._queuedSendCancellation.dispose(true)));
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
@@ -8923,6 +8925,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			queue: options.queue,
 			agentHostMessageOrigin: readAgentMessageDelegationMeta({ _meta: options.metadata }) ? { kind: MessageKind.Agent } : undefined,
 			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
@@ -8933,16 +8936,46 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`[${this.id}] Unable to load chat session ${chatResource.toString()}`);
 		}
 
+		const store = new DisposableStore();
 		try {
+			const connection = this.connection;
+			const backendChat = this.getBackendChatResource(chatResource);
+			if (options.queue && (!connection || !backendChat)) {
+				throw new Error(`[${this.id}] Unable to resolve the queued request's host chat`);
+			}
+			// Buffer before sending: the authoritative echo can arrive before sendRequest returns its request ID.
+			const acknowledgements = options.queue && connection && backendChat ? Event.buffer(
+				Event.filter(connection.onDidAction, envelope => envelope.channel === backendChat.toString()
+					&& envelope.origin?.clientId === connection.clientId && envelope.action.type === ActionType.ChatPendingMessageSet),
+				'queued chat acknowledgement', true, [], store,
+			) : undefined;
+			const cancellation = store.add(new CancellationTokenSource(this._queuedSendCancellation.token));
+			if (acknowledgements && connection) {
+				store.add(this.onConnectionLost(() => cancellation.cancel()));
+				store.add(autorun(reader => {
+					this._connectionChanged.read(reader);
+					if (this.connection !== connection || connection.connectionAvailable?.read(reader) === false) {
+						cancellation.cancel();
+					}
+				}));
+			}
 			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
+			if (result.kind === 'queued' && acknowledgements) {
+				const envelope = await raceCancellationError(Event.toPromise(Event.filter(acknowledgements,
+					envelope => envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === result.requestId), store), cancellation.token);
+				if (envelope.rejectionReason) {
+					throw new Error(envelope.rejectionReason);
+				}
+			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: !options.queue, modelConfiguration: selectedModelConfiguration });
 		} finally {
+			store.dispose();
 			modelRef.dispose();
 		}
 

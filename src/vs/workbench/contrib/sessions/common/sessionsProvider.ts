@@ -186,6 +186,8 @@ export interface ISendRequestOptions {
 	readonly onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'];
 	/** The query text to send. */
 	readonly query: string;
+	/** Queue the request without interrupting the current turn. */
+	readonly queue?: IChatSendRequestOptions['queue'];
 	/** Provider-specific request metadata, separate from the prompt. */
 	readonly metadata?: Record<string, unknown>;
 	/** Optional attached context entries. */
