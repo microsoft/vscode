@@ -34,6 +34,14 @@ export enum IssueSource {
 	Unknown = 'unknown'
 }
 
+export const issueReporterLayoutSettingId = 'issueReporter.wizard.layout';
+
+/**
+ * How the new issue reporter asks for a report. Quick asks for screenshots and a description and
+ * leaves the rest to defaults. Guided also asks for the target, category, title, and diagnostics.
+ */
+export type IssueReporterLayout = 'quick' | 'guided';
+
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
 	textLinkActiveForeground?: string;

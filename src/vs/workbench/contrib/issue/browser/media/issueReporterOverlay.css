@@ -54,8 +54,37 @@
 	width: auto;
 }
 
-.issue-reporter-wizard .wizard-attachments > .wizard-heading {
-	font-size: var(--vscode-fontSize-heading3);
+/* The target and category, which the quick layout hides until they need attention. */
+.issue-reporter-wizard .wizard-classification {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.issue-reporter-wizard .wizard-classification[hidden] {
+	display: none;
+}
+
+.issue-reporter-wizard .wizard-quick-diagnostics {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.issue-reporter-wizard .wizard-quick-diagnostics .wizard-quick-diagnostics-checkbox {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-quick-diagnostics-label {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+/* Outside the target field, the destination line takes its own place in the flow. */
+.issue-reporter-wizard .wizard-quick-destination .wizard-target-status {
+	position: static;
 }
 
 .issue-reporter-wizard .wizard-actions {

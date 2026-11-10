@@ -33,10 +33,12 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { applyZoom, zoomIn, zoomOut } from '../../../../platform/window/electron-browser/window.js';
-import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueReporterLayout, issueReporterLayoutSettingId } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
 import { IssueReporterController } from './issueReporterController.js';
 import { localize } from '../../../../nls.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
@@ -89,6 +91,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
 		this._register(lifecycleService.onBeforeShutdown(event => {
@@ -176,7 +179,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			}
 		}
 
-		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data);
+		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data, this.getReporterLayout());
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
 		let reporterWindow: ReporterWindow | undefined;
 		try {
@@ -258,6 +261,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 				auxiliaryWindow?.dispose();
 			}
 		}
+	}
+
+	/** Reads the layout of a new report, after logging the trigger of the experiment that sets it. */
+	private getReporterLayout(): IssueReporterLayout {
+		logSettingExperimentTrigger(this.telemetryService, issueReporterLayoutSettingId);
+		return this.configurationService.getValue<string>(issueReporterLayoutSettingId) === 'quick' ? 'quick' : 'guided';
 	}
 
 	private registerReporterWindowKeys(window: ReporterWindow): void {

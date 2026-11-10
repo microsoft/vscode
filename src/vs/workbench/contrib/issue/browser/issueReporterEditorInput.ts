@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IssueReporterAttachment, IssueReporterData } from '../common/issue.js';
+import { IssueReporterAttachment, IssueReporterData, IssueReporterLayout } from '../common/issue.js';
 import { IIssueReporterDiagnosticsState, IScreenshot } from './issueReporterOverlay.js';
 import { $, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { DisposableMap, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -111,6 +111,8 @@ export class IssueReporterEditorInput extends EditorInput {
 
 	constructor(
 		data: IssueReporterData | undefined,
+		/** Chosen when the report opens, so the report keeps it when it moves or the setting changes. */
+		readonly layout: IssueReporterLayout = 'guided',
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();

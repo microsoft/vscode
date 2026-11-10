@@ -48,7 +48,7 @@ import { RecordingState } from '../../browser/recordingService.js';
 import { ScreenshotAnnotationEditor } from '../../../screenshotTool/browser/screenshotAnnotation.js';
 import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
 import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
-import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
+import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueReporterLayout, IssueSource, IssueType } from '../../common/issue.js';
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -83,6 +83,7 @@ suite('IssueReporterOverlay', () => {
 	function createReporter(overrides: Partial<IssueReporterData> = {}, options: {
 		resolveExtensionIssueData?: (extensionId: string) => Promise<IssueReporterData | undefined>;
 		captureContainer?: HTMLElement;
+		layout?: IssueReporterLayout;
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
@@ -122,7 +123,7 @@ suite('IssueReporterOverlay', () => {
 			issueTitle: 'Repository selection', issueBody: 'Issue description',
 			...overrides,
 		};
-		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data));
+		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'guided'));
 		const editor = input.descriptionInput;
 		const container = document.createElement('div');
 		container.style.width = '800px';
@@ -274,9 +275,9 @@ suite('IssueReporterOverlay', () => {
 			focusedDescription: true,
 			submitted: ['A title'],
 			events: [
-				{ name: 'issueReporter.previewClicked', data: undefined },
-				{ name: 'issueReporter.previewClicked', data: undefined },
-				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } },
 			],
 		});
 	});
@@ -285,7 +286,7 @@ suite('IssueReporterOverlay', () => {
 		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
 			const { preview, telemetry } = createReporter();
 			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
-			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: undefined }]);
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } }]);
 		});
 	}
 
@@ -300,7 +301,7 @@ suite('IssueReporterOverlay', () => {
 		preview.click();
 		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
 			ignored: [],
-			events: [{ name: 'issueReporter.previewClicked', data: undefined }],
+			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'guided' } }],
 		});
 	});
 
@@ -1226,6 +1227,86 @@ suite('IssueReporterOverlay', () => {
 		const withFile = hint.hidden;
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		assert.deepStrictEqual({ empty, withFile, withScreenshot: hint.hidden, text: hint.textContent }, { empty: true, withFile: true, withScreenshot: false, text: 'Click a screenshot to edit it.' });
+	});
+
+	suite('Layouts', () => {
+		function describeForm(container: HTMLElement) {
+			const names = ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-quick-diagnostics', 'wizard-quick-destination', 'wizard-preview'];
+			const parts = container.querySelectorAll<HTMLElement>(names.map(name => `.${name}`).join(', '));
+			return {
+				order: [...parts].filter(part => !part.closest('[hidden]')).map(part => names.find(name => part.classList.contains(name))),
+				title: container.querySelector('.wizard-title-field label')?.textContent,
+				titlePlaceholder: container.querySelector<HTMLInputElement>('.wizard-title-field input')?.placeholder,
+				guidance: container.querySelector('.wizard-description-guidance')?.textContent,
+			};
+		}
+
+		test('both layouts ask for screenshots and a description first; the quick layout leaves out the rest', () => {
+			const extension = { id: 'publisher.extension', name: 'extension', publisher: 'publisher', version: '1.0.0', isTheme: false, isBuiltin: false, displayName: 'Extension', repositoryUrl: undefined, bugsUrl: 'https://github.com/publisher/extension/issues' };
+			const extensionReport = createReporter({ issueSource: IssueSource.Extension, extensionId: extension.id, enabledExtensions: [extension] }, { layout: 'quick' });
+			assert.deepStrictEqual({
+				guided: describeForm(createReporter().container),
+				quick: describeForm(createReporter({}, { layout: 'quick' }).container),
+				quickExtensionReportShowsTarget: !extensionReport.container.querySelector<HTMLElement>('.wizard-classification')!.hidden,
+			}, {
+				guided: {
+					order: ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-preview'],
+					title: 'Title*',
+					titlePlaceholder: 'E.g. Workbench is missing problems panel',
+					guidance: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.',
+				},
+				quick: {
+					order: ['wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-quick-diagnostics', 'wizard-quick-destination', 'wizard-preview'],
+					title: 'Title (optional)',
+					titlePlaceholder: 'Leave empty to generate a title from the description',
+					guidance: 'Describe what you saw. A sentence or two is enough.\nMarkdown formatting is supported.',
+				},
+				quickExtensionReportShowsTarget: true,
+			});
+		});
+
+		test('the quick layout generates a missing title when previewing, or takes the first line of the description', async () => {
+			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'quick' });
+			const requests: string[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(description => requests.push(description)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			const title = container.querySelector<HTMLInputElement>('.wizard-title-field input')!;
+			setText('Tabs flicker\nwhen they are dragged');
+			preview.click();
+			const whileGenerating = { label: preview.textContent, disabled: preview.classList.contains('disabled') };
+			overlay.setGeneratedTitle('Tabs flicker while dragging');
+			await timeout(0);
+			title.value = '';
+			title.dispatchEvent(new Event('input'));
+			preview.click();
+			// When no title can be generated, the first line of the description becomes the title.
+			overlay.resetGenerateButton();
+			await timeout(0);
+			assert.deepStrictEqual({ requests, whileGenerating, submitted, title: title.value }, {
+				requests: ['Tabs flicker\nwhen they are dragged', 'Tabs flicker\nwhen they are dragged'],
+				whileGenerating: { label: 'Generating title...', disabled: true },
+				submitted: ['Tabs flicker while dragging', 'Tabs flicker'],
+				title: 'Tabs flicker',
+			});
+		});
+
+		test('the quick layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
+			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'quick' });
+			overlay.updateModel({ experimentInfo: 'treatment' });
+			const bodies: string[] = [];
+			store.add(overlay.onDidSubmit(event => bodies.push(event.body)));
+			preview.click();
+			container.querySelector<HTMLElement>('.wizard-quick-diagnostics-checkbox')!.click();
+			preview.click();
+			container.querySelector<HTMLElement>('.wizard-quick-diagnostics-label')!.click();
+			preview.click();
+			assert.deepStrictEqual(bodies.map(body => ({ experiments: body.includes('A/B Experiments'), category: body.includes('Issue Category') })), [
+				{ experiments: true, category: false },
+				{ experiments: false, category: false },
+				{ experiments: true, category: false },
+			]);
+		});
 	});
 
 	test('removes handlers from replaced screenshot cards', () => {

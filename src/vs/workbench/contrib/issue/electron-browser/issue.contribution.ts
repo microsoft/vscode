@@ -25,7 +25,7 @@ import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
 import './issueReporterKeybindings.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
-import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
+import { IIssueFormService, IWorkbenchIssueService, issueReporterLayoutSettingId, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
@@ -79,6 +79,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'window',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('issueReporter.wizard.openLocation', "Where to open fresh reports when the new issue reporter is enabled. Existing reports keep their current location."),
+		},
+		[issueReporterLayoutSettingId]: {
+			type: 'string',
+			enum: ['quick', 'guided'],
+			enumDescriptions: [
+				localize('issueReporter.wizard.layout.quick', "Ask for screenshots and a description. The target and category keep their defaults, the title is generated from the description when it is left empty, and diagnostics are one choice."),
+				localize('issueReporter.wizard.layout.guided', "Ask for screenshots and a description first, then for the target, category, title, and each kind of diagnostics, with guidance along the way."),
+			],
+			default: 'guided',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('issueReporter.wizard.layout', "Controls how the new issue reporter asks for a report. Existing reports keep their layout."),
+			experiment: { mode: 'auto' },
 		},
 		'issueReporter.wizard.fullWorkspaceScan': {
 			type: 'boolean',

@@ -43,6 +43,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AuxiliaryWindowMode, BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -205,6 +207,8 @@ suite('NativeIssueFormService reporter windows', () => {
 			'issueReporter.wizard.openLocation': location,
 		});
 		instantiation.stub(IConfigurationService, configuration);
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ILogService, new NullLogService());
 		const lifecycle = store.add(new class extends TestLifecycleService {
 			private readonly vetoed = this._register(new Emitter<void>());
@@ -332,7 +336,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
 		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews,
+			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry,
 			shutdown: async (reason: ShutdownReason) => {
 				if (reason === ShutdownReason.QUIT) {
 					windows.forEach(window => window.blockNativeClose = true);
@@ -349,7 +353,7 @@ suite('NativeIssueFormService reporter windows', () => {
 				return { vetoed, participants: vetos.length };
 			},
 			inputs: () => instances.returnValues.filter((value): value is IssueReporterEditorInput => value instanceof IssueReporterEditorInput),
-			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial)),
+			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial, 'guided')),
 			addGroup: (windowId: number) => {
 				const group = new TestGroup(10 + groups.length, windowId);
 				groups.push(group);
@@ -365,6 +369,18 @@ suite('NativeIssueFormService reporter windows', () => {
 		assert.deepStrictEqual({ type: setting.type, values: setting.enum, default: setting.default, scope: setting.scope, policy: setting.policy, experiment: setting.experiment }, {
 			type: 'string', values: ['editor', 'window'], default: 'window', scope: ConfigurationScope.APPLICATION, policy: undefined, experiment: undefined,
 		});
+	});
+
+	test('opens each new report in the layout of the setting, after logging its experiment trigger', async () => {
+		const reports = [];
+		for (const layout of [undefined, 'quick', 'guided']) {
+			const { service, configuration, inputs, telemetry } = createService('editor');
+			await configuration.setUserConfiguration('issueReporter.wizard.layout', layout);
+			await service.openReporter(data());
+			reports.push({ layout: inputs().map(input => input.layout), triggers: telemetry.triggers });
+		}
+		const triggers = ['config.issueReporter.wizard.layout'];
+		assert.deepStrictEqual(reports, [{ layout: ['guided'], triggers }, { layout: ['quick'], triggers }, { layout: ['guided'], triggers }]);
 	});
 
 	for (const isSessionsWindow of [false, true]) {
