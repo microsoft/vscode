@@ -33,7 +33,7 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getDefaultFloatingWidgetWidth, getRevealScrollTop, getWidthBesideCode, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -68,6 +68,18 @@ interface IResizeSession {
 	west: boolean;
 	vertical: boolean;
 }
+
+/**
+ * Where a widget is placed, and the width it is placed with.
+ */
+interface ISizedFloatingWidgetPlacement extends IFloatingWidgetPlacement {
+	readonly width: number;
+}
+
+/**
+ * Where a widget may be placed, whatever its size.
+ */
+type FloatingWidgetPlacementArea = Omit<IFloatingWidgetPlacementRequest, 'width' | 'height'>;
 
 /**
  * Shows a comment thread in a window that floats above the editor. The window can be moved by dragging
@@ -500,6 +512,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 	}
 
+	/**
+	 * Where the widget goes and how large it is until the user moves or resizes it. The widget is laid out to measure
+	 * its content, and may be left at another width than the layout's until the layout is applied.
+	 */
 	private _computeDefaultLayout(): ICommentThreadFloatingWidgetLayout {
 		this._sizeModel.resetGrowth();
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
@@ -507,31 +523,100 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const contentWidths = this._measureContentWidths();
 		const widthRange = this._sizeModel.getWidthRange(contentWidths);
 		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN);
-		let width = this._setWidth(this._sizeModel.getDefaultWidth(contentWidths, preferredWidth, this._commentThreadWidget.isEditing), widthRange);
-		let height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
+		const defaultWidth = this._sizeModel.getDefaultWidth(contentWidths, preferredWidth, this._commentThreadWidget.isEditing);
 
-		const scrollTop = this.editor.getScrollTop();
 		const editorCode = this._codeGeometry.getBoundingRect();
-		const code = editorCode && { ...editorCode, top: editorCode.top + scrollTop };
-		const obstacles = this._host.getOccupiedRects(this);
-		// A new comment goes right after the end of its code when there is room, so that it's close to where it's written.
-		const widthBesideCode = code && !this._commentThread.comments?.length ? getWidthBesideCode(code, height, width, widthRange.min, bounds.right, obstacles) : undefined;
-		if (widthBesideCode !== undefined && widthBesideCode !== width) {
-			width = this._setWidth(widthBesideCode, widthRange);
-			height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
-		}
-
-		const { top, left, centered } = computeFloatingWidgetPlacement({
+		const code = editorCode && { ...editorCode, top: editorCode.top + this.editor.getScrollTop() };
+		const area: FloatingWidgetPlacementArea = {
 			minLeft: bounds.left + EDGE_MARGIN,
 			maxRight: bounds.right,
-			width,
-			height,
 			code,
-			obstacles,
-			scrollableHeight: this._getScrollableHeight(),
-			besideCode: widthBesideCode !== undefined
-		});
+			obstacles: this._host.getOccupiedRects(this),
+			scrollableHeight: this._getScrollableHeight()
+		};
+		const isNewComment = !this._commentThread.comments?.length;
+		// Laying the widget out makes the browser lay it out, so its size at the default width is measured at most once.
+		let defaultSize: ISize | undefined;
+		const measureDefaultSize = () => defaultSize ??= this._layOutAtWidth(defaultWidth, widthRange);
+		let placement = code && !isNewComment ? this._placeBesideLines(area, code, defaultWidth, measureDefaultSize, contentWidths.natural, widthRange) : undefined;
+		if (!placement) {
+			const request = { ...area, ...measureDefaultSize() };
+			placement = (code && isNewComment ? this._placeBesideCode(request, code, widthRange) : undefined) ?? { ...computeFloatingWidgetPlacement(request), width: request.width };
+		}
+		const { top, left, centered, width } = placement;
 		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined };
+	}
+
+	/**
+	 * Places a new comment right after the end of its code, level with it, when there is room, so that it's close to
+	 * where it's written.
+	 */
+	private _placeBesideCode(request: IFloatingWidgetPlacementRequest, code: IRect, widthRange: ISizeRange): ISizedFloatingWidgetPlacement | undefined {
+		const width = getWidthBesideCode(code, request.height, request.width, widthRange.min, request.maxRight, request.obstacles);
+		if (width === undefined) {
+			return undefined;
+		}
+		const size = this._layOutAtWidth(width, widthRange);
+		return { ...computeFloatingWidgetPlacement({ ...request, ...size, besideCode: true }), width: size.width };
+	}
+
+	/**
+	 * Places an existing comment right after the end of the lines next to its code, and as wide as its content fills,
+	 * when there is room, so that it's close to its code. See {@link getPlacementBesideLines} for which lines it may
+	 * hide. Where other widgets move it to, it hides no more of the lines there.
+	 *
+	 * Laying the widget out at a new width takes far longer than estimating where lines end, so it's laid out once,
+	 * unless its height decides how wide it is. Which lines it's next to depends on its height, which is only known once
+	 * it's laid out, but it's at least the minimum height and at most the height that it sizes itself to. A taller widget
+	 * is next to more lines, which leave it no more room, so when both heights leave the same room, so do the heights in
+	 * between. A wider widget is no taller, so it's next to no more lines.
+	 * @param measureDefaultSize Lays the widget out at its default width, the first time only, and returns its size there.
+	 */
+	private _placeBesideLines(area: FloatingWidgetPlacementArea, code: IRect, defaultWidth: number, measureDefaultSize: () => ISize, naturalWidth: number, widthRange: ISizeRange): ISizedFloatingWidgetPlacement | undefined {
+		const maxHeight = this._sizeModel.maxAutoHeight;
+		const centeredTop = (height: number) => getCenteredTop(code.top, code.top + code.height, height);
+		const nearbyLines = this._codeGeometry.estimateLineRects(centeredTop(maxHeight), centeredTop(maxHeight) + maxHeight);
+		const getPlacement = (lines: readonly IRect[], top: number, height: number) => getPlacementBesideLines(lines, top, top + height, code.left + code.width, area.maxRight, defaultWidth, naturalWidth);
+		const getCenteredPlacement = (height: number) => getPlacement(nearbyLines, centeredTop(height), height);
+
+		const shortest = getCenteredPlacement(MIN_HEIGHT);
+		if (!shortest) {
+			return undefined;
+		}
+		const tallest = getCenteredPlacement(maxHeight);
+		let beside: IBesideLinesPlacement | undefined;
+		let size: ISize | undefined;
+		if (tallest && tallest.linesRight === shortest.linesRight && tallest.width === shortest.width
+			&& computeFloatingWidgetPlacement({ ...area, width: tallest.width, height: maxHeight, linesRight: tallest.linesRight }).centered) {
+			beside = tallest;
+			size = this._layOutAtWidth(beside.width, widthRange);
+		} else {
+			const defaultSize = measureDefaultSize();
+			beside = defaultSize.height <= maxHeight ? getCenteredPlacement(defaultSize.height) : undefined;
+			size = beside && (beside.width === defaultSize.width ? defaultSize : this._layOutAtWidth(beside.width, widthRange));
+		}
+		// A widget whose title, reply and actions alone are taller than it sizes itself to is next to unchecked lines.
+		if (!beside || !size || size.height > maxHeight) {
+			return undefined;
+		}
+		const placement = computeFloatingWidgetPlacement({ ...area, ...size, linesRight: beside.linesRight });
+		if (!placement.centered) {
+			// Other widgets moved the widget away from the code, next to other lines.
+			const moved = getPlacement(this._codeGeometry.estimateLineRects(placement.top, placement.top + size.height), placement.top, size.height);
+			if (!moved || moved.linesRight > beside.linesRight || moved.width < size.width) {
+				return undefined;
+			}
+		}
+		return { ...placement, width: size.width };
+	}
+
+	/**
+	 * Lays the widget out at the given width, within the given range, and measures the size that it then takes when it
+	 * sizes itself to its content.
+	 */
+	private _layOutAtWidth(width: number, range: ISizeRange): ISize {
+		const newWidth = this._setWidth(width, range);
+		return { width: newWidth, height: this._sizeModel.getHeight(this._measureContentHeights(), undefined) };
 	}
 
 	/**

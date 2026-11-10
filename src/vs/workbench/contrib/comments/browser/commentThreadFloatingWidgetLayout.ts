@@ -16,6 +16,13 @@ const MIN_COMMENTS_HEIGHT = 40;
 const DEFAULT_MIN_WIDTH = 320;
 const DEFAULT_MAX_WIDTH = 560;
 const DEFAULT_WIDTH_RATIO = 0.4;
+/**
+ * How many of the lines next to a widget placed right after them may leave it no room after them, and so run under it,
+ * so that a couple of long lines don't keep it from its code.
+ */
+const COVERABLE_LINES = 2;
+/** The widest that a widget placed after the ends of the lines next to it is shown, so that its comments stay readable. */
+const MAX_WIDTH_BESIDE_LINES = 640;
 /** Portion of the editor height that a widget sizing itself to its content may take up. */
 const AUTO_HEIGHT_RATIO = 0.6;
 
@@ -190,6 +197,47 @@ export function getWidthBesideCode(code: IRect, height: number, preferredWidth: 
 }
 
 /**
+ * Where a widget goes right after the end of the lines next to it, and how wide it is.
+ */
+export interface IBesideLinesPlacement {
+	/** Where the lines that the widget goes after end. */
+	readonly linesRight: number;
+	readonly width: number;
+}
+
+/**
+ * Where a widget goes right after the end of the lines next to it, such as an existing comment, and how wide it is: as
+ * wide as its content fills, up to a readable width and the room there is, and no narrower than its default width.
+ * The widget goes after every line that leaves it room for its default width, rather than hiding it. It only hides a
+ * couple of lines that leave it no room after them, and then keeps its default width, so that it hides no more of
+ * them. `undefined` when more lines leave it no room, or when the code does.
+ * @param lines Lines of the editor, of which those between `top` and `bottom` are next to the widget.
+ * @param codeRight Where the commented code ends, which the widget never hides.
+ * @param maxRight The rightmost position the right edge of the widget may take.
+ */
+export function getPlacementBesideLines(lines: readonly IRect[], top: number, bottom: number, codeRight: number, maxRight: number, defaultWidth: number, naturalWidth: number): IBesideLinesPlacement | undefined {
+	// The widget has room for its default width after lines that end up to here.
+	const maxLinesRight = maxRight - EDGE_MARGIN - CODE_GAP - defaultWidth;
+	let linesRight = codeRight;
+	let hiddenLines = 0;
+	for (const line of lines) {
+		if (line.top < bottom && top < line.top + line.height) {
+			const right = line.left + line.width;
+			if (right > maxLinesRight) {
+				hiddenLines++;
+			} else {
+				linesRight = Math.max(linesRight, right);
+			}
+		}
+	}
+	if (hiddenLines > COVERABLE_LINES || linesRight > maxLinesRight) {
+		return undefined;
+	}
+	const availableWidth = Math.floor(maxRight - EDGE_MARGIN - (linesRight + CODE_GAP));
+	return { linesRight, width: hiddenLines ? defaultWidth : Math.max(defaultWidth, Math.min(naturalWidth, MAX_WIDTH_BESIDE_LINES, availableWidth)) };
+}
+
+/**
  * The scroll position that shows the commented code and the widget, all in document coordinates, or `undefined` when
  * no scrolling is needed. When they don't fit in the viewport together, the widget is shown in full, with as much of
  * the start of the code as fits.
@@ -230,6 +278,11 @@ export interface IFloatingWidgetPlacementRequest {
 	 * for a new comment. See {@link getWidthBesideCode}.
 	 */
 	readonly besideCode?: boolean;
+	/**
+	 * Where the lines next to the code end. The widget is placed right after them, vertically centered on the code,
+	 * when there is room, rather than at the right edge of the editor. See {@link getPlacementBesideLines}.
+	 */
+	readonly linesRight?: number;
 }
 
 export interface IFloatingWidgetPlacement {
@@ -240,11 +293,11 @@ export interface IFloatingWidgetPlacement {
 }
 
 /**
- * Places a widget at the right edge of the editor, vertically centered on the commented code, or right after the end
- * of the code when that is requested and there is room. When the code leaves no room for the widget at the right edge,
- * the widget goes below the code instead, so that it doesn't cover it. When the widget would cover the code or one of
- * the obstacles there, it moves to the closest position above or below them that is free, within the area that the
- * editor can scroll through.
+ * Places a widget at the right edge of the editor, vertically centered on the commented code. When requested and there
+ * is room, the widget goes right after the end of the code, level with its top, or right after the end of the lines
+ * next to the code instead. When the code leaves no room for the widget at the right edge, the widget goes below the
+ * code, so that it doesn't cover it. When the widget would cover the code or one of the obstacles, it moves to the
+ * closest position above or below them that is free, within the area that the editor can scroll through.
  */
 export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacementRequest): IFloatingWidgetPlacement {
 	const { minLeft, width, height, code } = request;
@@ -252,14 +305,17 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 	let left = maxLeft;
 	let preferredTop = code ? getCenteredTop(code.top, code.top + code.height, height) : 0;
 	let centered = true;
-	if (code && request.besideCode && code.left + code.width + CODE_GAP <= maxLeft) {
-		left = Math.max(minLeft, code.left + code.width + CODE_GAP);
+	const codeRight = code ? code.left + code.width : 0;
+	if (code && request.besideCode && codeRight + CODE_GAP <= maxLeft) {
+		left = Math.max(minLeft, codeRight + CODE_GAP);
 		preferredTop = code.top;
 		centered = false;
-	} else if (code && code.left + code.width + CODE_GAP > left) {
+	} else if (code && codeRight + CODE_GAP > maxLeft) {
 		left = clamp(code.left, minLeft, maxLeft);
 		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
+	} else if (code && request.linesRight !== undefined) {
+		left = clamp(Math.max(codeRight, request.linesRight) + CODE_GAP, minLeft, maxLeft);
 	}
 
 	// The free position closest to the preferred one is the preferred position, an edge of the scrollable area, or
@@ -403,13 +459,20 @@ export class FloatingWidgetSizeModel {
 	}
 
 	/**
+	 * The tallest that the widget sizes itself to its content when the user didn't choose a height, unless its title,
+	 * reply and additional actions alone are taller, and before they grow.
+	 */
+	get maxAutoHeight(): number {
+		return Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
+	}
+
+	/**
 	 * The height of the widget for the height chosen by the user, or for its content when the user didn't choose one.
 	 * Growth of the reply and additional actions is added, rather than taken from the comments.
 	 */
 	getHeight(content: IFloatingWidgetContentHeights, chosenHeight: number | undefined): number {
 		const range = this.getHeightRange(content);
-		const autoHeight = Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
-		const height = chosenHeight !== undefined ? chosenHeight + this._growth : Math.min(range.max, autoHeight + this._growth);
+		const height = chosenHeight !== undefined ? chosenHeight + this._growth : Math.min(range.max, this.maxAutoHeight + this._growth);
 		return clamp(height, range.min, range.max);
 	}
 
