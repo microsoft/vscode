@@ -15,7 +15,7 @@ export const EXP_EXPOSURE_EVENT = 'exp_exposure';
 export const EXPOSURE_SDK = 'copilot_chat_ts';
 export const EXPOSURE_SDK_VERSION = '1.0.0';
 
-export type ExposureSurface = 'vscode';
+export type ExposureSurface = 'vscode' | 'jetbrains';
 
 /**
  * Each surface has its own ExP gate, so exposure logging can be rolled out and turned off per
@@ -23,7 +23,20 @@ export type ExposureSurface = 'vscode';
  */
 export const EXPOSURE_GATE_TREATMENTS: Readonly<Record<ExposureSurface, string>> = {
 	vscode: 'copilotchat.expExposureEvents.vscode',
+	jetbrains: 'copilotchat.expExposureEvents.jetbrains',
 };
+
+/**
+ * The exposure surface of a chat-lib host, from its editor name (for example `JetBrains-IC`).
+ * Hosts without a surface don't log exposures.
+ */
+export function exposureSurfaceForEditor(editorName: string): ExposureSurface | undefined {
+	const name = editorName.toLowerCase();
+	if (name.includes('jetbrains')) {
+		return 'jetbrains';
+	}
+	return undefined;
+}
 
 const GATE_TREATMENT_NAMES: ReadonlySet<string> = new Set(Object.values(EXPOSURE_GATE_TREATMENTS));
 
@@ -135,11 +148,19 @@ export function sendExperimentExposureTelemetry(telemetryService: Pick<ITelemetr
 			"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always automatic: the exposure is a side effect of the read." },
 			"data_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The ExP data version of the assignment, when known." },
 			"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client surface that read the flag." },
-			"entry_point": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The extension that read the flag." },
+			"entry_point": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The extension or plugin that read the flag." },
 			"assignment_units": { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight", "comment": "JSON of the ExP units the assignment used: the Copilot tracking ID and the device ID." },
 			"sdk": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The exposure implementation." },
 			"sdk_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The exposure implementation's version." }
 		}
 	*/
 	telemetryService.sendTelemetryEvent(EXP_EXPOSURE_EVENT, { github: true, microsoft: true }, exposureTelemetryProperties(exposure));
+}
+
+/**
+ * Sends `exposure` through the host's GitHub telemetry sender. chat-lib hosts (the Copilot
+ * language server) only forward GitHub telemetry.
+ */
+export function sendExperimentExposureGHTelemetry(telemetryService: Pick<ITelemetryService, 'sendGHTelemetryEvent'>, exposure: IExperimentExposure): void {
+	telemetryService.sendGHTelemetryEvent(EXP_EXPOSURE_EVENT, exposureTelemetryProperties(exposure));
 }

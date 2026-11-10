@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
 import { createPlatformServices } from '../../../test/node/services';
-import { EXP_EXPOSURE_EVENT, EXPOSURE_GATE_TREATMENTS, ExperimentExposureTracker, exposureMetadata, IExperimentExposure, IExposureContext, sendExperimentExposureTelemetry, TreatmentValue } from '../../common/experimentExposure';
+import { EXP_EXPOSURE_EVENT, EXPOSURE_GATE_TREATMENTS, ExperimentExposureTracker, exposureMetadata, exposureSurfaceForEditor, IExperimentExposure, IExposureContext, sendExperimentExposureTelemetry, TreatmentValue } from '../../common/experimentExposure';
 import { TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties, TelemetryTrustedValue } from '../../common/telemetry';
 import { BaseExperimentationService, TASClientDelegateFn } from '../../node/baseExperimentationService';
 
@@ -95,6 +95,15 @@ describe('ExperimentExposureTracker', () => {
 		tracker.onRead('copilotchat.a', 1);
 
 		expect(exposures).toHaveLength(1);
+	});
+});
+
+describe('exposureSurfaceForEditor', () => {
+	it('maps JetBrains editor names and ignores other hosts', () => {
+		expect(exposureSurfaceForEditor('JetBrains-IC')).toBe('jetbrains');
+		expect(exposureSurfaceForEditor('jetbrains-iu')).toBe('jetbrains');
+		expect(exposureSurfaceForEditor('vscode')).toBeUndefined();
+		expect(exposureSurfaceForEditor('Xcode')).toBeUndefined();
 	});
 });
 
