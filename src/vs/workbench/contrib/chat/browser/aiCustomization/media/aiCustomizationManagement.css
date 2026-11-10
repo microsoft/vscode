@@ -3307,6 +3307,10 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
+.monaco-reduce-motion .plugin-list-widget .plugin-list-item-status-icon.loading {
+	animation: none;
+}
+
 .plugin-list-widget .plugin-list-item-status-icon.warning {
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
