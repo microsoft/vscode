@@ -81,10 +81,12 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	/**
-	 * Whether a reply is being written or a comment is being edited.
+	 * Whether a reply is being written or a comment is being edited. The reply of a thread without comments is a new
+	 * comment, which is being written even before its editor opens.
 	 */
 	get isEditing(): boolean {
-		return !!this._commentReply?.isReplyExpanded || this._body.hasCommentsInEditMode();
+		const isWritingReply = !!this._commentReply && (this._commentReply.isReplyExpanded || !this._commentThread.comments?.length);
+		return isWritingReply || this._body.hasCommentsInEditMode();
 	}
 
 	/**

@@ -168,6 +168,28 @@ export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availa
 }
 
 /**
+ * The width of a widget that is placed right after the end of the code, level with its top, such as a new comment: the
+ * preferred width, or as much of it as there is room for before the edge of the editor and the obstacles there.
+ * `undefined` when there isn't room for a reasonably wide widget, or for the width that its content needs.
+ * @param code The commented code, in document coordinates.
+ * @param height The height of the widget.
+ * @param maxRight The rightmost position the right edge of the widget may take.
+ * @param obstacles The areas, in document coordinates, that the widget should not cover.
+ */
+export function getWidthBesideCode(code: IRect, height: number, preferredWidth: number, minWidth: number, maxRight: number, obstacles: readonly IRect[]): number | undefined {
+	const left = code.left + code.width + CODE_GAP;
+	let right = maxRight - EDGE_MARGIN;
+	for (const obstacle of obstacles) {
+		if (obstacle.left + obstacle.width > left && obstacle.top < code.top + height && code.top < obstacle.top + obstacle.height) {
+			right = Math.min(right, obstacle.left - EDGE_MARGIN);
+		}
+	}
+	const availableWidth = Math.floor(right - left);
+	const neededWidth = Math.max(minWidth, Math.min(preferredWidth, DEFAULT_MIN_WIDTH));
+	return availableWidth >= neededWidth ? Math.min(preferredWidth, availableWidth) : undefined;
+}
+
+/**
  * The scroll position that shows the commented code and the widget, all in document coordinates, or `undefined` when
  * no scrolling is needed. When they don't fit in the viewport together, the widget is shown in full, with as much of
  * the start of the code as fits.
@@ -203,6 +225,11 @@ export interface IFloatingWidgetPlacementRequest {
 	readonly obstacles: readonly IRect[];
 	/** The height of the area that the editor can scroll through, which the widget is kept within. */
 	readonly scrollableHeight: number;
+	/**
+	 * Places the widget right after the end of the code, level with its top, when there is room for it there, such as
+	 * for a new comment. See {@link getWidthBesideCode}.
+	 */
+	readonly besideCode?: boolean;
 }
 
 export interface IFloatingWidgetPlacement {
@@ -213,10 +240,11 @@ export interface IFloatingWidgetPlacement {
 }
 
 /**
- * Places a widget at the right edge of the editor, vertically centered on the commented code. When the code
- * leaves no room for the widget there, the widget goes below the code instead, so that it doesn't cover it.
- * When the widget would cover the code or one of the obstacles there, it moves to the closest position above or
- * below them that is free, within the area that the editor can scroll through.
+ * Places a widget at the right edge of the editor, vertically centered on the commented code, or right after the end
+ * of the code when that is requested and there is room. When the code leaves no room for the widget at the right edge,
+ * the widget goes below the code instead, so that it doesn't cover it. When the widget would cover the code or one of
+ * the obstacles there, it moves to the closest position above or below them that is free, within the area that the
+ * editor can scroll through.
  */
 export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacementRequest): IFloatingWidgetPlacement {
 	const { minLeft, width, height, code } = request;
@@ -224,7 +252,11 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 	let left = maxLeft;
 	let preferredTop = code ? getCenteredTop(code.top, code.top + code.height, height) : 0;
 	let centered = true;
-	if (code && code.left + code.width + CODE_GAP > left) {
+	if (code && request.besideCode && code.left + code.width + CODE_GAP <= maxLeft) {
+		left = Math.max(minLeft, code.left + code.width + CODE_GAP);
+		preferredTop = code.top;
+		centered = false;
+	} else if (code && code.left + code.width + CODE_GAP > left) {
 		left = clamp(code.left, minLeft, maxLeft);
 		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
