@@ -28,7 +28,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe, AsyncPipeListener,
 };
-use crate::constants::VSCODE_CLI_QUALITY;
+use crate::constants::{VSCODE_CLI_COMMIT, VSCODE_CLI_QUALITY};
 use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::{Quality, TelemetryLevel};
@@ -152,6 +152,8 @@ pub struct AgentHostManager {
 	update_service: UpdateService,
 	/// The latest known release, with the time it was checked.
 	latest_release: Mutex<Option<(Instant, Release)>>,
+	/// Retained across process exits so a pending update cannot downgrade a restart.
+	last_started_release: Mutex<Option<Release>>,
 	starting: Mutex<()>,
 	/// The currently running server, if any.
 	running: Mutex<Option<RunningServer>>,
@@ -195,6 +197,7 @@ impl AgentHostManager {
 			platform,
 			cache,
 			latest_release: Mutex::new(None),
+			last_started_release: Mutex::new(None),
 			starting: Mutex::new(()),
 			running: Mutex::new(None),
 			ready: Mutex::new(None),
@@ -448,6 +451,7 @@ impl AgentHostManager {
 				kill,
 			});
 		}
+		*self.last_started_release.lock().await = Some(release.clone());
 		if let Some(opener) = opener.take() {
 			opener.open(Ok(socket_path));
 		}
@@ -534,10 +538,8 @@ impl AgentHostManager {
 		drop(activity_guard);
 	}
 
-	/// Returns a release and its local directory. Prefers the latest known
-	/// release if it has already been downloaded; otherwise falls back to any
-	/// cached version. Only fetches from the network and downloads if
-	/// nothing is cached at all.
+	/// Prefers the downloaded latest release, then the last started or CLI build,
+	/// then another cached server. The client negotiates compatibility.
 	async fn get_cached_or_download(&self) -> Result<(Release, PathBuf), CodeError> {
 		// When using a dev override, skip the update service entirely -
 		// the override path is used directly by run_server().
@@ -552,6 +554,15 @@ impl AgentHostManager {
 			return Ok((release, PathBuf::new()));
 		}
 
+		self.get_cached_or_download_for_cli(VSCODE_CLI_QUALITY, VSCODE_CLI_COMMIT)
+			.await
+	}
+
+	async fn get_cached_or_download_for_cli(
+		&self,
+		cli_quality: Option<&str>,
+		cli_commit: Option<&str>,
+	) -> Result<(Release, PathBuf), CodeError> {
 		// Best case: the latest known release is already downloaded
 		if let Some((_, release)) = &*self.latest_release.lock().await {
 			let name = get_server_folder_name(release.quality, &release.commit);
@@ -569,14 +580,35 @@ impl AgentHostManager {
 			return Ok((release, dir));
 		}
 
-		let quality = VSCODE_CLI_QUALITY
+		let quality = cli_quality
 			.ok_or(CodeError::UpdatesNotConfigured("no configured quality"))
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
-		// Fall back to any cached version (still instant, just not the newest).
-		// Cache entries are named "<quality>-<commit>" via get_server_folder_name.
+		let cli_release = cli_commit.map(|commit| Release {
+			name: String::new(),
+			commit: commit.to_string(),
+			platform: self.platform,
+			target: TargetKind::Server,
+			quality,
+		});
+		for release in [self.last_started_release.lock().await.clone(), cli_release]
+			.into_iter()
+			.flatten()
+		{
+			// Unlike exists(), this probe cannot evict another installation from a full LRU.
+			let dir = self
+				.cache
+				.path()
+				.join(get_server_folder_name(release.quality, &release.commit));
+			if dir.is_dir() {
+				info!(self.log, "Using cached server {}", release.commit);
+				return Ok((release, dir));
+			}
+		}
+
+		// Preserve offline fallback; only the handshake determines compatibility.
 		for entry in self.cache.get() {
 			if let Some(dir) = self.cache.exists(&entry) {
 				let (entry_quality, commit) = match entry.split_once('-') {
@@ -593,6 +625,7 @@ impl AgentHostManager {
 					target: TargetKind::Server,
 					quality: entry_quality,
 				};
+				warning!(self.log, "Falling back to cached server {}; protocol compatibility will be checked by the client", release.commit);
 				return Ok((release, dir));
 			}
 		}
@@ -2314,8 +2347,30 @@ async fn proxy_gateway_frames<A, B>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::util::http::ReqwestSimpleHttp;
+	use crate::util::http::{ReqwestSimpleHttp, SimpleHttp, SimpleResponse};
 	use std::path::Path;
+
+	#[derive(Default)]
+	struct UnavailableHttp {
+		requests: std::sync::atomic::AtomicUsize,
+	}
+
+	impl SimpleHttp for UnavailableHttp {
+		fn make_request(
+			&self,
+			_method: &'static str,
+			url: String,
+		) -> std::pin::Pin<
+			Box<dyn std::future::Future<Output = Result<SimpleResponse, AnyError>> + Send + '_>,
+		> {
+			Box::pin(async move {
+				self.requests.fetch_add(1, Ordering::SeqCst);
+				let mut response = SimpleResponse::generic_error(&url);
+				response.status_code = ::http::StatusCode::SERVICE_UNAVAILABLE;
+				Ok(response)
+			})
+		}
+	}
 
 	fn make_test_manager(cache_dir: &Path) -> Arc<AgentHostManager> {
 		make_test_manager_with_activity(cache_dir, None)
@@ -2340,6 +2395,247 @@ mod tests {
 			},
 			activity,
 		)
+	}
+
+	#[tokio::test]
+	async fn cached_launcher_build_is_preferred_to_old_first_lru() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_test_manager(dir.path());
+		let old_commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+		let cli_commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+		let latest = Release {
+			name: String::new(),
+			commit: "cccccccccccccccccccccccccccccccccccccccc".into(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Stable,
+		};
+		let old_name = get_server_folder_name(Quality::Stable, old_commit);
+		manager
+			.cache
+			.create(&old_name, |_| async { Ok(()) })
+			.await
+			.unwrap();
+		for i in 1..=4 {
+			manager
+				.cache
+				.create(
+					get_server_folder_name(Quality::Stable, &format!("{i:040x}")),
+					|_| async { Ok(()) },
+				)
+				.await
+				.unwrap();
+		}
+		manager.cache.exists(&old_name);
+		let lru = manager.cache.get();
+		let current_dir = dir
+			.path()
+			.join(get_server_folder_name(Quality::Stable, cli_commit));
+		std::fs::create_dir(&current_dir).unwrap();
+		*manager.latest_release.lock().await = Some((Instant::now(), latest));
+
+		let (selected, path) = manager
+			.get_cached_or_download_for_cli(Some("stable"), Some(cli_commit))
+			.await
+			.unwrap();
+
+		assert_eq!((selected.commit.as_str(), path), (cli_commit, current_dir));
+		assert_eq!(manager.cache.get(), lru);
+		assert!(lru.iter().all(|entry| dir.path().join(entry).exists()));
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn cache_selection_preserves_started_release_while_an_update_is_pending() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\nread ignored",
+				GITHUB_ENVIRONMENT_READY_PREFIX
+			),
+		)
+		.await;
+		let previous = manager
+			.latest_release
+			.lock()
+			.await
+			.as_ref()
+			.unwrap()
+			.1
+			.clone();
+		manager.ensure_server().await.unwrap();
+		manager.kill_running_server().await;
+		let cli_commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+		std::fs::create_dir(
+			dir.path()
+				.join(get_server_folder_name(Quality::Insiders, cli_commit)),
+		)
+		.unwrap();
+		let mut pending = previous.clone();
+		pending.commit = "cccccccccccccccccccccccccccccccccccccccc".into();
+		*manager.latest_release.lock().await = Some((Instant::now(), pending));
+
+		let (selected, path) = manager
+			.get_cached_or_download_for_cli(Some("insiders"), Some(cli_commit))
+			.await
+			.unwrap();
+
+		assert_eq!(
+			(selected.commit.as_str(), path),
+			(
+				previous.commit.as_str(),
+				dir.path()
+					.join(get_server_folder_name(previous.quality, &previous.commit))
+			)
+		);
+	}
+
+	#[tokio::test]
+	async fn cache_selection_preserves_latest_and_offline_version_skew() {
+		for (latest_downloaded, cli_downloaded, latest_known) in [
+			(true, true, true),
+			(false, true, false),
+			(false, false, false),
+			(false, false, true),
+		] {
+			let dir = tempfile::tempdir().unwrap();
+			let mut manager = make_test_manager(dir.path());
+			let http = Arc::new(UnavailableHttp::default());
+			Arc::get_mut(&mut manager).unwrap().update_service =
+				UpdateService::new(log::Logger::test(), http.clone())
+					.with_endpoint("https://updates.invalid");
+			let make_release = |commit: &str| Release {
+				name: String::new(),
+				commit: commit.into(),
+				platform: Platform::LinuxX64,
+				target: TargetKind::Server,
+				quality: Quality::Stable,
+			};
+			let latest = make_release("cccccccccccccccccccccccccccccccccccccccc");
+			let cli = make_release("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+			let old = make_release("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+			for release in [
+				Some(&old),
+				cli_downloaded.then_some(&cli),
+				latest_downloaded.then_some(&latest),
+			]
+			.into_iter()
+			.flatten()
+			{
+				manager
+					.cache
+					.create(
+						get_server_folder_name(release.quality, &release.commit),
+						|_| async { Ok(()) },
+					)
+					.await
+					.unwrap();
+			}
+			manager
+				.cache
+				.exists(&get_server_folder_name(old.quality, &old.commit));
+			if latest_known {
+				*manager.latest_release.lock().await = Some((Instant::now(), latest.clone()));
+			}
+
+			let (selected, _) = manager
+				.get_cached_or_download_for_cli(Some("stable"), Some(&cli.commit))
+				.await
+				.unwrap();
+
+			let expected = if latest_downloaded {
+				&latest
+			} else if cli_downloaded {
+				&cli
+			} else {
+				&old
+			};
+			assert_eq!(selected.commit, expected.commit);
+			assert_eq!(http.requests.load(Ordering::SeqCst), 0);
+		}
+	}
+
+	#[tokio::test]
+	async fn cache_selection_preserves_existing_offline_fallbacks() {
+		for (quality, suffix) in [(Quality::Insiders, ""), (Quality::Stable, "-web")] {
+			let dir = tempfile::tempdir().unwrap();
+			let mut manager = make_test_manager(dir.path());
+			let http = Arc::new(UnavailableHttp::default());
+			Arc::get_mut(&mut manager).unwrap().update_service =
+				UpdateService::new(log::Logger::test(), http.clone())
+					.with_endpoint("https://updates.invalid");
+			let commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+			let cache_name = format!("{}{suffix}", get_server_folder_name(quality, commit));
+			let cached_dir = manager
+				.cache
+				.create(&cache_name, |_| async { Ok(()) })
+				.await
+				.unwrap();
+
+			let (selected, path) = manager
+				.get_cached_or_download_for_cli(
+					Some("stable"),
+					Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+				)
+				.await
+				.unwrap_or_else(|error| panic!("Expected offline reuse of {cache_name}: {error}"));
+
+			assert_eq!(
+				(
+					selected.commit,
+					selected.quality == quality,
+					path,
+					http.requests.load(Ordering::SeqCst)
+				),
+				(format!("{commit}{suffix}"), true, cached_dir, 0)
+			);
+		}
+	}
+
+	#[tokio::test]
+	async fn cache_selection_survives_failed_latest_download() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager(dir.path());
+		let http = Arc::new(UnavailableHttp::default());
+		Arc::get_mut(&mut manager).unwrap().update_service =
+			UpdateService::new(log::Logger::test(), http.clone())
+				.with_endpoint("https://updates.invalid");
+		let latest = Release {
+			name: String::new(),
+			commit: "cccccccccccccccccccccccccccccccccccccccc".into(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Stable,
+		};
+		let cli_commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+		let cli_dir = manager
+			.cache
+			.create(
+				get_server_folder_name(Quality::Stable, cli_commit),
+				|_| async { Ok(()) },
+			)
+			.await
+			.unwrap();
+		manager
+			.cache
+			.create(
+				get_server_folder_name(Quality::Stable, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+				|_| async { Ok(()) },
+			)
+			.await
+			.unwrap();
+		*manager.latest_release.lock().await = Some((Instant::now(), latest.clone()));
+		let error = manager.ensure_downloaded(&latest).await.unwrap_err();
+		assert!(error.to_string().contains("503"), "{error}");
+
+		let (selected, path) = manager
+			.get_cached_or_download_for_cli(Some("stable"), Some(cli_commit))
+			.await
+			.unwrap();
+
+		assert_eq!((selected.commit.as_str(), path), (cli_commit, cli_dir));
+		assert_eq!(http.requests.load(Ordering::SeqCst), 1);
 	}
 
 	/// Installs a fake server release under `dir` whose entrypoint reports
