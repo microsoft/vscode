@@ -235,12 +235,24 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(readGithubEnvironmentOptions({}), undefined);
 	});
 
+	test('keeps GitHub environment filesystem grants separate from projects and the default directory', () => {
+		const options = { ...githubEnvironment, roots: ['C:\\', 'Q:\\'], projects: ['C:\\project'], defaultDirectory: 'C:\\project' };
+		const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify(options) };
+		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, { options, env: {} });
+	});
+
 	test('rejects malformed GitHub environment bootstrap and still removes the credential', () => {
 		for (const value of [
 			'', 'null', '{}', JSON.stringify({ ...githubEnvironment, baseUrl: 'https://untrusted.example' }),
 			JSON.stringify({ ...githubEnvironment, credential: '' }),
 			JSON.stringify({ ...githubEnvironment, roots: [] }),
 			JSON.stringify({ ...githubEnvironment, roots: [123] }),
+			JSON.stringify({ ...githubEnvironment, projects: null }),
+			JSON.stringify({ ...githubEnvironment, projects: [123] }),
+			JSON.stringify({ ...githubEnvironment, projects: [''] }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: null }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: 123 }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: '' }),
 			JSON.stringify({ ...githubEnvironment, accountId: 'not-an-owner' }),
 			JSON.stringify({ ...githubEnvironment, name: '' }),
 			JSON.stringify({ ...githubEnvironment, name: null }),

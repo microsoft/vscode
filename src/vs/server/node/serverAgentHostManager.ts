@@ -69,10 +69,14 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IMissionCo
 		throw new Error('Invalid GitHub environment bootstrap options');
 	}
 	const name = options.name;
+	const projects = options.projects;
+	const defaultDirectory = options.defaultDirectory;
 	if (options.baseUrl !== 'https://api.github.com' || options.live !== true
 		|| typeof options.accountId !== 'string' || !/^\d+$/.test(options.accountId)
 		|| typeof options.credential !== 'string' || !options.credential.trim()
 		|| !isStringArray(options.roots) || options.roots.length === 0 || options.roots.some(root => !root)
+		|| (projects !== undefined && (!isStringArray(projects) || projects.some(project => !project)))
+		|| (defaultDirectory !== undefined && (typeof defaultDirectory !== 'string' || !defaultDirectory))
 		|| (name !== undefined && (typeof name !== 'string' || !name.trim()))) {
 		throw new Error('Invalid GitHub environment bootstrap options');
 	}
@@ -81,6 +85,8 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IMissionCo
 		accountId: options.accountId,
 		credential: options.credential,
 		roots: options.roots,
+		...(projects !== undefined ? { projects } : {}),
+		...(defaultDirectory !== undefined ? { defaultDirectory } : {}),
 		name,
 		live: true,
 	};
