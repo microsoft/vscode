@@ -11,6 +11,8 @@ import { append, createFrostedGlassOverlays, readColor, supportsGlass } from '..
 import '../../../../browser/media/style.css';
 import '../../../automations/browser/media/automationDialog.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorWidget.css';
+import '../../../../browser/media/workbench.css';
+import '../../../../browser/media/floatingAuxiliaryBar.css';
 
 suite('Agents frosted glass styles', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -100,6 +102,59 @@ suite('Agents frosted glass styles', () => {
 				background: readColor(card).rgba,
 				paintFilter: getWindow(card).getComputedStyle(card, '::before').backdropFilter,
 			}, { background: before, paintFilter: 'none' });
+		});
+	}
+
+	function createFloatingPanel() {
+		const { root } = createOverlays();
+		root.classList.add('dock-detail-panel');
+		root.style.setProperty('--vscode-editorWidget-background', '#203040');
+		const surface = append(append(root, 'floating-details'), 'floating-details-surface');
+		const header = append(surface, 'floating-details-header');
+		const part = append(surface, 'part auxiliarybar floating-auxiliarybar');
+		part.style.backgroundColor = 'var(--vscode-agentsDetail-background)';
+		const body = append(append(part, 'content'), 'pane-body');
+		const list = append(body, 'monaco-list');
+		const rows = append(list, 'monaco-list-rows');
+		return { root, surface, backgrounds: [surface, header, part, body, list, rows] };
+	}
+
+	test('frosts the floating panel at the configured opacity without opaque tree fills', () => {
+		const { root, surface, backgrounds } = createFloatingPanel();
+		const solid = backgrounds.map(element => readColor(element).rgba);
+		root.classList.add('modern-ui-frosted-glass');
+		const supported = supportsGlass(root);
+		const glass = [50, 75, 100].map(percentage => {
+			root.style.setProperty('--modern-ui-glass-opacity', `${percentage}%`);
+			return {
+				backgrounds: backgrounds.map(element => readColor(element).rgba),
+				tint: Math.round(readColor(surface, '::before').rgba.a * 100),
+				filter: getWindow(surface).getComputedStyle(surface, '::before').backdropFilter,
+				opacity: getWindow(surface).getComputedStyle(surface).opacity,
+			};
+		});
+		root.classList.remove('modern-ui-frosted-glass');
+		assert.deepStrictEqual({ glass, restored: backgrounds.map(element => readColor(element).rgba) }, {
+			glass: [50, 75, 100].map(percentage => ({
+				backgrounds: supported ? backgrounds.map(() => new RGBA(0, 0, 0, 0)) : solid,
+				tint: supported ? percentage : 0,
+				filter: supported ? 'blur(12px)' : 'none',
+				opacity: '1',
+			})),
+			restored: solid,
+		});
+	});
+
+	for (const themeClass of ['hc-black', 'hc-light']) {
+		test(`keeps floating panel fills solid in ${themeClass}`, () => {
+			const { root, surface, backgrounds } = createFloatingPanel();
+			const solid = backgrounds.map(element => readColor(element).rgba);
+			root.classList.add('modern-ui-frosted-glass', themeClass);
+			assert.deepStrictEqual({
+				backgrounds: backgrounds.map(element => readColor(element).rgba),
+				filter: getWindow(surface).getComputedStyle(surface, '::before').backdropFilter,
+				shadow: getWindow(surface).getComputedStyle(surface).boxShadow,
+			}, { backgrounds: solid, filter: 'none', shadow: 'none' });
 		});
 	}
 

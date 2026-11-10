@@ -31,7 +31,7 @@ import { SessionsRecencyHistory } from '../../../services/sessions/browser/sessi
 import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChatHostClosedChat, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
+import { IChatHostClosedChat, IChatHostOpener, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { ICustomViewService } from './customView.js';
 import { IWindowCanvasService } from './windowCanvas.js';
 import { IsNewChatSessionContext } from '../common/contextkeys.js';
@@ -153,7 +153,10 @@ export interface INavigationOrigin {
 	readonly from?: ISessionHost;
 }
 
-export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin { }
+export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin {
+	/** The chat this one was started from. When another surface, such as a chat window, shows it, the chat opens beside it there. */
+	readonly referenceChatResource?: URI;
+}
 
 export interface IOpenNewChatInSessionOptions extends ICreateNewChatInSessionOptions, INavigationOrigin { }
 
@@ -1233,6 +1236,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				await opener.reveal(chatUri, { preserveFocus: options?.preserveFocus });
 				return;
 			}
+			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource);
+			if (referenceOpener) {
+				navigation.complete();
+				await referenceOpener.openBeside(chatUri, options!.referenceChatResource!, { preserveFocus: options?.preserveFocus });
+				return;
+			}
 			if (options?.source) {
 				await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
 					this.sessionOpenTelemetryService.sessionResolved(
@@ -1883,6 +1892,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	/**
+	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat was started from, so the new chat
+	 * opens in that host rather than in the main window.
+	 */
+	private _getOpenerShowingReference(referenceChatResource: URI | undefined): IChatHostOpener | undefined {
+		return referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+	}
+
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		// A chat another surface shows, such as a chat window, is revealed there; a subagent chat opens beside its reference
 		// chat where that surface shows it.
@@ -1892,8 +1909,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = options?.referenceChatResource;
-		const referenceShownBy = reference && this.chatHostOpenerService.getOpenerOf(reference);
-		if (reference && referenceShownBy && session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatResource))?.origin?.kind === ChatOriginKind.Tool) {
+		const referenceShownBy = this._getOpenerShowingReference(reference);
+		if (reference && referenceShownBy) {
 			await referenceShownBy.openBeside(chatResource, reference, options);
 			return;
 		}

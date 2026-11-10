@@ -10,7 +10,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -116,6 +116,7 @@ import { getSessionEnvironments } from '../../../../../workbench/contrib/session
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -586,11 +587,11 @@ suite('Sessions - SessionsList', () => {
 				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
-			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			let hoverOptions: Parameters<IHoverService['setupManagedHover']>[2] | undefined;
 			const hoverService = new class extends mock<IHoverService>() {
-				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
-					hoverOptions = args[1];
-					return NullHoverService.setupDelayedHover(...args);
+				override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>): ReturnType<IHoverService['setupManagedHover']> {
+					hoverOptions = args[2];
+					return NullHoverService.setupManagedHover(...args);
 				}
 			};
 			const customizationMigrationsAvailable = observableValue(disposables, true);
@@ -622,28 +623,19 @@ suite('Sessions - SessionsList', () => {
 				collapsible: false,
 				collapsed: false,
 			}), 0, template);
-			const readHoverOptions = () => typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+			const readHoverOptions = () => {
+				const content = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				return isManagedHoverTooltipMarkdownString(content) ? content.markdownNotSupportedFallback : undefined;
+			};
 			const hoverWithMigration = readHoverOptions();
 			customizationMigrationsAvailable.set(false, undefined);
 
 			assert.deepStrictEqual({
-				contentWithMigration: hoverWithMigration?.content,
-				contentWithoutMigration: readHoverOptions()?.content,
-				presentation: hoverWithMigration && {
-					additionalClasses: hoverWithMigration.additionalClasses,
-					appearance: hoverWithMigration.appearance,
-					position: hoverWithMigration.position,
-					persistence: hoverWithMigration.persistence,
-				},
+				contentWithMigration: hoverWithMigration,
+				contentWithoutMigration: readHoverOptions(),
 			}, {
 				contentWithMigration: 'Some customizations need an update to keep working.',
-				contentWithoutMigration: 'Customizations',
-				presentation: {
-					additionalClasses: ['sessions-list-hover'],
-					appearance: { showPointer: true },
-					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-					persistence: { hideOnHover: false },
-				},
+				contentWithoutMigration: 'Session Customizations',
 			});
 		});
 
@@ -658,11 +650,11 @@ suite('Sessions - SessionsList', () => {
 				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
-			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			let hoverOptions: Parameters<IHoverService['setupManagedHover']>[2] | undefined;
 			const hoverService = new class extends mock<IHoverService>() {
-				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
-					hoverOptions = args[1];
-					return NullHoverService.setupDelayedHover(...args);
+				override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>): ReturnType<IHoverService['setupManagedHover']> {
+					hoverOptions = args[2];
+					return NullHoverService.setupManagedHover(...args);
 				}
 			};
 			const customizationMigrationsAvailable = observableValue(disposables, false);
@@ -701,7 +693,10 @@ suite('Sessions - SessionsList', () => {
 				collapsed: false,
 			}), 0, template);
 			const readState = () => ({
-				hover: (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions)?.content,
+				hover: (() => {
+					const content = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+					return isManagedHoverTooltipMarkdownString(content) ? content.markdownNotSupportedFallback : undefined;
+				})(),
 				hasDot: template.icon.classList.contains('codicon-circle-filled'),
 				iconColor: template.icon.style.color,
 			});
@@ -723,7 +718,7 @@ suite('Sessions - SessionsList', () => {
 					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				withoutSignals: {
-					hover: 'Customizations',
+					hover: 'Session Customizations',
 					hasDot: false,
 					iconColor: '',
 				},
@@ -793,6 +788,39 @@ suite('Sessions - SessionsList', () => {
 				spinnerParent: 'session-section-icon',
 				newBadge: false,
 				trailingStatusIndicator: false,
+			});
+		});
+
+		test('moves Customizations without moving other navigation shortcuts', () => {
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			let showCustomizations = true;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				showCustomizations: () => showCustomizations,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const snapshot = () => ({
+				customizations: navigationContainer.querySelectorAll('.session-section-customizations').length,
+				newSession: navigationContainer.querySelectorAll('.session-section-new-session').length,
+			});
+			const shown = snapshot();
+			showCustomizations = false;
+			list.updateNavigationVisibility();
+			const hidden = snapshot();
+			showCustomizations = true;
+			list.updateNavigationVisibility();
+			assert.deepStrictEqual({ shown, hidden, restored: snapshot() }, {
+				shown: { customizations: 1, newSession: 1 },
+				hidden: { customizations: 0, newSession: 1 },
+				restored: { customizations: 1, newSession: 1 },
 			});
 		});
 
@@ -1050,7 +1078,15 @@ suite('Sessions - SessionsList', () => {
 
 		test('opens migrations from Customizations only while migration attention is active', async () => {
 			const customizationMigrationsAvailable = observableValue(disposables, true);
-			const harness = createListHarness(disposables, []);
+			const events: { name?: string; data?: unknown }[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+					override readonly isSessionsWindow = true;
+				}());
+				instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void { events.push({ name, data }); }
+				}());
+			});
 			const container = harness.createContainer();
 			const navigationContainer = mainWindow.document.createElement('div');
 			const listContainer = mainWindow.document.createElement('div');
@@ -1073,13 +1109,19 @@ suite('Sessions - SessionsList', () => {
 			clickRow(customizationsRow);
 			await Promise.resolve();
 
-			assert.deepStrictEqual(harness.commandService.calls, [{
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [{ migration: true }],
-			}, {
-				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
-				args: [],
-			}]);
+			assert.deepStrictEqual({ commands: harness.commandService.calls, events }, {
+				commands: [{
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [{ migration: true }],
+				}, {
+					commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+					args: [],
+				}],
+				events: Array(2).fill({
+					name: 'chatCustomizationEntryPoint.interaction',
+					data: { action: 'buttonClicked', location: 'sessionsHeader', configuredLocation: 'unknown', windowKind: 'agents', target: 'none' },
+				}),
+			});
 		});
 
 		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {

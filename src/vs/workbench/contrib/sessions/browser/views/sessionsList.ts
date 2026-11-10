@@ -127,6 +127,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ICustomViewService } from '../customView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
+import { ChatCustomizationsHover } from '../../../chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
@@ -2916,15 +2918,26 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(
+			const hover = this.instantiationService.createInstance(ChatCustomizationsHover);
+			const hoverDelegate = getDefaultHoverDelegate('element');
+			template.elementDisposables.add(this.hoverService.setupManagedHover(
+				{
+					placement: 'element',
+					get delay() { return hoverDelegate.delay; },
+					showHover: (options, focus) => hoverDelegate.showHover({
+						...options,
+						additionalClasses: [...options.additionalClasses ?? [], 'sessions-list-hover'],
+						position: { ...options.position, hoverPosition: HoverPosition.RIGHT },
+						appearance: { ...options.appearance, showPointer: true },
+					}, focus),
+				},
 				template.container,
-				() => withSessionsListHoverPresentation({
-					content: this.customizationMigrationsAvailable.get()
-						? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
-						: this.customizationExtensionSuggestionsAvailable.get()
-							? getExtensionSuggestionsBadgeDescription()
-							: element.label,
-				}),
+				() => hover.getManagedContent(this.customizationMigrationsAvailable.get()
+					? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
+					: this.customizationExtensionSuggestionsAvailable.get()
+						? getExtensionSuggestionsBadgeDescription()
+						: undefined),
+				hover.getHoverOptions('sessionsHeader'),
 			));
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
@@ -4347,6 +4360,7 @@ interface ISessionsListControlBaseOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
+	readonly showCustomizations?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations navigation entry. */
@@ -4726,7 +4740,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -6243,7 +6257,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				children.push(renderSection(automationsSection));
 			}
 		}
-		if (showNavigationShortcuts) {
+		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
 		// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
@@ -6552,6 +6566,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
+				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
 				if (this.options.customizationMigrationsAvailable?.get()) {
 					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, {
 						migration: true,
