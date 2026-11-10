@@ -24,8 +24,11 @@ import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL }
 import { CopilotToken, createTestExtendedTokenInfo } from '../../common/copilotToken';
 import { ICopilotTokenManager } from '../../common/copilotTokenManager';
 import { CopilotTokenStore } from '../../common/copilotTokenStore';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { AuthenticationService } from '../../vscode-node/authenticationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { VSCodeCopilotTokenManager } from '../../vscode-node/copilotTokenManager';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getAlignedSession, getAnyAuthSession } from '../../vscode-node/session';
 
 const vscodeAuthentication = vi.hoisted(() => ({

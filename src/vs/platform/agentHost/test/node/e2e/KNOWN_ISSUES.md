@@ -481,38 +481,6 @@ Users can save independent Mode and Approvals choices on an Automation and expec
     --grep "an automation run restores Mode and Approvals after host restart"
   ```
 
-### Claude paused-turn cancellation is not replay-stable
-
-- Tests:
-  - `cancelling a turn paused for input allows a replacement turn`
-  - `cancelling a turn paused for file-tool approval allows a replacement turn`
-- Scope: Claude replay.
-- Expected: cancelling while the turn waits for input or tool approval ends that turn and allows a fresh replacement turn to complete.
-- Observed: replay either continues the cancelled input turn's response or reports a chat error before the replacement can complete.
-- Gate: `supportsPausedTurnCancellationE2E` is enabled for Copilot and for Codex input requests. Codex has no native file-approval variant.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "cancelling a turn paused"
-  ```
-
-### Claude truncation does not produce a replay-stable follow-up request
-
-- Test: `truncating a materialized chat removes later context and allows continuation`.
-- Scope: Claude.
-- Expected: after `chat/truncated` removes the second turn, the follow-up model request contains the first turn and follow-up only.
-- Observed: live recording sends the expected pruned request, while replay rebuilds the follow-up request with the removed second turn still present.
-- Gate: `supportsTruncateE2E` is enabled only for Copilot.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "truncating a materialized chat"
-  ```
-
 ## Structural coverage gaps
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Value } from '@sinclair/typebox/value';
+import { computeMatchSource } from '../../../../../../platform/snippy/common/snippyCompute';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ICompletionsCitationManager } from '../citationManager';
 import { ICompletionsLogTargetService } from '../logger';
 import { ICompletionsTextDocumentManagerService } from '../textDocumentManager';
 import * as Snippy from './';
-import * as SnippyCompute from './compute';
 import { codeReferenceLogger } from './logger';
 import { MatchError } from './snippy.proto';
 import { snippyTelemetry } from './telemetryHandlers';
@@ -52,39 +52,12 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 		return;
 	}
 
-	// The document text will include the completion at this point
-	const docText = insertionDoc.getText();
-
-	// If the document + the completion isn't long enough, we know we shouldn't call snippy
-	if (!SnippyCompute.hasMinLexemeLength(docText)) {
+	const sourceToCheck = computeMatchSource(insertionDoc.getText().slice(0, insertionOffset), completionText);
+	if ('reason' in sourceToCheck) {
+		codeReferenceLogger.debug(logTarget, `Skipping Snippy check: ${sourceToCheck.reason}`);
 		return;
 	}
-
-	// If the document + the completion isn't long enough, we know we shouldn't call snippy
-	if (!SnippyCompute.hasMinLexemeLength(docText)) {
-		return;
-	}
-
-	let potentialMatchContext = completionText;
-
-	// In many cases, we will get completion that is shorter than 65 tokens,
-	// e.g. a single line or word completion.
-	// When a completion is too short, we should try and get the preceding tokens and
-	// pass that to snippy as part of the context.
-	if (!SnippyCompute.hasMinLexemeLength(completionText)) {
-		const textWithoutCompletion = docText.slice(0, insertionOffset);
-		const minLexemeStartOffset = SnippyCompute.offsetLastLexemes(
-			textWithoutCompletion,
-			SnippyCompute.MinTokenLength
-		);
-		potentialMatchContext = docText.slice(minLexemeStartOffset, insertionOffset + completionText.length);
-	}
-
-	// Depending on where in the document the suggestion was inserted, we may still not have enough context
-	// to detect a match.
-	if (!SnippyCompute.hasMinLexemeLength(potentialMatchContext)) {
-		return;
-	}
+	const potentialMatchContext = sourceToCheck.source;
 
 	const matchResponse = await instantiationService.invokeFunction(acc => snippyRequest(acc, () => Snippy.Match(acc, potentialMatchContext)));
 
@@ -132,8 +105,8 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 
 		const allLicenses = Array.from(licensesSet).sort();
 
-		const offsetStart = insertionOffset;
-		const offsetEnd = insertionOffset + citation.match.matched_source.length;
+		const offsetStart = sourceToCheck.startOffset;
+		const offsetEnd = offsetStart + citation.match.matched_source.length;
 
 		const start = insertionDoc.positionAt(offsetStart);
 		const end = insertionDoc.positionAt(offsetEnd);

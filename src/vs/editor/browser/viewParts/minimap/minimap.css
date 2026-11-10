@@ -8,7 +8,8 @@
 	opacity: 0;
 	transition: opacity 100ms linear;
 }
-.monaco-editor .minimap.slider-mouseover:hover .minimap-slider {
+.monaco-editor .minimap.slider-mouseover:hover .minimap-slider,
+.monaco-editor .minimap.slider-mouseover.slider-scrolling .minimap-slider {
 	opacity: 1;
 }
 .monaco-editor .minimap.slider-mouseover .minimap-slider.active {
@@ -49,7 +50,7 @@
 	opacity: 0;
 	transition: opacity 0.5s;
 }
-.minimap.minimap-autohide-scroll{
+.minimap.minimap-autohide-scroll {
 	pointer-events: none;
 }
 .minimap.minimap-autohide-mouseover:hover,
@@ -59,9 +60,9 @@
 }
 
 .monaco-editor .minimap {
-	z-index: 5;
-}
-
-.monaco-editor .minimap canvas {
-	opacity: 0.9;
+	/*
+	 * Same z-index as sticky scroll: the minimap still paints above it because it comes later in the DOM,
+	 * but stays below the editor group border (z-index 5), which it would otherwise cover when on the left.
+	 */
+	z-index: 4;
 }

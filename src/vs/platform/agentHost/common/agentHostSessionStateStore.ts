@@ -504,8 +504,8 @@ export interface IAgentHostSessionStateStore {
 	 */
 	promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult>;
 	/**
-	 * Writes pending mirrors of `session`. Without a session, first waits for every operation already queued (so no
-	 * write a caller started is still in flight), then writes every pending mirror: what shutdown waits for.
+	 * Waits for queued operations for `session`, then writes its pending mirrors. Without a session, drains all
+	 * sessions, as shutdown needs. Operation failures remain with their callers and do not prevent draining.
 	 */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */

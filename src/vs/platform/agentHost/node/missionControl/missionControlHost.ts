@@ -427,12 +427,12 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
-				allowExtensionMethods: false,
+				allowExtensionMethods: true,
 				scopedRelayCredentials: true,
-				resolveRelayCredentials: useLocalCredentials ? async (principal, resource) => {
-					const copilotResource = this._gitHubEndpoints.getCopilotResource();
-					return resource === copilotResource.resource
-						? this._authenticationService.createLocalCredentialSource(principal, [copilotResource])
+				resolveRelayCredentials: useLocalCredentials ? (principal, resource) => {
+					const metadata = [this._gitHubEndpoints.getCopilotResource(), this._gitHubEndpoints.getRepoResource()].find(candidate => candidate.resource === resource);
+					return metadata
+						? { principal, getCredential: request => this._authenticationService.getSharedCredential(request) }
 						: undefined;
 				} : undefined,
 				relayRoots: relay.rootMeta ? undefined : roots,
@@ -522,7 +522,7 @@ export class MissionControlHost extends Disposable {
 			_meta: {
 				...this._stateManager.getSessionState(summary.resource)?._meta,
 				[event.type === 'session.plan_changed' ? 'copilot.planHint' : 'copilot.todosHint']:
-					{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
+				{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
 			},
 		});
 	}

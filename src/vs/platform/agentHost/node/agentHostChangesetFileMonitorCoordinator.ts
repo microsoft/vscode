@@ -50,7 +50,9 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
  * session on that root is actively running a turn: agent/tool edits made during
  * the turn are captured by the turn lifecycle, and the static changesets are
  * recomputed once when the turn completes. Watching during the turn would add
- * duplicate file-system noise without improving correctness.
+ * duplicate file-system noise without improving correctness. Idle sessions
+ * sharing the root are refreshed once it is watched again, since changes made
+ * meanwhile (by the agent or e.g. a `git pull` in a terminal) went unobserved.
  */
 export class ChangesetFileMonitorCoordinator extends Disposable {
 
@@ -158,7 +160,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this.untrackSessionChanges(subscription);
 			}
 		}
-		this._removeActiveSession(sessionStr);
+		this._resumeRoots(this._removeActiveSession(sessionStr));
 		this._destroyWatchInterest(sessionStr);
 	}
 
@@ -322,24 +324,22 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		return workingDirectories.join('\u0000');
 	}
 
-	private _onRootChanged(rootStr: string): void {
-		if (this._isRootActive(rootStr)) {
-			return;
-		}
-		const sessions = this._rootSessions.get(rootStr);
-		if (!sessions || sessions.size === 0) {
-			return;
-		}
-		const sessionsToRefresh = [...sessions].filter(session => {
-			const source = this._watchSources.get(session) ?? session;
-			return this._hasWatchInterest(session)
-				&& !!this._sessionRoots.get(session)?.has(rootStr)
-				&& !this._activeSessionRoots.has(session)
-				&& !this._unresolvedActiveSessions.has(session)
-				&& !!this._stateManager.getSessionState(source);
-		});
-		if (sessionsToRefresh.length === 0) {
-			return;
+	private _onRootsChanged(rootStrs: Iterable<string>): void {
+		const sessionsToRefresh = new Set<string>();
+		for (const rootStr of rootStrs) {
+			if (this._isRootActive(rootStr)) {
+				continue;
+			}
+			for (const session of this._rootSessions.get(rootStr) ?? []) {
+				const source = this._watchSources.get(session) ?? session;
+				if (this._hasWatchInterest(session)
+					&& this._sessionRoots.get(session)?.has(rootStr)
+					&& !this._activeSessionRoots.has(session)
+					&& !this._unresolvedActiveSessions.has(session)
+					&& this._stateManager.getSessionState(source)) {
+					sessionsToRefresh.add(session);
+				}
+			}
 		}
 
 		for (const session of sessionsToRefresh) {
@@ -385,7 +385,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!sessions || sessions.size === 0) {
 			return true;
 		}
-		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootChanged(rootStr), {
+		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootsChanged([rootStr]), {
 			excludes: DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
 			debounceMs: 750,
 		});
@@ -430,16 +430,22 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _markSessionInactive(sessionStr: string): void {
-		const rootStrs = this._removeActiveSession(sessionStr);
-		for (const rootStr of rootStrs) {
-			const repositoryRoot = this._rootUris.get(rootStr);
-			if (repositoryRoot) {
-				this._ensureRootWatcher(rootStr, repositoryRoot);
-			}
-		}
+		this._resumeRoots(this._removeActiveSession(sessionStr));
 		if (this._hasWatchInterest(sessionStr) || this._pendingWatchInterest.has(sessionStr)) {
 			this._attachWatcherIfPossible(sessionStr);
 		}
+	}
+
+	/** Resumes roots no longer suspended by a turn and catches up each idle session once. */
+	private _resumeRoots(rootStrs: ReadonlySet<string>): void {
+		for (const rootStr of rootStrs) {
+			const repositoryRoot = this._rootUris.get(rootStr);
+			if (!repositoryRoot || this._isRootActive(rootStr)) {
+				continue;
+			}
+			this._ensureRootWatcher(rootStr, repositoryRoot);
+		}
+		this._onRootsChanged(rootStrs);
 	}
 
 	private _removeActiveSession(sessionStr: string): ReadonlySet<string> {

@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ITaskEntry } from './sessionsTasksService.js';
 
 /**

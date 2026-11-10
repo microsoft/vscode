@@ -59,6 +59,7 @@ suite('AgentsWindowGraphic', () => {
 				rendered: graphic.element.querySelector('.agents-window-graphic')?.classList[1],
 				captions: [...graphic.element.querySelectorAll('figcaption')].map(caption => caption.textContent),
 				windowRequests,
+				hasMultipleEditorWindows: graphic.hasMultipleEditorWindows.get(),
 			}),
 		};
 	}
@@ -76,7 +77,7 @@ suite('AgentsWindowGraphic', () => {
 		);
 	});
 
-	test('shows the configured graphic and counts the open editor windows when the automatic one is shown', async () => {
+	test('shows the configured graphic and counts the open editor windows for every variant', async () => {
 		const graphic = createGraphic(AgentsWindowGraphicVariant.None);
 		const states = [graphic.state()];
 		for (const variant of [AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto]) {
@@ -101,13 +102,13 @@ suite('AgentsWindowGraphic', () => {
 		};
 		const manyWindowsToOne = { shown: 'manyWindowsToOne', display: '', rendered: 'many-windows-to-one', captions: ['All your projects and agents, in one window.'] };
 		assert.deepStrictEqual(states, [
-			{ ...none, windowRequests: 0 },
-			{ ...windowComparison, windowRequests: 0 },
-			{ ...manyWindowsToOne, windowRequests: 0 },
-			{ ...windowComparison, windowRequests: 1 },
-			{ ...manyWindowsToOne, windowRequests: 2 },
-			{ ...windowComparison, windowRequests: 3 },
-			{ ...none, windowRequests: 3 },
+			{ ...none, windowRequests: 1, hasMultipleEditorWindows: undefined },
+			{ ...windowComparison, windowRequests: 2, hasMultipleEditorWindows: false },
+			{ ...manyWindowsToOne, windowRequests: 3, hasMultipleEditorWindows: false },
+			{ ...windowComparison, windowRequests: 4, hasMultipleEditorWindows: false },
+			{ ...manyWindowsToOne, windowRequests: 6, hasMultipleEditorWindows: true },
+			{ ...windowComparison, windowRequests: 8, hasMultipleEditorWindows: false },
+			{ ...none, windowRequests: 9, hasMultipleEditorWindows: false },
 		]);
 	});
 
@@ -123,16 +124,18 @@ suite('AgentsWindowGraphic', () => {
 	});
 
 	test('ignores a window count that arrives after the setting changed', async () => {
-		const requests = [new DeferredPromise<IOpenedMainWindow[]>(), new DeferredPromise<IOpenedMainWindow[]>()];
+		const requests = [new DeferredPromise<IOpenedMainWindow[]>(), new DeferredPromise<IOpenedMainWindow[]>(), new DeferredPromise<IOpenedMainWindow[]>()];
 		let next = 0;
 		const graphic = createGraphic(AgentsWindowGraphicVariant.Auto, () => requests[next++].p);
 		await graphic.setVariant(AgentsWindowGraphicVariant.None);
 		await graphic.setVariant(AgentsWindowGraphicVariant.Auto);
-		await requests[1].complete([editorWindow(1)]);
+		await requests[2].complete([editorWindow(1)]);
 		await requests[0].complete([editorWindow(1), editorWindow(2)]);
+		await requests[1].complete([editorWindow(1), editorWindow(2)]);
 		await timeout(0);
 
-		assert.deepStrictEqual(graphic.state().shown, AgentsWindowGraphicVariant.WindowComparison);
+		const { shown, hasMultipleEditorWindows } = graphic.state();
+		assert.deepStrictEqual({ shown, hasMultipleEditorWindows }, { shown: AgentsWindowGraphicVariant.WindowComparison, hasMultipleEditorWindows: false });
 	});
 
 	test('hides the drawings from screen readers and gives every clip path a unique id', () => {

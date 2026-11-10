@@ -66,6 +66,7 @@ import { TestAccessibilityService } from '../../../../platform/accessibility/tes
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { IChatWindowService } from '../../../contrib/chatWindow/browser/chatWindow.js';
 import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -106,17 +107,15 @@ import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../contrib/sessions/browser/agentFeedback.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
@@ -288,6 +287,7 @@ import monokai from '../../../../../../extensions/theme-monokai/themes/monokai-c
 import quietlight from '../../../../../../extensions/theme-quietlight/themes/quietlight-color-theme.json' with { type: 'json' };
 import solarized_dark from '../../../../../../extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json' with { type: 'json' };
 import solarized_light from '../../../../../../extensions/theme-solarized-light/themes/solarized-light-color-theme.json' with { type: 'json' };
+import { mainWindow } from '../../../../base/browser/window.js';
 /* eslint-enable local/code-import-patterns */
 
 function toThemeJsonText(theme: string | object): string {
@@ -781,6 +781,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getFeedbackObservable: () => constObservable([]),
 		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },
@@ -819,7 +820,14 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
+		// The main window's host, which shows no session.
+		gridHost: new SessionHost({
+			kind: SessionHostKind.MainWindow,
+			parent: undefined,
+			session: constObservable(undefined), chat: constObservable(undefined),
+			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
+			windowId: constObservable(mainWindow.vscodeWindowId),
+		}),
 	});
 
 	// The real cache: it only reads and writes the (null) storage service, and
@@ -854,6 +862,17 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 			serviceIdentifiers.push(id);
 		},
 	});
+
+	// The Agents workbench is its own session host layout, with itself as the docked side pane. Unless a fixture defines
+	// one, resolve the host layout to the fixture's workbench layout service the same way, when it is first used.
+	if (!services.has(ISessionsHostLayoutService)) {
+		services.set(ISessionsHostLayoutService, new Proxy({}, {
+			get: (_target, property) => {
+				const layout = instantiationService.get(IWorkbenchLayoutService);
+				return property === 'sidePane' ? layout : Reflect.get(layout, property);
+			}
+		}) as ISessionsHostLayoutService);
+	}
 
 	// Pass `_properDispose: true` so the underlying `InstantiationService`'s
 	// dispose runs, which disposes services it instantiated lazily from
@@ -891,6 +910,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		async whenInitialized(): Promise<void> { },
 	};
 	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
+	// No chat windows: the command center's session widget asks for one only as the user picks a session
+	registration.definePartialInstance(IChatWindowService, { getWindow: () => undefined });
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -935,6 +956,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IChatPhoneInputPresenter, {
 		_serviceBrand: undefined,
 		enabled: constObservable(false),
+		registerSessionModelPicker: () => ({ dispose: () => { } }),
+		getSessionModelPicker: () => undefined,
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});

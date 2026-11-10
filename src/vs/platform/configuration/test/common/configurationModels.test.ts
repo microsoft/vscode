@@ -436,6 +436,15 @@ suite('ConfigurationModelParser - Nested Restricted Properties', () => {
 					'default': {},
 					'restricted': true
 				},
+				'terminal.integrated.env.osx': {
+					'type': 'object' as const,
+					'default': {}
+				},
+				'terminal.integrated.machineProfiles': {
+					'type': 'object' as const,
+					'default': {},
+					'scope': ConfigurationScope.MACHINE
+				},
 				'terminal.integrated.fontSize': {
 					'type': 'number' as const,
 					'default': 12,
@@ -528,6 +537,82 @@ suite('ConfigurationModelParser - Nested Restricted Properties', () => {
 
 		assert.strictEqual(JSON.stringify(dottedObject.configurationModel.contents), JSON.stringify(nestedObject.configurationModel.contents));
 		assert.deepStrictEqual(new Set(dottedObject.restrictedConfigurations), new Set(nestedObject.restrictedConfigurations));
+	});
+
+	test('keys deeper than a registered restricted object setting are removed with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Pwn.path': 'cmd.exe',
+			'terminal.integrated.profiles.windows.Pwn2': { 'path': 'cmd.exe' },
+			'terminal': {
+				'integrated.profiles.windows.Pwn3.path': 'cmd.exe',
+				'integrated': { 'profiles': { 'windows.Pwn4': { 'path': 'cmd.exe' } } }
+			},
+			'[typescript]': { 'terminal.integrated.profiles.windows.Pwn5.path': 'cmd.exe' },
+			'terminal.integrated.cwd': '/safe'
+		}), { skipRestricted: true });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.strictEqual(testObject.configurationModel.overrides.length, 1);
+		assert.strictEqual(testObject.configurationModel.overrides[0].keys.length, 0);
+		assert.deepStrictEqual(new Set(testObject.restrictedConfigurations), new Set(['terminal.integrated.profiles.windows']));
+	});
+
+	test('keys deeper than a registered restricted object setting remain when trusted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Mine.path': 'cmd.exe'
+		}), { skipRestricted: false, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows.Mine.path'), 'cmd.exe');
+	});
+
+	test('keys deeper than a registered non-restricted object setting remain with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.env.osx.MY_VAR': 'value'
+		}), { skipRestricted: true, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.env.osx.MY_VAR'), 'value');
+		assert.deepStrictEqual(testObject.restrictedConfigurations, []);
+	});
+
+	test('keys deeper than a registered machine-scoped object setting respect scope filtering', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.machineProfiles.a.path': 'x',
+			'terminal.integrated.cwd': '/safe'
+		}), { scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.machineProfiles'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('registered restricted descendant of an unregistered key under a non-restricted object is still removed', () => {
+		const node: IConfigurationNode = {
+			'id': 'RestrictedDescendantTest',
+			'type': 'object',
+			'properties': {
+				'descendant.parent': { 'type': 'object' as const, 'default': {} },
+				'descendant.parent.child.secret': { 'type': 'string' as const, 'default': '', 'restricted': true }
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		testConfigurationNodes.push(node);
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({ 'descendant.parent.child': { 'secret': 'x', 'other': 'y' } }), { skipRestricted: true });
+
+		assert.deepStrictEqual({ secret: testObject.configurationModel.getValue('descendant.parent.child.secret'), other: testObject.configurationModel.getValue('descendant.parent.child.other'), restricted: testObject.restrictedConfigurations }, { secret: undefined, other: 'y', restricted: ['descendant.parent.child.secret'] });
 	});
 
 	test('nested machine-scoped settings respect scope filtering', () => {
@@ -786,6 +871,89 @@ suite('ConfigurationModel', () => {
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepStrictEqual(result.getValue('a'), { 'b': 2 });
 		assert.deepStrictEqual(result.keys, ['a.b']);
+	});
+
+	test('merge does not recurse into inherited __proto__ of configuration contents', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const add = new ConfigurationModel(JSON.parse('{ "a": { "__proto__": { "pollutedByMerge": true } } }'), ['a.__proto__'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByMerge'],
+				pollutedObject: ({} as Record<string, unknown>)['pollutedByMerge'],
+				prototype: Object.getPrototypeOf(result.getValue('a')),
+				b: result.getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedObject: undefined,
+				prototype: Object.prototype,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByMerge'];
+		}
+	});
+
+	test('merge does not pollute Object.prototype when overriding contents contain __proto__', () => {
+		const base = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: { 'a': { 'b': 1 } }, keys: ['a.b'] }], undefined, new NullLogService());
+		const add = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: JSON.parse('{ "a": { "__proto__": { "pollutedByOverrideMerge": true } } }'), keys: [] }], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'],
+				b: result.override('c').getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'];
+		}
+	});
+
+	test('chained merges with __proto__ contents do not pollute Object.prototype', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const hostile = new ConfigurationModel(JSON.parse('{ "__proto__": { "pollutedByChain": { "v": true } }, "a": { "__proto__": { "pollutedByChainNested": true } } }'), [], [], undefined, new NullLogService());
+		const other = new ConfigurationModel({ 'c': 1 }, ['c'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(hostile).merge(other).merge(other);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChain'],
+				pollutedNestedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChainNested'],
+				b: result.getValue('a.b'),
+				c: result.getValue('c'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedNestedPrototype: undefined,
+				b: 1,
+				c: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChain'];
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChainNested'];
+		}
+	});
+
+	test('override does not set prototype from __proto__ contents', () => {
+		const testObject = new ConfigurationModel(JSON.parse('{ "__proto__": { "inherited": 1 }, "a": 1 }'), [], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }], undefined, new NullLogService());
+
+		const override = testObject.override('c');
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(override.contents),
+			inherited: (override.contents as Record<string, unknown>)['inherited'],
+			a: override.getValue('a'),
+		}, {
+			prototype: Object.prototype,
+			inherited: undefined,
+			a: 2,
+		});
 	});
 
 	test('simple merge overrides', () => {

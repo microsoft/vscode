@@ -38,6 +38,8 @@ import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnab
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -62,8 +64,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly customAgents: IObservable<readonly AgentCustomization[]>;
 	/** Tools available to this scope's active client. */
 	readonly tools: IObservable<readonly ToolDefinition[]>;
-	/** Composed active-client view for this scope. */
-	activeClient(clientId: string): IObservable<SessionActiveClient>;
+	/** Composed publication view; the scope's original client-side customization URIs stay unchanged. */
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient>;
 	/**
 	 * `false` until the initial customization resolution completes. Publishing an
 	 * unresolved scope would transiently wipe the host's customization state.
@@ -236,7 +238,7 @@ class AgentCustomizationScope extends Disposable {
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
 			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri) ?? this._standaloneBundler.getSyncedUri(sourceUri),
-			activeClient: clientId => this.activeClient(clientId),
+			activeClient: (clientId, resourceUris) => this.activeClient(clientId, resourceUris),
 			dispose: () => {
 				if (!released) {
 					released = true;
@@ -254,7 +256,7 @@ class AgentCustomizationScope extends Disposable {
 		return this._bundler.isBundledMcpServer(pluginUri, serverName) || this._standaloneBundler.isBundledMcpServer(pluginUri, serverName);
 	}
 
-	activeClient(clientId: string): IObservable<SessionActiveClient> {
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient> {
 		let activeClient = this._activeClients.get(clientId);
 		if (!activeClient) {
 			activeClient = derived(reader => {
@@ -264,7 +266,7 @@ class AgentCustomizationScope extends Disposable {
 				return {
 					clientId,
 					tools: [...this.tools.read(reader)],
-					customizations: [...this._customizations.read(reader)],
+					customizations: this._customizations.read(reader).map(customization => toAgentHostClientCustomization(customization, resourceUris)),
 				};
 			});
 			this._activeClients.set(clientId, activeClient);

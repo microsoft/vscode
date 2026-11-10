@@ -5,16 +5,16 @@
 
 import { localize } from '../../../../nls.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
-import { language } from '../../../../base/common/platform.js';
+import { regionalLocale } from '../../../../base/common/platform.js';
 
 const dayInMilliseconds = 24 * 60 * 60 * 1000;
 
-const chatRequestTimeFormatter = safeIntl.DateTimeFormat(language, {
+const chatRequestTimeFormatter = safeIntl.DateTimeFormat(regionalLocale, {
 	hour: 'numeric',
 	minute: '2-digit',
 });
 
-const chatRequestFullDateTimeFormatter = safeIntl.DateTimeFormat(language, {
+const chatRequestFullDateTimeFormatter = safeIntl.DateTimeFormat(regionalLocale, {
 	year: 'numeric',
 	month: 'numeric',
 	day: 'numeric',
