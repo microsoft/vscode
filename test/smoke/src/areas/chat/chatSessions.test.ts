@@ -192,13 +192,10 @@ async function openSession(app: Application, session: { readonly command: string
 		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForChatEditor(600);
 	} else {
-		// The chat view may already be open, so wait for the command to bind a
-		// new session to it rather than just for the view to exist. Otherwise
-		// the prompt can be sent into the outgoing session, which the view then
-		// replaces with an empty one.
+		// Wait for Local, not the default Agent Host session that can bind while the command is still activating.
 		const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 		await app.workbench.quickaccess.runCommand(session.command);
-		await app.workbench.chat.waitForChatViewSessionChange(previousSessionResource, 600);
+		await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 	}
 }
 
