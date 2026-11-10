@@ -37,6 +37,9 @@ import { ICustomizationMarketplaceResource } from '../../../../../platform/custo
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -46,6 +49,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { extractCommandIds, TIP_CATALOG } from '../../../../../workbench/contrib/chat/browser/chatTipCatalog.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
@@ -82,7 +86,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -93,7 +97,7 @@ import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
@@ -106,7 +110,7 @@ import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../../../../workbench/contrib/sessions/common/newSessionBanners.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 
 import '../../../../browser/media/style.css';
@@ -192,6 +196,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly height?: number;
 	readonly commentCount?: number;
 	readonly showTip?: boolean;
+	readonly tipId?: string;
 	readonly promptOptions?: NewSessionPromptOptionsState;
 	readonly selectedOptionIndex?: number;
 	readonly editedInput?: string;
@@ -403,6 +408,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		height = DEFAULT_HEIGHT,
 		commentCount = 0,
 		showTip = false,
+		tipId,
 		promptOptions,
 		selectedOptionIndex,
 		editedInput,
@@ -505,6 +511,14 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			if (tipId) {
+				reg.defineInstance(IKeybindingService, new class extends MockKeybindingService {
+					override lookupKeybinding(commandId: string) {
+						const binding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === commandId)?.keybinding;
+						return binding ? this.resolveKeybinding(binding)[0] : undefined;
+					}
+				}());
+			}
 			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 				override readonly enabled = false;
 				override readonly accountKey = undefined;
@@ -573,6 +587,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override getWelcomeTip() {
 					if (!tipsEnabled || this._hidden) {
 						return undefined;
+					}
+					if (tipId) {
+						const tip = TIP_CATALOG.find(tip => tip.id === tipId);
+						assert(!!tip, `Unknown tip: ${tipId}`);
+						const message = tip.buildMessage({ keybindingService: instantiationService.get(IKeybindingService), experimentalTipMessages: new Map() });
+						const enabledCommands = extractCommandIds(message.value);
+						return { id: tip.id, content: new MarkdownString(`**Tip:** ${message.value}`, { isTrusted: { enabledCommands } }), enabledCommands };
 					}
 					return this._provider?.provideTip()
 						?? (showTip ? { id: 'fixture-tip', content: new MarkdownString('**Tip:** Reference files or folders with # to give the agent more context.') } : undefined);
@@ -1702,6 +1723,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionTip: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { showTip: true }),
+	}),
+	SendInBackgroundTip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The new-session composer shows the Send in Background tip below the input, including its default keyboard shortcut and a Customize the shortcut link.'],
+		render: context => renderNewChatWidget(context, { showTip: true, tipId: 'tip.sendInBackground', withWorkspace: true }),
 	}),
 	PromptOptionsLoading: defineComponentFixture({
 		labels: { kind: 'screenshot' },

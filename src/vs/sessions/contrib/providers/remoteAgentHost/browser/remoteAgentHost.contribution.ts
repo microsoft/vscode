@@ -18,7 +18,6 @@ import { AgentHostByokLmHandler } from '../../../../../workbench/contrib/chat/br
 import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './remoteAgentHostActions.js';
 import './missionControlAgentHost.contribution.js';
-import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostAgentPicker.contribution.js';
 
 registerAction2(OpenAgentHostStateFileAction);

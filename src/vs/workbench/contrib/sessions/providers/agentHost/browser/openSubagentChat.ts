@@ -19,9 +19,9 @@ import { fillSessionChatDragData } from '../../../browser/dnd.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionHostService, SessionHostKind } from '../../../browser/sessionHost.js';
-import { IChat, ISession } from '../../../common/session.js';
-import { readPaneSessions } from '../../../browser/sessionGridPane.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 

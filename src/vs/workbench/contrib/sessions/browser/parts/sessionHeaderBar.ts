@@ -17,10 +17,11 @@ import { autorun, IObservable, IReader } from '../../../../../base/common/observ
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
-import { getChatCapabilities, getUntitledSessionTitle, IChat, ISession, isSessionCreated, SessionStatus } from '../../common/session.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
+import { getChatCapabilities, getUntitledSessionTitle, IChat, ISession, isSessionCreated, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuActionOptions } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -103,6 +104,8 @@ export class SessionHeaderBar extends Disposable {
 	/** Whether its title drags the editor that shows the chat; see {@link setDragsEditor}. */
 	private _dragsEditor = false;
 	private readonly _menuActionArgs: unknown[] = [];
+	/** The options of the actions of its toolbar's menu, {@link Menus.SessionBarToolbar}: their commands run with its session and chat. */
+	readonly menuActionOptions: IMenuActionOptions = { args: this._menuActionArgs };
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
 
@@ -202,7 +205,7 @@ export class SessionHeaderBar extends Disposable {
 		titleActions.appendChild(toolbarContainer);
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { args: this._menuActionArgs },
+			menuOptions: this.menuActionOptions,
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
@@ -247,7 +250,7 @@ export class SessionHeaderBar extends Disposable {
 			e.stopPropagation();
 			this._contextMenuService.showContextMenu({
 				menuId: Menus.SessionHeaderContext,
-				menuActionOptions: { args: this._menuActionArgs },
+				menuActionOptions: this.menuActionOptions,
 				getAnchor: () => anchor,
 				contextKeyService: this._contextKeyService,
 			});

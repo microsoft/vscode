@@ -277,6 +277,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 					message_direction: direction,
 					headerRequestId: `${direction}-${sessionId}`,
 					agent_id: 'child-1',
+					interaction_id: `interaction-${sessionId}`,
 					messagesJson: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: 'synthetic' }]),
 				};
 				await router.route(source, internalContext);
@@ -288,6 +289,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			name: baseData.name,
 			session: baseData.properties.sdkSessionId,
 			agent: baseData.properties.sdkAgentId,
+			interaction: baseData.properties.interaction_id,
 			call: baseData.properties.modelCallId,
 			direction: baseData.properties.message_direction,
 			header: baseData.properties.headerRequestId,
@@ -296,6 +298,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			name: 'copilot-chat/engine.messages',
 			session,
 			agent: 'child-1',
+			interaction: `interaction-${session}`,
 			call: `engine-${session}`,
 			direction,
 			header: `${direction}-${session}`,
@@ -317,8 +320,8 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		};
 		// One SDK conversation: a root call whose provider reports a different model, a child
 		// call on another model without a reported model, and a call from an older runtime.
-		const rootCall = { modelCallId: 'root-call', requestModel: 'model-a', responseModel: 'model-a-2026', interactionType: 'conversation-agent', runtimeVersion: '1.0.200', copilotSdkVersion: 'runtime-supplied' };
-		const childCall = { modelCallId: 'child-call', agent_id: 'child-1', requestModel: 'model-b', interactionType: 'conversation-subagent', parentToolCallId: 'task-call-1', runtimeVersion: '1.0.200' };
+		const rootCall = { modelCallId: 'root-call', requestModel: 'model-a', responseModel: 'model-a-2026', interactionType: 'conversation-agent', initiatorType: 'user', runtimeVersion: '1.0.200', copilotSdkVersion: 'runtime-supplied' };
+		const childCall = { modelCallId: 'child-call', agent_id: 'child-1', requestModel: 'model-b', interactionType: 'conversation-subagent', parentToolCallId: 'task-call-1', initiatorType: 'agent', runtimeVersion: '1.0.200' };
 		const olderRuntimeCall = { modelCallId: 'older-call' };
 		for (const kind of ['engine.messages', 'engine.messages.length']) {
 			for (const properties of [rootCall, childCall, olderRuntimeCall]) {
@@ -336,12 +339,13 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			responseModel: properties.responseModel,
 			interactionType: properties.interactionType,
 			parentToolCallId: properties.parentToolCallId,
+			initiatorType: properties.initiatorType,
 			runtimeVersion: properties.runtimeVersion,
 			copilotSdkVersion: properties.copilotSdkVersion,
 		})), ['copilot-chat/engine.messages', 'copilot-chat/engine.messages.length'].flatMap(name => [
-			{ name, call: 'root-call', agent: undefined, requestModel: 'model-a', responseModel: 'model-a-2026', interactionType: 'conversation-agent', parentToolCallId: undefined, runtimeVersion: '1.0.200', copilotSdkVersion: '1.0.29' },
-			{ name, call: 'child-call', agent: 'child-1', requestModel: 'model-b', responseModel: undefined, interactionType: 'conversation-subagent', parentToolCallId: 'task-call-1', runtimeVersion: '1.0.200', copilotSdkVersion: '1.0.29' },
-			{ name, call: 'older-call', agent: undefined, requestModel: undefined, responseModel: undefined, interactionType: undefined, parentToolCallId: undefined, runtimeVersion: undefined, copilotSdkVersion: '1.0.29' },
+			{ name, call: 'root-call', agent: undefined, requestModel: 'model-a', responseModel: 'model-a-2026', interactionType: 'conversation-agent', parentToolCallId: undefined, initiatorType: 'user', runtimeVersion: '1.0.200', copilotSdkVersion: '1.0.29' },
+			{ name, call: 'child-call', agent: 'child-1', requestModel: 'model-b', responseModel: undefined, interactionType: 'conversation-subagent', parentToolCallId: 'task-call-1', initiatorType: 'agent', runtimeVersion: '1.0.200', copilotSdkVersion: '1.0.29' },
+			{ name, call: 'older-call', agent: undefined, requestModel: undefined, responseModel: undefined, interactionType: undefined, parentToolCallId: undefined, initiatorType: undefined, runtimeVersion: undefined, copilotSdkVersion: '1.0.29' },
 		]));
 	});
 

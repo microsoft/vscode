@@ -11,16 +11,15 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { equals } from '../../../../../base/common/objects.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
-	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	CloudSandboxRequestError,
 	ICloudSandboxApiService,
-	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxConnectionRequest,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { isSealedEnvironmentToken, SEALED_ENVIRONMENT_TOKEN_PREFIX } from '../../../../../platform/github/common/missionControl/environments.js';
 import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxRefreshStopReason } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
@@ -35,7 +34,7 @@ export function mergeCloudSandboxConnectionToken(previous: ICloudSandboxClientTo
 	if (hostKey) {
 		const matchesKey = typeof sealedToken === 'string'
 			&& typeof hostKey.key_id === 'string' && hostKey.key_id.length > 0
-			&& sealedToken.startsWith(`${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${hostKey.key_id}.`);
+			&& sealedToken.startsWith(`${SEALED_ENVIRONMENT_TOKEN_PREFIX}${hostKey.key_id}.`);
 		const reusedKeyChanged = reusesSealedToken && previous.host_encryption_key !== undefined
 			&& !equals(previous.host_encryption_key, hostKey);
 		if (!matchesKey || reusedKeyChanged) {
@@ -112,7 +111,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			const previousToken = this._creds.token.encrypted_github_token;
 			await this.refreshConnectionCredentials();
 			const sealedToken = this._creds.token.encrypted_github_token;
-			if (!sealedToken || !isCloudSandboxSealedToken(sealedToken) || sealedToken === previousToken) {
+			if (!sealedToken || !isSealedEnvironmentToken(sealedToken) || sealedToken === previousToken) {
 				const error = new Error('Sandbox authentication refresh did not provide a new sealed token.');
 				operation.complete('failed', { failurePoint: 'credentialRefresh.authenticationTokenUnchanged' }, error);
 				throw error;

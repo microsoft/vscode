@@ -35,9 +35,9 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { logResponseSelectionWidgetAction } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

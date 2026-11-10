@@ -44,7 +44,7 @@ import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/to
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { maxRemoteMessageLength, parseSendRemoteMessageOptions, RemoteSessionMessageRouter } from '../../browser/remoteSessionMessageRouter.js';

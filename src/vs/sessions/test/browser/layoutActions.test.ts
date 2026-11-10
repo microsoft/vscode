@@ -15,13 +15,14 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { DesktopLayoutContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
-import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -148,29 +149,65 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('toggles the session activity bar layout actions from its context menu', async () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
-			.filter(item => item.group === 'navigation')
-			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
-			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+	test('groups the session activity bar context menu into its layout actions, its position and size, and hiding it, and sets its position from a submenu', async () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext)
+			.map(item => ({ group: item.group, order: item.order, title: isIMenuItem(item) ? item.command.title : `${item.title} >` }))
+			.sort((first, second) => (first.group ?? '').localeCompare(second.group ?? '') || (first.order ?? 0) - (second.order ?? 0))
+			.map(({ group, title }) => `${group}: ${title}`);
+		const positions = MenuRegistry.getMenuItems(Menus.SessionActivityBarPosition).filter(isIMenuItem)
+			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0))
+			.map(item => ({ id: item.command.id, title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value, toggled: item.command.toggled }));
 		const configurationService = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
 			}
-		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true });
+		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true, [SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING]: true });
 		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
-		const run = async () => {
-			await CommandsRegistry.getCommand(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID)!.handler(accessor);
-			return configurationService.getValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING);
+		const run = async (commandId: string, setting: string) => {
+			await CommandsRegistry.getCommand(commandId)!.handler(accessor);
+			return configurationService.getValue(setting);
 		};
 
-		assert.deepStrictEqual({ items, afterFirstRun: await run(), afterSecondRun: await run() }, {
+		assert.deepStrictEqual({
+			items,
+			positions,
+			layoutActions: [await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING), await run(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING)],
+			position: [await run(positions[1].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING), await run(positions[0].id, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING)],
+			toggledFromCommandPalette: await run(TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
+		}, {
 			items: [
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, title: 'Show Layout Actions', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true), order: 0 },
-				{ id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, title: 'Hide Session Activity Bar', toggled: undefined, order: 1 },
+				'1_layoutActions: Show Layout Actions',
+				'2_configure: Position >',
+				'2_configure: Size >',
+				'3_visibility: Hide',
 			],
-			afterFirstRun: false,
-			afterSecondRun: true,
+			positions: [
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.docked', title: 'Docked', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true) },
+				{ id: 'workbench.action.agentSessions.setSessionActivityBarPosition.floating', title: 'Floating', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, false) },
+			],
+			layoutActions: [false, true],
+			position: [false, true],
+			toggledFromCommandPalette: false,
+		});
+	});
+
+	test('shows Position in the main window only, and Size in the main window while docked and always in a chat window, whose column always shows the bar', () => {
+		const submenus = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isISubmenuItem);
+		const shown = (values: Record<string, unknown>) => submenus
+			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => values[key] as T }) ?? true)
+			.map(item => typeof item.title === 'string' ? item.title : item.title.value)
+			.sort();
+		const desktop = { [DesktopLayoutContext.key]: true };
+		const fixedColumn = `config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`;
+
+		assert.deepStrictEqual({
+			mainWindowDocked: shown({ ...desktop, [fixedColumn]: true }),
+			mainWindowFloating: shown({ ...desktop, [fixedColumn]: false }),
+			chatWindow: shown({ ...desktop, [fixedColumn]: false, [LayoutModeContext.key]: 'sideBySide' }),
+		}, {
+			mainWindowDocked: ['Position', 'Size'],
+			mainWindowFloating: ['Position'],
+			chatWindow: ['Size'],
 		});
 	});
 
@@ -183,7 +220,7 @@ suite('Sessions - Layout Actions', () => {
 			chat: describe(find(MenuId.ChatContext)),
 			newSession: describe(find(Menus.SessionChatBackgroundContext)),
 		}, {
-			activityBar: { title: 'Hide Session Activity Bar', toggled: undefined, group: 'navigation', when: undefined },
+			activityBar: { title: 'Hide', toggled: undefined, group: '3_visibility', when: undefined },
 			chat: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
 			newSession: { title: 'Session Activity Bar', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
 		});
@@ -198,6 +235,9 @@ suite('Sessions - Layout Actions', () => {
 		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
 			layoutActions: base,
 			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			docked: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedActivityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedEditorMaximized: { ...base, editorMaximized: true, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
 			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
 			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
 			editorMaximized: { ...base, editorMaximized: true },
@@ -214,6 +254,9 @@ suite('Sessions - Layout Actions', () => {
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
+				docked: [],
+				dockedActivityBarOff: ['titleBar'],
+				dockedEditorMaximized: ['titleBar'],
 				activityBarOff: ['titleBar'],
 				editorMaximized: ['titleBar'],
 				// The phone layout has its own panel controls.
@@ -257,7 +300,6 @@ suite('Sessions - Layout Actions', () => {
 				order: item.order,
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasToggledState: Boolean(item.command.toggled),
-				when: item.when?.serialize(),
 			}))
 			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
 
@@ -273,15 +315,12 @@ suite('Sessions - Layout Actions', () => {
 					order: 10,
 					icon: Codicon.layoutPanel.id,
 					hasToggledState: false,
-					// Hidden while the Session Activity Bar shows its layout actions.
-					when: 'editorMaximized && panelVisible && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 				{
 					group: 'navigation',
 					order: 10,
 					icon: Codicon.layoutPanelOff.id,
 					hasToggledState: false,
-					when: 'editorMaximized && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 			],
 			terminalActionPresent: false,

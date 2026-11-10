@@ -1207,9 +1207,10 @@ export interface IEditorGroup {
 	focus(): void;
 
 	/**
-	 * Create the editor actions for the current active editor.
+	 * Create the editor actions for the current active editor. With `useEditorTitleMenu`, those of the editor's own title
+	 * menu, if the editor has one, in place of those of `menuId`, such as on the tab bar of the group.
 	 */
-	createEditorActions(disposables: DisposableStore, menuId?: MenuId): IActiveEditorActions;
+	createEditorActions(disposables: DisposableStore, menuId?: MenuId, options?: { readonly useEditorTitleMenu?: boolean }): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

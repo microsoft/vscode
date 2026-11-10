@@ -1772,13 +1772,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean): Promise<IChatSessionItem> {
 		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
 		if (!session?.session.createSideChat) {
 			this._logService.trace(`[ChatSessionsService] Cannot create a side chat for unsupported session '${sessionResource.toString()}'`);
 			throw new Error(localize('chatSessions.sideChatsUnsupported', "This conversation does not support side chats."));
 		}
-		return session.session.createSideChat(turnId, token, selection);
+		return session.session.createSideChat(turnId, token, selection, includeSourceContext);
 	}
 
 	public sessionSupportsRename(sessionResource: URI): boolean {
@@ -1898,6 +1898,20 @@ export type NewChatSessionOpenOptions = {
 };
 
 export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
+	return (await openChatSessionAndSend(accessor, openOptions, chatSendOptions))?.resource;
+}
+
+/**
+ * Whether the initial request of a newly opened chat session was sent: `sent` (or `queued`) when it was
+ * accepted, `rejected` when the session refused it, `failed` when sending threw, and `none` without one.
+ */
+export type NewChatSessionSendOutcome = 'none' | 'sent' | 'queued' | 'rejected' | 'failed';
+
+/**
+ * Like {@link openChatSession}, but also reports whether the initial request was sent, since the
+ * session stays open (and its resource is returned) when that request is rejected or fails.
+ */
+export async function openChatSessionAndSend(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<{ readonly resource: URI; readonly sendOutcome: NewChatSessionSendOutcome } | undefined> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
@@ -1913,6 +1927,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
 	let openedSessionResource = sessionResource;
+	let sendOutcome: NewChatSessionSendOutcome = 'none';
 	if (activeClientService && chatSendOptions?.sessionToolIds?.length) {
 		activeClientService.setSessionTools(sessionResource, chatSendOptions.sessionToolIds);
 	}
@@ -2017,6 +2032,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			sendOutcome = result.kind;
 			const newSessionResource = result.kind === 'sent' || result.kind === 'rejected' ? result.newSessionResource : undefined;
 			if (newSessionResource && !resources.isEqual(newSessionResource, sessionResource)) {
 				activeClientService?.moveSessionTools(sessionResource, newSessionResource);
@@ -2046,6 +2062,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 			activeClientService?.clearSessionTools(openedSessionResource);
+			sendOutcome = 'failed';
 		}
 	}
 
@@ -2054,7 +2071,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	// working indicator.
 	sessionsListSuppression?.dispose();
 	transitionProgress?.complete();
-	return openedSessionResource;
+	return { resource: openedSessionResource, sendOutcome };
 }
 
 /**

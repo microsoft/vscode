@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -14,24 +14,27 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { DraggedEditorIdentifier, registerContentDropTarget } from '../../../../browser/dnd.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
-import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { IEditorGroupView, IEditorPaneTitleMenu } from '../../../../browser/parts/editor/editor.js';
 import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
 import { ViewEditorPane } from '../../../../browser/parts/editor/viewEditorPane.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../browser/parts/editor/viewEditorRegistry.js';
 import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, TestMenuService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+
+const TEST_VIEW_TITLE_MENU = MenuId.for('test.viewEditor.viewTitle');
 
 class TestView implements IViewEditorView {
 
@@ -47,11 +50,21 @@ class TestView implements IViewEditorView {
 
 	readonly dragHandle: HTMLElement | undefined;
 
+	/** Whether it shows its own title, as its group last said; undefined until then. */
+	providedTitleVisible: boolean | undefined;
+
+	readonly titleMenu: IEditorPaneTitleMenu | undefined;
+
 	constructor(readonly providesTitle: boolean, readonly instantiationService: IInstantiationService, private readonly log: string[], private readonly name: string) {
 		log.push(`create ${name}`);
 		if (providesTitle) {
 			this.dragHandle = this.element.appendChild(mainWindow.document.createElement('div'));
+			this.titleMenu = { menuId: TEST_VIEW_TITLE_MENU, contextKeyService: new MockContextKeyService(), options: { args: [name] } };
 		}
+	}
+
+	setProvidedTitleVisible(visible: boolean): void {
+		this.providedTitleVisible = visible;
 	}
 
 	saveViewState(): void {
@@ -110,9 +123,10 @@ suite('View Editors', () => {
 	});
 
 	teardown(() => {
+		// What a test leaves open, such as after a failed assertion, closes before the logs reset, so that it does not log into the next test.
+		disposables.clear();
 		views.length = 0;
 		log.length = 0;
-		disposables.clear();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -121,8 +135,11 @@ suite('View Editors', () => {
 		return disposables.add(new ViewEditorInput(viewType, path ? URI.file(path) : undefined));
 	}
 
-	async function createServices() {
+	async function createServices(menuService?: IMenuService) {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		if (menuService) {
+			instantiationService.stub(IMenuService, menuService);
+		}
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
 		const parts = await createEditorParts(instantiationService, disposables);
@@ -224,6 +241,112 @@ suite('View Editors', () => {
 			afterClosingSecond: false,
 			onlyUntitledView: true,
 			mainPart: true
+		});
+	});
+
+	test('a view that provides its title shows it while alone in its group, and not while the group shows its title, also a view created or shown again then; a view without a title is not told', async () => {
+		const { part } = await createServices();
+		const titled = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const alone = views[0].providedTitleVisible;
+
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		await part.activeGroup.openEditor(titled);
+		const besideAnotherEditor = views[0].providedTitleVisible;
+
+		const second = createViewInput('test.titled', '/chat/b');
+		await part.activeGroup.openEditor(second, { pinned: true });
+		const createdBesideOthers = views[1].providedTitleVisible;
+
+		await part.activeGroup.closeEditor(file);
+		await part.activeGroup.closeEditor(second);
+		await part.activeGroup.openEditor(titled);
+		const aloneAgain = views[0].providedTitleVisible;
+
+		await part.activeGroup.openEditor(createViewInput('test.untitled', '/chat/c'), { pinned: true });
+
+		assert.deepStrictEqual({ alone, besideAnotherEditor, createdBesideOthers, aloneAgain, untitled: views[2].providedTitleVisible }, {
+			alone: true,
+			besideAnotherEditor: false,
+			createdBesideOthers: false,
+			aloneAgain: true,
+			untitled: undefined,
+		});
+	});
+
+	test('a view that stops rendering its title for now has its group show its title area, also alone, and is told not to show its title; rendering it again, it is as before; beside other editors nothing changes; editors opened from its group still go to the main part', async () => {
+		const { parts, part } = await createServices();
+		const group = groupViewOf(parts, part.activeGroup);
+		const titleShown = () => group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor');
+		const read = () => ({ title: titleShown(), told: views[0].providedTitleVisible });
+		const titled = createViewInput('test.titled', '/chat/a');
+		titled.setRendersTitle(false);
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const aloneNotRendering = read();
+		titled.setRendersTitle(true);
+		const aloneRendering = read();
+		titled.setRendersTitle(false);
+		const aloneStopped = read();
+
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		await part.activeGroup.openEditor(titled);
+		const besideNotRendering = read();
+		titled.setRendersTitle(true);
+		const besideRendering = read();
+
+		titled.setRendersTitle(false);
+		const opened = disposables.add(new TestFileEditorInput(URI.file('/from-view.txt'), TEST_EDITOR_INPUT_ID));
+		await views[0].instantiationService.invokeFunction(accessor => accessor.get(IEditorService)).openEditor(opened);
+
+		assert.deepStrictEqual({ aloneNotRendering, aloneRendering, aloneStopped, besideNotRendering, besideRendering, capabilityKept: titled.hasCapability(EditorInputCapabilities.ProvidesTitle), openedInMainPart: parts.mainPart.groups.some(group => group.contains(opened)) }, {
+			aloneNotRendering: { title: true, told: false },
+			aloneRendering: { title: false, told: true },
+			aloneStopped: { title: true, told: false },
+			besideNotRendering: { title: true, told: false },
+			besideRendering: { title: true, told: false },
+			capabilityKept: true,
+			openedInMainPart: true,
+		});
+	});
+
+	test('the tab bar shows the actions of the active view\'s own title menu, in its context and with its arguments, and follows it as another view shows; other editors, and other menus of the group, keep the group\'s', async () => {
+		const created: { readonly menu: string; readonly ownContext: boolean; options?: IMenuActionOptions }[] = [];
+		const menuService = new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				const entry: { readonly menu: string; readonly ownContext: boolean; options?: IMenuActionOptions } = { menu: id.id, ownContext: views.some(view => view.titleMenu?.contextKeyService === contextKeyService) };
+				created.push(entry);
+				return { onDidChange: Event.None, dispose: () => { }, getActions: options => { entry.options = options; return []; } };
+			}
+		}();
+		const { parts, part } = await createServices(menuService);
+		const group = groupViewOf(parts, part.activeGroup);
+		const read = (menuId: MenuId, useEditorTitleMenu: boolean) => {
+			const store = disposables.add(new DisposableStore());
+			created.length = 0;
+			let changes = 0;
+			store.add(group.createEditorActions(store, menuId, { useEditorTitleMenu }).onDidChange(() => changes++));
+			const [menu] = created;
+			return { menu: menu.menu, ownContext: menu.ownContext, args: menu.options?.args, changes: () => changes };
+		};
+
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const tabBar = read(MenuId.EditorTitle, true);
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/b'), { pinned: true });
+		const changedAsAnotherViewShows = tabBar.changes() > 0;
+		const secondView = read(MenuId.EditorTitle, true);
+		const otherMenu = read(MenuId.EditorTitleLayout, false);
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		const fileEditor = read(MenuId.EditorTitle, true);
+
+		const strip = (actions: ReturnType<typeof read>) => ({ menu: actions.menu, ownContext: actions.ownContext, args: actions.args });
+		assert.deepStrictEqual({ tabBar: strip(tabBar), changedAsAnotherViewShows, secondView: strip(secondView), otherMenu: strip(otherMenu), fileEditor: strip(fileEditor) }, {
+			tabBar: { menu: TEST_VIEW_TITLE_MENU.id, ownContext: true, args: ['view1'] },
+			changedAsAnotherViewShows: true,
+			secondView: { menu: TEST_VIEW_TITLE_MENU.id, ownContext: true, args: ['view2'] },
+			otherMenu: { menu: MenuId.EditorTitleLayout.id, ownContext: false, args: undefined },
+			fileEditor: { menu: MenuId.EditorTitle.id, ownContext: false, args: undefined },
 		});
 	});
 
@@ -359,6 +482,82 @@ suite('View Editors', () => {
 		});
 		await parts.mainPart.activeGroup.closeAllEditors();
 		await part.activeGroup.closeAllEditors();
+	});
+
+	test('opens to a group by its id, such as an extension\'s column, or to the side of the active group, do not put other editors into a group that holds a view with its own title: they go to the main part of its window; such a view, an explicit group and an editor already in the group still go there', async () => {
+		const { parts, editorService, part } = await createServices();
+		const where = (resource: URI) => parts.mainPart.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'main' : part.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'part' : 'none';
+		const file = (path: string) => disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+		const viewGroup = part.activeGroup;
+		const focusIn = (element: HTMLElement) => {
+			const focusable = element.appendChild(mainWindow.document.createElement('div'));
+			focusable.tabIndex = 0;
+			focusable.focus();
+		};
+		const openAll = async (label: string) => {
+			const byId = file(`/${label}-id.txt`);
+			await editorService.openEditor(byId, { pinned: true }, viewGroup.id);
+			// As an extension's column names a group: by its place among the groups of all parts
+			const byColumn = file(`/${label}-column.txt`);
+			const groupsByAppearance = parts.getGroups(GroupsOrder.GRID_APPEARANCE);
+			await editorService.openEditor(byColumn, { pinned: true }, groupsByAppearance[groupsByAppearance.findIndex(group => group.id === viewGroup.id)].id);
+			focusIn(part.element as HTMLElement);
+			const viewGroupActive = parts.activeGroup.id === viewGroup.id;
+			const toSide = file(`/${label}-side.txt`);
+			await editorService.openEditor(toSide, { pinned: true }, SIDE_GROUP);
+			return { byId: where(byId.resource), byColumn: where(byColumn.resource), viewGroupActive, toSide: where(toSide.resource), partGroups: part.groups.length };
+		};
+
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const oneView = await openAll('one');
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/b'), { pinned: true });
+		const twoViews = await openAll('two');
+
+		const view = createViewInput('test.titled', '/chat/c');
+		await editorService.openEditor(view, { pinned: true }, viewGroup.id);
+		const explicit = file('/explicit.txt');
+		await editorService.openEditor(explicit, { pinned: true }, viewGroup);
+		const reopened = await editorService.openEditor(explicit, { pinned: true }, viewGroup.id);
+
+		const untitledGroup = part.addGroup(viewGroup, GroupDirection.DOWN);
+		await untitledGroup.openEditor(createViewInput('test.untitled', '/chat/d'), { pinned: true });
+		const besideUntitled = file('/beside-untitled.txt');
+		await editorService.openEditor(besideUntitled, { pinned: true }, untitledGroup.id);
+
+		assert.deepStrictEqual({
+			oneView, twoViews,
+			view: viewGroup.contains(view),
+			explicit: where(explicit.resource),
+			reopenedInItsGroup: reopened?.group.id === viewGroup.id,
+			besideUntitled: where(besideUntitled.resource),
+		}, {
+			oneView: { byId: 'main', byColumn: 'main', viewGroupActive: true, toSide: 'main', partGroups: 1 },
+			twoViews: { byId: 'main', byColumn: 'main', viewGroupActive: true, toSide: 'main', partGroups: 1 },
+			view: true,
+			explicit: 'part',
+			reopenedInItsGroup: true,
+			besideUntitled: 'part',
+		});
+		for (const group of [...parts.mainPart.groups, ...part.groups]) {
+			await group.closeAllEditors();
+		}
+	});
+
+	test('an editor opened by the id of a group that holds a view with its own title does not go into a locked group of the main part it is handed off to', async () => {
+		const { parts, editorService, part } = await createServices();
+		const viewGroup = part.activeGroup;
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const lockedGroup = parts.mainPart.activeGroup;
+		lockedGroup.lock(true);
+
+		const input = disposables.add(new TestFileEditorInput(URI.file('/locked.txt'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(input, { pinned: true }, viewGroup.id);
+
+		const target = parts.mainPart.groups.find(group => group.contains(input));
+		assert.deepStrictEqual({ inLocked: lockedGroup.contains(input), inMainPart: !!target, targetLocked: target?.isLocked }, { inLocked: false, inMainPart: true, targetLocked: false });
+		for (const group of [...parts.mainPart.groups, ...part.groups]) {
+			await group.closeAllEditors();
+		}
 	});
 
 	test('a view saves its state before its editor moves to another group, where it is created again, and before its pane clears its input', async () => {

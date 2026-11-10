@@ -27,15 +27,15 @@ import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISession
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
-import { ISessionSectionOrderService } from '../../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
+import { ISessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
+import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -57,6 +57,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		return toDisposable(() => this.archiveRequests--);
 	}
 	override readonly onDidChangeSessions = Event.None;
+	override readonly onDidDeleteSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -504,6 +505,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 		override readonly notifications = constObservable([]);
+		override readonly sessionAttention = constObservable(new Map());
+		override acquireSessionAttention() { return toDisposable(() => { }); }
 		override readonly attentionCount = constObservable(0);
 		override readonly isLoading = constObservable(false);
 		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);

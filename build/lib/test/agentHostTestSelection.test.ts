@@ -101,7 +101,6 @@ suite('Agent Host PR test selection', () => {
 			'remote/pnpm-workspace.yaml',
 			'remote/.pnpmfile.mjs',
 			'extensions/copilot/package.json',
-			'extensions/copilot/pnpm-lock.yaml',
 			'.nvmrc',
 			'product.json',
 		];

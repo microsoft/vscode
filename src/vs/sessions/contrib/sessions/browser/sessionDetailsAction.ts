@@ -16,7 +16,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getUntitledSessionTitle, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getUntitledSessionTitle, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 class ShowSessionDetailsAction extends Action2 {
 

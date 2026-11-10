@@ -7,11 +7,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IMenuActionOptions } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**
  * Session-scoped header whose title follows the session's active chat.
@@ -25,6 +26,8 @@ export class SessionHeader extends Disposable {
 
 	get element(): HTMLElement { return this._bar.element; }
 	get titleElement(): HTMLElement { return this._bar.titleElement; }
+	/** See {@link SessionHeaderBar.menuActionOptions}. */
+	get menuActionOptions(): IMenuActionOptions { return this._bar.menuActionOptions; }
 	get visible(): boolean { return this._bar.visible; }
 	get height(): number { return this._bar.height; }
 	get onDidChangeVisibility(): Event<boolean> { return this._bar.onDidChangeVisibility; }

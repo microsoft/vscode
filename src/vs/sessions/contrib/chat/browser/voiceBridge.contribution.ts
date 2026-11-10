@@ -16,8 +16,8 @@ import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../..
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { isSessionCreated, SessionStatus, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { isSessionCreated, SessionStatus, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';

@@ -71,7 +71,7 @@ import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewR
 import { getChatRequestOutcome } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
-import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
@@ -3181,7 +3181,7 @@ suite('InboxNotificationsView', () => {
 			labels: ['Allow Once', 'Skip', 'Explain'],
 			menu: ['', 'Allow in Session', '', 'Always Allow'],
 			submissionsAfterExplain: 0, submittedIndex: 2, submittedId: 'session',
-			explanation: [part.chatResource, 'Explain what this terminal command will do.', { text: part.commandLine }, { sourceTurnId: part.requestId }],
+			explanation: [part.chatResource, `Explain what this terminal command will do. Do not run it.\n\n\`${part.commandLine}\``, undefined, { sourceTurnId: part.requestId, includeSourceContext: false }],
 			titleCount: 2, codeLanguage: true, radius: '6px', border: 'solid',
 		});
 	});

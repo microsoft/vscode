@@ -443,7 +443,7 @@
 }
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
-	background-color: var(--vscode-list-warningForeground);
+	background-color: var(--vscode-agentSessionNeedsInput-foreground);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
@@ -634,6 +634,16 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view.independent-chat-groups::after {
+	content: none;
+}
+
+/* A session view shown as an editor is framed as every editor is, by its group or its part, which also frame the tabs of
+ * the group above it: it draws no frame of its own, so that its group's active tab flows into it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view {
+	border-radius: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view::after {
 	content: none;
 }
 

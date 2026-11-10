@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Event } from '../../../../base/common/event.js';
-import { constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -14,7 +14,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChat, ISession } from '../common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../../../services/sessions/common/session.js';
 
 /** Cached per session, then per chat (`''` for the session folder). */
 const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
@@ -143,6 +143,26 @@ export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: I
 /** Whether the pull-request icon represents blockers Agent Merge can own. */
 export function isAgentMergePullRequestIcon(icon: ThemeIcon): boolean {
 	return icon.id === Codicon.gitPullRequestError.id || icon.id === Codicon.gitPullRequestComment.id;
+}
+
+/**
+ * The icon of the completed state of `chat`, such as of its pull request, with the blockers Agent Merge owns hidden: what
+ * its status icon shows once the chat is done, beside it in the sessions list and wherever else its status shows.
+ */
+export function getChatCompletedStateIcon(session: ISession, chat: IChat, reader: IReader, agentMergeConfiguration: () => IObservable<ISessionAgentMergeConfiguration | undefined>): ThemeIcon | undefined {
+	const pullRequestIcon = chat.completedStateIcon
+		? chat.completedStateIcon.read(reader)
+		// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
+		: (session.workspace.read(reader)?.folders.length ?? 0) > 1
+			? getHighestPriorityPullRequestIcon(
+				chat.workspace.read(reader)?.folders.flatMap(folder =>
+					getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
+				) ?? []
+			)
+			: undefined;
+	return pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
+		? getAgentMergeAwarePullRequestIcon(pullRequestIcon, agentMergeConfiguration().read(reader))
+		: pullRequestIcon;
 }
 
 /** Reads the effective global Agent Merge configuration. */

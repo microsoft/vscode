@@ -10,6 +10,8 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
@@ -24,7 +26,7 @@ import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IChat, ISessionWorkspace } from '../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/services/sessions/common/session.js';
 import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Web Open in Editor', () => {
@@ -59,6 +61,8 @@ suite('Web Open in Editor', () => {
 			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({
 				getEntryByAddress: () => ({ name: 'Remote host', connection }),
 			}));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-test' }));
 			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {

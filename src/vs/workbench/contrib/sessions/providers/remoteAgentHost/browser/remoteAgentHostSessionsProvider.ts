@@ -52,8 +52,8 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../common/devContainerAgentHostService.js';
-import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../common/session.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../browser/sessionHost.js';
+import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';

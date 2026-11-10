@@ -173,7 +173,13 @@ const nodeExtHostBuildOptions = {
 	plugins: [testBundlePlugin, sanityTestBundlePlugin],
 	external: [
 		...baseNodeBuildOptions.external,
-		'vscode'
+		'vscode',
+		// `debug` tries to load `supports-color`, and `ws` `bufferutil` and `utf-8-validate`: optional
+		// peers that aren't installed. Don't bundle whichever version happens to be reachable. Without
+		// them, `debug` uses its basic colors and `ws` its JavaScript implementations.
+		'supports-color',
+		'bufferutil',
+		'utf-8-validate'
 	]
 } satisfies esbuild.BuildOptions;
 
@@ -449,11 +455,26 @@ function applyPackageJsonPatch() {
 }
 
 function getDateBasedPatch(counter: number): string {
+	return `${getPublishDate()}${String(counter).padStart(2, '0')}`;
+}
+
+/**
+ * Returns the date of the pre-release version, as `yyyyMMdd`. In the build pipeline, every Compile job
+ * builds the extension, so they all take the date from `VSCODE_PUBLISH_COUNTER_PREFIX`, which starts with
+ * the date the pipeline run started: the jobs of a run that spans midnight stamp the same version.
+ * `VSCODE_PUBLISH_COUNTER`, which restarts with each prefix, keeps the versions of a day's runs unique.
+ */
+function getPublishDate(): string {
+	const pipelineDate = /^(?<date>\d{8})-/.exec(process.env['VSCODE_PUBLISH_COUNTER_PREFIX'] ?? '')?.groups?.date;
+	if (pipelineDate) {
+		return pipelineDate;
+	}
+
 	const now = new Date();
 	const year = now.getFullYear();
 	const month = String(now.getMonth() + 1).padStart(2, '0');
 	const day = String(now.getDate()).padStart(2, '0');
-	return `${year}${month}${day}${String(counter).padStart(2, '0')}`;
+	return `${year}${month}${day}`;
 }
 
 main();

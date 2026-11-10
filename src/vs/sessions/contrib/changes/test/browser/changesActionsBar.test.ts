@@ -29,10 +29,10 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
-import { SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesActionsBar', () => {

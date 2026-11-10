@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -320,6 +320,42 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			listed: ['toolsWithViews', 'commandsOnly'],
 			listedBuiltin: [],
 			empty: [],
+		});
+	});
+
+	test('enables extensions by what users set for them, then by their experiments unless users set the value for all extensions', async () => {
+		const configurationService = new class extends TestConfigurationService {
+			readonly defaults = new Map<string, unknown>();
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				return { ...super.inspect<T>(key, overrides), defaultValue: this.defaults.get(key) as T | undefined };
+			}
+		}();
+		testConfigurationService = configurationService;
+		testObject = createTestObject();
+		const extension = (name: string, contributes: Record<string, unknown>, properties: Partial<IExtensionManifest> = {}) =>
+			getExtensionManifest({ name, main: './out/extension.js', contributes: contributes as IExtensionContributions, ...properties });
+		const manifests = [
+			extension('tools', { languageModelTools: [{}] }),
+			extension('toolsWithViews', { languageModelTools: [{}], views: { explorer: [{}] } }),
+			extension('declaredUnsupported', { languageModelTools: [{}] }, { capabilities: { agentsWindow: { supported: false } } }),
+		];
+		configurationService.defaults.set(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, { 'pub.tools': false, 'pub.toolswithviews': true, 'pub.declaredunsupported': true });
+		const shouldAutoEnable = async (autoEnable: unknown, autoEnableExtensions: unknown) => {
+			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, autoEnable);
+			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, autoEnableExtensions);
+			return manifests.filter(manifest => testObject.shouldAutoEnableOnSessionsWindow(manifest)).map(manifest => manifest.name);
+		};
+
+		assert.deepStrictEqual({
+			experiments: await shouldAutoEnable(undefined, undefined),
+			setForExtensions: await shouldAutoEnable(undefined, { 'PUB.toolsWithViews': false, 'pub.tools': true }),
+			setForAll: await shouldAutoEnable(true, undefined),
+			setForBoth: await shouldAutoEnable(true, { 'pub.tools': false }),
+		}, {
+			experiments: ['toolsWithViews'],
+			setForExtensions: ['tools'],
+			setForAll: ['tools'],
+			setForBoth: [],
 		});
 	});
 

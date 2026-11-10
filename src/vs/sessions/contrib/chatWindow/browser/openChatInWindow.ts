@@ -20,10 +20,10 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';
 export const OPEN_SESSION_IN_WINDOW_COMMAND_ID = 'sessions.openInChatWindow';
@@ -152,7 +152,8 @@ registerAction2(class MoveChatToMainWindowAction extends Action2 {
 			title: localize2('moveChatToMainWindow', "Move to Main Window"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InChatWindowContext),
+			// Not while the window holds a new session that has not been sent, which cannot leave it; run anyway, it says why.
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InChatWindowContext, ChatWindowHasUnsentComposerContext.negate()),
 			menu: SessionHeaderMenus.map(id => ({
 				id,
 				// Before Close.

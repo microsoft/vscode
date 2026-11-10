@@ -9,7 +9,7 @@ import { identityAgentHostResourceUriMapper } from '../../../../../../platform/a
 import { toAgentHostClientCustomization } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
-import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../../workbench/contrib/sessions/browser/sessionsAuthGate.js';
+import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../../workbench/services/sessions/browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { spy, stub } from 'sinon';
@@ -66,25 +66,25 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { readSessionChangesStats } from '../../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -113,6 +113,7 @@ import { TestPathService } from '../../../../../../workbench/test/browser/workbe
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -306,6 +307,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				status: ProtocolSessionStatus.Idle,
 				modifiedAt: new Date(0).toISOString(),
 				...(provider !== undefined ? { provider } : {}),
+				...(options?.sideChat ? { origin: { kind: ProtocolChatOriginKind.SideChat, chat: options.sideChat.source.toString(), turnId: options.sideChat.turnId, ...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}) } } : {}),
 			};
 			this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
 				...existing,
@@ -1506,6 +1508,102 @@ suite('LocalAgentHostSessionsProvider', () => {
 			subscribedWhileHeld: [1, 1],
 			unsubscribes: [1, 1],
 		});
+	});
+
+	test('a chat whose changes are observed shows them while no window shows its session, as a Changes editor of the chat does, and releases them after', async () => {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+		const main = URI.parse('conversation://opaque/hidden-main');
+		const peer = URI.parse('conversation://opaque/hidden-peer');
+		agentHost.addSession(createSession('hidden-changes', { chats: [{ chat: main, kind: 'default' }, { chat: peer, kind: 'peer' }] }));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const summaries = [main, peer].map((resource, index): ChatSummary => ({ resource: resource.toString(), title: `Chat ${index}`, status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }));
+		agentHost.setSessionState('hidden-changes', 'copilotcli', {
+			provider: 'copilotcli', title: 'Hidden changes', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: summaries, defaultChat: main.toString(),
+		});
+		for (const [index, summary] of summaries.entries()) {
+			const changesetUri = `${summary.resource}/changeset/session`;
+			agentHost.setChatState(summary.resource, { ...summary, turns: [], changesets: [{ label: 'Session Changes', uriTemplate: changesetUri, changeKind: 'session' }] });
+			agentHost.setChangesetState(changesetUri, {
+				status: ChangesetStatus.Ready,
+				files: [{ id: `file:///repo/chat-${index}.ts`, edit: { after: { uri: `file:///repo/chat-${index}.ts`, content: { uri: `file:///repo/chat-${index}.ts` } }, diff: { added: 1, removed: 0 } } }],
+			});
+		}
+		const chats = session.chats.get();
+		assert.strictEqual(chats.length, 2);
+		for (const chat of chats) {
+			disposables.add(autorun(reader => chat.changes.read(reader)));
+		}
+		const read = () => chats.map(chat => chat.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.path : change.modifiedUri.path));
+		const liveChangesets = () => summaries.map(summary => {
+			const changesetUri = `${summary.resource}/changeset/session`;
+			return (agentHost.sessionSubscribeCounts.get(changesetUri) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(changesetUri) ?? 0);
+		});
+
+		const notShown = { changes: read(), live: liveChangesets() };
+		const observations = chats.map(chat => chat.observeChanges?.());
+		const observed = { changes: read(), live: liveChangesets() };
+		for (const observation of observations) {
+			observation?.dispose();
+		}
+		const released = { changes: read(), live: liveChangesets() };
+
+		assert.deepStrictEqual({ notShown, observed, released, activeSession: activeSession.get() }, {
+			notShown: { changes: [[], []], live: [0, 0] },
+			observed: { changes: [['/repo/chat-0.ts'], ['/repo/chat-1.ts']], live: [1, 1] },
+			released: { changes: [[], []], live: [0, 0] },
+			activeSession: undefined,
+		});
+	});
+
+	test('an observed chat of a session no window shows lists its Last Turn changeset\'s files during a turn, as the turn changes it streams are not read while no window shows it', async () => {
+		const workingDirectory = URI.file('/repo');
+		agentHost.addSession(createSession('hidden-turn', { summary: 'Hidden Turn', workingDirectory }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Hidden Turn')!;
+		const chatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'hidden-turn').toString());
+		const summary: ChatSummary = { resource: chatUri, title: 'Default', status: ProtocolSessionStatus.InProgress, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('hidden-turn', 'copilotcli', {
+			provider: 'copilotcli', title: 'Hidden Turn', status: ProtocolSessionStatus.InProgress, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], defaultChat: chatUri, chats: [summary], workingDirectories: [workingDirectory.toString()],
+		});
+		const streamedFile = URI.file('/repo/streamed.ts').toString();
+		agentHost.setChatState(chatUri, {
+			...summary, workingDirectories: [workingDirectory.toString()], turns: [],
+			changesets: [{ label: 'Last Turn Changes', uriTemplate: `${chatUri}/changeset/turn/{turnId}`, changeKind: 'turn' }],
+			activeTurn: {
+				id: 'active-turn', startedAt: new Date().toISOString(), usage: undefined,
+				message: { text: 'Edit', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed, toolCallId: 'edit', toolName: 'create', displayName: 'Create File', invocationMessage: 'Creating',
+						success: true, pastTenseMessage: 'Created', confirmed: ToolCallConfirmationReason.NotNeeded,
+						content: [{ type: ToolResultContentType.FileEdit, after: { uri: streamedFile, content: { uri: streamedFile } }, diff: { added: 1, removed: 0 } }],
+					},
+				}],
+			},
+		});
+		const changesetFile = 'file:///repo/changeset.ts';
+		agentHost.setChangesetState(`${chatUri}/changeset/turn/active-turn`, {
+			status: ChangesetStatus.Ready,
+			files: [{ id: changesetFile, edit: { after: { uri: changesetFile, content: { uri: changesetFile } }, diff: { added: 2, removed: 0 } } }],
+		});
+		const chat = session.mainChat.get();
+		const observation = chat.observeChanges?.();
+		let changes: readonly string[] | undefined;
+		disposables.add(autorun(reader => {
+			const lastTurn = chat.changesets.read(reader)?.find(changeset => changeset.id === TURN_CHANGES_CHANGESET_ID);
+			changes = lastTurn?.changes.read(reader).map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
+		}));
+		const observed = changes;
+		observation?.dispose();
+
+		assert.deepStrictEqual({ observed, activeSession: activeSession.get() }, { observed: [changesetFile], activeSession: undefined });
 	});
 
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3642,7 +3740,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
+		const configurationService = new TestConfigurationService();
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		const legacyUri = URI.parse('copilotcli:/missing-from-list');
 		const twinUri = URI.parse('agent-host-copilotcli:/missing-from-list');
@@ -13968,7 +14066,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				assert.deepStrictEqual(agentHost.createdChats, []);
 			}));
 
-			test('fork and side chat never name an agent and keep the source chat\'s harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('forks and side chats keep the source harness with or without source context', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
 				const session = setupMultiChatSession(provider, 'harness-fork');
 				const sessionUri = AgentSession.uri('copilotcli', 'harness-fork').toString();
@@ -13978,13 +14076,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 				const forked = await provider.forkChat(session.sessionId, source.resource, 'turn-1');
 				const side = await provider.createSideChat(session.sessionId, source.resource, 'turn-1');
+				const fresh = await provider.createSideChat(session.sessionId, source.resource, 'turn-1', undefined, false);
 
 				assert.deepStrictEqual({
 					providers: agentHost.createdChats.map(call => (call.options as { readonly provider?: string } | undefined)?.provider),
-					harnesses: [forked.harness, side.harness],
+					harnesses: [forked.harness, side.harness, fresh.harness],
 				}, {
-					providers: [undefined, undefined],
-					harnesses: ['otheragent', 'otheragent'],
+					providers: [undefined, undefined, undefined],
+					harnesses: ['otheragent', 'otheragent', 'otheragent'],
 				});
 			}));
 
@@ -14351,6 +14450,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sideChatInCatalog: true,
 			});
 		}));
+
+		for (const opaque of [false, true]) {
+			test(`createSideChat retains side-chat identity while excluding source context on ${opaque ? 'opaque' : 'shaped'} hosts`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } } as AgentInfo]);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupMultiChatSession(provider, 'fresh-side-chat');
+				const sessionUri = AgentSession.uri('copilotcli', 'fresh-side-chat').toString();
+				const defaultChat = opaque ? 'ahp-chat:/11111111-1111-4111-8111-111111111111' : buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('fresh-side-chat', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+
+				const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1', { text: 'Source selection' }, false);
+				const call = agentHost.createdChats.at(-1);
+
+				assert.deepStrictEqual({
+					options: { ...call?.options, sideChat: { ...call?.options?.sideChat, source: call?.options?.sideChat?.source.toString() } },
+					inCatalog: session.chats.get().some(chat => chat.resource.toString() === sideChat.resource.toString()),
+					origin: sideChat.origin,
+				}, {
+					options: { model: undefined, sideChat: { source: defaultChat, turnId: 'turn-1', selection: { text: 'Source selection' }, includeSourceContext: false } },
+					inCatalog: true,
+					origin: { kind: ChatOriginKind.SideChat, parentChat: session.resource, turnId: 'turn-1', selection: { text: 'Source selection' } },
+				});
+			}));
+		}
 
 		test('createSideChat translates a subagent source to the canonical host chat URI', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);

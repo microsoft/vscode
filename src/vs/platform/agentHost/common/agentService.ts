@@ -151,6 +151,9 @@ export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMc
 /** Configuration key offering GitHub's Computer Use plugin to local agent-host Copilot sessions. */
 export const AgentHostComputerUseEnabledSettingId = 'chat.agentHost.computerUse.enabled';
 
+/** Configuration key offering GitHub's Browser Use plugin to local agent-host Copilot sessions. */
+export const AgentHostBrowserUseEnabledSettingId = 'chat.agentHost.browserUse.enabled';
+
 /** Configuration key selecting the automatic session and chat title generation strategy. */
 export const AgentHostTitleGenerationSettingId = 'chat.agentHost.experimental.titleGeneration';
 

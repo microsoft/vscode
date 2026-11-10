@@ -61,7 +61,6 @@ export enum ChatConfiguration {
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
-	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
@@ -161,6 +160,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -598,8 +598,9 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
 	// A harness disabled by policy can only show saved chats read-only, so an explicit request for
-	// it falls through to the regular resolution instead of opening an unusable new chat.
-	const explicitOverride = options?.explicitOverride && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
+	// it falls through to the regular resolution instead of opening an unusable new chat. So does
+	// the retired extension-host Copilot CLI, which can no longer start a chat.
+	const explicitOverride = options?.explicitOverride && options.explicitOverride !== SessionType.CopilotCLI && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
 	if (managedPolicyRequiresAgentHost && (!explicitOverride || explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
