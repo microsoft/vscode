@@ -15,7 +15,8 @@ import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelega
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
-import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
+import { Delayer, raceCancellationError, SequencerByKey } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -43,7 +44,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -1077,11 +1078,44 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const workspace = this._session.get()?.workspace.get()?.uri;
 		const isolationKey = getSessionWorkspaceProperties(config.schema).isolationKey;
 		const isolation = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
+		const focusProperty = this._property ?? property;
+		this._propertyTriggers.get(focusProperty)?.focus();
+		const inputDisposables = new DisposableStore();
+		const trackInputFocus = () => {
+			const input = this._quickInputService.currentQuickInput;
+			const trigger = this._propertyTriggers.get(focusProperty);
+			if (!input || !trigger) {
+				return;
+			}
+			inputDisposables.add(input.onWillHide(({ reason }) => {
+				if (reason !== QuickInputHideReason.Blur && !trigger.isConnected && dom.getActiveElement()?.closest('.quick-input-widget')) {
+					// Quick Input cannot restore a replaced trigger; focus its replacement after hiding.
+					queueMicrotask(() => {
+						if (!this._quickInputService.currentQuickInput && this._isCurrentSession(provider, sessionId)) {
+							this._propertyTriggers.get(focusProperty)?.focus();
+						}
+					});
+				}
+			}));
+		};
 		try {
-			const [branches, sourceDetails] = await Promise.all([
+			const cancellation = inputDisposables.add(new CancellationTokenSource());
+			const loading = inputDisposables.add(this._quickInputService.createInputBox());
+			loading.prompt = localize('agentHostSessionConfig.createBranch.loading', "Loading branch details...");
+			loading.placeholder = from
+				? localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from")
+				: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name");
+			loading.value = '';
+			loading.busy = true;
+			loading.ignoreFocusOut = !from;
+			inputDisposables.add(loading.onDidHide(() => cancellation.cancel()));
+			loading.show();
+			trackInputFocus();
+			const [branches, sourceDetails] = await raceCancellationError(Promise.all([
 				provider.getSessionConfigCompletions(sessionId, property),
 				provider.getBranchCreationSources?.(sessionId),
-			]);
+			]), cancellation.token);
+			const loadingValue = loading.value;
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return;
 			}
@@ -1109,11 +1143,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 						items.push({ type: 'separator', label }, ...group.map(toSourceItem));
 					}
 				}
-				const source = await this._quickInputService.pick(items, {
+				const sourcePromise = this._quickInputService.pick(items, {
+					value: loadingValue,
 					placeHolder: localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from"),
 					matchOnDetail: true,
 					sortByLabel: false,
 				});
+				trackInputFocus();
+				const source = await sourcePromise;
 				if (!source || !this._isCurrentSession(provider, sessionId)) {
 					return;
 				}
@@ -1122,7 +1159,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					? localize('agentHostSessionConfig.createBranch.sourceDetails', "{0} ({1})", source.label, source.detail)
 					: source.label;
 			}
-			const branchName = await this._quickInputService.input({
+			const branchNamePromise = this._quickInputService.input({
+				value: from ? '' : loadingValue,
+				valueSelection: from ? undefined : [loadingValue.length, loadingValue.length],
 				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", sourceLabel),
 				placeHolder: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name"),
 				ignoreFocusLost: true,
@@ -1146,6 +1185,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					return undefined;
 				},
 			});
+			trackInputFocus();
+			const branchName = await branchNamePromise;
 			if (branchName === undefined || !this._isCurrentSession(provider, sessionId)) {
 				return;
 			}
@@ -1175,9 +1216,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				this._notificationService.error(error);
 			}
 		} finally {
-			if (this._isCurrentSession(provider, sessionId)) {
-				this._propertyTriggers.get(property)?.focus();
-			}
+			inputDisposables.dispose();
 		}
 	}
 
@@ -1929,10 +1968,6 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const sheetItems: IMobilePickerSheetItem[] = [];
 		const canCreateBranch = canSelectBranch && !!this._getCreateBranchChangeset(provider, sessionId);
 		let createBranchSelected: 'current' | 'from' | undefined;
-		if (canCreateBranch) {
-			sheetItems.push({ id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, label: CREATE_BRANCH_LABEL, icon: Codicon.gitBranchCreate });
-			sheetItems.push({ id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`, label: CREATE_BRANCH_FROM_LABEL, icon: Codicon.gitBranchCreate });
-		}
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
 		const registerId = (property: string, item: IConfigPickerItem, isPII: boolean): string => {
@@ -1990,7 +2025,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 					if (token.isCancellationRequested || !this._isCurrentSession(provider, sessionId)) {
 						return [];
 					}
-					return items.map(item => {
+					const rows: IMobilePickerSheetItem[] = items.map(item => {
 						const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
 
 						return {
@@ -2003,6 +2038,21 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 							checked: item.value === branchValue,
 						};
 					});
+					if (canCreateBranch) {
+						rows.push({
+							id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+							label: CREATE_BRANCH_LABEL,
+							icon: Codicon.gitBranchCreate,
+							navigates: true,
+							sectionTitle: '',
+						}, {
+							id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`,
+							label: CREATE_BRANCH_FROM_LABEL,
+							icon: Codicon.gitBranchCreate,
+							navigates: true,
+						});
+					}
+					return rows;
 				},
 			};
 		}

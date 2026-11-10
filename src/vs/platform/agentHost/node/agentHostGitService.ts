@@ -176,7 +176,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				'--format=%(refname)%00%(objecttype)%00%(objectname)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(*objecttype)%00%(*objectname)%00%(*authorname)%00%(*subject)%00%(*committerdate:unix)',
 				'refs/heads', 'refs/remotes', 'refs/tags',
 			], { timeout: GET_REFS_TIMEOUT_MS, throwOnError: true }),
-			this._runGit(workingDirectory, ['log', '-1', '--format=%H%x00%an%x00%s%x00%ct', 'HEAD', '--'], { throwOnError: true }),
+			this._runGit(workingDirectory, ['log', '-1', '--no-show-signature', '--format=%H%x00%an%x00%s%x00%ct', 'HEAD', '--'], { throwOnError: true }),
 			this.getCurrentBranchName(workingDirectory, { throwOnError: true }),
 		]);
 		if (!head) {

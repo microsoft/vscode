@@ -1418,6 +1418,26 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		await assert.rejects(svc!.getBranchCreationSources(URI.file(join(dir, 'missing'))));
 	});
 
+	(hasGit ? test : test.skip)('branch creation sources ignore signature display configured for signed commits', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const unsigned = run('cat-file', 'commit', 'HEAD');
+		const signed = unsigned.replace('\n\n', '\ngpgsig -----BEGIN PGP SIGNATURE-----\n invalid\n -----END PGP SIGNATURE-----\n\n');
+		const commit = cp.execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], {
+			cwd: dir, env, input: signed, encoding: 'utf8',
+		}).trim();
+		run('update-ref', 'refs/heads/main', commit);
+		run('config', 'log.showSignature', 'true');
+		// Avoid consulting the user's signing tools or keyring for this synthetic signature.
+		run('config', 'gpg.program', 'git');
+
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		assert.deepStrictEqual(sources.map(({ ref, commit, author, subject }) => ({ ref, commit, author, subject })), [
+			{ ref: 'HEAD', commit, author: 't', subject: 'initial' },
+			{ ref: 'refs/heads/main', commit, author: 't', subject: 'initial' },
+		]);
+	});
+
 	(hasGit ? test : test.skip)('inventories unusual worktree paths without bypassing registered dirty-worktree protection', async () => {
 		const dir = initRepo();
 		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');
