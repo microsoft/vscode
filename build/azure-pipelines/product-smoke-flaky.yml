@@ -183,8 +183,8 @@ extends:
       # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
       # the build. This stage produces it — mirroring product-build.yml. The
       # platform stages depend on its artifact-published output so they are
-      # skipped when the artifact cannot be produced, but still run if later
-      # Copilot validation fails.
+      # skipped when the artifact cannot be produced, but still run if a later
+      # step of the Copilot job fails.
       - stage: Copilot
         dependsOn: []
         pool:

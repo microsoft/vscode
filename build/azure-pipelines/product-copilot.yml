@@ -107,15 +107,9 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      # The Copilot tests run in the Copilot Tests job of each platform stage
-      # (see copilot/product-test-steps.yml).
-      - script: pnpm run typecheck
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: Typecheck
-
-      - script: pnpm run lint
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: Lint
+      # The Quality Checks job compiles, type checks and lints Copilot (see
+      # product-quality-checks.yml), and the Copilot Tests job of the Windows
+      # and Linux stages tests it (see copilot/product-test-steps.yml).
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:
