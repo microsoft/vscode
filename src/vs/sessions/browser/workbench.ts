@@ -74,7 +74,7 @@ import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/m
 import { CustomViewVisibleContext, EditorMaximizedContext } from '../common/agentsWindowContextKeys.js';
 import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS } from '../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, getSessionsPartFrameInset, getSidePaneFrameInset } from '../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost, SessionActivityBarColumn } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
@@ -1671,7 +1671,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this._register(autorun(reader => {
 				const value = size.read(reader);
 				this.sessionActivityBarSizeKey?.set(value);
-				column.setLayout(this.getPanelSpacing(), this.isModernUICompact(), value);
+				column.setLayout(this._sessionActivityBarColumnGap(), this.isModernUICompact(), value);
 			}));
 			viewMap[SessionActivityBarColumn.ID] = column;
 			this._register(registerSessionActivityBarExternalHost(this.mainContainer, column));
@@ -2145,9 +2145,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 	}
 
-	/** The gap at the edges of the grid, which is also the gap between its cards. */
+	/** The fixed density-specific gutter at the exterior grid edges. */
 	private _gridGutter(): number {
 		return this.layoutPolicy.viewportClass.get() === 'phone' || this.isModernUICompact() ? 0 : AGENTS_FLOATING_PANEL_GAP;
+	}
+
+	private _sessionActivityBarColumnGap(): number {
+		const gap = this.getPanelSpacing();
+		const frameInset = this.isEditorPaneVisible() ? getSidePaneFrameInset(this.mainContainer, gap) : getSessionsPartFrameInset(this.mainContainer, gap);
+		return Math.max(0, gap - frameInset);
 	}
 
 	protected _layoutGrid(): void {
@@ -2155,7 +2161,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const gridGutterW = this._gridGutter();
 		const gridGutterH = gridGutterW;
-		this.sessionActivityBarColumn?.setLayout(this.getPanelSpacing(), this.isModernUICompact(), this.sessionActivityBarSize?.get() ?? MenuActivityBarSize.Compact);
+		this.sessionActivityBarColumn?.setLayout(this._sessionActivityBarColumnGap(), this.isModernUICompact(), this.sessionActivityBarSize?.get() ?? MenuActivityBarSize.Compact);
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH

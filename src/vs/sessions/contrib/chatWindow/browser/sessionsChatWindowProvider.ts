@@ -24,13 +24,14 @@ import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeEleme
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { AgentsPartCard } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { agentsPanelsSpacing } from '../../../../platform/theme/common/sizeRegistry.js';
@@ -72,8 +73,9 @@ const RESTORE_SESSION_TIMEOUT = 30_000;
  * (`SessionActivityBarColumn`): the gap between cards, none with compact layout density, which it keeps to the cards to
  * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
  */
-export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP): number {
-	return (compact ? 0 : gap) + MenuActivityBar.getWidth(compact, size);
+export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP, connectedTabs = true): number {
+	const frameInset = connectedTabs ? Math.min(AgentsPartCard.BORDER_WIDTH, Math.floor(gap / 2)) : 0;
+	return (compact ? 0 : Math.max(0, gap - frameInset)) + MenuActivityBar.getWidth(compact, size);
 }
 
 /**
@@ -882,6 +884,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	 */
 	private _createStrip(container: HTMLElement): IChatWindowChromeElement {
 		container.classList.add('session-activity-bar-host');
+		const editorTabStyle = observableConfigValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected, this._configurationService);
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
 			active: constObservable(true),
@@ -891,7 +894,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
 			// Right beside the cards, the gap to them in the column, as in the main window's column; see the grid.
-			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader), this.look.gap.read(reader))),
+			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader), this.look.gap.read(reader), editorTabStyle.read(reader) === ModernUIEditorTabStyle.Connected)),
 			layout: () => { },
 			dispose: () => registration.dispose(),
 		};
