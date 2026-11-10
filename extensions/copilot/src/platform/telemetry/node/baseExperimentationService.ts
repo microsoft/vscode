@@ -13,6 +13,7 @@ import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStor
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ILogService } from '../../log/common/logService';
+import { ExperimentExposureTracker, IExperimentExposure, IExposureContext } from '../common/experimentExposure';
 import { IExperimentationService, TreatmentsChangeEvent } from '../common/nullExperimentationService';
 
 /**
@@ -183,6 +184,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private readonly _delegateFn: TASClientDelegateFn;
 	private readonly _globalState: vscode.Memento;
 	private _delegateGeneration = 0;
+	private _exposureTracker: ExperimentExposureTracker | undefined;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
@@ -249,6 +251,14 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 		this._delegate = this._createDelegate();
 	}
 
+	/**
+	 * Reports `exp_exposure` for reads of assigned treatment variables while the VS Code
+	 * exposure gate (`copilotchat.expExposureEvents.vscode`) is on.
+	 */
+	protected enableExposureEvents(getContext: () => IExposureContext, report: (exposure: IExperimentExposure) => void): void {
+		this._exposureTracker = new ExperimentExposureTracker('vscode', gate => this._readTreatmentVariable(gate), getContext, report);
+	}
+
 	private _signalTreatmentsChangeEvent = () => {
 		const affectedTreatmentVariables: string[] = [];
 		for (const [key, previousValue] of this._previouslyReadTreatments) {
@@ -277,6 +287,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
 		const result = this._readTreatmentVariable<T>(name);
 		this._previouslyReadTreatments.set(name, result);
+		this._exposureTracker?.onRead(name, result);
 		return result;
 	}
 
