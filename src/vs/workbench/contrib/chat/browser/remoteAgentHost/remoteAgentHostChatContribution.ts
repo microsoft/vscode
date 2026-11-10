@@ -29,7 +29,6 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../agentSessions/agentHost/agentHostAuth.js';
 import { readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { isCopilotEntraResource } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostDownloadProgress.js';
@@ -591,7 +590,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				try {
 					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
-						microsoftAccountId: this._copilotAccountContext(connState.connection)?.entraAccountId,
+						preferredAccountId: this._copilotAccountContext(connState.connection)?.entraAccountId,
 						logPrefix: '[RemoteAgentHost]',
 						authenticate: this._authenticateCallback(address, connState.connection),
 					});
@@ -618,7 +617,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
-				copilotAccountChoice: this._copilotAccountContext(connection) !== undefined,
 				logPrefix: '[RemoteAgentHost]',
 				authenticate: this._authenticateCallback(address, connection),
 			});
@@ -654,15 +652,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		const context = this._copilotAccountContext(connection);
-		if (context?.kind === 'legacy' && isCopilotEntraResource(protectedResource)) {
-			return;
-		}
 		const renewAuthentication = reason === AuthRequiredReason.Expired
 			? this._connectionCustomizations.get(address)?.renewAuthentication
 			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
-			microsoftAccountId: context?.entraAccountId,
+			preferredAccountId: context?.entraAccountId,
 			logPrefix: '[RemoteAgentHost]',
 			isCurrent: () => this._connections.get(address) === connState && equals(context, this._copilotAccountContext(connection)),
 			renewAuthentication: renewAuthentication ? async resource => {

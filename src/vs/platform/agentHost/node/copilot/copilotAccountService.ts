@@ -86,9 +86,6 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
 		const state = this.state.read(reader);
-		if (state.kind === 'legacy') {
-			return [];
-		}
 		const resources = new Map<string, ProtectedResourceMetadata>([[copilotEntraDiscoveryResource, copilotEntraDiscoveryMetadata]]);
 		if (state.kind === 'incomplete') {
 			for (const service of ['github', 'm365'] as const) {
@@ -395,7 +392,7 @@ function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMeta
 
 function resourceForService(service: ICopilotServiceChoice['service']): ProtectedResourceMetadata {
 	const audience = service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
-	return { resource: copilotEntraResources.get(audience)!, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] };
+	return { resource: copilotEntraResources.get(audience)!, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`], required: false };
 }
 
 async function readActiveAccount(session: CopilotSession): Promise<{ choice: ICopilotServiceChoice; derivedFrom: string }> {

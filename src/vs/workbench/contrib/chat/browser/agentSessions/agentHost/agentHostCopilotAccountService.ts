@@ -12,7 +12,7 @@ import type { IAgentConnection } from '../../../../../../platform/agentHost/comm
 import type { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
 import { isMicrosoftCopilotAccountContext, readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { copilotAccountOperationMeta, type CopilotAccountOperation } from '../../../../../../platform/agentHost/common/meta/copilotAccountOperation.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -252,9 +252,7 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		if (!credential) {
 			throw new Error(localize('copilot.account.credentialRequired', "Microsoft Copilot needs additional permissions. Complete Microsoft authentication, then retry setup."));
 		}
-		if (operation.kind === 'select') {
-			await this.forwardCredential(connection, binding, account, resource, credential);
-		}
+		await this.forwardCredential(connection, binding, account, resource, credential);
 		await this.forwardCredential(connection, binding, account, resource, credential, operation);
 	}
 
@@ -286,7 +284,7 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 }
 
 function isDiscoveryCredentialResource(resource: ProtectedResourceMetadata): boolean {
-	if (!isCopilotEntraResource(resource) || !resource.scopes_supported?.length) {
+	if (!resource.scopes_supported?.length) {
 		return false;
 	}
 	const audience = resource.resource === copilotEntraResources.get(copilotEntraEmuAudience) ? copilotEntraEmuAudience

@@ -101,7 +101,7 @@ suite('Agent Host Copilot account setup', () => {
 		f.changed.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], changed: [], removed: [f.identity] } });
 		assert.deepStrictEqual({ last: f.requests.at(-1), tokens: f.requests.map(request => request.token) }, {
 			last: { ...credential, _meta: { ...credential._meta, 'vscode.copilot.accountOperation': { kind: 'useLegacy', context: offered } } },
-			tokens: ['synthetic-only', 'github-only'],
+			tokens: ['synthetic-only', 'synthetic-only', 'github-only'],
 		});
 	});
 
@@ -115,7 +115,7 @@ suite('Agent Host Copilot account setup', () => {
 			_meta: authenticationAccountMeta({ providerId: 'github', accountId: 'github-account' }),
 		}), /did not accept/);
 		await f.service.signOut(f.connection);
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'rejected-github', '']);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only', 'rejected-github', '']);
 	});
 
 	test('an accepted direct reply cannot complete against replacement or failed root state', async () => {
@@ -145,9 +145,9 @@ suite('Agent Host Copilot account setup', () => {
 			operations: f.requests.map(readCopilotAccountOperation), identities: f.requests.map(request => readAuthenticationAccount(request)?.accountId),
 			resources: f.requests.map(request => request.resource), ready,
 		}, {
-			operations: [discoveryIntent, undefined, { kind: 'select', discoveryId: 'opaque-flow', selectionId: 'selection-A' }],
-			identities: ['account-id', 'account-id', 'account-id'],
-			resources: [copilotEntraDiscoveryResource, choices[0].resource, choices[0].resource],
+			operations: [undefined, discoveryIntent, undefined, { kind: 'select', discoveryId: 'opaque-flow', selectionId: 'selection-A' }],
+			identities: ['account-id', 'account-id', 'account-id', 'account-id'],
+			resources: [copilotEntraDiscoveryResource, copilotEntraDiscoveryResource, choices[0].resource, choices[0].resource],
 			ready: { kind: 'ready', entraAccountId: 'account-id', discoveryId: 'opaque-flow', choice: choices[0], derivedFrom: 'opaque-runtime-base' },
 		});
 	});
@@ -156,7 +156,7 @@ suite('Agent Host Copilot account setup', () => {
 		const f = fixture();
 		const state = await f.service.discover(f.connection, f.identity.id);
 		assert.deepStrictEqual({ kind: state.kind, resources: f.requests.map(request => request.resource) }, {
-			kind: 'choiceRequired', resources: [copilotEntraDiscoveryResource],
+			kind: 'choiceRequired', resources: [copilotEntraDiscoveryResource, copilotEntraDiscoveryResource],
 		});
 	});
 
@@ -182,21 +182,22 @@ suite('Agent Host Copilot account setup', () => {
 			results.push(f.requests.map(request => request.expiresIn));
 		}
 		assert.deepStrictEqual(results, [
-			[undefined, undefined, undefined, undefined, undefined, undefined],
-			[1, 1, 1, 1, 1, 1],
-			[2, 2, 2, 2, 2, 2],
-			[60, 60, 60, 60, 60, 60],
+			[undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+			[1, 1, 1, 1, 1, 1, 1, 1],
+			[2, 2, 2, 2, 2, 2, 2, 2],
+			[60, 60, 60, 60, 60, 60, 60, 60],
 		]);
 	});
 
 	test('waits for accepted same-account delivery before one discovery retry and skips an optional EMU miss silently', async () => {
 		const f = preparingFixture();
 		f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`);
-		f.state.delivery = new DeferredPromise<boolean>();
+		const delivery = new DeferredPromise<boolean>();
 		const started = new DeferredPromise<void>();
 		const authenticate = f.connection.authenticate;
 		f.connection.authenticate = async params => {
-			if (!readCopilotAccountOperation(params)) {
+			if (params.resource === copilotEntraResources.get(copilotEntraM365Audience) && !readCopilotAccountOperation(params)) {
+				f.state.delivery = delivery;
 				started.complete();
 			}
 			return authenticate(params);
@@ -204,12 +205,12 @@ suite('Agent Host Copilot account setup', () => {
 		const discovery = f.service.discover(f.connection, f.identity.id);
 		await started.p;
 		const beforeAccepted = f.requests.map(readCopilotAccountOperation);
-		f.state.delivery.complete(true);
+		delivery.complete(true);
 		const result = await discovery;
 		assert.deepStrictEqual({ beforeAccepted, operations: f.requests.map(readCopilotAccountOperation), resources: f.requests.map(request => request.resource), result }, {
-			beforeAccepted: [discoveryIntent, undefined],
-			operations: [discoveryIntent, undefined, { kind: 'discover', context: { kind: 'incomplete', entraAccountId: 'account-id' } }],
-			resources: [copilotEntraDiscoveryResource, copilotEntraResources.get(copilotEntraM365Audience), copilotEntraDiscoveryResource],
+			beforeAccepted: [undefined, discoveryIntent, undefined],
+			operations: [undefined, discoveryIntent, undefined, undefined, { kind: 'discover', context: { kind: 'incomplete', entraAccountId: 'account-id' } }],
+			resources: [copilotEntraDiscoveryResource, copilotEntraDiscoveryResource, copilotEntraResources.get(copilotEntraM365Audience), copilotEntraDiscoveryResource, copilotEntraDiscoveryResource],
 			result: offered,
 		});
 	});
@@ -219,7 +220,7 @@ suite('Agent Host Copilot account setup', () => {
 		f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`, `${copilotEntraM365Audience}/.default`);
 		const result = await f.service.discover(f.connection, f.identity.id);
 		assert.deepStrictEqual({ result, operations: f.requests.map(readCopilotAccountOperation) }, {
-			result: { kind: 'incomplete', entraAccountId: 'account-id' }, operations: [discoveryIntent],
+			result: { kind: 'incomplete', entraAccountId: 'account-id' }, operations: [undefined, discoveryIntent],
 		});
 	});
 
@@ -242,11 +243,12 @@ suite('Agent Host Copilot account setup', () => {
 		test(`${stop} credential preparation cannot retry discovery`, async () => {
 			const f = preparingFixture();
 			f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`);
-			f.state.delivery = new DeferredPromise<boolean>();
+			const delivery = new DeferredPromise<boolean>();
 			const started = new DeferredPromise<void>();
 			const authenticate = f.connection.authenticate;
 			f.connection.authenticate = async params => {
-				if (!readCopilotAccountOperation(params)) {
+				if (params.resource === copilotEntraResources.get(copilotEntraM365Audience) && !readCopilotAccountOperation(params)) {
+					f.state.delivery = delivery;
 					started.complete();
 				}
 				return authenticate(params);
@@ -260,7 +262,7 @@ suite('Agent Host Copilot account setup', () => {
 			} else if (stop === 'otherWindowSignOut') {
 				f.setContext({ kind: 'signedOut' });
 			}
-			f.state.delivery.complete(stop !== 'rejected');
+			delivery.complete(stop !== 'rejected');
 			await rejected;
 			assert.deepStrictEqual(f.requests.map(readCopilotAccountOperation).filter(Boolean), [discoveryIntent]);
 		});
@@ -324,7 +326,7 @@ suite('Agent Host Copilot account setup', () => {
 		const f = fixture(ready);
 		const context = await f.service.discover(f.connection, f.identity.id);
 		assert.deepStrictEqual({ context, operations: f.requests.map(readCopilotAccountOperation) }, {
-			context: ready, operations: [discoveryIntent],
+			context: ready, operations: [undefined, discoveryIntent],
 		});
 	});
 
@@ -367,7 +369,7 @@ suite('Agent Host Copilot account setup', () => {
 		const f = fixture();
 		await f.service.discover(f.connection, f.identity.id);
 		f.changed.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [{ ...f.identity, id: 'replacement' }], changed: [], removed: [f.identity] } });
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only']);
 	});
 
 	test('an unauthenticated window cannot revoke another window context', async () => {
@@ -382,7 +384,7 @@ suite('Agent Host Copilot account setup', () => {
 		await f.service.discover(f.connection, f.identity.id);
 		f.setContext({ kind: 'discovering', entraAccountId: 'another-account' });
 		f.changed.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], changed: [], removed: [f.identity] } });
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only']);
 	});
 
 	test('a rejected discovery cannot revoke a different shared account', async () => {
@@ -390,14 +392,15 @@ suite('Agent Host Copilot account setup', () => {
 		f.setContext({ ...offered, entraAccountId: 'another-account' });
 		f.state.rejectDiscovery = true;
 		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
-		await f.service.signOut(f.connection);
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+		await assert.rejects(f.service.signOut(f.connection));
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only']);
 	});
 
 	test('a rejected first delivery cannot revoke the same account supplied by another window', async () => {
 		const f = fixture();
 		f.setContext(offered);
-		f.state.rejectDiscovery = true;
+		f.state.delivery = new DeferredPromise<boolean>();
+		f.state.delivery.complete(false);
 		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
 		await f.service.signOut(f.connection);
 		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
@@ -409,7 +412,7 @@ suite('Agent Host Copilot account setup', () => {
 		f.state.rejectDiscovery = true;
 		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
 		await f.service.signOut(f.connection);
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only', '']);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only', 'synthetic-only', 'synthetic-only', '']);
 	});
 
 	test('disabling AI during credential acquisition prevents forwarding the late result', async () => {
@@ -429,7 +432,7 @@ suite('Agent Host Copilot account setup', () => {
 		f.state.disabledInWorkspace = true;
 		f.sentimentChanged.fire();
 		await assert.rejects(f.service.select(f.connection, 'opaque-flow', 'selection-A'), /unavailable/);
-		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only']);
 	});
 
 	test('a failed connection discards in-flight credentials instead of replaying them', async () => {

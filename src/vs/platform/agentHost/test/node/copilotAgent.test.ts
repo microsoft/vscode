@@ -5616,7 +5616,7 @@ suite('CopilotAgent', () => {
 				duringTurn: withdrawal === 'signOut' ? { stops: 0, disposed: [] } : undefined,
 				settled: [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
 				remaining: withdrawal === 'signOut' ? ['scoped', 'virtual'] : ['shared', 'scoped', 'virtual'],
-				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources },
+				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources.filter(resource => resource.resource !== copilotEntraDiscoveryResource) },
 				stops: withdrawal === 'signOut' ? 1 : 0, connected: withdrawal === 'signOut' ? 1 : 0,
 				credential: withdrawal === 'signOut' ? { kind: 'unavailable' } : { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource' },
 				readvertised: withdrawal === 'signOut' ? copilotEntraDiscoveryResource : undefined,
@@ -5834,6 +5834,10 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		const connection = disposables.add(new CancellationTokenSource());
 		const resource = GITHUB_COPILOT_PROTECTED_RESOURCE;
+		await authenticationService.authenticate({
+			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
+			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+		}, [agent], undefined, connection.token);
 		await agent.handleAuthenticationToken({
 			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 			_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
@@ -8077,7 +8081,7 @@ suite('CopilotAgent', () => {
 
 	suite('scoped credentials', () => {
 		function setup(sessionDataService = disposables.add(new TestSessionDataService()), metadata: TestCopilotSessionMetadata[] = [], history: SessionEvent[] = [], rootConfig?: Record<string, unknown>, fixture?: { telemetryService?: ITelemetryService; logService?: ILogService; gitHubEndpointService?: IAgentHostGitHubEndpointService; onClientCreated?: (client: TestCopilotClient, options: CopilotClientOptions) => void }) {
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService, useRealResumePath: true, rootConfig, telemetryService: fixture?.telemetryService, logService: fixture?.logService, gitHubEndpointService: fixture?.gitHubEndpointService });
+			const { agent, configurationService, authenticationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService, useRealResumePath: true, rootConfig, telemetryService: fixture?.telemetryService, logService: fixture?.logService, gitHubEndpointService: fixture?.gitHubEndpointService });
 			const clients: TestCopilotClient[] = [];
 			const options: CopilotClientOptions[] = [];
 			const launches: { readonly kind: string; readonly sessionId: string; readonly config: SessionConfig; readonly runtime: MockCopilotSession }[] = [];
@@ -8103,7 +8107,7 @@ suite('CopilotAgent', () => {
 				return client as unknown as CopilotClient;
 			});
 			disposables.add(toDisposable(() => factory.restore()));
-			return { agent, clients, options, launches, configurationService };
+			return { agent, clients, options, launches, configurationService, authenticationService };
 		}
 
 		for (const enterprise of [false, true]) {
@@ -8132,7 +8136,7 @@ suite('CopilotAgent', () => {
 					launches: ['create', 'resume'].map(kind => ({ kind, token: enterprise ? undefined : 'ordinary-token' })),
 					modelRequests: [enterprise ? {} : { gitHubToken: 'ordinary-token' }],
 					startupTokens: [enterprise ? 'ordinary-token' : undefined],
-					resources: [endpoints.getCopilotResource().resource, endpoints.getRepoResource().resource],
+					resources: [endpoints.getCopilotResource().resource, endpoints.getRepoResource().resource, copilotEntraDiscoveryResource],
 				});
 			});
 		}
@@ -8169,9 +8173,13 @@ suite('CopilotAgent', () => {
 		}
 
 		test('Microsoft shared-context rollout leaves explicitly scoped conversation credentials unchanged', async () => {
-			const { agent, options, launches } = setup(undefined, [], [], { [CopilotCliConfigKey.M365Enabled]: true });
+			const { agent, options, launches, authenticationService } = setup(undefined, [], [], { [CopilotCliConfigKey.M365Enabled]: true });
 			afterTest(() => disposeAgent(agent));
 			const connection = disposables.add(new CancellationTokenSource());
+			await authenticationService.authenticate({
+				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+			}, [agent], undefined, connection.token);
 			await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },

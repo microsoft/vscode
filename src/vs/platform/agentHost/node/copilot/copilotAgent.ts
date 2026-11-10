@@ -2676,7 +2676,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	validateAuthentication(params: AuthenticateParams): void {
-		this._entraAuthentication?.validateAuthentication(params);
+		this._entraAuthentication?.validateAuthentication(params, this.getProtectedResources().find(resource => resource.resource === params.resource));
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
@@ -4056,12 +4056,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return true;
 		}
 		if (!isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
-			return false;
+			return await this._entraAuthentication?.authenticate(params, connectionToken, this.getProtectedResources().find(resource => resource.resource === params.resource)) ?? false;
 		}
 		if (connectionToken && this._accountService.acceptCredential(params, connectionToken)) {
 			return true;
 		}
-		if (await this._entraAuthentication?.authenticate(params, connectionToken)) {
+		if (await this._entraAuthentication?.authenticate(params, connectionToken, this.getProtectedResources().find(resource => resource.resource === params.resource))) {
 			if (!params.token) {
 				await this._clientStopping;
 			}

@@ -75,9 +75,23 @@ suite('Copilot Entra authentication', () => {
 		]);
 	});
 
+	test('discovery requires canonical acceptance rather than provider delivery alone', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const credential = f.credential();
+		await f.bridge.authenticate(credential, f.connection.token);
+		assert.throws(() => f.bridge.authorizeDiscovery(credential, f.connection.token), /authority is unavailable/);
+		await f.authenticate(credential);
+		assert.deepStrictEqual({
+			accountId: f.bridge.authorizeDiscovery(credential, f.connection.token),
+			identity: await f.acquire(identity),
+		}, { accountId: 'selected', identity: { kind: 'identity', accountId: 'selected' } });
+	});
+
 	for (const label of ['Selected display name', undefined, ' \t ']) {
 		test(`discovery authority preserves ${label?.trim() ? 'supplied' : label === undefined ? 'absent' : 'blank'} metadata for SDK identity recovery`, async () => {
 			const f = fixture();
+			await f.signIn(label);
 			const accountId = f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, label), f.connection.token);
 			assert.deepStrictEqual({
 				accountId,
@@ -95,6 +109,7 @@ suite('Copilot Entra authentication', () => {
 
 	test('discovery and selection match opaque IDs instead of labels and preserve authority metadata', async () => {
 		const f = fixture();
+		await f.signIn('Shared label');
 		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Shared label'), f.connection.token);
 		assert.throws(() => f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'other', 'Shared label'), f.connection.token), /original account/);
 		assert.throws(() => f.bridge.validateSelection(f.credential(undefined, undefined, 'other', 'Shared label'), copilotEntraDiscoveryMetadata), /original account/);
@@ -111,9 +126,12 @@ suite('Copilot Entra authentication', () => {
 			_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } },
 		}, f.connection.token), /account provenance/);
 		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.signIn('Previous label');
 		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Previous label'), f.connection.token);
 		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
 		const after = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.acquire(identity);
+		await f.authenticate(f.credential(undefined, undefined, 'replacement'));
 		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'replacement'), f.connection.token);
 		assert.deepStrictEqual({ before, after, replacement: await f.acquire(identity) }, {
 			before: { kind: 'unavailable' }, after: { kind: 'unavailable' },

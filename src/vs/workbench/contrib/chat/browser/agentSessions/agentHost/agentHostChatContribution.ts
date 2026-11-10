@@ -56,7 +56,6 @@ import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourc
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { readCopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import './agentHostCopilotAccountService.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
@@ -475,7 +474,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			try {
 				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
-					microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
+					preferredAccountId: this._copilotAccountContext()?.entraAccountId,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),
 					authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -522,7 +521,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
-				copilotAccountChoice: this._copilotAccountContext() !== undefined,
 				logPrefix: '[AgentHost]',
 				isCurrent: () => this._isAuthenticationCurrent(generation),
 				authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -544,16 +542,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
 		const generation = this._authenticationGeneration;
 		const context = this._copilotAccountContext();
-		if (context?.kind === 'legacy' && isCopilotEntraResource(protectedResource)) {
-			return;
-		}
 		if (!this._isAuthenticationCurrent(generation)) {
 			return;
 		}
 		this._agentHostService.setAuthenticationPending(true);
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
-			microsoftAccountId: context?.entraAccountId,
+			preferredAccountId: context?.entraAccountId,
 			logPrefix: '[AgentHost]',
 			isCurrent: () => this._isAuthenticationCurrent(generation) && equals(context, this._copilotAccountContext()),
 			authenticate: request => this._authenticateIfCurrent(request, generation),

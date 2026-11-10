@@ -10,7 +10,7 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -304,7 +304,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
-			logPrefix: '[test]', microsoftAccountId: selected.account.id,
+			logPrefix: '[test]', preferredAccountId: selected.account.id,
 			authenticate: async request => { forwarded.push(request); },
 		}));
 		assert.deepStrictEqual(forwarded.map(request => ({ token: request.token, account: request._meta })), [{
@@ -331,7 +331,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 				authenticationAccountId({ providerId: 'microsoft', accountId: selected.account.id }), undefined, undefined, { sessionId: m365Session.id, accountId: selected.account.id });
 			const forwarded: IAgentHostAuthenticateRequest[] = [];
 			const options = {
-				logPrefix: '[test]', microsoftAccountId: selected.account.id, authTokenCache: cache,
+				logPrefix: '[test]', preferredAccountId: selected.account.id, authTokenCache: cache,
 				authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); },
 			};
 			const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
@@ -345,15 +345,13 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		});
 	}
 
-	test('keeps cumulative-resource clients unchanged while explicit account setup waits for selection', async () => {
+	test('forwards advertised resources for unrelated providers without account-choice metadata', async () => {
 		const f = fixture();
 		const forwarded: string[] = [];
 		const agents = [{ provider: 'unrelated-provider', displayName: 'Provider', description: '', models: [], protectedResources: [resource] }];
-		for (const copilotAccountChoice of [true, false]) {
-			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, {
-				logPrefix: '[test]', copilotAccountChoice, authenticate: async request => { forwarded.push(request.resource); },
-			});
-		}
+		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: '[test]', authenticate: async request => { forwarded.push(request.resource); },
+		});
 		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource]);
 	});
 
@@ -367,7 +365,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		f.authentication.interactiveResult = { ...m365Session, accessToken: 'renewed-m365-token' };
 		const tokens: string[] = [];
 		const options = {
-			logPrefix: '[test]', microsoftAccountId: selected.account.id, authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[test]', preferredAccountId: selected.account.id, authTokenCache: new AgentHostAuthTokenCache(),
 			challengeReason: AuthRequiredReason.Required,
 			authenticate: async (request: IAgentHostAuthenticateRequest) => { tokens.push(request.token); },
 		};

@@ -217,11 +217,13 @@ suite('RemoteAgentHost connection authentication readiness', () => {
 suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('a direct-route root ignores a stale Microsoft challenge instead of starting Microsoft setup', async () => {
+	test('a direct-route root resolves a challenge passively without starting Microsoft setup', async () => {
 		const h = createAuthenticationHarness(store);
 		let lookups = 0;
 		h.instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => { lookups++; return 'microsoft'; },
+			getSessions: async () => [],
+			createSession: async () => { assert.fail('A notification cannot initiate Microsoft setup'); },
 		});
 		const forwarded: string[] = [];
 		const connection = h.connect(async request => { forwarded.push(request.token); return { authenticated: true }; }, {
@@ -232,7 +234,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] },
 		});
 		await timeout(0);
-		assert.deepStrictEqual({ lookups, forwarded }, { lookups: 0, forwarded: [] });
+		assert.deepStrictEqual({ lookups, forwarded }, { lookups: 1, forwarded: [] });
 	});
 
 	test('an in-flight Microsoft challenge cannot forward after the current remote root switches to direct', async () => {
