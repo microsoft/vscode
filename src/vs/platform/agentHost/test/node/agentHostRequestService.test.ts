@@ -60,6 +60,10 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return undefined;
 	}
 
+	async lookupBasicAuthorization(): Promise<undefined> {
+		return undefined;
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -476,6 +480,47 @@ suite('AgentHostProxyResolver', () => {
 				['http://other.example', undefined, 1],
 				['http://other.example', undefined, 2],
 			],
+		});
+	});
+
+	test('looks up Basic credentials for the Copilot runtime from a renderer, with the proxy\'s default port, else a client sharing the network', async () => {
+		const local = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const authInfos: AuthInfo[] = [];
+		disposables.add(local.register('window', {
+			resolveProxy: async () => undefined,
+			lookupAuthorization: async authInfo => {
+				authInfos.push(authInfo);
+				return { username: 'local', password: 'secret' };
+			},
+		}));
+		const wsl = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const lookups: [string, string | undefined, number][] = [];
+		disposables.add(wsl.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+				lookups.push([proxyUrl, realm, attempt]);
+				return { username: 'wsl', password: 'secret' };
+			},
+		}));
+
+		assert.deepStrictEqual({
+			local: [
+				await local.lookupBasicAuthorization('http://pac.proxy:3128', 'Squid', 1),
+				await local.lookupBasicAuthorization('https://pac.proxy', undefined, 2),
+				await local.lookupBasicAuthorization('not a proxy', undefined, 1),
+			],
+			authInfos,
+			wsl: await wsl.lookupBasicAuthorization('http://pac.proxy', 'Squid', 1),
+			lookups,
+		}, {
+			local: [{ username: 'local', password: 'secret' }, { username: 'local', password: 'secret' }, undefined],
+			authInfos: [
+				{ scheme: 'basic', host: 'pac.proxy', port: 3128, realm: 'Squid', isProxy: true, attempt: 1 },
+				{ scheme: 'basic', host: 'pac.proxy', port: 443, realm: '', isProxy: true, attempt: 2 },
+			],
+			wsl: { username: 'wsl', password: 'secret' },
+			lookups: [['http://pac.proxy', 'Squid', 1]],
 		});
 	});
 

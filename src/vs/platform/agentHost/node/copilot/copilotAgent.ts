@@ -5084,10 +5084,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			const clientOptions: CopilotClientOptions = {
-				// The runtime resolves proxies and Kerberos tickets through this agent host, which answers from VS Code's
-				// proxy configuration, a client sharing its network or this machine, as an extension host uses VS Code's
-				// proxy configuration. The runtime process belongs to this agent host, so its shared background traffic
-				// uses them too.
+				// The runtime resolves proxies and looks up Kerberos tickets and proxy credentials through this agent host,
+				// which answers from VS Code's proxy configuration, a client sharing its network or this machine, as an
+				// extension host uses VS Code's proxy configuration. The runtime process belongs to this agent host, so its
+				// shared background traffic uses them too.
 				network: this._createRuntimeNetworkConfig(),
 				useLoggedInUser: false,
 				...(!scoped && this._accountService.authenticationOptions ? { entra: this._accountService.authenticationOptions } : {}),
@@ -10583,13 +10583,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return hasProxyCredentials(proxy) ? proxy : undefined;
 	}
 
-	/** The network callbacks through which the Copilot runtime resolves proxies and Kerberos tickets. */
+	/** The network callbacks through which the Copilot runtime resolves proxies and looks up Kerberos tickets and proxy credentials. */
 	private _createRuntimeNetworkConfig(): NetworkConfig {
 		this._logService.info('[Copilot] The Copilot runtime resolves proxies and Kerberos tickets through this agent host');
 		return {
 			scope: 'runtime',
 			resolveProxy: request => this._resolveRuntimeProxy(request.url),
 			authenticateNegotiate: request => this._lookupKerberosToken(request.spn),
+			authenticateBasic: request => this._proxyResolver.lookupBasicAuthorization(request.proxy, request.realm, request.attempt),
 		};
 	}
 

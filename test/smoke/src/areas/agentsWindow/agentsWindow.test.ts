@@ -458,7 +458,7 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
 				await fixture.verifyMockServerRouting?.();
-				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY');
+				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY', 'Kerberos');
 			} catch (error) {
 				logger.log(`Agents Window (WSL Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				if (fixture.dumpConnectionDiagnostics) {
@@ -508,6 +508,96 @@ export function setup(logger: Logger, quality: Quality) {
 	}
 	(wslBasicProxy ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Basic proxy)', () => {
 		setupWslRemoteEditorProxySuite(logger, 'Basic', 'Uses the http.proxy setting with its credentials, and the Windows certificates, from the AgentHost of a WSL remote');
+	});
+
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac, which provisions a WSL
+	// proxy with Basic authentication and a Windows PAC script that selects it, and passes the credentials to type into
+	// the proxy login dialog. No setting or environment variable carries them.
+	const basicPacProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_BASIC_PAC_PROXY : undefined;
+	if (!basicPacProxyScheme) {
+		logger.log('Skipping the AgentHost Basic PAC proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac on Windows');
+	}
+	const basicPacProxyCredentials = { username: process.env.VSCODE_SMOKE_TEST_PROXY_USER ?? '', password: process.env.VSCODE_SMOKE_TEST_PROXY_PASSWORD ?? '' };
+	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy)', () => {
+		const scenario = 'smoke-local-basic-pac-proxy-agent-host';
+		const reply = 'LOCAL_BASIC_PAC_PROXY_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'Local Basic PAC proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			settings: {},
+		});
+
+		it('Asks for the credentials of the PAC proxy of a local AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			const login = app.workbench.agentsWindow.fillProxyAuthenticationDialog(basicPacProxyCredentials.username, basicPacProxyCredentials.password, 8 * 60 * 1000);
+			login.catch(() => undefined);
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the PAC proxy [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+			} catch (error) {
+				logger.log(`Agents Window (local Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Basic PAC proxy)', () => {
+		const scenario = 'smoke-wsl-basic-pac-proxy-agent-host';
+		const reply = 'WSL_BASIC_PAC_PROXY_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Basic PAC proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'agentHost',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			settings: {
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Asks for the credentials of the Windows PAC proxy of a WSL AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			const login = app.workbench.agentsWindow.fillProxyAuthenticationDialog(basicPacProxyCredentials.username, basicPacProxyCredentials.password, 8 * 60 * 1000);
+			login.catch(() => undefined);
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the Windows PAC proxy [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', basicPacProxyScheme === 'https' ? 'HTTPS' : 'PROXY', { basicUsername: basicPacProxyCredentials.username });
+			} catch (error) {
+				logger.log(`Agents Window (WSL Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Basic PAC proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
+				}
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
 	});
 
 	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
@@ -1132,16 +1222,17 @@ async function assertRemoteDevContainerRouting(logsPath: string, transport: Remo
 }
 
 /**
- * Asserts that the client answered the Agent Host's proxy, Kerberos and certificate requests on `transport`, resolving
- * the proxy to a PAC entry of `proxyType`. The AHP transcript redacts Kerberos tokens and certificates, so a redacted
- * value shows that the client returned one.
+ * Asserts that the client answered the Agent Host's proxy, authentication and certificate requests on `transport`,
+ * resolving the proxy to a PAC entry of `proxyType`, and returning a Kerberos token or the Basic credentials of
+ * `basicUsername`. The AHP transcript redacts Kerberos tokens, passwords and certificates, so a redacted value shows
+ * that the client returned one.
  */
-async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS'): Promise<void> {
+async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS', auth: 'Kerberos' | { readonly basicUsername: string }): Promise<void> {
 	interface IFrame {
 		readonly _ahpLog?: { readonly transport?: string; readonly dir?: string };
 		readonly id?: number | string;
 		readonly method?: string;
-		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly certificates?: unknown };
+		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly username?: string; readonly password?: string; readonly certificates?: unknown };
 	}
 	const parseFrames = (content: string): IFrame[] => content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
 	const results = (frames: IFrame[], method: string) => {
@@ -1150,7 +1241,9 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
 	};
 	const checks = {
 		proxy: (frames: IFrame[]) => results(frames, 'vscode/resolveProxy').some(result => result.proxy?.startsWith(`${proxyType} localhost:`)),
-		kerberos: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>'),
+		auth: auth === 'Kerberos'
+			? (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>')
+			: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyBasicAuthorization').some(result => result.username === auth.basicUsername && result.password === '<redacted>'),
 		certificates: (frames: IFrame[]) => results(frames, 'vscode/loadCertificates').some(result => result.certificates === '<redacted>'),
 	};
 	const frames = parseFrames(await waitForLogContent(
@@ -1160,8 +1253,8 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
 	));
 	assert.deepStrictEqual(
 		Object.fromEntries(Object.entries(checks).map(([name, check]) => [name, check(frames)])),
-		{ proxy: true, kerberos: true, certificates: true },
-		`Expected the client to resolve the ${proxyType} proxy, return a Kerberos token and return certificates for the ${transport} Agent Host`,
+		{ proxy: true, auth: true, certificates: true },
+		`Expected the client to resolve the ${proxyType} proxy, return ${auth === 'Kerberos' ? 'a Kerberos token' : 'Basic credentials'} and return certificates for the ${transport} Agent Host`,
 	);
 }
 

@@ -118,6 +118,13 @@ export interface IAgentHostProxyResolver {
 	 */
 	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined>;
 
+	/**
+	 * Credentials for a Basic challenge of the proxy `proxyUrl` (`http(s)://host:port`) from a renderer connection, else
+	 * a client that shares this agent host's network. `attempt` is 1 for the first challenge and higher after the proxy
+	 * rejected earlier credentials. `undefined` when none supplies them.
+	 */
+	lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined>;
+
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
 	/**
@@ -327,6 +334,24 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined> {
 		return this._lookupMachineOrClientKerberosAuthorization(proxyUrl, spn);
+	}
+
+	lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<Credentials | undefined> {
+		let url: URL;
+		try {
+			url = new URL(proxyUrl);
+		} catch {
+			return Promise.resolve(undefined);
+		}
+		return this._hostLookupAuthorization({
+			scheme: 'basic',
+			host: url.hostname,
+			// Like Electron, with the default port, which keys the credentials its login dialog stores.
+			port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80),
+			realm: realm ?? '',
+			isProxy: true,
+			attempt,
+		}, proxyUrl);
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {

@@ -261,6 +261,35 @@ export class AgentsWindow {
 		}));
 	}
 
+	/**
+	 * Waits for the proxy login dialog in any window, as the main process shows it in the focused or last active one,
+	 * then logs in with `username` and `password`, leaving "Remember my credentials" unchanged. Returns the dialog's
+	 * detail, which names the proxy.
+	 */
+	async fillProxyAuthenticationDialog(username: string, password: string, timeoutMs: number): Promise<string> {
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			for (const page of this.code.driver.getAllWindows()) {
+				if (page.isClosed()) {
+					continue;
+				}
+				const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+				if (!await dialog.isVisible().catch(() => false)) {
+					continue;
+				}
+				const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+				this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+				await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+				await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+				await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+				await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+				return detail;
+			}
+			await new Promise(resolve => setTimeout(resolve, 250));
+		}
+		throw new Error(`Timed out waiting ${timeoutMs}ms for the proxy login dialog`);
+	}
+
 	private async fillQuickInput(title: string, value: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });

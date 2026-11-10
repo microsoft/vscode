@@ -22,6 +22,10 @@
 	smoke tests set the proxy with its credentials in the http.proxy setting instead of the system proxy settings, with no
 	KDC, PAC or network-only credentials.
 
+	With -ProxyAuth BasicPac, the Agents Window suites run with a local Agent Host and with one in WSL. Squid requires
+	Basic authentication, the PAC selects it, and the smoke tests type its credentials into the proxy login dialog, with
+	no http.proxy setting, KDC or network-only credentials.
+
 	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy.
 
 	The distribution needs squid-openssl, openssl and curl, krb5-kdc and krb5-admin-server for Kerberos, and NAT
@@ -32,6 +36,9 @@
 
 .EXAMPLE
 	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+
+.EXAMPLE
+	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -42,12 +49,13 @@ param(
 	[string]$WslNodePath,
 	# A Linux `copilot-runtime`, next to its `runtime.node`, for the Agent Host to use instead of its bundled one.
 	[string]$WslCopilotRuntimePath,
-	# How the proxy authenticates clients: Kerberos, with the system proxy settings, or Basic, with the http.proxy setting.
-	[ValidateSet('Kerberos', 'Basic')][string]$ProxyAuth = 'Kerberos',
+	# How the proxy authenticates clients: Kerberos, with the system proxy settings, Basic, with the http.proxy setting, or
+	# BasicPac, with the system proxy settings and the proxy login dialog.
+	[ValidateSet('Kerberos', 'Basic', 'BasicPac')][string]$ProxyAuth = 'Kerberos',
 	# Whether clients use TLS to the proxy. The Copilot runtime authenticates with Kerberos only to `http://` proxies.
 	[ValidateSet('Http', 'Https')][string]$ProxyScheme = 'Http',
 	# The editor window suite connects to the server in WSL. A packaged server only accepts a packaged client of its commit.
-	# With Basic authentication, only the editor window suite runs.
+	# With Basic authentication, only the editor window suite runs, and with BasicPac only the Agents Window suites.
 	[ValidateSet('All', 'AgentsWindow', 'EditorWindow')][string]$Suites = 'All',
 	# Further smoke test arguments, such as `--build <path>`.
 	[Parameter(ValueFromRemainingArguments)][string[]]$SmokeTestArguments = @()
@@ -58,6 +66,8 @@ Set-StrictMode -Version 3
 
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $Kerberos = $ProxyAuth -eq 'Kerberos'
+$BasicPac = $ProxyAuth -eq 'BasicPac'
+$Pac = $Kerberos -or $BasicPac
 $Realm = 'VSCODE.PROXY.TEST'
 $ProxyUser = 'smoketest'
 $ServicePrincipal = 'HTTP/localhost'
@@ -66,13 +76,20 @@ $ProxyPort = 3129
 $PacPort = 44444
 $CaSubject = 'VS Code Smoke Test WSL Kerberos Proxy CA'
 $FirewallRuleName = 'VSCodeSmokeTestWslKerberosProxy'
-if (-not $Kerberos -and $Suites -eq 'AgentsWindow') {
+if ($ProxyAuth -eq 'Basic' -and $Suites -eq 'AgentsWindow') {
 	throw 'With Basic authentication, only the editor window suite runs.'
 }
-$SmokeTestGrep = switch ($Suites) {
-	'AgentsWindow' { 'WSL AgentHost, Kerberos proxy' }
-	'EditorWindow' { "WSL remote AgentHost, $ProxyAuth proxy" }
-	default { if ($Kerberos) { 'AgentHost, Kerberos proxy' } else { 'WSL remote AgentHost, Basic proxy' } }
+if ($BasicPac -and $Suites -eq 'EditorWindow') {
+	throw 'With BasicPac authentication, only the Agents Window suites run.'
+}
+$SmokeTestGrep = if ($BasicPac) {
+	'AgentHost, Basic PAC proxy'
+} else {
+	switch ($Suites) {
+		'AgentsWindow' { 'WSL AgentHost, Kerberos proxy' }
+		'EditorWindow' { "WSL remote AgentHost, $ProxyAuth proxy" }
+		default { if ($Kerberos) { 'AgentHost, Kerberos proxy' } else { 'WSL remote AgentHost, Basic proxy' } }
+	}
 }
 $RunName = "wsl-$($ProxyAuth.ToLowerInvariant())-proxy"
 $ProxyUrl = "$($ProxyScheme.ToLowerInvariant())://localhost:$ProxyPort"
@@ -498,10 +515,10 @@ if ($distributions -notcontains $Distribution) {
 	throw "WSL distribution '$Distribution' not found; available: $($distributions -join ', ')"
 }
 $pacServer = Join-Path $RepositoryRoot 'test\smoke\out\networkProxy\pacServer.js'
-if ($Kerberos) {
-	if ((Get-Service seclogon).StartType -eq 'Disabled') {
-		throw 'The Secondary Logon (seclogon) service is disabled; network-only logons need it.'
-	}
+if ($Kerberos -and (Get-Service seclogon).StartType -eq 'Disabled') {
+	throw 'The Secondary Logon (seclogon) service is disabled; network-only logons need it.'
+}
+if ($Pac) {
 	if (-not (Test-Path $pacServer)) {
 		throw "Missing $pacServer; compile the smoke tests first (cd test\smoke; pnpm run compile)."
 	}
@@ -706,7 +723,7 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 
 	Invoke-ElevatedConfiguration 'Setup'
 
-	if ($Kerberos) {
+	if ($Pac) {
 		# The PAC applies to the whole user session, so only the mock model server uses the authenticated proxy.
 		$pacFile = Join-Path $TempRoot 'proxy.pac'
 		[IO.File]::WriteAllText($pacFile, "function FindProxyForURL(url, host) {`n`treturn host === '$MockHost' ? '$PacProxy' : 'DIRECT';`n}`n")
@@ -737,6 +754,11 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 	}
 	if ($Kerberos) {
 		$environment['VSCODE_SMOKE_TEST_WSL_KERBEROS_PROXY'] = $ProxyScheme.ToLowerInvariant()
+	} elseif ($BasicPac) {
+		$environment['VSCODE_SMOKE_TEST_BASIC_PAC_PROXY'] = $ProxyScheme.ToLowerInvariant()
+		# The smoke tests type these into the proxy login dialog.
+		$environment['VSCODE_SMOKE_TEST_PROXY_USER'] = $ProxyUser
+		$environment['VSCODE_SMOKE_TEST_PROXY_PASSWORD'] = $password
 	} else {
 		$environment['VSCODE_SMOKE_TEST_WSL_BASIC_PROXY'] = '1'
 		# The smoke tests set this as the http.proxy setting.
@@ -792,7 +814,7 @@ exit `$LASTEXITCODE
 		Write-Host "Running the smoke tests with network-only credentials for $ProxyUser@$Realm..."
 		$smokeProcess = [VSCodeSmokeNetOnlyProcess]::Start($ProxyUser, $Realm, $password, "`"$env:ComSpec`" $shellArguments", $RepositoryRoot, $environmentBlock)
 	} else {
-		Write-Host 'Running the smoke tests with the proxy and its credentials in the http.proxy setting...'
+		Write-Host $(if ($BasicPac) { 'Running the smoke tests with the PAC proxy and its credentials for the proxy login dialog...' } else { 'Running the smoke tests with the proxy and its credentials in the http.proxy setting...' })
 		$startInfo = [Diagnostics.ProcessStartInfo]::new($env:ComSpec, $shellArguments)
 		$startInfo.UseShellExecute = $false
 		$startInfo.CreateNoWindow = $true
@@ -827,20 +849,22 @@ exit `$LASTEXITCODE
 	$accessLog = Get-Content (Join-Path $TempRoot 'squid-access.log')
 	$authenticatedUser = if ($Kerberos) { "$ProxyUser@$Realm" } else { $ProxyUser }
 	if (-not ($accessLog | Where-Object { $_.Contains('TCP_TUNNEL/200') -and $_.Contains("CONNECT ${MockHost}:") -and $_.Contains(" $authenticatedUser ") })) {
-		throw "Squid has no $ProxyAuth-authenticated tunnel to $MockHost."
+		throw "Squid has no $(if ($Kerberos) { 'Kerberos' } else { 'Basic' })-authenticated tunnel to $MockHost."
 	}
-	if ($Kerberos) {
+	if ($Pac) {
 		$pacLog = Get-Content (Join-Path $TempRoot 'pac-server.log') -Raw
 		if ($pacLog -notmatch 'GET /') {
 			throw 'Windows did not fetch the PAC script.'
 		}
+	}
+	if ($Kerberos) {
 		$kdcLog = Get-Content (Join-Path $TempRoot 'kdc.log')
 		if (-not ($kdcLog | Where-Object { $_ -match "TGS_REQ .* $([regex]::Escape($hostAddress)): ISSUE: .* $ProxyUser@$Realm for $([regex]::Escape("$ServicePrincipal@$Realm"))" })) {
 			throw "The KDC did not issue a $ServicePrincipal ticket to Windows ($hostAddress)."
 		}
 	}
 	$succeeded = $true
-	Write-Host $(if ($Kerberos) { 'Verified the PAC, Kerberos-authenticated tunnels through Squid and KDC tickets issued to Windows.' } else { 'Verified Basic-authenticated tunnels through Squid.' })
+	Write-Host $(if ($Kerberos) { 'Verified the PAC, Kerberos-authenticated tunnels through Squid and KDC tickets issued to Windows.' } elseif ($BasicPac) { 'Verified the PAC and Basic-authenticated tunnels through Squid.' } else { 'Verified Basic-authenticated tunnels through Squid.' })
 } finally {
 	if ($smokeProcess) {
 		& taskkill.exe /PID $smokeProcess.Id /T /F | Out-Null

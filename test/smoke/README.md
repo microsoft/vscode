@@ -118,6 +118,16 @@ The smoke tests put the proxy URL, credentials included, in the `http.proxy` use
 
 The editor window suite needs a server of the client's commit, so only the Azure product build runs this mode (`smoke-wsl-basic-proxy`), with the Linux server of the same run's Linux x64 compile job. The macOS Basic run (`--basic` above) runs in the last macOS Electron smoke shard and in the Azure product build (`smoke-agents-basic-proxy`).
 
+#### Basic authentication from the proxy login dialog
+
+`-ProxyAuth BasicPac` runs the `Agents Window (local AgentHost, Basic PAC proxy)` and `Agents Window (WSL AgentHost, Basic PAC proxy)` suites through a Squid proxy that requires Basic authentication with a random password, which the Windows PAC selects for the mock host:
+
+```powershell
+.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+```
+
+No setting or environment variable of VS Code carries the credentials: each suite types them into the proxy login dialog, which opens when the Copilot runtime asks its Agent Host for credentials. The WSL suite additionally checks in the Agent Host Protocol log that the WSL Agent Host got the PAC proxy and the credentials from the client. There is no KDC, `ksetup` configuration or network-only logon; the test CA, firewall rule and PAC are set up as for Kerberos. Afterwards, the script requires the PAC fetch and a tunnel to the mock host that Squid authenticated for the fixture's user. `-Suites EditorWindow` is not supported in this mode. Logs are kept in `.build/logs/agents-window-wsl-basicpac-proxy`, and the JUnit report goes to `test-results/*-desktop-smoke-tests-wsl-basicpac-proxy-results.xml`. CI does not run this mode yet.
+
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
 The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. SSH/Tunnel suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.

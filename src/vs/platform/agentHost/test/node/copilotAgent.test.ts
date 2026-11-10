@@ -1440,6 +1440,12 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return 'Negotiate ticket';
 	}
 
+	readonly basicLookups: { readonly proxyUrl: string; readonly realm: string | undefined; readonly attempt: number }[] = [];
+	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<{ username: string; password: string } | undefined> {
+		this.basicLookups.push({ proxyUrl, realm, attempt });
+		return attempt === 1 ? { username: 'user', password: 'secret' } : undefined;
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -14790,11 +14796,13 @@ suite('CopilotAgent', () => {
 				scope: options?.network?.scope,
 				resolveProxy: typeof options?.network?.resolveProxy,
 				authenticateNegotiate: typeof options?.network?.authenticateNegotiate,
+				authenticateBasic: typeof options?.network?.authenticateBasic,
 				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options?.env?.[key]])),
 			}, {
 				scope: 'runtime',
 				resolveProxy: 'function',
 				authenticateNegotiate: 'function',
+				authenticateBasic: 'function',
 				proxyEnvironment: {
 					HTTPS_PROXY: 'http://ambient-proxy.example:8080',
 					https_proxy: undefined,
@@ -15168,6 +15176,29 @@ suite('CopilotAgent', () => {
 					// GSSAPI, which the runtime uses outside Windows, takes host-based names.
 					{ proxyUrl: 'http://proxy.example', spn: process.platform === 'win32' ? 'HTTP/proxy.example' : 'HTTP@proxy.example' },
 					{ proxyUrl: 'http://alias.example', spn: 'HTTP@alias.example' },
+				],
+			});
+		});
+
+		test('answers the Copilot runtime\'s Basic proxy challenges with the credentials of a client', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }, signal),
+					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', attempt: 2 }, signal),
+				],
+				basicLookups: proxyResolver.basicLookups,
+			}, {
+				credentials: [{ username: 'user', password: 'secret' }, undefined],
+				basicLookups: [
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 2 },
 				],
 			});
 		});
