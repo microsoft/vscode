@@ -2291,6 +2291,51 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('does not handle bang commands from non-user messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const dispositions = [
+			MessageKind.Agent,
+			MessageKind.Tool,
+			MessageKind.Automation,
+			MessageKind.SystemNotification,
+		].map(origin => contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '!echo hi', origin: { kind: origin } },
+		}).kind);
+
+		assert.deepStrictEqual(dispositions, [
+			'accept',
+			'accept',
+			'accept',
+			'accept',
+		]);
+	});
+
+	test('continues to handle rename commands from agent messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const disposition = contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '/rename Agent title', origin: { kind: MessageKind.Agent } },
+		});
+
+		assert.deepStrictEqual(disposition, { kind: 'handled' });
+	});
+
+	test('queue drain forwards agent-originated bang messages', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const action = {
+			...queuedMessage('agent-bang', '!echo hi'),
+			message: { text: '!echo hi', origin: { kind: MessageKind.Agent } },
+		} satisfies PendingMessage & { type: ActionType.ChatPendingMessageSet };
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
+
+		assert.deepStrictEqual(queue.admitted.map(({ message }) => message), [{
+			text: '!echo hi',
+			origin: { kind: MessageKind.Agent },
+		}]);
+	});
+
 	test('queue drain reports queued telemetry source', () => {
 		const queue = createQueueDrainContributions(disposables);
 		const action = queuedMessage('queued', 'queued');
