@@ -241,6 +241,7 @@ suite('Sessions - View Menu', () => {
 			cleared: {
 				rows: rows(), focused: getActiveElement() === workspace, scoped: list.filters.hasInboxScope,
 				controls: [...scope.element.querySelectorAll('.action-label')].map(control => control.textContent),
+				chevrons: scope.element.querySelectorAll('.codicon-chevron-down-compact').length,
 				icons: icons(),
 			},
 		}, {
@@ -265,6 +266,7 @@ suite('Sessions - View Menu', () => {
 			allEnvironments: { rows: ['remote'], workspace: 'app' },
 			cleared: {
 				rows: ['local', 'remote'], focused: true, scoped: false, controls: ['All Workspaces', 'All Environments'],
+				chevrons: 0,
 				icons: [{ classes: 'codicon codicon-folder-compact', hidden: 'true' }, { classes: 'codicon codicon-globe', hidden: 'true' }],
 			},
 		});
