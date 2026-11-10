@@ -413,6 +413,7 @@ class AutomationCardsSection extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -866,7 +867,7 @@ class AutomationCardsSection extends Disposable {
 			const state = this.automationService.catalogueState.read(reader);
 			const historyState = this.automationService.historyState?.read(reader);
 			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id)
-				&& !isLocalAutomationRunStarting(run, () => presentedRunIds.has(run.id)))
+				&& !isLocalAutomationRunStarting(run, () => presentedRunIds.has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined))
 				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
 				startingRuns.set(undefined, undefined);
 			}
@@ -933,7 +934,7 @@ class AutomationCardsSection extends Disposable {
 		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined || this.automationService.runs.get().some(run =>
 			run.automationId === automation.id
-			&& isLocalAutomationRunStarting(run, () => this.presentedRunIds.get().has(run.id))
+			&& isLocalAutomationRunStarting(run, () => this.presentedRunIds.get().has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined)
 		);
 		card.startingIcon.style.display = starting ? '' : 'none';
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;

@@ -101,13 +101,14 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			() => {
 				const runs = automationService.runs.get();
 				const hasCatalogedSession = (resource: URI) => sessionsManagementService.getSessions().some(session => isEqual(session.resource, resource));
+				const hasSession = (resource: URI) => sessionsManagementService.getSession(resource) !== undefined;
 				const startingAutomationIds = new Set(runs
-					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession))
+					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession))
 					.map(run => run.automationId));
 				return buildAutomationsAccessibleContent(
 					automationService.automations.get(),
 					runs.filter(run =>
-						!isLocalAutomationRunStarting(run, hasCatalogedSession)
+						!isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession)
 						&& (
 							!!run.externalResource
 							|| (!!run.sessionResource && hasCatalogedSession(run.sessionResource))
@@ -157,11 +158,14 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			}
 			for (const automation of group.automations) {
 				lines.push('');
-				lines.push(automation.enabled
-					? startingAutomationIds.has(automation.id)
+				const starting = startingAutomationIds.has(automation.id);
+				lines.push(starting
+					? automation.enabled
 						? localize('automationsAccessibleView.automationRunning', "{0}, enabled, Running", automation.name)
-						: localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-					: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+						: localize('automationsAccessibleView.automationDisabledRunning', "{0}, disabled, Running", automation.name)
+					: automation.enabled
+						? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+						: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
 					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));

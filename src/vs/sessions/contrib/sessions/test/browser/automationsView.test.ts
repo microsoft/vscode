@@ -1854,8 +1854,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(automationDialogService.lastOptions?.existing?.enabled, false);
 	});
 
-	test('keeps a local run on its card until the session resolves', () => {
-		const { automationService, widget } = setup();
+	test('keeps a local run on its card until the session resolves without reviving after deletion', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const pendingRun = run({ status: 'pending', sessionResource: undefined });
 		automationService.setRuns([pendingRun]);
@@ -1876,11 +1876,22 @@ suite('AutomationsCardsWidget', () => {
 		};
 
 		automationService.setRuns([{ ...pendingRun, status: 'running', sessionResource: SESSION_RESOURCE }]);
+		const resolved = {
+			historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			buttonDisabled: runButton.getAttribute('aria-disabled'),
+			buttonLabel: runButton.getAttribute('aria-label'),
+			cardLabel: card.getAttribute('aria-label'),
+		};
+		const completedRun = { ...pendingRun, status: 'completed' as const, sessionResource: SESSION_RESOURCE };
+		automationService.setRuns([completedRun]);
+		await sessionsManagementService.deleteSession(sessionsManagementService.session);
 
 		assert.deepStrictEqual({
 			pending,
 			running,
-			resolved: {
+			resolved,
+			deleted: {
 				historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 				prompt: card.querySelector('.automations-card-prompt')?.textContent,
 				buttonDisabled: runButton.getAttribute('aria-disabled'),
@@ -1901,6 +1912,13 @@ suite('AutomationsCardsWidget', () => {
 			},
 			resolved: {
 				historyRows: 1,
+				prompt: automation().prompt,
+				buttonDisabled: 'false',
+				buttonLabel: 'Run now',
+				cardLabel: 'Daily review — Hourly',
+			},
+			deleted: {
+				historyRows: 0,
 				prompt: automation().prompt,
 				buttonDisabled: 'false',
 				buttonLabel: 'Run now',
@@ -4788,16 +4806,24 @@ suite('AutomationsCardsWidget', () => {
 			throw new Error('Expected the sessions automations accessible view provider');
 		}
 		disposables.add(accessibleProvider);
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'pending', sessionResource: undefined })]);
+		automationService.setAutomations([
+			automation(),
+			automation({ id: 'disabled', name: 'Disabled review', enabled: false }),
+		]);
+		automationService.setRuns([
+			run({ status: 'pending', sessionResource: undefined }),
+			run({ id: 'disabled-run', automationId: 'disabled', status: 'pending', sessionResource: undefined }),
+		]);
 
 		const content = accessibleProvider.provideContent();
 
 		assert.deepStrictEqual({
-			cardRunning: content.includes('Daily review, enabled, Running'),
+			enabledCardRunning: content.includes('Daily review, enabled, Running'),
+			disabledCardRunning: content.includes('Disabled review, disabled, Running'),
 			historyRun: content.includes('Daily review, Pending, started'),
 		}, {
-			cardRunning: true,
+			enabledCardRunning: true,
+			disabledCardRunning: true,
 			historyRun: false,
 		});
 	});

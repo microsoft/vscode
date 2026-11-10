@@ -9,10 +9,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
-export function isLocalAutomationRunStarting(run: IAutomationRun, hasSession: (resource: URI) => boolean): boolean {
+export function isLocalAutomationRunStarting(run: IAutomationRun, hasPresentedSession: (resource: URI) => boolean, hasSession: (resource: URI) => boolean): boolean {
 	return !run.externalResource
 		&& (run.status === 'pending' || run.status === 'running' || run.status === 'completed')
-		&& (!run.sessionResource || !hasSession(run.sessionResource));
+		&& (!run.sessionResource || (!hasPresentedSession(run.sessionResource) && (run.status !== 'completed' || hasSession(run.sessionResource))));
 }
 
 /** Overlays newer local conversation progress without changing authoritative history. */
