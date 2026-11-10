@@ -42,7 +42,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotContextBudgetToolEstimateEnabledSettingId, CopilotFusionSentHistoryAdoptionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, isSupportedAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
@@ -219,6 +219,15 @@ function formatAutoModeRoutingForLog(data: { readonly routingMethod?: string; re
 type AutoTierSnapshot = string | undefined | Promise<string | undefined>;
 
 const AUTO_TIER_READ_TIMEOUT = 5_000;
+
+/** The root config key that says whether an experiment-controlled setting still has its experiment-assigned default. */
+const settingExperimentDefaultControlledKeys = new Map<string, CopilotCliConfigKey>([
+	[AgentHostCopilotExecutionSubagentEnabledSettingId, CopilotCliConfigKey.ExecutionSubagentDefaultControlled],
+	[AgentHostCopilotExecutionSubagentModelSettingId, CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled],
+	[AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled],
+	[CopilotFusionSentHistoryAdoptionEnabledSettingId, CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled],
+	[CopilotContextBudgetToolEstimateEnabledSettingId, CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled],
+]);
 
 /** The runtime-reported HydraFusion model, only when it is one of the known HydraFusion models; never inferred from the picker. */
 function getHydraFusionModel(syntheticModel: string | undefined): string | undefined {
@@ -8675,13 +8684,7 @@ export class CopilotAgentSession extends Disposable {
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
 	private _reportSettingExperimentTrigger(settingId: string): void {
-		const defaultControlledKey = settingId === AgentHostCopilotExecutionSubagentEnabledSettingId
-			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
-			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
-				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
-				: settingId === AgentHostCopilotProgressUpdatesPromptSettingId
-					? CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled
-					: undefined;
+		const defaultControlledKey = settingExperimentDefaultControlledKeys.get(settingId);
 		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
 			this._pendingSettingExperimentTriggers.delete(settingId);
 			return;
@@ -13004,6 +13007,12 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (this._shouldDropLateRootTurnEvent(event.type, true)) {
 			return;
+		}
+		if (event.type === 'session.fusion_resolved') {
+			// A routed Fusion turn is where the runtime's sent-history adoption and pre-request
+			// context checks can diverge; routing does not depend on either setting.
+			this._reportSettingExperimentTrigger(CopilotFusionSentHistoryAdoptionEnabledSettingId);
+			this._reportSettingExperimentTrigger(CopilotContextBudgetToolEstimateEnabledSettingId);
 		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {

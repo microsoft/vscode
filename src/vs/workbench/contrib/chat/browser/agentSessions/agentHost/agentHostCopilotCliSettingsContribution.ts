@@ -92,9 +92,19 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotStabilityOrderedPromptEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled,
+				computeValue: () => this._isDefaultControlled(CopilotFusionSentHistoryAdoptionEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotFusionSentHistoryAdoptionEnabledSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.FusionSentHistoryAdoption,
 				computeValue: () => this._configurationService.getValue<boolean>(CopilotFusionSentHistoryAdoptionEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotFusionSentHistoryAdoptionEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled,
+				computeValue: () => this._isDefaultControlled(CopilotContextBudgetToolEstimateEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotContextBudgetToolEstimateEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ContextBudgetToolEstimate,

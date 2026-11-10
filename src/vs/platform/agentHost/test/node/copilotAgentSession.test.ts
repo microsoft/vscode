@@ -130,7 +130,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotContextBudgetToolEstimateEnabledSettingId, CopilotFusionSentHistoryAdoptionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -23160,6 +23160,43 @@ Use the attached image as context.
 				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
 				'explicit user value': { beforeRootTurn: [], afterRootTurn: [] },
 				'unknown provenance': { beforeRootTurn: [], afterRootTurn: [] },
+			});
+		});
+
+		test('reports the runtime cache setting triggers in both arms when a Fusion route resolves, for settings that follow the experiment', async () => {
+			const sentHistoryTrigger = `config.${CopilotFusionSentHistoryAdoptionEnabledSettingId}`;
+			const toolEstimateTrigger = `config.${CopilotContextBudgetToolEstimateEnabledSettingId}`;
+			const results: Record<string, { beforeRoute: readonly string[]; afterRoute: readonly string[] }> = {};
+			for (const [name, enabled, defaultControlled] of [
+				['control', false, true],
+				['treatment', true, true],
+				['explicit user value', true, false],
+				['unknown provenance', false, undefined],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: {
+						[CopilotCliConfigKey.FusionSentHistoryAdoption]: enabled,
+						[CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled]: defaultControlled,
+						[CopilotCliConfigKey.ContextBudgetToolEstimate]: enabled,
+						[CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled]: defaultControlled,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				const triggers = () => telemetryService.triggers.filter(trigger => trigger === sentHistoryTrigger || trigger === toolEstimateTrigger);
+				session.resetTurnState('fusion-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				const beforeRoute = triggers();
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				results[name] = { beforeRoute, afterRoute: triggers() };
+			}
+
+			assert.deepStrictEqual(results, {
+				control: { beforeRoute: [], afterRoute: [sentHistoryTrigger, toolEstimateTrigger] },
+				treatment: { beforeRoute: [], afterRoute: [sentHistoryTrigger, toolEstimateTrigger] },
+				'explicit user value': { beforeRoute: [], afterRoute: [] },
+				'unknown provenance': { beforeRoute: [], afterRoute: [] },
 			});
 		});
 

@@ -116,6 +116,8 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.StabilityOrderedPrompt]: { type: 'boolean', title: 'Stability-Ordered System Prompt' },
 	[CopilotCliConfigKey.FusionSentHistoryAdoption]: { type: 'boolean', title: 'Copilot Fusion Sent History' },
 	[CopilotCliConfigKey.ContextBudgetToolEstimate]: { type: 'boolean', title: 'Context Budget Tool Estimate' },
+	[CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled]: { type: 'boolean', title: 'Copilot Fusion Sent History Default Control' },
+	[CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled]: { type: 'boolean', title: 'Context Budget Tool Estimate Default Control' },
 	[CopilotCliConfigKey.ProgressUpdatesPrompt]: { type: 'boolean', title: 'Progress Updates Prompt' },
 	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: { type: 'boolean', title: 'Progress Updates Prompt Default Control' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
@@ -427,7 +429,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 21);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 23);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -435,6 +437,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: true,
 			[CopilotCliConfigKey.FusionSentHistoryAdoption]: true,
 			[CopilotCliConfigKey.ContextBudgetToolEstimate]: true,
+			[CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled]: false,
+			[CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled]: false,
 			[CopilotCliConfigKey.ProgressUpdatesPrompt]: true,
 			[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: false,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
@@ -782,6 +786,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: false,
 			[CopilotCliConfigKey.FusionSentHistoryAdoption]: false,
 			[CopilotCliConfigKey.ContextBudgetToolEstimate]: false,
+			[CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled]: true,
+			[CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled]: true,
 			[CopilotCliConfigKey.ProgressUpdatesPrompt]: false,
 			[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
