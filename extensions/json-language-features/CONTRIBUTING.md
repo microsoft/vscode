@@ -31,7 +31,7 @@ However, within this extension, you can run a development version of `vscode-jso
 - Clone [microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice)
 - Run `npm i` in `vscode-json-languageservice`
 - Run `npm link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
-- In `json-language-features/server/`, run `pnpm link <path to your vscode-json-languageservice checkout>`. This adds a `link:` override to `extensions/pnpm-workspace.yaml` and updates `extensions/pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-json-languageservice` to undo the link
+- In `json-language-features/server/`, run `pnpm link <path to your vscode-json-languageservice checkout>`. This adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-json-languageservice` to undo the link
 
 #### Testing the development version of `vscode-json-languageservice`
 

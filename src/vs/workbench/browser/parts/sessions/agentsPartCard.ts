@@ -36,29 +36,32 @@ export const AgentsPartCard = {
 } as const;
 
 /** Returns the inset between the Sessions Part allocation and its visible session frames. */
-export function getSessionsPartFrameInset(container: HTMLElement): number {
+export function getSessionsPartFrameInset(container: HTMLElement, spacing: number = AGENTS_FLOATING_PANEL_GAP): number {
 	return container.classList.contains('modern-ui-tabs')
 		&& !container.classList.contains('modern-ui-compact')
 		&& !container.classList.contains('phone-layout')
 		&& !container.classList.contains('nosessionspart')
-		? AgentsPartCard.BORDER_WIDTH
+		? Math.min(AgentsPartCard.BORDER_WIDTH, spacing)
 		: 0;
 }
 
 /** Returns the inset between the side-pane allocation and its connected editor frame. */
-export function getSidePaneFrameInset(container: HTMLElement): number {
-	return getSessionsPartFrameInset(container) > 0
+export function getSidePaneFrameInset(container: HTMLElement, spacing: number = AGENTS_FLOATING_PANEL_GAP): number {
+	const sessionInset = getSessionsPartFrameInset(container, spacing);
+	return container.classList.contains('modern-ui-tabs')
+		&& !container.classList.contains('modern-ui-compact')
+		&& !container.classList.contains('phone-layout')
 		&& container.classList.contains('dock-detail-panel')
 		&& container.classList.contains('modern-ui-connected-editor-tabs')
 		&& container.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS)
 		&& !container.classList.contains('noeditorpane')
-		? AgentsPartCard.BORDER_WIDTH
+		? Math.min(AgentsPartCard.BORDER_WIDTH, Math.max(0, spacing - sessionInset))
 		: 0;
 }
 
 /** Returns the amount needed to align an outer side-pane frame with Sessions above a justified panel. */
-export function getSidePaneBottomFrameInset(container: HTMLElement): number {
-	const sessionFrameInset = getSessionsPartFrameInset(container);
+export function getSidePaneBottomFrameInset(container: HTMLElement, spacing: number = AGENTS_FLOATING_PANEL_GAP): number {
+	const sessionFrameInset = getSessionsPartFrameInset(container, spacing);
 	if (sessionFrameInset === 0
 		|| container.classList.contains('noeditorpane')
 		|| container.classList.contains('nopanel')
@@ -66,26 +69,26 @@ export function getSidePaneBottomFrameInset(container: HTMLElement): number {
 		return 0;
 	}
 
-	return Math.max(0, sessionFrameInset - getSidePaneFrameInset(container));
+	return Math.max(0, sessionFrameInset - getSidePaneFrameInset(container, spacing));
 }
 
 /** Returns the Sessions Part margin that preserves the visible gap beside the side pane. */
-export function getSessionsPartCardMarginRight(container: HTMLElement): number {
-	const sessionFrameInset = getSessionsPartFrameInset(container);
+export function getSessionsPartCardMarginRight(container: HTMLElement, spacing: number = AGENTS_FLOATING_PANEL_GAP): number {
+	const sessionFrameInset = getSessionsPartFrameInset(container, spacing);
 	if (sessionFrameInset === 0) {
-		return AgentsPartCard.MARGIN_RIGHT;
+		return spacing;
 	}
 
-	return Math.max(0, AgentsPartCard.MARGIN_RIGHT - sessionFrameInset - getSidePaneFrameInset(container));
+	return Math.max(0, spacing - sessionFrameInset - getSidePaneFrameInset(container, spacing));
 }
 
 /** Content box of a card part, filling the grid in compact or phone layouts. */
-export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean, compact = false, editorPaneMarginRight: number = AgentsPartCard.MARGIN_RIGHT): { readonly width: number; readonly height: number } {
+export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean, compact = false, editorPaneMarginRight: number = AgentsPartCard.MARGIN_RIGHT, borderWidth: number = AgentsPartCard.BORDER_WIDTH): { readonly width: number; readonly height: number } {
 	if (phoneLayout || compact) {
 		return { width, height };
 	}
 
-	const borderTotal = AgentsPartCard.BORDER_WIDTH * 2;
+	const borderTotal = borderWidth * 2;
 	const marginLeft = sidebarVisible ? AgentsPartCard.MARGIN_LEFT : AgentsPartCard.MARGIN_LEFT_NO_SIDEBAR;
 	const marginRight = editorPaneVisible
 		? editorPaneMarginRight

@@ -1207,7 +1207,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 							throw new Error(localize('pluginRuntimeEnablementUnavailable', "Runtime plugin enablement is unavailable."));
 						}
 						const target = installedPlugin.directSourceId ?? `${installedPlugin.name}@${installedPlugin.marketplace}`;
-						await this._agentHostService.setPluginEnabled(COPILOT_CLI_AGENT_PROVIDER_ID, target, enabled);
+						await this._agentHostService.setPluginEnabled(COPILOT_CLI_AGENT_PROVIDER_ID, target, enabled, 'global');
 					} : undefined,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
 						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {

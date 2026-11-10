@@ -75,6 +75,7 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	try {
 		await chatWindowService.open(chatResource ?? session.resource, {
 			...options,
+			exactChat: !!chat,
 			editors: { ...options?.editors, moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [] },
 		});
 	} finally {

@@ -745,6 +745,7 @@ export interface ISessionsProvider {
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	readonly supportsForceWorktreeCleanup?: boolean;
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;

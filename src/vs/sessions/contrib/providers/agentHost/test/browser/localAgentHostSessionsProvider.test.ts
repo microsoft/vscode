@@ -74,7 +74,7 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -3592,6 +3592,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	for (const rejected of [false, true]) {
+		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backend = URI.parse('opaque-session://tenant/archiving');
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'archiving', { resource: backend });
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			const acknowledgement = new DeferredPromise<void>();
+			const dispatched = new DeferredPromise<void>();
+			const calls: string[] = [];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+				calls.push(channel);
+				await dispatched.complete();
+				await acknowledgement.p;
+				return { channel, action, serverSeq: 1, origin: undefined, ...(rejected ? { rejectionReason: 'Archive denied' } : {}) };
+			};
+			let completed = false;
+			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
+			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
+			await dispatched.p;
+			const beforeAcknowledgement = completed;
+			await acknowledgement.complete();
+			await result;
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			});
+		}));
+	}
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);
@@ -3740,7 +3770,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
+		const configurationService = new TestConfigurationService();
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		const legacyUri = URI.parse('copilotcli:/missing-from-list');
 		const twinUri = URI.parse('agent-host-copilotcli:/missing-from-list');

@@ -1531,7 +1531,7 @@ suite('AgentHostSessionInputPills', () => {
 			}))),
 		}), undefined, createRichGitHubService([]));
 		const icon = () => harness.persistentContent.querySelector<HTMLElement>('.chat-pill-icon');
-		const pending = { open: icon()?.classList.contains('codicon-issue-opened'), color: icon()?.style.color };
+		const pending = { open: icon()?.classList.contains('codicon-issues'), color: icon()?.style.color };
 		await timeout(0);
 
 		assert.deepStrictEqual({

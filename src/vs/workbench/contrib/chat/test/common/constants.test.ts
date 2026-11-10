@@ -644,6 +644,17 @@ suite('ChatConfiguration defaults', () => {
 		);
 	});
 
+	test('an explicit extension host Copilot CLI request falls back to the default type', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		assert.deepStrictEqual(
+			resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.CopilotCLI }),
+			resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		);
+	});
+
 	for (const type of ['history-only', 'remote-history-only-copilot']) {
 		test(`hidden session type ${type} remains registered but is excluded from new-chat choices and defaults`, () => {
 			const configurationService = new TestConfigurationService({

@@ -5,6 +5,7 @@
 
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 import { dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -34,10 +35,11 @@ export interface IExternalPathInfo {
 	isDirectory: boolean;
 }
 
+type ExternalPathInfo = IExternalPathInfo | readonly IExternalPathInfo[];
+
 /**
- * Confirmation contribution for read_file and list_dir tools that allows users to approve
- * accessing paths outside the workspace, with an option to allow all access
- * from a containing folder for the current chat session.
+ * Confirmation contribution for tools that access paths outside the workspace, with an option
+ * to allow all access from the containing folders for the current chat session.
  */
 export class ChatExternalPathConfirmationContribution implements ILanguageModelToolConfirmationContribution, IDisposable {
 	readonly canUseDefaultApprovals = false;
@@ -48,7 +50,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 	private readonly _workspaceAllowlist?: ObservableMemento<readonly string[]>;
 
 	constructor(
-		private readonly _getPathInfo: (ref: ILanguageModelToolConfirmationRef) => IExternalPathInfo | undefined,
+		private readonly _getPathInfo: (ref: ILanguageModelToolConfirmationRef) => ExternalPathInfo | undefined,
 		private readonly _labelService: ILabelService,
 		private readonly _findGitRoot?: (pathUri: URI) => Promise<URI | undefined>,
 		storageService?: IStorageService,
@@ -89,87 +91,94 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		this._workspaceAllowlist.set(uriStrings, undefined);
 	}
 
-	getPreConfirmAction(ref: ILanguageModelToolConfirmationRef): ConfirmedReason | undefined {
+	private _getPathUris(ref: ILanguageModelToolConfirmationRef): { pathUri: URI; isDirectory: boolean }[] | undefined {
 		const pathInfo = this._getPathInfo(ref);
 		if (!pathInfo) {
 			return undefined;
 		}
 
-		// Parse the file path to a URI
-		let pathUri: URI;
-		try {
-			pathUri = URI.file(pathInfo.path);
-		} catch {
+		const pathInfos = Array.isArray(pathInfo) ? pathInfo : [pathInfo];
+		if (pathInfos.length === 0) {
 			return undefined;
 		}
 
-		// When a working directory is set (agents window), it is the source of truth
-		// for determining whether a path is workspace-internal. Only fall back to the
-		// workspace-level allowlist when no working directory is specified.
-		if (ref.workingDirectory) {
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, ref.workingDirectory)) {
-				return { type: ToolConfirmKind.ConfirmationNotNeeded };
-			}
-		} else {
-			const workspaceFolders = this._getWorkspaceFolders();
-			for (const folderUri of workspaceFolders) {
-				if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-					return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
-				}
-			}
+		try {
+			return pathInfos.map(info => ({ pathUri: URI.file(info.path), isDirectory: info.isDirectory }));
+		} catch {
+			return undefined;
+		}
+	}
+
+	getPreConfirmAction(ref: ILanguageModelToolConfirmationRef): ConfirmedReason | undefined {
+		const paths = this._getPathUris(ref);
+		if (!paths) {
+			return undefined;
 		}
 
-		// Check session-level allowlist
+		// A session working directory takes precedence over stored workspace grants.
+		const workspaceFolders = ref.workingDirectory ? [ref.workingDirectory] : [...this._getWorkspaceFolders()];
+		const externalPaths = paths.filter(({ pathUri }) => !workspaceFolders.some(folderUri => extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)));
+		if (externalPaths.length === 0) {
+			return ref.workingDirectory
+				? { type: ToolConfirmKind.ConfirmationNotNeeded }
+				: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
+		}
+
 		if (ref.chatSessionResource) {
 			const sessionFolders = this._sessionFolderAllowlist.get(ref.chatSessionResource);
-			if (sessionFolders) {
-				for (const folderUri of sessionFolders) {
-					if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-						return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
-					}
-				}
+			if (sessionFolders && externalPaths.every(({ pathUri }) => Iterable.some(sessionFolders, folderUri => extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)))) {
+				return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
 			}
 		}
 
 		return undefined;
 	}
 
+	protected getSessionApprovalLabels(folderCount: number): Pick<ILanguageModelToolConfirmationActions, 'label' | 'detail'> {
+		return {
+			label: folderCount === 1
+				? localize('allowFolderSession', 'Allow this folder in this session')
+				: localize('allowFoldersSession', 'Allow these folders in this session'),
+			detail: folderCount === 1
+				? localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this chat session')
+				: localize('allowFoldersSessionDetail', 'Allow reading files from these folders without further confirmation in this chat session'),
+		};
+	}
+
 	getPreConfirmActions(ref: ILanguageModelToolConfirmationRef): ILanguageModelToolConfirmationActions[] {
-		const pathInfo = this._getPathInfo(ref);
-		if (!pathInfo || !ref.chatSessionResource) {
+		const paths = this._getPathUris(ref);
+		if (!paths || !ref.chatSessionResource) {
 			return [];
 		}
 
-		// Parse the path to a URI
-		let pathUri: URI;
-		try {
-			pathUri = URI.file(pathInfo.path);
-		} catch {
-			return [];
+		const folderUris = new ResourceSet();
+		for (const { pathUri, isDirectory } of paths) {
+			folderUris.add(isDirectory ? pathUri : dirname(pathUri));
 		}
 
-		// For directories, use the path itself; for files, use the parent directory
-		const folderUri = pathInfo.isDirectory ? pathUri : dirname(pathUri);
 		const sessionResource = ref.chatSessionResource;
 
 		const actions: ILanguageModelToolConfirmationActions[] = [
 			{
-				label: localize('allowFolderSession', 'Allow this folder in this session'),
-				detail: localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this chat session'),
+				...this.getSessionApprovalLabels(folderUris.size),
 				select: async () => {
 					let folders = this._sessionFolderAllowlist.get(sessionResource);
 					if (!folders) {
 						folders = new ResourceSet();
 						this._sessionFolderAllowlist.set(sessionResource, folders);
 					}
-					folders.add(folderUri);
+					for (const folderUri of folderUris) {
+						folders.add(folderUri);
+					}
 					return true;
 				}
 			}
 		];
 
 		// If a git root finder is available, offer to allow the entire repository
-		if (this._findGitRoot) {
+		if (this._findGitRoot && paths.length === 1) {
+			const [{ pathUri }] = paths;
+			const folderUri = Iterable.first(folderUris)!;
 			const findGitRoot = this._findGitRoot;
 			const gitRootCache = this._gitRootCache;
 			const allowlist = this._sessionFolderAllowlist;
