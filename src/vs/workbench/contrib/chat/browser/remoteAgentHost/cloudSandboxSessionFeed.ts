@@ -168,7 +168,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 				continue;
 			}
 			if (!this._canConnect()) {
-				this._deferred = true;
+				this._deferConnection();
 				return;
 			}
 			this._deferred = false;
@@ -178,6 +178,16 @@ export class CloudSandboxSessionFeed extends Disposable {
 				return;
 			}
 			refresh = true;
+		}
+	}
+
+	private _deferConnection(): void {
+		this._deferred = true;
+		this._reconnect.cancel();
+		if (this._active.value) {
+			this._gapWatch ??= this._stopWatchFactory();
+			this._active.clear();
+			this._connectionWatch = this._messageWatch = undefined;
 		}
 	}
 
@@ -202,7 +212,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 				return;
 			}
 			if (!this._canConnect()) {
-				this._deferred = true;
+				this._deferConnection();
 				return;
 			}
 			negotiated = true;
