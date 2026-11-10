@@ -11,6 +11,7 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { URI as uri } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EndOfLinePreference } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -251,7 +252,7 @@ suite('Debug - Source content', () => {
 		const contents: string[] = [];
 		for (const content of ['first\nline', '', '', 'last']) {
 			await respond(await requestSourceChange(), content);
-			contents.push(model.getValue());
+			contents.push(model.getValue(EndOfLinePreference.LF));
 		}
 
 		assert.deepStrictEqual(contents, ['first\nline', '', '', 'last']);
