@@ -152,7 +152,7 @@ suite('Sessions - Bulk archive undo', () => {
 			const context = kind === 'group'
 				? upcastPartial<ISessionGroupItem>({
 					group, sessions: ownSessions, subtreeSessions: targets,
-					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '' } : undefined,
+					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '', configuration: '' } : undefined,
 				})
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));

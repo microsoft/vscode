@@ -19,14 +19,16 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatModelReference, IChatService, IChatUsage } from '../../../chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
+import { ILanguageModelChatMetadata } from '../../../chat/common/languageModels.js';
 import { getChatNotificationResource } from '../../../chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
+import { createSessionComparisonHarness } from '../../browser/sessionComparisonConfiguration.js';
 
 suite('SessionComparisonService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +42,24 @@ suite('SessionComparisonService', () => {
 			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }, false),
 			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }),
 		], ['Copilot', 'Opus', 'Balance', 'Opus · High', 'Copilot · Opus · High']);
+	});
+
+	test('saves Fusion effort labels from the model schema, including the default', () => {
+		const effort = { type: 'string' as const, group: 'navigation', enum: ['standard', 'high'], enumItemLabels: ['Standard', 'High'], default: 'standard' };
+		const create = (configuration: Record<string, string>) => createSessionComparisonHarness(
+			'local-agent-host',
+			upcastPartial<ISessionType>({ id: 'copilotcli', label: 'Copilot' }),
+			{ identifier: 'fusion', metadata: upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion', autoModelFusion: true, configurationSchema: { properties: { tier: effort } } }) },
+			configuration,
+			{ id: 'default', label: 'Manual', description: 'Ask before running tools' },
+		);
+		const high = create({ tier: 'high' });
+		const standard = create({});
+		effort.enumItemLabels[1] = 'Changed after launch';
+		assert.deepStrictEqual([
+			getSessionComparisonHarnessDisplayLabel(high),
+			getSessionComparisonHarnessDisplayLabel(standard),
+		], ['Copilot · Copilot Fusion · High', 'Copilot · Copilot Fusion · Standard']);
 	});
 
 	test('workspace validation requires available Git branch information', () => {

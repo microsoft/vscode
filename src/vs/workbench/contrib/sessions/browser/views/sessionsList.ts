@@ -84,7 +84,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
-import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
+import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../sessionGroupsService.js';
@@ -300,6 +300,7 @@ export interface ISessionGroupItem {
 		readonly title: string;
 		readonly launching: boolean;
 		readonly summary: (reader?: IReader) => string;
+		readonly configuration: string;
 	};
 }
 
@@ -3236,6 +3237,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -3288,6 +3290,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			template.elementDisposables.add(autorun(reader => {
 				template.description.textContent = comparison.summary(reader);
 			}));
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => withSessionsListHoverPresentation({
+				content: comparison.configuration,
+			}), { groupId: 'sessions-list' }));
 		} else {
 			template.description.textContent = '';
 		}
@@ -3599,7 +3604,7 @@ class SessionsAccessibilityProvider {
 		}
 		if (isSessionGroupItem(element)) {
 			return element.comparison
-				? derived(this, reader => localize('comparisonGroupAria', "{0}, {1}", element.comparison!.title, element.comparison!.summary(reader)))
+				? derived(this, reader => localize('comparisonGroupAria', "{0}, {1}, {2}", element.comparison!.title, element.comparison!.summary(reader), element.comparison!.configuration))
 				: this.getSectionAriaLabel(element.group.name, element.subtreeSessions);
 		}
 		if (isSessionSection(element)) {
@@ -5166,7 +5171,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.getTree(element).toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService, hoverService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -6098,6 +6103,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					title: comparison.title,
 					launching: comparison.launching === true,
 					summary: reader => getComparisonGroupSummary(comparison, this.sessions, reader),
+					configuration: getComparisonGroupConfiguration(comparison, this.labelService),
 				} : undefined,
 			};
 			this.groupDepths.set(group.id, depth);
@@ -9709,6 +9715,32 @@ function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: IS
 
 function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
 	return comparison.launching === true;
+}
+
+function getComparisonGroupConfiguration(comparison: ISessionComparison, labelService: ILabelService): string {
+	const lines = [localize('comparisonGroup.originalConfiguration', "Original comparison settings")];
+	if (comparison.workspace) {
+		lines.push(localize('comparisonGroup.repository', "Repository: {0}", labelService.getUriLabel(comparison.workspace)));
+		lines.push(localize('comparisonGroup.isolation', "Isolation: Separate worktrees"));
+		if (comparison.branch) {
+			lines.push(localize('comparisonGroup.branch', "Base branch: {0}", comparison.branch));
+		}
+	} else {
+		lines.push(localize('comparisonGroup.noWorkspace', "Workspace: None"));
+	}
+	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+	for (const [index, attempt] of attempts.entries()) {
+		lines.push(localize('comparisonGroup.attemptConfiguration', "Attempt {0}: {1}", index + 1, getSessionComparisonHarnessDisplayLabel(attempt.harness)));
+	}
+	const judge = comparison.judgeHarness ?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.harness;
+	const synthesizer = comparison.synthesisHarness ?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.harness;
+	lines.push(judge
+		? localize('comparisonGroup.judgeConfiguration', "Judge: {0}", getSessionComparisonHarnessDisplayLabel(judge))
+		: localize('comparisonGroup.noJudge', "Judge: None"));
+	lines.push(synthesizer
+		? localize('comparisonGroup.synthesizerConfiguration', "Synthesizer: {0}", getSessionComparisonHarnessDisplayLabel(synthesizer))
+		: localize('comparisonGroup.noSynthesizer', "Synthesizer: None"));
+	return lines.join('\n');
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
