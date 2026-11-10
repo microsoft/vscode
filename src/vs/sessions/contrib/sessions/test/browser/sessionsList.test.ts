@@ -3815,6 +3815,30 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('hides older workspaces behind a more row only when more than two workspaces exist', () => {
+			const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
+			const render = (workspaceCount: number) => {
+				const harness = createListHarness(disposables, Array.from({ length: workspaceCount }, (_, index) =>
+					createTestSession(`session-${index}`, { workspaceLabel: `workspace-${index}`, workspaceResource: URI.parse(`file:///workspace-${index}`), createdAt: daysAgo(index === 0 ? 0 : 5 + index) }).session));
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return {
+					sessions: list.getVisibleSessions().length,
+					showMore: [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
+				};
+			};
+
+			assert.deepStrictEqual({ two: render(2), three: render(3) }, {
+				two: { sessions: 2, showMore: [] },
+				three: { sessions: 1, showMore: ['+2 more workspaces'] },
+			});
+		});
+
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
@@ -4372,6 +4396,7 @@ suite('Sessions - SessionsList', () => {
 				...grouped,
 				createTestSession('recent', { workspaceLabel: 'Recent', createdAt: new Date(now - 10_000) }).session,
 				createTestSession('claude', { workspaceLabel: 'Recent', harness: 'claude', createdAt: new Date(now - 20_000) }).session,
+				createTestSession('second', { workspaceLabel: 'Second', createdAt: new Date(now - 30_000) }).session,
 				createTestSession('old', { workspaceLabel: 'Old', createdAt: new Date(now - 10 * 24 * 60 * 60 * 1000) }).session,
 			], { groups: [group], memberships: new Map(grouped.map(session => [session.sessionId, group.id])) });
 			const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
@@ -4398,13 +4423,13 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, reset, undone: state() }, {
 				before: {
-					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'recent', 'old'],
+					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'recent', 'second', 'old'],
 					showMore: ['+2 more', 'Show fewer workspaces'],
 					excludeArchived: false,
 					stored: { filters: [['["harness","claude"]', true]], excludeArchived: false, sessionGroupExpansionState: { 'group:group-a': false } },
 				},
 				reset: {
-					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude'],
+					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude', 'second'],
 					showMore: ['Show less', '+1 more workspace'],
 					excludeArchived: true,
 					stored: { filters: undefined, excludeArchived: undefined, sessionGroupExpansionState: undefined },
@@ -4572,6 +4597,7 @@ suite('Sessions - SessionsList', () => {
 			const sessions = Array.from({ length: 8 }, (_, index) => repositorySession(`Local ${index}`, 'local', index));
 			const { list, container } = render([
 				...sessions,
+				repositorySession('Host session', 'host', 9),
 				repositorySession('Old cloud session', 'cloud', 10 * 24 * 60),
 			], {}, true, SessionsGrouping.Environment);
 			const snapshot = () => ({
@@ -4588,10 +4614,10 @@ suite('Sessions - SessionsList', () => {
 			list.setWorkspaceGroupCapped(false);
 
 			assert.deepStrictEqual({ recent, moreAria, expanded, all: snapshot() }, {
-				recent: { titles: sessions.slice(0, 5).map(session => session.title.get()), more: ['+3 more', '+1 more environment'] },
+				recent: { titles: [...sessions.slice(0, 5).map(session => session.title.get()), 'Host session'], more: ['+3 more', '+1 more environment'] },
 				moreAria: 'Show 1 more environment',
-				expanded: { titles: [...sessions.slice(0, 5).map(session => session.title.get()), 'Old cloud session'], more: ['+3 more', 'Show fewer environments'] },
-				all: { titles: [...sessions.map(session => session.title.get()), 'Old cloud session'], more: [] },
+				expanded: { titles: [...sessions.slice(0, 5).map(session => session.title.get()), 'Host session', 'Old cloud session'], more: ['+3 more', 'Show fewer environments'] },
+				all: { titles: [...sessions.map(session => session.title.get()), 'Old cloud session', 'Host session'], more: [] },
 			});
 		});
 
