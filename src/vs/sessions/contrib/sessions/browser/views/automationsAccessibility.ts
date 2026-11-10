@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -28,11 +27,9 @@ import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
-	constructor(
-		readonly priority = 106,
-		readonly name = 'sessions-automations-help',
-		readonly when: ContextKeyExpression = AutomationsCustomViewFocusContext,
-	) { }
+	readonly priority = 106;
+	readonly name = 'sessions-automations-help';
+	readonly when = AutomationsCustomViewFocusContext;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
@@ -60,7 +57,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
-			localize('automationsCustomView.help.creationModes', "New Automation opens an agent-first input. Choose the harness above the input and the model inside it. Agent creation always starts a Chat without a workspace; workspace and agent pickers are hidden. Use Send in the input or press Enter to send your goal with /automate using the provider's conservative execution and permission settings. Shift+Enter inserts a new line. For Copilot these are Interactive and Manual permissions; their pickers are hidden in agent creation. The skill asks for confirmation before creating an automation. Create manually at the bottom left reveals the full configuration form, including workspace, agent, execution and permission controls when supported by the selected provider. Create with agent returns to the agent-first input without sending or losing your draft, but starting the walkthrough always uses Chat and conservative permissions. Templates and existing automations open in the full form."),
+			getAutomationCreationHelp(),
 			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
 			localize('automationsCustomView.help.cron', "For Agent Host automations, choose cron to enter minute, hour, day of month, month, and day of week. Cron accepts wildcards, lists, ranges, and steps on wildcards or ranges only. For example, 20-59/15 selects minutes 20, 35, and 50 of each hour; shorthand such as 20/15 is not supported. A line below the schedule explains the current valid expression and updates while editing. Day of month and day of week are alternatives when both are restricted. Tab moves between the five parts. Focusing a part shows and describes its allowed values. Escape dismisses that guidance without leaving the field. Up and Down step simple numeric values. Select All then Copy copies the entire expression; pasting a full expression fills the parts. Blank parts mean every value. Entirely empty input has no error, but cannot be saved. Cron is not available for Cloud automations."),
 			localize('automationsCustomView.help.events', "For Cloud automations, the Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control. Issue and Pull Request are offered when their events are available to your account. Scheduled triggers show time and day controls as applicable. Event appears to the right of Trigger, in the same position as Time for a schedule. Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist. Use Up Arrow and Down Arrow to navigate and Space to select events; at least one stays selected. Enter or Escape closes the checklist. Required event fields appear directly below the Trigger and Event row. Create remains unavailable until they are completed, and its hover explains what is missing. Expand Advanced below them to configure optional filters and Include activity from users without write access to this repository. When selected events support the same filter, such as Query or Paths, it appears once and applies to each of those events. Labels, assignees and changed paths accept comma-separated values; paths use gitignore patterns. Query filters the target and Comment text filters a comment's body. Review states are checkboxes. Include activity from users without write access to this repository starts on; turn it off to require write access to trigger the automation. Unsupported or mixed triggers are read-only with Open on GitHub; editing other fields keeps the saved triggers. Event automations run from GitHub events rather than Run now."),
@@ -79,6 +76,32 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			{ type: AccessibleViewType.Help },
 			() => content,
 			restoreFocus,
+			AccessibilityVerbositySettingId.Automations,
+		);
+	}
+}
+
+function getAutomationCreationHelp(): string {
+	return localize('automationsCustomView.help.creationModes', "New Automation opens an agent-first input. Choose a harness and model, and review or change the execution and permission settings offered by that provider. These controls use the provider's normal configuration; the dialog does not override your choices. Describe your idea and choose Start session to start a workspace-less Chat with the attached built-in automate skill. Enter inserts a new line. The agent asks for confirmation before creating an automation. Create manually opens the full form, including workspace and agent controls when supported. Create with agent returns to guided creation without sending or losing your manual draft. Templates and existing automations open in the full form.");
+}
+
+class AutomationsDialogAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly type = AccessibleViewType.Help;
+	readonly priority = 121;
+	readonly name = 'sessions-automations-dialog-help';
+	readonly when = ChatContextKeys.inAutomationsDialog;
+
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
+		const content = [
+			localize('automationsDialog.help.overview', "You are in the New or Edit Automation dialog."),
+			getAutomationCreationHelp(),
+			localize('automationsDialog.help.configuration', "In manual creation or editing, review the name, prompt, target, trigger, and provider settings. Some target choices are fixed when editing. Create or Save saves the automation; an empty name is derived from the prompt. Validation and operation errors appear in the footer. Use Tab and Shift+Tab between controls, and Cancel or Escape to close without saving."),
+		].join('\n');
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.Automations,
+			{ type: AccessibleViewType.Help },
+			() => content,
+			createFocusRestorer(accessor.get(IWorkbenchLayoutService)),
 			AccessibilityVerbositySettingId.Automations,
 		);
 	}
@@ -302,5 +325,5 @@ function formatRunStatus(run: IAutomationRun): string {
 }
 
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp());
-AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp(121, 'sessions-automations-dialog-help', ChatContextKeys.inAutomationsDialog));
+AccessibleViewRegistry.register(new AutomationsDialogAccessibilityHelp());
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibleView());

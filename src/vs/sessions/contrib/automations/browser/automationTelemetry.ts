@@ -22,7 +22,7 @@ export function logAutomationViewShown(telemetryService: ITelemetryService): voi
 
 
 type AutomationDialogOperation = 'create' | 'update';
-type AutomationDialogOutcome = 'saved' | 'cancelled' | 'validationFailed' | 'captureFailed' | 'persistenceFailed';
+type AutomationDialogOutcome = 'saved' | 'cancelled' | 'validationFailed' | 'captureFailed' | 'persistenceFailed' | 'sessionStarted' | 'sessionStartFailed';
 
 type AutomationDialogOutcomeEvent = {
 	operation: AutomationDialogOperation;
@@ -31,7 +31,7 @@ type AutomationDialogOutcomeEvent = {
 
 type AutomationDialogOutcomeClassification = {
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dialog was creating or updating an Automation.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded dialog or post-dialog persistence outcome.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded dialog, authoring session start, or post-dialog persistence outcome.' };
 	owner: 'ulugbekna';
 	comment: 'Tracks Automation dialog conversion and failures without collecting definition content or identifiers.';
 };
@@ -66,6 +66,18 @@ export class AutomationDialogTelemetry {
 
 	captureFailed(): void {
 		this._report('captureFailed');
+	}
+
+	sessionStartFailed(): void {
+		this._report('sessionStartFailed');
+	}
+
+	sessionStarted(): void {
+		if (this._completed) {
+			return;
+		}
+		this._completed = true;
+		this._report('sessionStarted');
 	}
 
 	complete(saved: boolean): void {

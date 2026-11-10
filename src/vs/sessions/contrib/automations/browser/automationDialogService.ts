@@ -45,7 +45,6 @@ import { ISessionsManagementService, ICreateNewSessionOptions } from '../../../.
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
@@ -106,7 +105,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -244,6 +242,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			: localize('automation.dialog.createTitle', "New automation");
 
 		const saveButtonLabel = isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create");
+		const startSessionButtonLabel = localize('automation.dialog.startSession', "Start session");
 		const cancelButtonLabel = localize('automation.dialog.cancel', "Cancel");
 		const savingButtonLabel = localize('automation.dialog.saving', "Saving…");
 		const captureErrorMessage = localize('automation.dialog.captureError', "The automation wasn't saved because its session configuration couldn't be captured. Check the provider connection and try again.");
@@ -304,7 +303,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (completion.isSettled || (commitInProgress && result === undefined)) {
 				return;
 			}
-			dialogTelemetry.complete(result !== undefined || authoringSession !== undefined);
+			if (authoringSession) {
+				dialogTelemetry.sessionStarted();
+			} else {
+				dialogTelemetry.complete(result !== undefined);
+			}
 			saveCancellation.value?.cancel();
 			void completion.complete(result);
 			dialog.dispose();
@@ -339,7 +342,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			progressBar?.infinite().show();
 			if (saveButton) {
 				saveButton.enabled = false;
-				saveButton.label = savingButtonLabel;
+				saveButton.label = manual ? savingButtonLabel : localize('automation.dialog.startingSession', "Starting session…");
 			}
 			if (createWithAgentButton) {
 				createWithAgentButton.enabled = false;
@@ -376,32 +379,20 @@ export class AutomationDialogService implements IAutomationDialogService {
 					if (cancellation.token.isCancellationRequested || this.configurationService.getValue<boolean>('chat.disableAIFeatures')) {
 						return;
 					}
-					const target = createAutomationTarget({ ...state, isQuickChat: true }, undefined);
-					if (!target || !state.providerId || !state.sessionTypeId) {
+					if (!state.providerId || !state.sessionTypeId) {
 						throw new Error(localize('automation.dialog.sessionTargetMissing', "Choose an available target before starting the session."));
 					}
-					const permissions = this.providersService.getProvider(state.providerId)?.getAutomationAuthoringPermissions?.(state.sessionTypeId);
-					if (!permissions) {
-						throw new Error(localize('automation.dialog.safePermissionsUnavailable', "The selected provider cannot confirm conservative permissions for this walkthrough. Choose another harness or use manual creation."));
-					}
-					const goal = getPrompt();
+					const goal = getPrompt().replace(/^\s*\/automate(?=\s|$)\s*/, '');
 					const request = {
-						query: /^\s*\/automate(?=\s|$)/.test(goal) ? goal : `/automate ${goal}`,
+						query: localize('automation.dialog.authoringPrompt', "Follow only the attached automate SKILL.md to help me create an automation.\n\n{0}", goal),
 						attachedContext: [toPromptFileVariableEntry(skillUri, PromptFileVariableKind.PromptFile)],
 					};
 					const createOptions: ICreateNewSessionOptions = {
 						providerId: state.providerId,
 						sessionTypeId: state.sessionTypeId,
-						...permissions,
 						...(sessionConfigurationCapture.configuration ? { automationConfiguration: sessionConfigurationCapture.configuration } : {}),
-						...(target.kind === 'workspace' ? {
-							isolationMode: target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined,
-							branch: getBranch(),
-						} : {}),
 					};
-					const session = target.kind === 'workspace'
-						? await this.sessionsManagementService.createAndSendNewChatRequest(target.folderUri, request, createOptions, cancellation.token)
-						: await this.sessionsManagementService.createAndSendQuickChatRequest(request, createOptions, cancellation.token);
+					const session = await this.sessionsManagementService.createAndSendQuickChatRequest(request, createOptions, cancellation.token);
 					if (!session) {
 						throw new Error(localize('automation.dialog.sessionUnconfirmed', "The provider did not confirm the new session. Check your sessions before retrying."));
 					}
@@ -431,7 +422,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 				if (commitInProgress || (!isCancellationError(error) && !cancellation.token.isCancellationRequested)) {
 					this.logService.error('[AutomationDialog] Failed to save automation.', error);
 					if (!commitInProgress) {
-						dialogTelemetry.captureFailed();
+						if (manual) {
+							dialogTelemetry.captureFailed();
+						} else {
+							dialogTelemetry.sessionStartFailed();
+						}
 					}
 					const message = commitInProgress || !manual ? getErrorMessage(error) : captureErrorMessage;
 					if (!isEdit && state.ownership === 'repository' && error instanceof AutomationRepositoryOwnershipUnavailableError) {
@@ -455,7 +450,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					progressBar?.stop().hide();
 					setSaving(false);
 					if (saveButton) {
-						saveButton.label = saveButtonLabel;
+						saveButton.label = manual ? saveButtonLabel : startSessionButtonLabel;
 					}
 					if (createWithAgentButton) {
 						createWithAgentButton.enabled = true;
@@ -548,7 +543,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 							createWithAgentButton.element.classList.toggle('automation-dialog-create-manually', !manual);
 						}
 						if (saveButton) {
-							DOM.setVisibility(manual, saveButton.element);
+							saveButton.label = manual ? saveButtonLabel : startSessionButtonLabel;
 						}
 						updateNotificationCenter();
 						revalidate();
@@ -575,7 +570,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						description.hidden = manualMode.read(reader);
 					}));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, dialogContextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode, save);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, dialogContextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode);
 					setManualMode = handle.setManualMode;
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
@@ -623,8 +618,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						const targetState = manual ? state : { ...state, isQuickChat: true, folderUri: undefined, isolationMode: undefined, branch: undefined };
 						updateSaveButtonState(saveButton, targetState, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
-						handle.setCanSubmit(!manual && !!getPrompt().trim() && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !state.targetPending
-							&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures'));
+						if (saveButton && !manual) {
+							saveButton.enabled = !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !state.targetPending
+								&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
+						}
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(manual ? validation.scheduleError : undefined);
 						const blocked = manual ? handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError) : undefined;

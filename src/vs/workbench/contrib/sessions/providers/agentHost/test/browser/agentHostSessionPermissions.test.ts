@@ -6,24 +6,10 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ResolveSessionConfigResult } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions, getAgentHostAutomationAuthoringPermissions } from '../../browser/agentHostSessionPermissions.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from '../../browser/agentHostSessionPermissions.js';
 
 suite('AgentHostSessionPermissions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('automation authoring uses conservative native defaults for each supported harness', () => {
-		assert.deepStrictEqual({
-			copilot: getAgentHostAutomationAuthoringPermissions('copilotcli'),
-			claude: getAgentHostAutomationAuthoringPermissions('claude'),
-			codex: getAgentHostAutomationAuthoringPermissions('codex'),
-			unsupported: getAgentHostAutomationAuthoringPermissions('future-harness'),
-		}, {
-			copilot: { permissionId: 'default', modeId: 'interactive' },
-			claude: { permissionId: 'default' },
-			codex: { permissionId: 'default', modeId: 'interactive' },
-			unsupported: undefined,
-		});
-	});
 
 	test('captures exact native permissions without silently changing unknown values', () => {
 		assert.deepStrictEqual({

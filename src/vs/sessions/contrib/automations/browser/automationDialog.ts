@@ -33,7 +33,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -69,7 +69,6 @@ import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/con
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ChatSubmitAction } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
@@ -284,7 +283,6 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 interface IRenderFormHandle {
 	readonly focusPrompt: () => void;
 	readonly setManualMode: (manual: boolean) => void;
-	readonly setCanSubmit: (enabled: boolean) => void;
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
@@ -1087,17 +1085,6 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-MenuRegistry.appendMenuItem(MenuId.AutomationsDialogInput, {
-	command: {
-		id: ChatSubmitAction.ID,
-		title: localize('automation.form.send', "Send"),
-		icon: Codicon.arrowUpCompact,
-		precondition: ContextKeyExpr.and(ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
-	},
-	group: 'navigation',
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, AutomationDialogAgentCreationContext),
-});
-
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
@@ -1126,7 +1113,6 @@ export function renderForm(
 	focusDialogMessage: () => void = () => { },
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
 	manualMode: ISettableObservable<boolean> = observableValue(form, true),
-	onSubmit?: () => Promise<void>,
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1549,7 +1535,6 @@ export function renderForm(
 		} else if (folderUri) {
 			automationSessionDraftSynchronizer.update({
 				kind: 'workspace',
-				...(!manualMode.get() ? { isAuthoring: true } : {}),
 				folderUri,
 				providerId: pick.providerId,
 				sessionTypeId: pick.sessionTypeId,
@@ -1878,9 +1863,6 @@ export function renderForm(
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-input-background)',
 	};
-	const submitEnabled = observableValue('automationSubmitEnabled', false);
-	const saving = observableValue('automationSaving', false);
-	const canSubmit = derived(reader => !manualMode.read(reader) && submitEnabled.read(reader) && !saving.read(reader));
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -1889,7 +1871,6 @@ export function renderForm(
 		supportsChangingModes: false,
 		suppressModePreferredModel: true,
 		suppressModelPersistence: true,
-		hostSubmit: { canSubmit },
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			inputToolbar: Menus.AutomationsDialogInputToolbar,
@@ -1912,7 +1893,7 @@ export function renderForm(
 	};
 
 	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
-	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent' | 'input' | 'isTranscriptProgressActive' | 'acceptInput'>;
+	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
 
 	const stubWidget: IMinimalChatWidget = {
 		onDidChangeViewModel: Event.None,
@@ -1922,34 +1903,12 @@ export function renderForm(
 		viewContext: {},
 		lockToCodingAgent: () => { },
 		unlockFromCodingAgent: () => { },
-		get input() { return chatInput; },
-		isTranscriptProgressActive: false,
-		acceptInput: async () => {
-			if (canSubmit.get()) {
-				await onSubmit?.();
-			}
-			return undefined;
-		},
 	};
 
 	const chatInput = disposables.add(
 		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
-	disposables.add(DOM.addDisposableListener(promptHost, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-		const key = new StandardKeyboardEvent(event);
-		if (manualMode.get() || !chatInput.inputEditor.hasTextFocus() || event.isComposing
-			|| key.keyCode !== KeyCode.Enter || key.shiftKey || key.altKey || key.ctrlKey || key.metaKey) {
-			return;
-		}
-		const suggestController = SuggestController.get(chatInput.inputEditor);
-		if (suggestController && suggestController.model.state !== SuggestState.Idle) {
-			return;
-		}
-		key.preventDefault();
-		key.stopPropagation();
-		void stubWidget.acceptInput().catch(onUnexpectedError);
-	}, true));
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 	disposables.add(autorun(reader => {
 		form.classList.toggle('agent-first', !manualMode.read(reader));
@@ -1991,9 +1950,7 @@ export function renderForm(
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
-		const manual = manualMode.read(reader);
-		setAutomationControlVisible(sessionConfiguration, hasTarget && (manual ? !cloud || controlsUnavailable : controlsUnavailable));
-		sessionConfigurationUnavailable.classList.toggle('automation-visually-hidden', !manual);
+		setAutomationControlVisible(sessionConfiguration, hasTarget && (!cloud || controlsUnavailable));
 		for (const container of [sessionConfigContainer, sessionControlsContainer]) {
 			container.classList.toggle('controls-unavailable', controlsUnavailable);
 			container.toggleAttribute('inert', controlsUnavailable);
@@ -2240,7 +2197,7 @@ export function renderForm(
 	return {
 		focusPrompt: () => chatInput.focus(),
 		setManualMode: manual => {
-			if (switchingTarget || manual === manualMode.get()) {
+			if (switchingTarget || connectingCloud || manual === manualMode.get()) {
 				return;
 			}
 			if (manualMode.get()) {
@@ -2264,7 +2221,6 @@ export function renderForm(
 				revalidate();
 			});
 		},
-		setCanSubmit: enabled => submitEnabled.set(enabled, undefined),
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getSessionConfiguration: async token => {
 			const captured = await automationSessionDraftSynchronizer.getSessionConfiguration(token);
@@ -2341,7 +2297,6 @@ export function renderForm(
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
 		setSaving: value => {
-			saving.set(value, undefined);
 			ownerRadio.setEnabled(!value && !isEdit);
 			formContent.toggleAttribute('inert', value);
 			formContent.setAttribute('aria-busy', String(value));
@@ -3108,7 +3063,7 @@ export class MobileAutomationsWorkspacePicker extends AutomationsWorkspacePicker
 	}
 }
 
-// Make Enter insert a newline in the dialog's editor (overrides ChatSubmitAction).
+// Make Enter insert a newline in the dialog's editor.
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.chat.automationsDialog.insertNewline',
 	weight: KeybindingWeight.EditorContrib + 100,

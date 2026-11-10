@@ -126,7 +126,7 @@ import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 import { AgentHostSessionSandbox } from './agentHostSessionSandbox.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions, getAgentHostAutomationAuthoringPermissions } from './agentHostSessionPermissions.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
 import type { IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
@@ -4501,10 +4501,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly supportsModelConfigurationForCreation = true;
 	readonly supportsPermissionsForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
-
-	getAutomationAuthoringPermissions(sessionTypeId: string): { readonly permissionId: string; readonly modeId?: string } | undefined {
-		return this.sessionTypes.some(type => type.id === sessionTypeId) ? getAgentHostAutomationAuthoringPermissions(sessionTypeId) : undefined;
-	}
 
 	getPermissionOptionForSession(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined {
 		const newSession = this._getNewSession(sessionId);

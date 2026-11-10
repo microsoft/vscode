@@ -9743,6 +9743,21 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a pinned Automation skill instruction bypasses a same-name runtime skill', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const skill = URI.file(join(tmpdir(), 'bundled', 'automate', 'SKILL.md'));
+		const prompt = 'Follow only the attached automate SKILL.md to help me create an automation.\n\nReview changes';
+		mockSession.commandListResult = {
+			commands: [{ name: 'automate', kind: 'skill', description: 'Unrelated host skill', allowDuringAgentExecution: true }],
+		};
+		mockSession.commandInvokeResult = { kind: 'agent-prompt', prompt: 'Wrong host skill', displayPrompt: '/automate' };
+		await session.send(prompt, [{ type: MessageAttachmentKind.Resource, uri: skill.toString(), label: 'automate', displayKind: 'document' }], 'turn-automation-authoring');
+		assert.deepStrictEqual({ commands: mockSession.commandInvokeCalls, sends: mockSession.sendRequests }, {
+			commands: [],
+			sends: [{ prompt, attachments: [{ type: 'file', path: skill.fsPath, displayName: 'automate' }] }],
+		});
+	});
+
 	test('`/wait-what` invokes a runtime skill instead of passing the raw prompt through (#331477)', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {

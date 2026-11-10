@@ -11,6 +11,21 @@ import { TestDataTelemetryService } from '../../../../../platform/telemetry/test
 suite('Automation telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes authoring session starts from persisted Automation outcomes', () => {
+		const telemetryService = new TestDataTelemetryService();
+		const dialog = new AutomationDialogTelemetry(telemetryService, 'create');
+		dialog.sessionStartFailed();
+		dialog.sessionStartFailed();
+		dialog.sessionStarted();
+		dialog.sessionStarted();
+		dialog.complete(false);
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'automation.newInitiated', data: { surface: 'agentsWindow' } },
+			{ name: 'automation.dialogOutcome', data: { operation: 'create', outcome: 'sessionStartFailed' } },
+			{ name: 'automation.dialogOutcome', data: { operation: 'create', outcome: 'sessionStarted' } },
+		]);
+	});
+
 	test('reports identifier-free view and dialog funnel outcomes once', async () => {
 		const telemetryService = new TestDataTelemetryService();
 		logAutomationViewShown(telemetryService);

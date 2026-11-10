@@ -4863,6 +4863,29 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('dialog help identifies the modal and puts creation guidance before manual configuration', () => {
+		const { instantiationService } = setup();
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-dialog-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		const lines = provider.provideContent().split('\n');
+		assert.deepStrictEqual({
+			overview: lines[0],
+			creationFirst: lines[1].startsWith('New Automation opens an agent-first input.'),
+			startSession: lines[1].includes('choose Start session'),
+			newline: lines[1].includes('Enter inserts a new line.'),
+			chatSend: lines[1].includes('use Send'),
+			manualNext: lines[2].startsWith('In manual creation or editing,'),
+			unrelatedViewGuidance: lines.some(line => line.includes('run history') || line.includes('More Actions')),
+		}, {
+			overview: 'You are in the New or Edit Automation dialog.',
+			creationFirst: true, startSession: true, newline: true, chatSend: false, manualNext: true, unrelatedViewGuidance: false,
+		});
+	});
+
 	test('accessibility help explains prompt-only automation creation', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });

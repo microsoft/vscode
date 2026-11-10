@@ -156,7 +156,7 @@ suite('agentHostAgentPicker', () => {
 			desktop: ['sessions.agentHost.agentPicker'],
 			mobile: ['sessions.agentHost.mobileChatInputConfigPicker'],
 			agentCreationDesktop: [],
-			agentCreationMobile: [],
+			agentCreationMobile: ['sessions.agentHost.mobileChatInputConfigPicker'],
 			disabled: [],
 			outsideDialog: [],
 		});

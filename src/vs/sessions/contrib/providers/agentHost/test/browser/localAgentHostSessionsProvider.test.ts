@@ -9434,33 +9434,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}]);
 	});
 
-	test('automation authoring enforces Interactive and Manual permissions before the first quick-chat send', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
-			[SessionConfigKey.Mode]: 'autopilot',
-			[SessionConfigKey.AutoApprove]: 'assisted',
-		}), StorageScope.PROFILE, StorageTarget.MACHINE);
-		let sends = 0;
-		const provider = createProvider(disposables, agentHost, undefined, {
-			storageService,
-			sendRequest: async resource => {
-				sends++;
-				agentHost.addSession(createSession(AgentSession.id(resource)));
-				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
-			},
+	for (const customized of [false, true]) {
+		test(`automation authoring uses ${customized ? 'user-selected configuration' : 'provider defaults'} before the first quick-chat send`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			if (customized) {
+				storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+					[SessionConfigKey.Mode]: 'interactive',
+					[SessionConfigKey.AutoApprove]: 'default',
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+			agentHost.resolveSessionConfigResult = {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { isolation: 'worktree', mode: 'plan', autoApprove: 'assisted' },
+			};
+			const sentConfigurations: IAgentCreateSessionConfig['config'][] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				storageService,
+				sendRequest: async resource => {
+					sentConfigurations.push(agentHost.createSessionConfigs.at(-1)?.config);
+					agentHost.addSession(createSession(AgentSession.id(resource)));
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			const sessionTypeId = provider.sessionTypes[0].id;
+			const management = createManagementService(disposables, provider);
+			const draft = provider.createQuickChat(sessionTypeId, { isAutomationDraft: true });
+			await waitForSessionConfig(provider, draft, config => config !== undefined);
+			if (customized) {
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, SessionConfigKey.Mode, 'autopilot');
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, SessionConfigKey.AutoApprove, 'autoApprove');
+			}
+			const configuration = await provider.getAutomationSessionConfiguration(draft.sessionId);
+			assert.ok(configuration);
+			const session = await management.createAndSendQuickChatRequest({ query: 'Follow the attached automate skill. Review changes' }, {
+				providerId: provider.id, sessionTypeId,
+				automationConfiguration: configuration,
+			});
+			assert.deepStrictEqual({
+				launched: !!session,
+				sent: sentConfigurations.map(config => ({ mode: config?.mode, autoApprove: config?.autoApprove })),
+			}, {
+				launched: true, sent: [{
+					mode: customized ? 'autopilot' : 'plan',
+					autoApprove: customized ? 'autoApprove' : 'assisted',
+				}]
+			});
 		});
-		const sessionTypeId = provider.sessionTypes[0].id;
-		const management = createManagementService(disposables, provider);
-		const session = await management.createAndSendQuickChatRequest({ query: '/automate Review changes' }, {
-			providerId: provider.id, sessionTypeId,
-			automationConfiguration: { sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'autoApprove' } } },
-			...provider.getAutomationAuthoringPermissions(sessionTypeId),
-		});
-		assert.deepStrictEqual({
-			launched: !!session, sends,
-			created: agentHost.createSessionConfigs.map(({ config }) => ({ mode: config?.mode, autoApprove: config?.autoApprove })),
-		}, { launched: true, sends: 1, created: [{ mode: 'interactive', autoApprove: 'default' }] });
-	});
+	}
 
 	for (const mode of ['interactive', 'autopilot', 'plan']) {
 		for (const permissionId of ['default', 'assisted', 'autoApprove']) {

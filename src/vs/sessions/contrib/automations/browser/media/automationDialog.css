@@ -172,7 +172,6 @@
 }
 
 .automation-form.agent-first .automation-form-content > :not(.automation-session-section),
-.automation-form.agent-first .automation-session-controls,
 .automation-form.agent-first .automation-provider-options {
 	display: none;
 }
