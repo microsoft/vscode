@@ -1252,6 +1252,36 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
+	test('edits an image added as a file like a screenshot, and opens one that cannot be decoded like other files', async () => {
+		const { overlay, files, container } = createReporter();
+		const image = { filePath: '/owned/image.png', name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture };
+		const broken = { filePath: '/owned/broken.png', name: 'broken.png', mimeType: 'image/png', thumbnailDataUrl: 'data:image/png;base64,AA==' };
+		overlay.restoreAttachments([attachedFile('image', image), attachedFile('broken', broken), attachedFile('file')]);
+		const cards = [...files.querySelectorAll<HTMLElement>('.wizard-file-card')];
+		const labels = cards.map(card => card.getAttribute('aria-label'));
+		const opened = new DeferredPromise<string>();
+		store.add(overlay.onDidRequestOpenFile(path => opened.complete(path)));
+		cards[1].click();
+		const openedFile = await opened.p;
+		const editorOpened = new Promise<void>(resolve => {
+			const observer = new MutationObserver(() => {
+				if (container.querySelector('.screenshot-annotation-editor')) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			observer.observe(container, { childList: true, subtree: true });
+		});
+		cards[0].click();
+		await editorOpened;
+		closeAnnotation(container, 'Discard');
+		assert.deepStrictEqual({ labels, openedFile, unchanged: overlay.getFileAttachments() }, {
+			labels: ['Edit image.png', 'Edit broken.png', 'Open bundle.zip'],
+			openedFile: '/owned/broken.png',
+			unchanged: [image, broken, attachment],
+		});
+	});
+
 	test('explains what to describe in the description\'s placeholder, and links to the guide for performance issues above it', () => {
 		const describe = (container: HTMLElement) => ({
 			placeholder: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')!.placeholder,

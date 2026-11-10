@@ -207,7 +207,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined> {
+	async edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined> {
 		// The Images Preview opens as a modal editor in the main window, which comes to the front, and focus goes back to a reporter in its own window afterwards.
 		const previousWindow = getActiveWindow();
 		const previousFocus = previousWindow.document.activeElement;
@@ -215,12 +215,12 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		const { data, mimeType } = getScreenshotToolImageData(screenshot.original);
 		const input = new ImageCarouselEditorInput({
 			id: generateUuid(),
-			title: localize('editScreenshot', "Edit Screenshot"),
+			title: name ? localize('editImage', "Edit Image") : localize('editScreenshot', "Edit Screenshot"),
 			sections: [{
 				title: '',
 				images: [{
 					id: generateUuid(),
-					name: localize('screenshot', "Screenshot"),
+					name: name ?? localize('screenshot', "Screenshot"),
 					mimeType,
 					data,
 					markUp: container => {

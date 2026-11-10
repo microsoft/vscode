@@ -52,7 +52,7 @@ import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js'
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
-import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { IScreenshotToolEdit, IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
 import { createTestScreenshotToolService, TestScreenshotToolService, TestScreenshotToolTelemetryService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 
 interface INativeResourceAccess {
@@ -724,6 +724,34 @@ suite('Issue reporter media import lifecycle', () => {
 			});
 		});
 
+		test('marks up a pasted image from its thumbnail, which becomes a screenshot with its name once it has annotations', async () => {
+			const { service } = createTestScreenshotToolService(store, true);
+			const { pane, input, files, container } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const transfer = new DataTransfer();
+			transfer.items.add(image('diagram.png'));
+			container.querySelector('.wizard-screenshots')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+			await pane.waitForImports();
+			const markUp = async (edit: IScreenshotToolEdit) => {
+				service.editResult = edit;
+				const requested = Event.toPromise(service.onDidRequestEdit);
+				container.querySelector<HTMLElement>('.wizard-screenshot-card:not(.wizard-screenshot-add)')!.click();
+				await requested;
+				await timeout(0);
+				return {
+					attachments: input.savedAttachments?.map(attachment => attachment.kind === 'screenshot' ? attachment.screenshot : attachment.kind),
+					card: container.querySelector('.wizard-file-name')?.textContent,
+					deletedCopies: files.deletions.length,
+				};
+			};
+			const withoutAnnotations = await markUp({ original, annotationState: undefined, image: original, annotated: false });
+			const withAnnotations = await markUp({ original, annotationState, image: annotated, annotated: true });
+			assert.deepStrictEqual({ withoutAnnotations, withAnnotations, tool: service.requests }, {
+				withoutAnnotations: { attachments: ['file'], card: 'diagram.png', deletedCopies: 0 },
+				withAnnotations: { attachments: [{ ...original, name: 'diagram.png', annotatedDataUrl: annotated.dataUrl, annotationState }], card: 'diagram.png', deletedCopies: 1 },
+				tool: ['edit 48x32 named diagram.png', 'edit 48x32 named diagram.png'],
+			});
+		});
+
 		test('captures the whole window after the countdown and attaches it', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store, true);
 			service.windowImage = original;
@@ -883,7 +911,10 @@ suite('Issue reporter media import lifecycle', () => {
 			await pane.waitForImports();
 			const attachment = savedFiles(input)![0];
 			const resource = URI.file(attachment.filePath);
+			// Images that cannot be decoded, like these bytes, open like other files once decoding fails.
+			const requested = Event.toPromise(pane.getWizard()!.onDidRequestOpenFile);
 			container.querySelector<HTMLElement>('.wizard-file-card, .wizard-screenshot')!.click();
+			await requested;
 			await timeout(0);
 			const opened = openEditor.firstCall?.args[0];
 			assert.deepStrictEqual({

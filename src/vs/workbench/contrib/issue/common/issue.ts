@@ -136,6 +136,8 @@ export interface IIssueReporterFileAttachment {
 export interface IIssueReporterScreenshot {
 	readonly dataUrl: string;
 	readonly annotatedDataUrl?: string;
+	/** The name of the image file that the screenshot was marked up from, which it keeps instead of a numbered name. */
+	readonly name?: string;
 }
 
 export interface IIssueReporterAttachmentUpload {

@@ -251,9 +251,11 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 				for (const attachment of attachments) {
 					signal.throwIfAborted();
 					if (attachment.kind === 'screenshot') {
-						screenshotNumber++;
-						attachmentName = localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
+						if (!attachment.screenshot.name) {
+							screenshotNumber++;
+						}
 						const { dataUrl, name, format } = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
+						attachmentName = attachment.screenshot.name ? name : localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
 						const bytes = this.dataUrlToBytes(dataUrl);
 						if (!bytes || format.kind !== 'image') {
 							throw new Error(localize('invalidScreenshotAttachment', "The screenshot could not be read."));

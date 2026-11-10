@@ -19,6 +19,7 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -42,10 +43,10 @@ import { resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import { renderIssueReporterRepositoryPicker } from './issueReporterRepositoryPicker.js';
 import { IssueReporterModel } from './issueReporterModel.js';
 import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
-import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
+import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, readIssueReporterImage, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from '../../screenshotTool/browser/screenshotAnnotation.js';
-import { IScreenshotToolService, ScreenshotToolSurface } from '../../screenshotTool/browser/screenshotTool.js';
+import { IScreenshotToolEdit, IScreenshotToolService, ScreenshotToolSurface } from '../../screenshotTool/browser/screenshotTool.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -78,6 +79,11 @@ const MAX_FALLBACK_TITLE_LENGTH = 80;
 function getFallbackIssueTitle(description: string): string {
 	const firstLine = description.split(/\r?\n/).map(line => line.trim()).find(line => line.length > 0) ?? '';
 	return firstLine.length > MAX_FALLBACK_TITLE_LENGTH ? `${firstLine.slice(0, MAX_FALLBACK_TITLE_LENGTH - 1).trimEnd()}…` : firstLine;
+}
+
+/** Whether a file is an image to edit like a screenshot. Imported images keep their whole image as their preview. */
+function isEditableImageFile(file: IIssueReporterFileAttachment): file is IIssueReporterFileAttachment & { readonly thumbnailDataUrl: string } {
+	return file.mimeType.toLowerCase().startsWith('image/') && !!file.thumbnailDataUrl;
 }
 
 type IssueReporterPreviewClickedEvent = {
@@ -183,6 +189,8 @@ export class IssueReporterOverlay {
 	private readonly attachmentCards = new Map<string, HTMLElement>();
 	/** Screenshot editors that are open over the panel, the topmost last. */
 	private readonly annotationEditors: ScreenshotAnnotationEditor[] = [];
+	/** Attachments whose image is being opened or edited outside the panel, which another click does not open again. */
+	private readonly attachmentsBeingEdited = new Set<string>();
 	private readonly diagnosticsDisposables = this.disposables.add(new DisposableStore());
 	private readonly diagnosticControls = new Map<DiagnosticOption, { include: HTMLElement; details: HTMLElement }>();
 	private readonly descriptionGuidanceDisposables = new DisposableStore();
@@ -2207,7 +2215,9 @@ export class IssueReporterOverlay {
 			let card: HTMLElement;
 			let name: string;
 			if (attachment.kind === 'screenshot') {
-				screenshotNumber++;
+				if (!attachment.screenshot.name) {
+					screenshotNumber++;
+				}
 				const screenshot = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
 				name = screenshot.name;
 				card = this.renderAttachmentCard(this.screenshotContainer, name, screenshot.dataUrl, false);
@@ -2216,9 +2226,13 @@ export class IssueReporterOverlay {
 				name = attachment.file.name;
 				card = this.renderAttachmentCard(this.screenshotContainer, name, attachment.file.thumbnailDataUrl, attachment.file.mimeType.startsWith('video/'), attachment.file.durationMs);
 				card.classList.add('wizard-file-card');
-				this.registerAttachmentAction(card, localize('openAttachment', "Open {0}", name), () => {
-					this._onDidRequestOpenFile.fire(attachment.file.filePath);
-				}, this.screenshotDisposables);
+				if (isEditableImageFile(attachment.file)) {
+					this.registerAttachmentAction(card, localize('editScreenshotLabel', "Edit {0}", name), () => this.openAnnotationEditor(attachment.id), this.screenshotDisposables);
+				} else {
+					this.registerAttachmentAction(card, localize('openAttachment', "Open {0}", name), () => {
+						this._onDidRequestOpenFile.fire(attachment.file.filePath);
+					}, this.screenshotDisposables);
+				}
 			}
 			this.attachmentCards.set(attachment.id, card);
 
@@ -2256,13 +2270,46 @@ export class IssueReporterOverlay {
 		this.addFilesCard?.setAttribute('aria-disabled', String(disabled));
 	}
 
+	/** Opens the image of a screenshot, or of an image file, to edit it. */
 	private openAnnotationEditor(id: string): void {
 		const attachment = this.attachments.find(item => item.id === id);
-		if (attachment?.kind !== 'screenshot') {
+		if (!attachment || attachment.kind === 'pending' || this.attachmentsBeingEdited.has(id)) {
 			return;
 		}
+		if (attachment.kind === 'file') {
+			void this.openImageFileEditor(id, attachment.file);
+		} else {
+			this.annotate(id, attachment.screenshot);
+		}
+	}
+
+	/** Opens an image file to edit it like a screenshot. An image that cannot be decoded opens like other files. */
+	private async openImageFileEditor(id: string, file: IIssueReporterFileAttachment): Promise<void> {
+		if (!isEditableImageFile(file)) {
+			return;
+		}
+		this.attachmentsBeingEdited.add(id);
+		let size: { width: number; height: number } | undefined;
+		try {
+			size = await readIssueReporterImage(file.thumbnailDataUrl, CancellationToken.None);
+		} catch (error) {
+			this.logService.warn('[IssueReporter] Could not decode an image to edit it:', toErrorMessage(error));
+		} finally {
+			this.attachmentsBeingEdited.delete(id);
+		}
+		if (this.disposed || !this.attachments.some(item => item.id === id && item.kind === 'file' && item.file === file)) {
+			return;
+		}
+		if (size) {
+			this.annotate(id, { dataUrl: file.thumbnailDataUrl, width: size.width, height: size.height, name: file.name });
+		} else {
+			this._onDidRequestOpenFile.fire(file.filePath);
+		}
+	}
+
+	private annotate(id: string, screenshot: IScreenshot): void {
 		if (this.screenshotToolService.shouldUseTool()) {
-			void this.editScreenshot(id, attachment.screenshot);
+			void this.editScreenshot(id, screenshot);
 			return;
 		}
 
@@ -2272,7 +2319,6 @@ export class IssueReporterOverlay {
 		// user expects when taking multiple screenshots in a row — the topmost
 		// editor handles save/cancel, then the previous one becomes visible
 		// again.
-		const screenshot = attachment.screenshot;
 		const editorDisposables = this.disposables.add(new DisposableStore());
 		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
 		this.annotationEditors.push(editor);
@@ -2293,12 +2339,8 @@ export class IssueReporterOverlay {
 			}
 		};
 
-		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
-			const index = this.attachments.findIndex(item => item.id === id);
-			if (index !== -1) {
-				this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: dataUrl, annotationState: state } };
-				this.attachmentsChanged();
-			}
+		editorDisposables.add(editor.onDidSave(({ dataUrl, state, annotated }) => {
+			this.applyImageEdit(id, screenshot, dataUrl, state, annotated);
 			close();
 		}));
 
@@ -2311,22 +2353,39 @@ export class IssueReporterOverlay {
 	 * large even when the reporter has a narrow window of its own.
 	 */
 	private async editScreenshot(id: string, screenshot: IScreenshot): Promise<void> {
-		const edit = await this.screenshotToolService.edit({
-			original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
-			annotationState: screenshot.annotationState,
-		}, ScreenshotToolSurface.IssueReporter);
-		const index = this.attachments.findIndex(item => item.id === id && item.kind === 'screenshot');
-		if (!edit || this.disposed || index === -1) {
+		this.attachmentsBeingEdited.add(id);
+		let edit: IScreenshotToolEdit | undefined;
+		try {
+			edit = await this.screenshotToolService.edit({
+				original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
+				annotationState: screenshot.annotationState,
+			}, ScreenshotToolSurface.IssueReporter, screenshot.name);
+		} finally {
+			this.attachmentsBeingEdited.delete(id);
+		}
+		if (!edit || this.disposed) {
 			return;
 		}
-		this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: edit.annotated ? edit.image.dataUrl : undefined, annotationState: edit.annotationState } };
-		// The cards are replaced, so focus moves to the new card of the edited screenshot when it was on the old one.
+		// The cards are replaced, so focus moves to the new card of the edited image when it was on the old one.
 		const activeElement = getWindow(this.screenshotContainer).document.activeElement;
 		const refocus = isHTMLElement(activeElement) && this.screenshotContainer.contains(activeElement);
-		this.attachmentsChanged();
-		if (refocus) {
+		if (this.applyImageEdit(id, screenshot, edit.annotated ? edit.image.dataUrl : undefined, edit.annotationState, edit.annotated) && refocus) {
 			this.attachmentCards.get(id)?.focus();
 		}
+	}
+
+	/**
+	 * Replaces an attachment with its edited image. An image file stays as it is until it has annotations, and then
+	 * becomes a screenshot that keeps its name.
+	 */
+	private applyImageEdit(id: string, screenshot: IScreenshot, annotatedDataUrl: string | undefined, annotationState: IAnnotationEditorState | undefined, annotated: boolean): boolean {
+		const index = this.attachments.findIndex(item => item.id === id && item.kind !== 'pending');
+		if (index === -1 || (this.attachments[index].kind === 'file' && !annotated)) {
+			return false;
+		}
+		this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl, annotationState } };
+		this.attachmentsChanged();
+		return true;
 	}
 
 	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {

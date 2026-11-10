@@ -44,7 +44,7 @@ export const enum ScreenshotToolSurface {
 }
 
 export interface IScreenshotToolImage {
-	/** A `data:` URL of a PNG or JPEG image. */
+	/** A `data:` URL of an image, such as a PNG or JPEG. */
 	readonly dataUrl: string;
 	readonly width: number;
 	readonly height: number;
@@ -118,9 +118,10 @@ export interface IScreenshotToolService {
 
 	/**
 	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it.
-	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed.
+	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed. `name` names an image
+	 * that is not a screenshot, such as an image file.
 	 */
-	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined>;
+	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined>;
 
 	/**
 	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Escape and Done end it, as does
