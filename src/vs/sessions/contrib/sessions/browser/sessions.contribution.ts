@@ -93,6 +93,7 @@ export const sessionsConfiguration = {
 			description: localize('sessions.list.inlineActions', "Show Fix Checks, Address Comments, or their combined action below eligible sessions and chats in the Sessions list. Actions run in the background. This does not enable Agent Merge or change action permissions."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
 		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
