@@ -1,7 +1,8 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "22.21.x"
+      versionSpec: 24.x
+      checkLatest: true
 
   # Check out the private microsoft/vscode-capi repository using the agent's
   # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
