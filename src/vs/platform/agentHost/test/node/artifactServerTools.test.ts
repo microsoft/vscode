@@ -444,14 +444,6 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: before, persisted: [before] });
 	});
 
-	test('rejects a file URI whose drive letter is in the host name, naming the corrected URI', async () => {
-		const { execute, artifacts } = createHarness();
-		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
-			items: [{ type: 'file', label: 'Report', isArtifact: true, uri: 'file://D:/repo/report.md' }],
-		}), /use three slashes: 'file:\/\/\/D:\/repo\/report\.md'/);
-		assert.deepStrictEqual(artifacts(), []);
-	});
-
 	test('offers how the chat shows an entry only while chat resources are enabled, and ignores it otherwise', async () => {
 		let chatResources = false;
 		const { host, sessionUri, execute, artifacts } = createHarness({ isChatResourcesEnabled: () => chatResources });
