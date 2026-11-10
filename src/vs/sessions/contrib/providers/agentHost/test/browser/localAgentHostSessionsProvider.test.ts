@@ -7588,7 +7588,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { remembered: undefined, nextDraft: 'worktree' });
 	});
 
-	test('loads branches once per selected workspace draft, not on configuration changes', async () => {
+	test('refreshes branches on picker opens, not on configuration changes', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.branchCompletionItems = Array.from({ length: 30 }, (_, index) => ({
 			value: `branch-${index}`,
@@ -7615,32 +7615,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 			secondBranches: 30,
 			requests: [
 				{ workingDirectory: URI.file('/project-one').toString(), property: SessionConfigKey.Branch, query: undefined },
+				{ workingDirectory: URI.file('/project-one').toString(), property: SessionConfigKey.Branch, query: undefined },
 				{ workingDirectory: URI.file('/project-two').toString(), property: SessionConfigKey.Branch, query: undefined },
 			],
 		});
 	});
 
-	test('an empty branch list is requested again on the next picker open, then cached', async () => {
+	test('branch additions and deletions are reflected on subsequent picker opens', async () => {
 		const provider = createProvider(disposables, agentHost);
-		agentHost.branchCompletionItems = [];
+		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }, { value: 'old', label: 'old' }];
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
 		const first = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }];
 		const second = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 		const requestsAfterSecond = agentHost.branchCompletionRequests.length;
+		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }];
 		const third = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			first,
+			first: first.map(item => item.value),
 			second: second.map(item => item.value),
 			third: third.map(item => item.value),
 			requestsAfterThird: agentHost.branchCompletionRequests.length - requestsAfterSecond,
 		}, {
-			first: [],
+			first: ['main', 'old'],
 			second: ['main', 'feature'],
-			third: ['main', 'feature'],
-			requestsAfterThird: 0,
+			third: ['main'],
+			requestsAfterThird: 1,
 		});
+	});
+
+	test('concurrent branch requests share an in-flight load', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const barrier = agentHost.branchCompletionBarrier = new DeferredPromise<void>();
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		const first = provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		const second = provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		barrier.complete();
+		const results = await Promise.all([first, second]);
+		assert.deepStrictEqual({
+			results: results.map(items => items.map(item => item.value)),
+			requestCount: agentHost.branchCompletionRequests.length,
+		}, { results: [['main'], ['main']], requestCount: 1 });
 	});
 
 	test('failed branch loading reports the error and is requested again on the next picker open', async () => {

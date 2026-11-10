@@ -4084,18 +4084,14 @@ class NewSession extends Disposable {
 		if (!this._branchLoad) {
 			const load = this.getConfigCompletions(connection, branch.key, undefined).then(result => result.items);
 			this._branchLoad = load;
-			// The host reports a timed-out or failed git query as an empty list, which is
-			// likely right after startup, so only keep a non-empty result for later picker opens.
+			// Share concurrent requests, but refresh on the next picker open so
+			// branch creation and external Git changes are reflected.
 			const forget = () => {
 				if (this._branchLoad === load) {
 					this._branchLoad = undefined;
 				}
 			};
-			load.then(items => {
-				if (items.length === 0) {
-					forget();
-				}
-			}, forget);
+			load.then(forget, forget);
 		}
 		return this._branchLoad;
 	}
