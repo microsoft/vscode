@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { Event } from '../../../../../base/common/event.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
@@ -47,33 +47,6 @@ export interface IChatResourceContent extends Disposable {
 	layout(width: number, height: number): void;
 }
 
-/** Renders resources that no editor renders by their resource, such as websites in the integrated browser. */
-export interface IChatResourceContentProvider {
-	canRender(target: IChatResourceTarget): boolean;
-	create(target: IChatResourceTarget, body: HTMLElement, getClippingContainer: () => HTMLElement, instantiationService: IInstantiationService): Promise<IChatResourceContent>;
-	/** Whether an editor shows the resource. */
-	isOpenInEditor(target: IChatResourceTarget, instantiationService: IInstantiationService): boolean;
-	/** Opens the resource in an editor, or reveals the editor that shows it, moving it there when the chat shows it. */
-	openInEditor(target: IChatResourceTarget, pinned: boolean, instantiationService: IInstantiationService): Promise<void>;
-}
-
-const contentProviders: IChatResourceContentProvider[] = [];
-
-/** Registers how to render resources that no editor renders; providers that live in other layers register themselves. */
-export function registerChatResourceContentProvider(provider: IChatResourceContentProvider): IDisposable {
-	contentProviders.push(provider);
-	return toDisposable(() => {
-		const index = contentProviders.indexOf(provider);
-		if (index >= 0) {
-			contentProviders.splice(index, 1);
-		}
-	});
-}
-
-export function getChatResourceContentProvider(target: IChatResourceTarget): IChatResourceContentProvider | undefined {
-	return contentProviders.find(candidate => candidate.canRender(target));
-}
-
 /**
  * Renders a resource with the editor that opens it by default: its custom editor when that is the default (such as an
  * extension's view or an image preview), and a text editor otherwise, both editable like in an editor unless the resource
@@ -86,10 +59,6 @@ export async function createChatResourceContent(
 	instantiationService: IInstantiationService,
 ): Promise<IChatResourceContent> {
 	return instantiationService.invokeFunction(async accessor => {
-		const provider = getChatResourceContentProvider(target);
-		if (provider) {
-			return provider.create(target, body, getClippingContainer, instantiationService);
-		}
 		const defaultEditor = accessor.get(IEditorResolverService).getEditorMatches(target.resource).defaultRule.editor.id;
 		if (defaultEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
 			const customEditorService = accessor.get(ICustomEditorService);
