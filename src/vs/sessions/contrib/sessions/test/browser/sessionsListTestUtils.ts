@@ -22,7 +22,7 @@ import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/com
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
-import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
@@ -503,14 +503,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
 	});
-	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
-		override readonly notifications = constObservable([]);
+	instantiationService.stub(ISessionAttentionService, new class extends mock<ISessionAttentionService>() {
 		override readonly sessionAttention = constObservable(new Map());
 		override acquireSessionAttention() { return toDisposable(() => { }); }
-		override readonly attentionCount = constObservable(0);
-		override readonly isLoading = constObservable(false);
-		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
-		override setSortMode(): void { }
 	});
 	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
 		override readonly hadPriorWindowOpen = true;

@@ -63,7 +63,6 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatInboxEnabledContext, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -115,7 +114,7 @@ import { buildTestSession } from '../../../../../workbench/contrib/sessions/test
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
@@ -792,97 +791,6 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('renders inbox notification count as a badge and updates reactively', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
-			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const inboxNotificationCount = observableValue<number>(disposables, 0);
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				NullHoverService,
-				contextKeyService,
-				new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
-					override readonly runs = constObservable<readonly IAutomationRun[]>([]);
-				},
-				constObservable([]),
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-				constObservable(false),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				inboxNotificationCount,
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'inboxNotifications', label: 'Inbox', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const initial = {
-				isInbox: container.classList.contains('session-section-inbox'),
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			inboxNotificationCount.set(7, undefined);
-			const withNotifications = {
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Workspace', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-			const recycled = {
-				isInbox: container.classList.contains('session-section-inbox'),
-				countText: template.count.textContent,
-				countDisplay: template.count.style.display,
-			};
-
-			assert.deepStrictEqual({ initial, withNotifications, recycled }, {
-				initial: {
-					isInbox: true,
-					countText: '',
-					countDisplay: 'none',
-				},
-				withNotifications: {
-					countText: '7',
-					countDisplay: '',
-				},
-				recycled: {
-					isInbox: false,
-					countText: '',
-					countDisplay: 'none',
-				},
-			});
-		});
-
 		test('moves Customizations without moving other navigation shortcuts', () => {
 			const harness = createListHarness(disposables, []);
 			const container = harness.createContainer();
@@ -916,12 +824,12 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('opens Inbox from the navigation list and hides it when disabled', async () => {
+		test('does not expose the retired Inbox canvas with a stale enablement context', () => {
 			const harness = createListHarness(disposables, [], instantiationService => {
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 				instantiationService.stub(IContextKeyService, contextKeyService);
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-				ChatInboxEnabledContext.bindTo(contextKeyService).set(true);
+				contextKeyService.createKey('chatInboxEnabled', true);
 			});
 			const container = harness.createContainer();
 			const navigationContainer = mainWindow.document.createElement('div');
@@ -935,23 +843,10 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			const inboxRow = navigationContainer.querySelector<HTMLElement>('.session-section-inbox')!;
-			const ariaLabel = inboxRow.closest('.monaco-list-row')?.getAttribute('aria-label');
-			inboxRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-			await timeout(0);
-
-			ChatInboxEnabledContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(false);
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				ariaLabel,
-				commands: harness.commandService.calls,
-				inboxVisible: !!navigationContainer.querySelector('.session-section-inbox'),
-			}, {
-				ariaLabel: 'Inbox, open inbox notifications',
-				commands: [{ commandId: SHOW_INBOX_NOTIFICATIONS_COMMAND_ID, args: [] }],
-				inboxVisible: false,
-			});
+			assert.deepStrictEqual(
+				[...navigationContainer.querySelectorAll('.session-section-label')].map(element => element.textContent),
+				['New Session', 'Customizations'],
+			);
 		});
 
 		for (const navigationShortcuts of [false, true]) {
@@ -2248,8 +2143,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IMenuService>() { },
 				noKeybindingService,
 				constObservable(false),
-				undefined,
-				undefined,
 				undefined,
 				undefined,
 				undefined,
@@ -5235,9 +5128,8 @@ suite('Sessions - SessionsList', () => {
 				['grouped', { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true }],
 			]));
 			let tracking = 0;
-			harness.instantiationService.stub(IInboxNotificationsService, {
+			harness.instantiationService.stub(ISessionAttentionService, {
 				sessionAttention: attention,
-				attentionCount: constObservable(0),
 				acquireSessionAttention: () => {
 					tracking++;
 					return toDisposable(() => tracking--);
@@ -5294,11 +5186,10 @@ suite('Sessions - SessionsList', () => {
 			const held = createTestSession('held').session;
 			const done = createTestSession('done').session;
 			const harness = createListHarness(disposables, [pinned, ready, working, merge, held, done]);
-			harness.instantiationService.stub(IInboxNotificationsService, {
+			harness.instantiationService.stub(ISessionAttentionService, {
 				sessionAttention: constObservable(new Map<string, IInboxSessionAttention>([[merge.sessionId, {
 					tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next, notificationIds: ['passingCI'], isHistoricalCompletion: false,
 				}]])),
-				attentionCount: constObservable(0),
 				acquireSessionAttention: () => toDisposable(() => { }),
 			});
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));

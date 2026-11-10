@@ -136,9 +136,7 @@ import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
-import { WindowCanvasInput } from '../windowCanvas.js';
-import { IInboxNotificationsService, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
 import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
@@ -149,7 +147,6 @@ import { IShownChat } from '../../../../services/sessions/common/sessionPane.js'
 
 const $ = DOM.$;
 
-const INBOX_NOTIFICATIONS_SECTION_ID = 'inboxNotifications';
 const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
@@ -173,10 +170,6 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 	} else {
 		container.style.removeProperty(SESSION_GROUP_DEPTH_PROPERTY);
 	}
-}
-
-function lookupPrimaryCommandKeybinding(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, commandId: string) {
-	return keybindingService.lookupKeybinding(commandId, contextKeyService, true) ?? keybindingService.lookupKeybindings(commandId)[0];
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -460,8 +453,6 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.chatImport;
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
-		case INBOX_NOTIFICATIONS_SECTION_ID:
-			return Codicon.inbox;
 		case SessionInboxSection.ReadyForYou:
 			return Codicon.inbox;
 		case SessionInboxSection.ReadyToMerge:
@@ -495,7 +486,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === INBOX_NOTIFICATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId);
+	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId);
 }
 
 function isPinnedCanvasSection(sectionId: string): boolean {
@@ -2796,11 +2787,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
 		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
-		private readonly inboxNotificationCount: IObservable<number> = constObservable(0),
-		private readonly inboxOpenKeybindingLabel: IObservable<string | undefined> = constObservable(undefined),
 		/** Whether the Sessions list shows the session; the Automations entry ignores such runs. */
 		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
-		private readonly inboxActive: IObservable<boolean> = constObservable(false),
 		/** Whether the canvas page shows a pinned canvas, which highlights its row. */
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
 	) { }
@@ -2925,7 +2913,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
-		template.container.classList.remove('session-section-inbox');
 		template.container.classList.remove('session-section-new-session');
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('session-section-pinned-canvas', 'pending', 'unavailable');
@@ -3018,26 +3005,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
-		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-			template.container.classList.add('session-section-inbox');
-			template.icon.style.display = '';
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => {
-				const keybindingLabel = this.inboxOpenKeybindingLabel.get();
-				return withSessionsListHoverPresentation({
-					content: keybindingLabel
-						? localize('inboxNotificationsSectionHoverWithKeybinding', "Open Inbox ({0})", keybindingLabel)
-						: localize('inboxNotificationsSectionHover', "Open Inbox"),
-				});
-			}));
-			template.elementDisposables.add(autorun(reader => {
-				template.container.classList.toggle('active', this.inboxActive.read(reader));
-			}));
-			template.elementDisposables.add(autorun(reader => {
-				const count = this.inboxNotificationCount.read(reader);
-				template.countLabel.textContent = count > 0 ? String(count) : '';
-				template.count.style.display = count > 0 ? '' : 'none';
-			}));
-			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
 		} else if (!element.pinnedCanvas) {
 			const defaultIcon = getSessionSectionIcon(element.id);
 			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;
@@ -3059,10 +3026,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		template.label.textContent = element.label;
 		template.countLabel.style.display = '';
-		if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID && (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut)) {
+		if (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
-		} else if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID) {
+		} else {
 			template.countLabel.textContent = String(element.sessions.length);
 			template.count.style.display = '';
 		}
@@ -3522,8 +3489,6 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly getEnvironmentBadgeLabel?: (session: ISession) => string | undefined;
 	readonly includeQuickChatInAriaLabel?: boolean;
-	readonly inboxNotificationCount?: IObservable<number>;
-	readonly inboxOpenKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
@@ -3631,28 +3596,6 @@ class SessionsAccessibilityProvider {
 							break;
 					}
 					return label;
-				});
-			}
-			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				if (!this.options?.inboxNotificationCount && !this.options?.inboxOpenKeybindingAriaLabel) {
-					return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
-				}
-				return derived(this, reader => {
-					const count = this.options?.inboxNotificationCount?.read(reader) ?? 0;
-					const keybindingAriaLabel = this.options?.inboxOpenKeybindingAriaLabel?.read(reader);
-					if (count <= 0) {
-						return keybindingAriaLabel
-							? localize('inboxNotificationsAriaLabelWithKeybinding', "{0}, open inbox notifications, keyboard shortcut {1}", element.label, keybindingAriaLabel)
-							: localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
-					}
-					if (count === 1) {
-						return keybindingAriaLabel
-							? localize('inboxNotificationsAriaLabelOneNotificationWithKeybinding', "{0}, {1} notification, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
-							: localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count);
-					}
-					return keybindingAriaLabel
-						? localize('inboxNotificationsAriaLabelManyNotificationsWithKeybinding', "{0}, {1} notifications, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
-						: localize('inboxNotificationsAriaLabelManyNotifications', "{0}, {1} notifications, open inbox notifications", element.label, count);
 				});
 			}
 			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
@@ -4844,7 +4787,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
+		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -5113,15 +5056,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
-		const inboxNotificationCount = this.inboxNotificationsService.attentionCount;
-		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
-			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
-		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
-			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getAriaLabel() ?? undefined);
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
-		const activeCanvas = observableFromEvent(this, editorService.onDidActiveEditorChange, () =>
-			editorService.activeEditor instanceof WindowCanvasInput ? editorService.activeEditor.descriptor.id : undefined);
-		const inboxActive = derived(this, reader => activeCanvas.read(reader) === INBOX_CANVAS_ID && !this.customViewService.activeCustomView.read(reader));
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
@@ -5156,10 +5091,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationExtensionSuggestionsAvailable,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
-			inboxNotificationCount,
-			inboxOpenKeybindingLabel,
 			(session, reader) => this._sessionsListModelService.isSessionListed(session, reader),
-			inboxActive,
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 		);
@@ -5208,8 +5140,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 						grouping: this.options.grouping,
 						isPinned: session => this.isSessionPinned(session),
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
-						inboxNotificationCount,
-						inboxOpenKeybindingAriaLabel,
 						customizationsCount,
 						customizationMigrationsAvailable,
 						customizationExtensionSuggestionsAvailable,
@@ -5268,8 +5198,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					aggregateChatApprovals: false,
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
-					inboxNotificationCount,
-					inboxOpenKeybindingAriaLabel,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 					externalApplicationBadgeMode,
@@ -5538,11 +5466,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.beginOpenRequest(element.session, element.chat, preserveFocus, e.sideBySide);
 				return;
 			}
-			if (isSessionSection(element) && element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				this.tree.setSelection([]);
-				this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
-				return;
-			}
 			if (isSessionGroupItem(element) && element.comparison) {
 				if (!DOM.isMouseEvent(e.browserEvent) || e.browserEvent.button !== 0) {
 					this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, element.comparison.id);
@@ -5601,7 +5524,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatInboxEnabledContext.key, ChatContextKeys.enabled.key]);
+		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(sectionVisibilityKeys)) {
 				this.update();
@@ -5886,7 +5809,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (inbox && this.visible) {
 			let initial = true;
 			this.inboxObserver.value = autorun(reader => {
-				const attention = this.inboxNotificationsService.sessionAttention.read(reader);
+				const attention = this.sessionAttentionService.sessionAttention.read(reader);
 				for (const session of filtered) {
 					session.updatedAt.read(reader);
 					getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, attention.get(session.sessionId));
@@ -6358,15 +6281,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (showNavigationShortcuts) {
 			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
 		}
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
-			&& this.contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key)) {
-			const inboxSection: ISessionSection = { id: INBOX_NOTIFICATIONS_SECTION_ID, label: localize('inboxNotifications', "Inbox"), sessions: [] };
-			if (showNavigationShortcuts) {
-				navigationSections.push(inboxSection);
-			} else {
-				children.push(renderSection(inboxSection));
-			}
-		}
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			const automationsSection: ISessionSection = { id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] };
 			if (showNavigationShortcuts) {
@@ -6682,9 +6596,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				break;
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
-				break;
-			case INBOX_NOTIFICATIONS_SECTION_ID:
-				await this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
 				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
@@ -7009,7 +6920,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private updateInboxDemand(): void {
 		if (this.visible && this.options.grouping() === SessionsGrouping.Inbox) {
-			this.inboxDemand.value ??= this.inboxNotificationsService.acquireSessionAttention();
+			this.inboxDemand.value ??= this.sessionAttentionService.acquireSessionAttention();
 		} else {
 			this.inboxDemand.clear();
 		}
@@ -8977,11 +8888,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getInboxSection(session: ISession): SessionInboxSection {
-		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.inboxNotificationsService.sessionAttention.get().get(session.sessionId));
+		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 	}
 
 	private getInboxPriority(session: ISession): InboxNotificationPriority {
-		return getSessionInboxPriority(session, this.inboxNotificationsService.sessionAttention.get().get(session.sessionId));
+		return getSessionInboxPriority(session, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 	}
 
 	isRenderedInCustomGroup(session: ISession): boolean {
