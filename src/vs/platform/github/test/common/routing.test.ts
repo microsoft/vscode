@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { encodePathSegments, numberSegment, pathSegment, withQuery } from '../../common/client/routing.js';
+import { numberSegment, pathSegment, pathSegments, repositoryPath, withQuery } from '../../common/client/routing.js';
 import { GitHubRequestError } from '../../common/githubTypes.js';
 
 suite('GitHub client routing', () => {
@@ -35,6 +35,17 @@ suite('GitHub client routing', () => {
 		}
 	});
 
+	test('repository paths accept owner and repo objects without changing path encoding', () => {
+		const ref = { owner: 'space owner', repo: 'repo/#?' };
+		assert.deepStrictEqual([
+			repositoryPath(ref),
+			repositoryPath(ref.owner, ref.repo),
+		], [
+			'/repos/space%20owner/repo%2F%23%3F',
+			'/repos/space%20owner/repo%2F%23%3F',
+		]);
+	});
+
 	test('numeric path segments encode positive safe integers', () => {
 		assert.deepStrictEqual([
 			1,
@@ -49,28 +60,35 @@ suite('GitHub client routing', () => {
 		}
 	});
 
-	test('path encoding escapes each segment without changing separators', () => {
+	test('path encoding handles absent paths and prefixes validated relative paths', () => {
 		assert.deepStrictEqual([
+			null,
+			undefined,
 			'',
 			'src/file.ts',
-			'/src//file.ts/',
+			' /file.ts',
 			'docs/a #?%.md',
 			'literal%2Fname.txt',
 			'a\\b.txt',
 			'caf\u00e9/\u65e5\u672c.md',
-		].map(encodePathSegments), [
+		].map(pathSegments), [
 			'',
-			'src/file.ts',
-			'/src//file.ts/',
-			'docs/a%20%23%3F%25.md',
-			'literal%252Fname.txt',
-			'a%5Cb.txt',
-			'caf%C3%A9/%E6%97%A5%E6%9C%AC.md',
+			'',
+			'',
+			'/src/file.ts',
+			'/%20/file.ts',
+			'/docs/a%20%23%3F%25.md',
+			'/literal%252Fname.txt',
+			'/a%5Cb.txt',
+			'/caf%C3%A9/%E6%97%A5%E6%9C%AC.md',
 		]);
+		for (const path of ['/', '/src/file.ts', 'src//file.ts', 'src/file.ts/', '.', '..', 'src/./file.ts', 'src/../file.ts']) {
+			assert.throws(() => pathSegments(path), isValidationError);
+		}
 	});
 
 	test('encoding rejects malformed Unicode', () => {
-		for (const encode of [pathSegment, encodePathSegments]) {
+		for (const encode of [pathSegment, pathSegments]) {
 			assert.throws(() => encode('\uD800'), URIError);
 		}
 	});

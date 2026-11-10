@@ -15,12 +15,11 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IApplicationBadge, INativeHostService } from '../../../../../platform/native/common/native.js';
-import product from '../../../../../platform/product/common/product.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from '../../electron-browser/sessionsApplicationBadge.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -200,13 +199,13 @@ suite('SessionsApplicationBadge', () => {
 		]);
 	});
 
-	test('uses the product-quality default when the setting value is unavailable', () => {
+	test('shows the badge by default when the setting value is unavailable', () => {
 		const { nativeHost } = createBadgeWithConfiguration(
 			[createSession('needs-input', { status: SessionStatus.NeedsInput }).session],
 			new TestConfigurationService()
 		);
 
-		assert.deepStrictEqual(badgeCounts(nativeHost), product.quality !== 'stable' ? [1] : []);
+		assert.deepStrictEqual(badgeCounts(nativeHost), [1]);
 	});
 
 	test('updates immediately when badge options change and restores defaults when reset', async () => {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -52,9 +52,9 @@ function describeActions(actions: readonly IChatInputNotificationAction[]): stri
 	});
 }
 
-function body(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, currentModel: ILanguageModelChatMetadataAndIdentifier | undefined) {
+function body(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, currentModel: ILanguageModelChatMetadataAndIdentifier | undefined, autoModelFusion?: boolean) {
 	const flavor = getLocalModelReadyOfferFlavor(status, family, false);
-	const resolved = flavor ? resolveLocalModelReadyOfferBody({ status, family, flavor, currentModel }) : undefined;
+	const resolved = flavor ? resolveLocalModelReadyOfferBody({ status, family, flavor, currentModel, autoModelFusion }) : undefined;
 	return resolved && { flavor, description: resolved.description, actions: describeActions(resolved.actions) };
 }
 
@@ -70,9 +70,7 @@ function context(currentModel: ILanguageModelChatMetadataAndIdentifier | undefin
 }
 
 suite('LocalModelReadyNotification', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('resolveBody', () => {
 		test('Auto, auto-capable and passing the Auto gate: New Auto Chat', () => {
@@ -116,6 +114,27 @@ suite('LocalModelReadyNotification', () => {
 			});
 		});
 
+		test('names Auto as Copilot Fusion when the host presents it that way', () => {
+			const status = createStatus([installedFamily], { active: readyActive });
+			assert.deepStrictEqual({
+				auto: body(status, installedFamily, autoModel, true),
+				server: body(status, installedFamily, serverModel, true)?.description,
+				tooSlow: body(createStatus([installedFamily], { active: { ...readyActive, autoEligible: false } }), installedFamily, autoModel, true)?.description,
+			}, {
+				auto: {
+					flavor: 'ready',
+					description: 'Copilot Fusion can now run some requests on this device, with cloud fallback. New Copilot Fusion chats will use it.',
+					actions: [
+						`Switch to Example Flash 1.0 -> ${VENDOR}:MAI-Code-1.1-Flash (unique)`,
+						'Not Now -> _workbench.action.chat.localModel.readyOfferNotNow',
+						'New Copilot Fusion Chat [primary] -> workbench.action.chat.localModel.newAutoChat',
+					],
+				},
+				server: 'Run this chat on your device, or let Copilot Fusion choose between local and cloud.',
+				tooSlow: 'It\'s too slow on this device for Copilot Fusion, but you can select it directly.',
+			});
+		});
+
 		test('a second install while another model is active: Load through the confirmed swap', () => {
 			const status = createStatus([installedFamily, otherFamily], { active: { ...readyActive, familyId: otherFamily.familyId, contentId: 'q1' } });
 			assert.deepStrictEqual(body(status, installedFamily, serverModel), {
@@ -135,15 +154,16 @@ suite('LocalModelReadyNotification', () => {
 	});
 
 	suite('contribution', () => {
-		function setup<T extends IChatInputNotificationService>(storage: InMemoryStorageService, connection: TestLocalModelConnection, chatInputNotifications: T) {
+		function setup<T extends IChatInputNotificationService>(storage: InMemoryStorageService, connection: TestLocalModelConnection, chatInputNotifications: T, widgets: readonly IChatWidget[] = []) {
 			const service = disposables.add(new LocalModelService(connection, new TestConfigurationService(), new NullLogService()));
 			const telemetry = new RecordingTelemetryService();
 			const contextKeyService = new MockContextKeyService();
 			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
 			const chatWidgetService = new class extends mock<IChatWidgetService>() {
 				override readonly lastFocusedWidget = undefined;
+				override readonly onDidAddWidget = Event.None;
 				override readonly onDidRemoveWidget = Event.None;
-				override getAllWidgets(): readonly IChatWidget[] { return []; }
+				override getAllWidgets(): readonly IChatWidget[] { return widgets; }
 			};
 			const contribution = disposables.add(new LocalModelReadyNotificationContribution(
 				connection,
@@ -208,6 +228,58 @@ suite('LocalModelReadyNotification', () => {
 				inSecondBeforeAck: true,
 				afterAck: { first: false, second: false, acknowledged: `["${installedFamily.readyOfferId}"]` },
 				reloaded: [`localModel.ready.${installedFamily.familyId}:c2`],
+			});
+		});
+
+		test('selecting the model directly acknowledges the ready offer, as do Auto once Auto may use it and loading a second install', () => {
+			const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', serverModel);
+			const onDidSelect = disposables.add(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly input = new class extends mock<IChatWidget['input']>() {
+					override get selectedLanguageModel() { return selected; }
+					override get onDidChangeUserSelectedModel() { return onDidSelect.event; }
+				}();
+			};
+			type Step = { readonly select?: ILanguageModelChatMetadataAndIdentifier; readonly status?: ILocalModelStatusV1 };
+			function run(status: ILocalModelStatusV1, steps: readonly Step[]) {
+				const storage = disposables.add(new InMemoryStorageService());
+				const connection = createConnection(status);
+				const { chatInputNotifications } = setup(storage, connection, new RecordingChatInputNotificationService(), [widget]);
+				const offers = () => [...chatInputNotifications.notifications.keys()];
+				const shownOnRow = chatInputNotifications.notifications.get(`localModel.ready.${installedFamily.readyOfferId}`)?.when?.(context(localRow));
+				const results = [offers()];
+				for (const step of steps) {
+					if (step.status) {
+						connection.setStatus(step.status);
+					}
+					if (step.select) {
+						const from = selected.get()!;
+						selected.set(step.select, undefined);
+						onDidSelect.fire({ fromModelId: from.identifier, toModelId: step.select.identifier });
+					}
+					results.push(offers());
+				}
+				return { results, shownOnRow };
+			}
+
+			const ready = `localModel.ready.${installedFamily.readyOfferId}`;
+			const second = `localModel.ready.${otherFamily.readyOfferId}`;
+			const otherActive = { ...readyActive, familyId: otherFamily.familyId, contentId: 'q1' };
+			const direct = run(createStatus([installedFamily, otherFamily], { active: readyActive }), [
+				{ select: serverModel },
+				{ select: localRow },
+				{ status: createStatus([installedFamily, otherFamily], { active: otherActive }) },
+			]);
+			const auto = run(createStatus([installedFamily], { active: readyActive, useInAuto: false }), [
+				{ select: autoModel },
+				{ status: createStatus([installedFamily], { active: readyActive }) },
+				{ select: serverModel },
+				{ select: autoModel },
+			]);
+
+			assert.deepStrictEqual({ direct, auto }, {
+				direct: { results: [[ready, second], [ready, second], [second], []], shownOnRow: false },
+				auto: { results: [[ready], [ready], [ready], [ready], []], shownOnRow: false },
 			});
 		});
 

@@ -6,10 +6,8 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
-import { isAhpChatChannel } from '../common/state/sessionState.js';
-import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostSubscriptionService, resolveAgentHostSession, resourceChat } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export class AgentHostSubscriptionService extends Disposable implements IAgentHostSubscriptionService {
@@ -27,6 +25,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 		super();
 		// A chat subscribed before it registered (e.g. a reconnect fast path) gets its owner now.
 		this._register(chatOwnership.onDidRegisterChat(({ chat, session }) => this._recordChatOwner(chat, session)));
+		this._register(chatOwnership.onDidChangeChatOwner(({ chat, current }) => this._recordChatOwner(chat, current)));
 	}
 
 	get subscribedResources(): Iterable<URI> {
@@ -99,11 +98,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 			// Session- and folder-owned changesets carry their session; a chat-owned one belongs to its chat.
 			return changeset.sessionUri === undefined ? changeset.ownerUri : undefined;
 		}
-		const canvasChat = parseCanvasChatUri(resource);
-		if (canvasChat) {
-			return canvasChat.toString();
-		}
-		return isAhpChatChannel(key) ? key : undefined;
+		return resourceChat(resource);
 	}
 
 	hasSubscribers(resource: URI): boolean {

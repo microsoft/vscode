@@ -18,13 +18,16 @@ import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
-import { Menus } from '../menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
+import { applySingleGroupEditorStateInPlace } from './editorGroupStateInPlace.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -42,6 +45,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private _auxiliaryBar: DesktopAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
+	private readonly _emptyGroupAddTabControls = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _tabsOverride = this._register(new MutableDisposable());
 	private readonly _tabsPresentationRelayout = this._register(new MutableDisposable());
 	private _enforcedShowTabs: 'multiple' | 'single' | undefined;
@@ -50,10 +54,11 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
-				tabsBarContext: Menus.SessionsEditorTabsBarContext,
-				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+				tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
 			useModernUITabs: true,
@@ -163,6 +168,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		}));
 
 		this._registerGroupRelayoutListeners();
+		this._registerEmptyGroupAddTabControls();
 
 		const layoutService = this.agentWorkbenchLayoutService;
 		this._dockedAuxBar = this._register(new DockedAuxiliaryBarController(
@@ -199,6 +205,9 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	override async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
+		if (state !== 'empty' && this.count === 1 && await applySingleGroupEditorStateInPlace(this.activeGroup, state, this._instantiationService)) {
+			return;
+		}
 		await super.applyState(state, options);
 		this._ensureSingleEditorGroup();
 	}
@@ -222,6 +231,28 @@ export class DesktopMainEditorPart extends MainEditorPart {
 
 	private _registerGroupRelayoutListener(group: EditorGroupView): void {
 		this._groupRelayoutListeners.set(group, group.onDidRelayout(() => this._dockedAuxBar?.layout()));
+	}
+
+	/**
+	 * Empty groups hide their tab bar, so each group also renders the Add Tab
+	 * actions (a `+` dropdown and a centered list) that are only shown while empty.
+	 */
+	private _registerEmptyGroupAddTabControls(): void {
+		for (const group of this.groups) {
+			this._emptyGroupAddTabControls.set(group as EditorGroupView, this._createEmptyGroupAddTabControl(group as EditorGroupView));
+		}
+		this._register(this.onDidAddGroup(group => this._emptyGroupAddTabControls.set(group as EditorGroupView, this._createEmptyGroupAddTabControl(group as EditorGroupView))));
+		this._register(this.onDidRemoveGroup(group => this._emptyGroupAddTabControls.deleteAndDispose(group as EditorGroupView)));
+	}
+
+	private _createEmptyGroupAddTabControl(group: EditorGroupView): IDisposable {
+		return this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab);
+	}
+
+	/** Also exposes the inset to CSS so content centered in an empty group avoids the docked detail panel. */
+	override setContentRightInset(inset: number): void {
+		super.setContentRightInset(inset);
+		this.element?.style.setProperty('--sessions-editor-content-right-inset', `${Math.max(0, Math.round(inset))}px`);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {

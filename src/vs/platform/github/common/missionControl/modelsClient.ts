@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ApiRequestOptions } from '../client/request.js';
 import { parse } from '../client/schema.js';
 import { MissionControlClient } from './missionControlClient.js';
 import { IModelsClient, ListModelsResponse } from './models.js';
@@ -10,12 +11,13 @@ import { IModelsClient, ListModelsResponse } from './models.js';
 export class ModelsClient implements IModelsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(signal: AbortSignal): Promise<ListModelsResponse> {
+	list(signal: AbortSignal, options?: ApiRequestOptions): Promise<ListModelsResponse> {
 		return this._client.request({
+			domain: 'models',
 			method: 'GET',
-			api: 'copilot',
-			path: '/agents/swe/models',
-			expectedStatus: [200],
+			path: '/swe/models',
+			expectedStatus: 200,
+			options,
 		}, signal, response => parseListModelsResponse(response.data));
 	}
 }

@@ -36,12 +36,15 @@ extends:
         buildSteps:
           - task: NodeTool@0
             inputs:
-              versionSpec: 22.x
-            displayName: 🛠 Install Node.js (22.x)
+              versionSpec: 24.x
+              checkLatest: true
+            displayName: 🛠 Install Node.js
 
           - template: extensions/copilot/build/steps/setup-npm.yml@self
             parameters:
               NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
+
+          - template: build/azure-pipelines/common/install-pnpm.yml@self
 
           - download: vscode
             artifact: copilot_vsix
@@ -67,7 +70,9 @@ extends:
             displayName: 📋 Sync version from extension
             workingDirectory: extensions/copilot
 
-          - bash: npm ci && npm run extract-chat-lib && rm -rf node_modules
+          # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
+          # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
+          - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
             displayName: 📂 Extract chat-lib
             workingDirectory: extensions/copilot
             env:
@@ -86,20 +91,24 @@ extends:
             displayName: 📋 Sync chat-lib version
             workingDirectory: extensions/copilot/chat-lib
 
-          - script: npm ci
+          # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
+          # copies static files next to the extracted sources.
+          - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
             displayName: 📦 Install chat-lib dependencies
-            workingDirectory: extensions/copilot/chat-lib
+            workingDirectory: extensions/copilot
+            env:
+              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
-          - script: npm run build
+          - script: pnpm run build
             displayName: 🔨 Build chat-lib
             workingDirectory: extensions/copilot/chat-lib
         testPlatforms:
           - name: Linux
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
           - name: MacOS
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
           - name: Windows
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
         workingDirectory: extensions/copilot/chat-lib
         testSteps:
           - template: extensions/copilot/build/steps/test-chat-lib.yml@self

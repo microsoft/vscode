@@ -5,6 +5,12 @@
 
 const asctimeDatePattern = /^[A-Z][a-z]{2} [A-Z][a-z]{2} (?:\d{2}| \d) \d{2}:\d{2}:\d{2} \d{4}$/;
 const httpDateWithZonePattern = /^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4}|[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2}) \d{2}:\d{2}:\d{2} GMT$/;
+const gitHubRequestIdPattern = /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/;
+
+/** Accepts a single GitHub request identifier that passes format and length checks. */
+export function parseGitHubRequestId(value: string | readonly string[] | null | undefined): string | undefined {
+	return typeof value === 'string' && value.length <= 128 && gitHubRequestIdPattern.test(value) ? value : undefined;
+}
 
 /** Reads header value as a decimal nonnegative safe integer. */
 export function parseHeaderNumber(value: string | null): number | undefined {
@@ -37,3 +43,15 @@ export function parseRetryAfter(value: string | null, now: number): number | und
 	const date = Date.parse(isAsctime ? `${trimmedValue} GMT` : trimmedValue);
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
 }
+
+export type ContentType =
+	| 'application/json'
+	| 'application/vnd.github.ahp+json'
+	| 'application/vnd.github+json'
+	| 'application/vnd.github.object+json'
+	| 'application/vnd.github.raw+json'
+	| 'application/vnd.github.sha'
+	| 'application/vnd.github.diff'
+	| 'application/vnd.github.patch'
+	| 'text/plain, application/octet-stream'
+	| 'text/event-stream, application/json';

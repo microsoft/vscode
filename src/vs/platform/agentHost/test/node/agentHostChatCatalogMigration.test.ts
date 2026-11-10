@@ -104,7 +104,7 @@ suite('AgentHostChatCatalogMigration', () => {
 			after: after.authorityVersion, origin: after.chats[0].origin,
 			detail: await database.getChatV2ProviderDetail(defaultChat),
 		}, {
-			deferred: { status: 'notReady' }, before: 1, activated: 'applied',
+			deferred: { status: 'notReady', reason: 'a peer\'s own database disagrees with the chat catalog until legacy reconciliation runs', awaitsReprojection: false }, before: 1, activated: 'applied',
 			after: 2, origin: '{"kind":"user"}', detail: { providerData: 'opaque-continuation' },
 		});
 	});
@@ -162,7 +162,7 @@ suite('AgentHostChatCatalogMigration', () => {
 				result, authority: snapshot.authorityVersion, provisional: snapshot.provisional, chats: snapshot.chats,
 				markers: await database.listProvisionalSessions(),
 			}, {
-				result: { status: 'notReady' }, authority: 1, provisional: true, chats: [], markers: [session.toString()],
+				result: { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true }, authority: 1, provisional: true, chats: [], markers: [session.toString()],
 			});
 		});
 	}
@@ -215,7 +215,7 @@ suite('AgentHostChatCatalogMigration', () => {
 			peerDetail: await database.getChatV2ProviderDetail(peer),
 			deletedDetail: await database.getChatV2ProviderDetail(deleted),
 		}, {
-			firstAttempt: { status: 'notReady' },
+			firstAttempt: { status: 'notReady', reason: 'a peer\'s own database disagrees with the chat catalog until legacy reconciliation runs', awaitsReprojection: false },
 			legacyAuthority: 1,
 			preservedLegacy: { chat: peer, ownerSession: session.toString(), order: 0, providerData: 'stale', inheritedTurnId: 'stale-turn' },
 			reconciled: 'applied',

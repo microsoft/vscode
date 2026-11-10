@@ -7,10 +7,12 @@ import { IObservable, IReader, ITransaction } from '../../../../../base/common/o
 import { URI } from '../../../../../base/common/uri.js';
 import { observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin, IAgentPluginEnablementService } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
 import { CollisionEnablementModel, ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../enablement.js';
+import { AGENT_PLUGIN_ENABLEMENT_IDENTITIES_STORAGE_KEY, AGENT_PLUGIN_ENABLEMENT_STORAGE_KEY, migrateCustomizationEnablementToApplicationStorage } from '../customizationEnablementStorage.js';
 
 export { IAgentPluginEnablementService } from './agentPluginService.js';
 
@@ -19,14 +21,18 @@ export class AgentPluginEnablementService extends EnablementModel implements IAg
 	private readonly _identities;
 	private readonly _copiedIdentities = new Map<string, string>();
 
-	constructor(@IStorageService storageService: IStorageService) {
-		super('agentPlugins.enablement', storageService);
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+	) {
+		migrateCustomizationEnablementToApplicationStorage(storageService, userDataProfileService.currentProfile);
+		super(AGENT_PLUGIN_ENABLEMENT_STORAGE_KEY, storageService);
 		this._identities = this._register(observableMemento<ReadonlyMap<string, string>>({
-			key: 'agentPlugins.enablementIdentities',
+			key: AGENT_PLUGIN_ENABLEMENT_IDENTITIES_STORAGE_KEY,
 			defaultValue: new Map(),
 			toStorage: value => JSON.stringify([...value]),
 			fromStorage: value => new Map(JSON.parse(value)),
-		})(StorageScope.PROFILE, StorageTarget.MACHINE, storageService));
+		})(StorageScope.APPLICATION, StorageTarget.MACHINE, storageService));
 	}
 
 	override readEnabled(key: string, reader?: IReader): ContributionEnablementState {
@@ -39,6 +45,10 @@ export class AgentPluginEnablementService extends EnablementModel implements IAg
 
 	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
 		super.setEnabled(this._getIdentity(key), state, tx);
+	}
+
+	override setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		super.setDefaultEnabled(this._getIdentity(key), enabled, tx);
 	}
 
 	override remove(key: string): void {
@@ -106,12 +116,19 @@ class AgentPluginPolicyEnablementModel implements IEnablementModel {
 		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
 	}
 
+	canSetEnabled(key: string, state: ContributionEnablementState): boolean {
+		return !this.policyEnablement?.get().has(key) && (this.base.canSetEnabled?.(key, state) ?? true);
+	}
+
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
-		const policy = this.policyEnablement?.get();
-		if (policy?.has(key)) {
+		if (!this.canSetEnabled(key, state)) {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
+	}
+
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this.base.setDefaultEnabled?.(key, enabled, tx);
 	}
 
 	remove(key: string): void {
@@ -130,9 +147,13 @@ export class AgentPluginCollisionEnablementModel extends CollisionEnablementMode
 		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
 	}
 
-	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+	override canSetEnabled(key: string, state: ContributionEnablementState): boolean {
 		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
-		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+		return super.canSetEnabled(key, state) && !group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		if (!this.canSetEnabled(key, state)) {
 			return;
 		}
 		super.setEnabled(key, state, tx);

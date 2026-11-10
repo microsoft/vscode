@@ -18,7 +18,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { ITableVirtualDelegate, ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeIcons } from '../../../../../base/common/iconLabels.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
@@ -51,6 +52,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -59,27 +61,50 @@ const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
 const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
-export function getModelHoverContent(model: ILanguageModel): MarkdownString {
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	markdown.appendMarkdown(`**${model.metadata.name}**`);
+/**
+ * Escapes text that a model provider controls so that it renders literally: no links
+ * (including `<command:...>` autolinks, bare URLs and email addresses), no theme icons
+ * and no block structure.
+ */
+function escapeModelText(text: string): string {
+	return escapeMarkdownLinkText(escapeIcons(text));
+}
+
+/**
+ * The hover shows model metadata only and has no command links. The empty allow list keeps
+ * the Markdown trusted, which the id badge needs for its styling, without enabling commands.
+ */
+function createModelHoverMarkdown(): MarkdownString {
+	return new MarkdownString('', { isTrusted: { enabledCommands: [] }, supportThemeIcons: true });
+}
+
+/**
+ * Builds the name, id and status summary shown at the top of a model hover.
+ */
+export function getModelNameHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = createModelHoverMarkdown();
+	markdown.appendMarkdown(`**${escapeModelText(model.metadata.name)}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}&#64;${escapeModelText(model.metadata.version)}_&nbsp;</span>`);
 	} else {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}_&nbsp;</span>`);
 	}
 	markdown.appendText(`\n`);
 
 	if (model.metadata.statusIcon && model.metadata.tooltip) {
-		if (model.metadata.statusIcon) {
-			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
-		}
-		markdown.appendMarkdown(`${model.metadata.tooltip}`);
+		markdown.appendMarkdown(`$(${escapeMarkdownLinkText(model.metadata.statusIcon.id)})&nbsp;`);
+		markdown.appendMarkdown(escapeModelText(model.metadata.tooltip));
 		markdown.appendText(`\n`);
 	}
+	return markdown;
+}
+
+export function getModelHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = getModelNameHoverContent(model);
 
 	if (model.metadata.pricing) {
 		markdown.appendMarkdown(`${localize('models.pricing', 'Pricing')}: `);
-		markdown.appendMarkdown(model.metadata.pricing);
+		markdown.appendMarkdown(escapeModelText(model.metadata.pricing));
 		markdown.appendText(`\n`);
 	}
 
@@ -159,7 +184,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.agentMode', 'Agent Mode')}_&nbsp;</span>`);
 		}
 		for (const editTool of model.metadata.capabilities.editTools ?? []) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${editTool}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(editTool)}_&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 	}
@@ -623,22 +648,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 		templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
 
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
-		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
-		} else {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
-		}
-		markdown.appendText(`\n`);
-
-		if (entry.model.metadata.statusIcon && entry.model.metadata.tooltip) {
-			if (entry.model.metadata.statusIcon) {
-				markdown.appendMarkdown(`$(${entry.model.metadata.statusIcon.id})&nbsp;`);
-			}
-			markdown.appendMarkdown(`${entry.model.metadata.tooltip}`);
-			markdown.appendText(`\n`);
-		}
+		const markdown = getModelNameHoverContent(entry.model);
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
 			content: markdown,
@@ -1147,6 +1157,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private defaultAccountResolved = false;
+	private sessionType: string | undefined;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1644,6 +1655,14 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private updateAddModelsButton(): void {
+		const unavailableReason = getAddModelsUnavailableReason(this.sessionType, this.environmentService.remoteAuthority);
+		if (unavailableReason) {
+			this.dropdownActions = [];
+			this.addButton.enabled = false;
+			this.addButton.setTitle(unavailableReason);
+			return;
+		}
+
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -1718,7 +1737,9 @@ export class ChatModelsWidget extends Disposable {
 	 * Pass `undefined` to list every model.
 	 */
 	public setSessionType(sessionType: string | undefined): void {
+		this.sessionType = sessionType;
 		this.viewModel.setSessionType(sessionType);
+		this.updateAddModelsButton();
 	}
 
 	public render(): void {

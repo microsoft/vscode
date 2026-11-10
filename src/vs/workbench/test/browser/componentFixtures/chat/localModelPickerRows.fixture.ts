@@ -120,10 +120,10 @@ const DETAILS: Record<string, { readonly familyId: string; readonly status: ILoc
 		familyId: 'example-flash',
 		status: status([exampleFlash()], active('example-flash', { server: 'error', error: { code: 'runtimeNotFound', message: 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: llamaCppDirections } }), { runtime: {} }),
 	},
-	/** The llama.cpp set can't run the model's architecture (MAI before ggml-org/llama.cpp#29778). */
+	/** The llama.cpp set can't run the model's architecture, which a newer release can (MAI needs b11658, ggml-org/llama.cpp#29778). */
 	DetailsUnsupportedLlamaCpp: {
 		familyId: 'example-flash',
-		status: status([exampleFlash()], active('example-flash', { server: 'error', error: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (b11459) can\'t run Example Flash 1.0. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: llamaCppDirections } })),
+		status: status([exampleFlash()], active('example-flash', { server: 'error', error: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (b11459) can\'t run Example Flash 1.0. Install llama.cpp b11658 or later, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: llamaCppDirections } })),
 	},
 	DetailsDownloading: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: downloading })]) },
 	DetailsPaused: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: { id: 'op1', kind: 'setup', state: 'paused', pausedReason: 'network', resumeOnStartup: true, phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB } })]) },

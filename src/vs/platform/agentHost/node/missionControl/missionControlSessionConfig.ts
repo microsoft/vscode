@@ -14,6 +14,7 @@ export const missionControlSessionConfigAdapter: ISessionConfigAdapter = {
 	fromClientValues: fromMissionControlConfigValues,
 	fromClientProperty: fromMissionControlConfigProperty,
 	toClientConfig: toMissionControlSessionConfig,
+	toClientValues: values => toMissionControlConfigValues(values),
 	toClientAction: (action, rejected) => rejected && Object.keys(action.config).some(key => fromMissionControlConfigProperty(key) !== key)
 		? action : { ...action, config: toMissionControlConfigValues(action.config) },
 };

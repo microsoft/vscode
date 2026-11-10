@@ -12,16 +12,16 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -78,7 +78,7 @@ function makeWorkspace(folderOrFolders: ISessionFolder | readonly ISessionFolder
 	};
 }
 
-function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): IActiveSession {
+function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): ITestSessionWithChat {
 	const activeChat: IChat = { ...stubChat, workspace: constObservable(chatWorkspace) };
 	return {
 		resource: URI.parse(`test:///${sessionId}`),
@@ -165,7 +165,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createContribution() {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
 		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
@@ -175,7 +175,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
@@ -191,11 +191,14 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 		const folderLabel = new class extends mock<IWorkspaceFolderLabelService>() {
 			label = 'label';
-			override getWorkspaceFolderLabel(): string { return this.label; }
+			// Mirrors the real service: the verbose label appends the branch name.
+			override getWorkspaceFolderLabel(_folder: IWorkspaceFolder, verbose?: boolean): string {
+				return verbose ? `${this.label} (branch)` : this.label;
+			}
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			uriIdentityService,
 			workspaceContextService,
 			workspaceEditing,
@@ -302,11 +305,11 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const { activeSession, workspaceEditing, folderLabel } = createContribution();
 		const folder = worktreeFolder('/repo', '/repo.worktrees/session');
 
-		folderLabel.label = 'repo (main)';
+		folderLabel.label = 'session';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
-		folderLabel.label = 'repo (session-branch)';
+		folderLabel.label = 'repo';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
@@ -314,8 +317,8 @@ suite('WorkspaceFolderManagementContribution', () => {
 			added: workspaceEditing.addFoldersCalls,
 			updated: workspaceEditing.updateFoldersCalls,
 		}, {
-			added: [[{ uri: folder.workingDirectory, name: 'repo (main)' }]],
-			updated: [[{ uri: folder.workingDirectory, name: 'repo (session-branch)' }]],
+			added: [[{ uri: folder.workingDirectory, name: 'session' }]],
+			updated: [[{ uri: folder.workingDirectory, name: 'repo' }]],
 		});
 	});
 

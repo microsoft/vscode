@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, IdleDeadline, raceCancellationError, runWhenGlobalIdle } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { setTimeout0 } from '../../../../../base/common/platform.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -16,13 +17,14 @@ import { getChatSessionHistoryContent, IChatSession, IChatSessionHistoryItem, IC
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { ChatModeKind } from '../constants.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, getRestoredChatRequestSource, IChatRequestModeInfo } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, getRestoredChatRequestSource, IChatRequestModeInfo, IChatRequestVariableData } from '../model/chatModel.js';
 import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModelReference } from './chatService.js';
 
-const maxSliceMs = 40;
-const minimumIdleTimeRemainingMs = 1;
+const maxSliceMs = 25;
+/** A restore that replayed in less time than this publishes in the same task, keeping replay, publish and attach within one frame budget. */
+const maxSameTaskPublishMs = 10;
 /** How often publication waits for history that changed meanwhile; later changes are applied as live refreshes. */
 const maxPublishDeferrals = 3;
 
@@ -32,16 +34,21 @@ const maxPublishDeferrals = 3;
 export interface IRemoteChatHistoryScheduler {
 	/** Returns the current time in milliseconds. */
 	now(): number;
-	/** Runs `callback` when the host is idle, and after `timeout` milliseconds at the latest. */
-	runWhenIdle(callback: (deadline: IdleDeadline) => void, timeout: number): IDisposable;
-	/** Runs `callback` in a new macrotask. */
+	/** Runs `callback` in a new macrotask, without waiting for the host to become idle. */
 	runInNewTask(callback: () => void): IDisposable;
 }
 
 export const defaultRemoteChatHistoryScheduler: IRemoteChatHistoryScheduler = {
 	now: () => Date.now(),
-	runWhenIdle: (callback, timeout) => runWhenGlobalIdle(callback, timeout),
-	runInNewTask: callback => disposableTimeout(callback),
+	runInNewTask: callback => {
+		let disposed = false;
+		setTimeout0(() => {
+			if (!disposed) {
+				callback();
+			}
+		});
+		return toDisposable(() => disposed = true);
+	},
 };
 
 /**
@@ -56,8 +63,8 @@ export interface IRemoteChatSessionRestoreOptions {
 	/** Cancels restoration before the model is published. */
 	readonly token: CancellationToken;
 	readonly trace: CloudSandboxSessionTrace | undefined;
-	/** Parses a prompt from the history into a request. */
-	parsePrompt(text: string, agent: IChatAgentData | undefined): IParsedChatRequest;
+	/** Parses a historical prompt and its attachment ranges into a request. */
+	parsePrompt(text: string, agent: IChatAgentData | undefined, variableData?: IChatRequestVariableData): IParsedChatRequest;
 	/** Publishes the restored model to the model store and returns the first reference to it. */
 	publishModel(model: ChatModel): IChatModelReference;
 }
@@ -68,6 +75,8 @@ export interface IRemoteChatSessionRestoreResult {
 	readonly lastRequest: ChatRequestModel | undefined;
 	/** When the last response completed, as recorded in the history. */
 	readonly lastResponseCompletedAt: number | undefined;
+	/** Whether the history records the last response as cancelled. */
+	readonly lastResponseCanceled: boolean;
 }
 
 /**
@@ -139,6 +148,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 	/** The request that history responses are applied to. */
 	private _lastRequest: ChatRequestModel | undefined;
 	private _lastResponseCompletedAt: number | undefined;
+	private _lastResponseCanceled = false;
 
 	private _serverRequestHandler: IRemoteChatServerRequestHandler | undefined;
 	private readonly _serverRequestsBeforeHandler: IChatSessionServerRequest[] = [];
@@ -156,7 +166,10 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._session = _options.session;
 		this._restoredHistory = this._session.history;
 		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
-		this._budget = new CooperativeMutationBudget(scheduler, _options.token, () => this._state === RestoreState.Disposed);
+		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
+		const budgetCancellation = new CancellationTokenSource(_options.token);
+		this._register(toDisposable(() => budgetCancellation.dispose(true)));
+		this._budget = new CooperativeMutationBudget(scheduler, budgetCancellation.token, () => this._state === RestoreState.Disposed);
 
 		if (this._session.onDidChangeHistory) {
 			this._register(this._session.onDidChangeHistory(history => {
@@ -171,7 +184,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 	}
 
-	/** How often restoration waited for the host to become idle. */
+	/** How often restoration yielded to a new task. */
 	get yieldCount(): number {
 		return this._budget.yieldCount;
 	}
@@ -212,6 +225,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		try {
 			this._lastRequest = this._model.getRequests().at(-1);
 			this._lastResponseCompletedAt = undefined;
+			this._lastResponseCanceled = false;
 			if (liveHistory) {
 				const [liveRequest] = runToCompletion(this._applyHistorySteps(liveHistory));
 				const lastTurn = this._restoredTurns.at(-1);
@@ -236,7 +250,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			reference.dispose();
 			throw error;
 		}
-		return { reference, lastRequest: this._lastRequest, lastResponseCompletedAt: this._lastResponseCompletedAt };
+		return { reference, lastRequest: this._lastRequest, lastResponseCompletedAt: this._lastResponseCompletedAt, lastResponseCanceled: this._lastResponseCanceled };
 	}
 
 	/**
@@ -280,6 +294,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 	private async _replay(): Promise<void> {
 		this._budget.startSlice();
+		const yieldsBeforeReplay = this._budget.yieldCount;
+		const replayStart = this._budget.now();
 		const requests = await this._budget.run(this._applyHistorySteps(this._restoredHistory));
 		// Group the history the model was restored from: the session history may
 		// have changed during replay, and that change is still pending.
@@ -295,7 +311,12 @@ export class RemoteChatSessionRestorer extends Disposable {
 			await this._applyBufferedHistory();
 			// Publishing notifies model listeners and lets views render every
 			// restored turn, so keep it out of the task that ran the last slice.
-			await this._budget.waitForNewTask();
+			// A restore that was quick and never yielded is small enough to publish right away.
+			if (this._budget.yieldCount !== yieldsBeforeReplay || this._budget.now() - replayStart >= maxSameTaskPublishMs) {
+				await this._budget.waitForNewTask();
+			} else {
+				this._budget.throwIfCancelled();
+			}
 		} while (this._pendingHistory && ++deferrals < maxPublishDeferrals);
 	}
 
@@ -406,6 +427,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 		this._lastRequest = undefined;
 		this._lastResponseCompletedAt = undefined;
+		this._lastResponseCanceled = false;
 		const requestsById = new Map(this._model.getRequests().map(request => [request.id, request]));
 		// The user may remove requests while the refresh waits for a slice. A request
 		// removed that way is treated as if it had been removed before the refresh.
@@ -480,7 +502,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			for (const part of item.parts) {
 				yield;
 				if (this._lastRequest) {
-					this._model.acceptResponseProgress(this._lastRequest, part);
+					this._model.acceptResponseProgress(this._lastRequest, part, false, true /* restored */);
 				}
 			}
 			if (item.parts.length === 0 && (item.details || item.errorDetails || typeof item.elapsedMs === 'number')) {
@@ -499,7 +521,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			? this._chatAgentService.getAgent(item.participant) // TODO(jospicer): Remove and always hardcode?
 			: this._chatAgentService.getAgent(this._options.chatSessionType);
 		const requestText = item.prompt;
-		const parsedRequest = this._options.parsePrompt(requestText, agent);
+		const parsedRequest = this._options.parsePrompt(requestText, agent, item.variableData);
 		const modeInfo = item.modeInstructions ? {
 			kind: ChatModeKind.Agent,
 			isBuiltin: item.modeInstructions.isBuiltin ?? false,
@@ -532,6 +554,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			item.modelConfiguration,
 			item.metadata,
 			insertion,
+			item.artifactRequest,
 		);
 		return this._lastRequest;
 	}
@@ -551,6 +574,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			response.setElapsedMs(item.elapsedMs);
 		}
 		this._lastResponseCompletedAt = item.completedAt;
+		this._lastResponseCanceled = !!item.isCanceled;
 	}
 
 	private *_completeLastResponseSteps(): Generator<void, void> {
@@ -561,16 +585,25 @@ export class RemoteChatSessionRestorer extends Disposable {
 	}
 
 	/**
-	 * Completes the last applied response at the time the history recorded, or
-	 * without a timestamp when the history has none.
+	 * Completes (or, for a cancelled turn, cancels) the last applied response at
+	 * the time the history recorded, or without a timestamp when the history has none.
 	 */
 	private _completeLastResponse(): void {
-		if (Number.isFinite(this._lastResponseCompletedAt)) {
-			this._lastRequest?.response?.complete(this._lastResponseCompletedAt);
+		const response = this._lastRequest?.response;
+		const completedAt = this._lastResponseCompletedAt;
+		if (this._lastResponseCanceled) {
+			if (completedAt !== undefined && Number.isFinite(completedAt)) {
+				response?.cancel(completedAt);
+			} else {
+				response?.cancelWithoutTimestamp();
+			}
+		} else if (completedAt !== undefined && Number.isFinite(completedAt)) {
+			response?.complete(completedAt);
 		} else {
-			this._lastRequest?.response?.completeWithoutTimestamp();
+			response?.completeWithoutTimestamp();
 		}
 		this._lastResponseCompletedAt = undefined;
+		this._lastResponseCanceled = false;
 	}
 
 	private _onDidStartServerRequest(request: IChatSessionServerRequest): void {
@@ -626,13 +659,12 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 /**
  * Bounds how long model mutations run before yielding to the host. A slice ends
- * after {@link maxSliceMs}, or earlier when the idle period it runs in ends; the
- * next slice starts when the host is idle again.
+ * after {@link maxSliceMs}; the next slice starts in a new macrotask, so progress
+ * never depends on the host becoming idle.
  */
 class CooperativeMutationBudget {
 
 	private _sliceStart: number;
-	private _idleDeadline: IdleDeadline | undefined;
 	private _yieldCount = 0;
 
 	constructor(
@@ -647,9 +679,18 @@ class CooperativeMutationBudget {
 		return this._yieldCount;
 	}
 
+	now(): number {
+		return this._scheduler.now();
+	}
+
+	throwIfCancelled(): void {
+		if (this._token.isCancellationRequested || this._isDisposed()) {
+			throw new CancellationError();
+		}
+	}
+
 	/** Starts a new slice in the current task. */
 	startSlice(): void {
-		this._idleDeadline = undefined;
 		this._sliceStart = this._scheduler.now();
 	}
 
@@ -677,20 +718,13 @@ class CooperativeMutationBudget {
 	}
 
 	private _hasBudget(): boolean {
-		if (this._scheduler.now() - this._sliceStart >= maxSliceMs) {
-			return false;
-		}
-		if (!this._idleDeadline || this._idleDeadline.timeRemaining() > minimumIdleTimeRemainingMs) {
-			return true;
-		}
-		return this._idleDeadline.didTimeout;
+		return this._scheduler.now() - this._sliceStart < maxSliceMs;
 	}
 
 	private async _runInNextSlice<T>(steps: Generator<void, T>): Promise<T> {
 		this._yieldCount++;
-		const deadline = await this._wait<IdleDeadline>(resolve => this._scheduler.runWhenIdle(resolve, maxSliceMs));
+		await this._wait<void>(resolve => this._scheduler.runInNewTask(() => resolve()));
 		this._sliceStart = this._scheduler.now();
-		this._idleDeadline = deadline;
 		return this.run(steps);
 	}
 

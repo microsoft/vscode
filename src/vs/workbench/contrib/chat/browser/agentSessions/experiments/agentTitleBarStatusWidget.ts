@@ -860,8 +860,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		sparkleContainer.tabIndex = 0;
 
-		// Get menu actions for dropdown with proper group separators
-		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
+		// Resolve menu actions lazily when the dropdown opens so that enablement (preconditions)
+		// and visibility reflect the current context rather than the state at render time
+		const menuActionsProvider = {
+			getActions: (): IAction[] => Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions))
+		};
 
 		const primaryActionId = TOGGLE_CHAT_ACTION_ID;
 		const primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -886,7 +889,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			DropdownWithPrimaryActionViewItem,
 			primaryAction,
 			dropdownAction,
-			menuActions,
+			menuActionsProvider,
 			'agent-status-sparkle-dropdown',
 			{ skipTelemetry: true, menuClassName: WORKBENCH_MENU_MOTION_CLASS, closeAnimation: workbenchMenuCloseAnimation }
 		);

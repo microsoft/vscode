@@ -3,29 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { ApiRequestOptions, ApiResponse } from '../client/request.js';
+import { parseGitHubRequestId } from '../client/headers.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
-import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
-import { ApiResponse, MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
+import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, EnvironmentIdentityToken, IEnvironmentsClient, ListEnvironmentsOptions, SEALED_ENVIRONMENT_TOKEN_PREFIX, SealedEnvironmentToken, SealEnvironmentTokenRequest, WakingResponse } from './environments.js';
+import { MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
+	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
 		return this._client.request({
+			domain: 'environments',
+			method: 'POST',
+			path: '/environments/tokens',
+			body: {},
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => parseEnvironmentIdentityToken(response.data));
+	}
+
+	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
+		const { query, ...requestOptions } = options ?? {};
+		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
-			path: withQuery('/environments', { ...options }),
-			expectedStatus: [200],
-			sensitive: true,
+			path: withQuery('/environments', { ...query }),
+			expectedStatus: 200,
+			policy: { sensitive: true },
+			options: requestOptions,
 		}, signal, response => parseEnvironmentList(response.data));
 	}
 
-	get(environmentId: string, signal: AbortSignal): Promise<Environment> {
+	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment> {
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: environmentPath(environmentId),
-			expectedStatus: [200],
-			sensitive: true,
+			expectedStatus: 200,
+			policy: { sensitive: true },
+			options,
 		}, signal, response => {
 			const environment = parseEnvironment(response.data);
 			if (environment.id !== environmentId) {
@@ -35,21 +55,50 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 		});
 	}
 
-	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
+	delete(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'environments',
+			method: 'DELETE',
+			path: environmentPath(environmentId),
+			expectedStatus: 204,
+			responseBody: 'none',
+			options,
+		}, signal, () => { });
+	}
+
+	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<SealedEnvironmentToken> {
+		return this._client.request({
+			domain: 'environments',
+			method: 'POST',
+			path: `${environmentPath(environmentId)}/seal-token`,
+			body: request,
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => parseSealedEnvironmentToken(response.data));
+	}
+
+	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
+		const { query, ...requestOptions } = options ?? {};
+		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
-			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...options }),
+			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...query }),
 			expectedStatus: [200, 202],
-			credential: true,
+			policy: { credential: true },
+			options: requestOptions,
 		}, signal, parseConnection);
 	}
 
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
+		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
-			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...options, client_id: clientId }),
+			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...query, client_id: clientId }),
 			expectedStatus: [200, 202],
-			credential: true,
+			policy: { credential: true },
+			options: requestOptions,
 		}, signal, response => {
 			const result = parseConnection(response);
 			if (result.status === 200 && result.data.client_id !== clientId) {
@@ -64,6 +113,12 @@ function environmentPath(environmentId: string): string {
 	return `/environments/${pathSegment(environmentId)}`;
 }
 
+const parseEnvironmentIdentityToken = parse.object<EnvironmentIdentityToken>({
+	token: parse.nonEmptyString,
+	expires_at: parse.optional(parse.dateTime),
+	expires_in: parse.optional(parse.nonNegativeInteger),
+});
+
 const parseEnvironmentStatus = parse.oneOf('online', 'offline', 'waking', 'degraded', 'draining');
 const parseOptionalActivationContext = parse.optional(parseActivationContext);
 
@@ -73,6 +128,56 @@ const parseEncryptionKey = parse.object<AdvertisedEncryptionKey>({
 	algorithm: parse.string,
 	public_key: parse.string,
 });
+
+const sealedTokenKeyIdPattern = /^[A-Za-z0-9_-]{11}$/;
+const sealedTokenPayloadPattern = /^[A-Za-z0-9_-]+$/;
+
+const parseSealedEnvironmentTokenFields = parse.object<SealedEnvironmentToken>({
+	encrypted_github_token: parse.nonEmptyString,
+	host_encryption_key: parseEncryptionKey,
+});
+
+function parseSealedEnvironmentToken(value: unknown): SealedEnvironmentToken {
+	const { host_encryption_key: key, encrypted_github_token: sealed } = parseSealedEnvironmentTokenFields(value);
+	if (sealed.length > 64 * 1024
+		|| !sealedTokenKeyIdPattern.test(key.key_id)
+		|| key.use !== 'auth-token'
+		|| (key.algorithm !== 'x25519-sealedbox' && key.algorithm !== 'hpke-x25519-hkdf-sha256-aes256gcm')) {
+		throw new SchemaError('Invalid sealed environment token response');
+	}
+
+	const prefix = `${SEALED_ENVIRONMENT_TOKEN_PREFIX}${key.key_id}.`;
+	const payload = sealed.slice(prefix.length);
+	if (!sealed.startsWith(prefix) || !sealedTokenPayloadPattern.test(payload)) {
+		throw new SchemaError('Invalid sealed environment token response');
+	}
+
+	let publicKey: VSBuffer;
+	let ciphertext: VSBuffer;
+	try {
+		publicKey = decodeBase64(key.public_key);
+		ciphertext = decodeBase64(payload);
+	} catch {
+		throw new SchemaError('Invalid sealed environment token response');
+	}
+
+	if (publicKey.byteLength !== 32
+		|| encodeBase64(publicKey) !== key.public_key
+		|| ciphertext.byteLength < 48
+		|| encodeBase64(ciphertext, false, true) !== payload) {
+		throw new SchemaError('Invalid sealed environment token response');
+	}
+
+	return {
+		encrypted_github_token: sealed,
+		host_encryption_key: {
+			key_id: key.key_id,
+			use: key.use,
+			algorithm: key.algorithm,
+			public_key: key.public_key
+		},
+	};
+}
 
 const parseEnvironment = parse.object<Environment>({
 	id: parse.nonEmptyString,
@@ -119,7 +224,7 @@ const parseEnvironment = parse.object<Environment>({
 const parseEnvironmentList = parse.arrayOf(parseEnvironment);
 
 const parseWakingResponse = parse.object<WakingResponse>({
-	environment_status: parse.oneOf('waking'),
+	environment_status: parse.exact('waking'),
 	activation_context: parseOptionalActivationContext,
 });
 
@@ -144,14 +249,18 @@ const parseClientTokenResponse = parse.object<ClientTokenResponse>({
 });
 
 function parseConnection(response: ApiResponse): EnvironmentConnectResult {
-	return (response.status === 202) ?
+	const requestId = parseGitHubRequestId(response.metadata?.requestId);
+	const correlation = requestId !== undefined ? { requestId } : {};
+	return response.status === 202 ?
 		{
 			status: 202,
 			data: parseWakingResponse(response.data),
-			retryAfterSeconds: response.retryAfterSeconds,
+			retryAfterSeconds: response.metadata?.retryAfterSeconds,
+			...correlation,
 		} :
 		{
 			status: 200,
 			data: parseClientTokenResponse(response.data),
+			...correlation,
 		};
 }

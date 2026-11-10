@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { parsePullRequestUrl } from '../../../github/common/githubUrls.js';
@@ -26,12 +27,13 @@ export interface IResolvedPullRequest {
 /** Resolves pull request URLs a session is created from. */
 export interface IAgentHostPullRequestResolver {
 	readonly _serviceBrand: undefined;
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
 	/**
 	 * Parses `pullRequestUrl` and fetches the pull request from GitHub. Throws a
 	 * localized error for malformed URLs, other GitHub hosts, inaccessible or
 	 * merged pull requests, and pull requests from forks.
 	 */
-	resolve(pullRequestUrl: string): Promise<IResolvedPullRequest>;
+	resolve(pullRequestUrl: string, source?: IAgentHostCredentialSource, session?: string): Promise<IResolvedPullRequest>;
 }
 
 export class AgentHostPullRequestResolver extends Disposable implements IAgentHostPullRequestResolver {
@@ -46,7 +48,7 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 		this._register(toDisposable(() => this._abortController.abort()));
 	}
 
-	async resolve(pullRequestUrl: string): Promise<IResolvedPullRequest> {
+	async resolve(pullRequestUrl: string, source?: IAgentHostCredentialSource, session?: string): Promise<IResolvedPullRequest> {
 		const parsed = parsePullRequestUrl(pullRequestUrl);
 		if (!parsed) {
 			throw new Error(localize('agentHost.pullRequest.invalidUrl', "'{0}' is not a valid pull request URL.", pullRequestUrl));
@@ -54,7 +56,7 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, session)).object;
 			const { account } = await client.credentials.getCredential(this._abortController.signal);
 			// The URL names its own GitHub instance; never query it with an account from another one.
 			if (account.host.toLowerCase() !== parsed.apiHost) {
@@ -91,5 +93,9 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 		} finally {
 			store.dispose();
 		}
+	}
+
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		return this._gitHubService.captureSessionCredentialSource(session, source);
 	}
 }

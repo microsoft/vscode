@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ApiRequestOptions } from '../client/request.js';
 import { JsonValue } from '../client/types.js';
 
-/** A Copilot model's limits and features, before session-UI normalization. */
+/** A Copilot model's advertised limits and features. */
 export interface ModelCapabilities {
 	/** Token limits advertised for the model. */
 	readonly limits?: {
@@ -25,7 +26,7 @@ export interface ModelCapabilities {
 	};
 }
 
-/** Copilot model metadata used by sandbox clients without filtering policy-disabled entries. */
+/** Copilot cloud model metadata, including entries hidden or disabled by policy. */
 export interface Model {
 	/** The stable model identifier used in task and session requests. */
 	readonly id: string;
@@ -38,7 +39,7 @@ export interface Model {
 		/** The service-provided policy state, including disabled. */
 		readonly state?: string;
 	};
-	/** Opaque billing metadata retained for the consumer's pricing normalizer. */
+	/** Billing metadata interpreted by the caller's pricing normalizer. */
 	readonly billing?: JsonValue;
 	/** The model's capability category in the picker. */
 	readonly model_picker_category?: string;
@@ -48,16 +49,16 @@ export interface Model {
 	readonly capabilities?: ModelCapabilities;
 }
 
-/** The Copilot catalog returned by the sandbox models endpoint. */
+/** The model catalog returned by the Copilot cloud agent endpoint. */
 export interface ListModelsResponse {
-	/** The complete returned model list, including entries hidden or disabled by policy. */
+	/** The complete model list, before caller-side filtering. */
 	readonly data: readonly Model[];
 	/** The service-selected default model, when advertised. */
 	readonly default_model?: string;
 }
 
-/** Model discovery on the separately configured Copilot API host. */
+/** Model discovery through the approved Copilot API endpoint. */
 export interface IModelsClient {
-	/** GET /agents/swe/models on the Copilot API host, without caching or UI normalization. */
-	list(signal: AbortSignal): Promise<ListModelsResponse>;
+	/** GET /agents/swe/models: read the cloud agent catalog without UI filtering or normalization. */
+	list(signal: AbortSignal, options?: ApiRequestOptions): Promise<ListModelsResponse>;
 }

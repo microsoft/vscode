@@ -1,0 +1,58 @@
+name: Test chat-lib
+description: Extracts the chat-lib package from the Copilot extension, then builds and tests it. Expects the repository to be checked out.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: extensions/copilot/.nvmrc
+
+    - name: Setup pnpm
+      uses: ./.github/actions/setup-pnpm
+
+    # Reuse a pnpm store that .github/workflows/pr-pnpm-store.yml keeps warm on `main`: the Copilot
+    # store on Linux and Windows, and the full store (which includes extensions/copilot) on macOS.
+    # Never save: PR-scoped caches are not shared with other PRs and only evict the shared ones.
+    - name: Restore pnpm store cache
+      uses: ./.github/actions/restore-pnpm-store
+      with:
+        key-prefix: ${{ runner.os == 'macOS' && 'pnpm-store-macos' || runner.os == 'Windows' && 'pnpm-store-copilot-windows' || 'pnpm-store-copilot-linux' }}
+
+    # extensions/copilot is a separate install root; chat-lib is a member of its workspace.
+    - name: Install Copilot dependencies
+      shell: bash
+      working-directory: extensions/copilot
+      run: pnpm install --frozen-lockfile
+
+    # The extraction sets chat-lib's dependencies to Copilot's versions, in its package.json and in
+    # Copilot's pnpm-lock.yaml. Remove the node_modules of the folders above extensions/copilot (some
+    # are restored from the cache) so that chat-lib only resolves the dependencies of Copilot's
+    # workspace.
+    - name: Extract chat-lib
+      shell: bash
+      working-directory: extensions/copilot
+      run: |
+        pnpm run extract-chat-lib
+        rm -rf ../node_modules ../../node_modules
+
+    # Installs chat-lib's dependencies for the versions that the extraction set, then runs chat-lib's
+    # postinstall, which copies static files next to the extracted sources: pnpm doesn't run it again
+    # when the workspace is already up to date.
+    - name: Install chat-lib dependencies
+      shell: bash
+      working-directory: extensions/copilot
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm --dir chat-lib run postinstall
+
+    - name: Build chat-lib
+      shell: bash
+      working-directory: extensions/copilot/chat-lib
+      run: pnpm run build
+
+    - name: Test chat-lib
+      shell: bash
+      working-directory: extensions/copilot/chat-lib
+      run: pnpm test

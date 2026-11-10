@@ -47,8 +47,10 @@ export const enum SessionConfigKey {
 	AgentMergeFolders = 'agentMerge.folders',
 	/** `'agentMerge.controller.folders'` — host-owned Agent Merge lifecycle state per working-directory key. */
 	AgentMergeControllerFolders = 'agentMerge.controller.folders',
-	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration applied while any Agent Merge folder runs. */
+	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration of older builds, restored on upgrade. */
 	AgentMergeInjectedConfiguration = 'agentMerge.injectedConfiguration',
+	/** `'agentMerge.chatInjectedConfiguration'` — host-owned elevation Agent Merge applied to each owning chat's own config, keyed by chat. */
+	AgentMergeChatInjectedConfiguration = 'agentMerge.chatInjectedConfiguration',
 	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
 	ShellInitScripts = 'shellInitScripts',
 	/** `'sensitiveEditLocations'` — workspace-relative client customization locations that must always require edit confirmation. */
@@ -128,6 +130,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.AgentMergeFolders,
 	SessionConfigKey.AgentMergeControllerFolders,
 	SessionConfigKey.AgentMergeInjectedConfiguration,
+	SessionConfigKey.AgentMergeChatInjectedConfiguration,
 ] as const;
 
 /**

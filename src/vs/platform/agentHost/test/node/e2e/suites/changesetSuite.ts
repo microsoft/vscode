@@ -1817,9 +1817,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}, false);
 
 	if (context.tier === 'parity') {
-		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
-		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
-		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+		// Session Changes come only from tracked file-tool edits; shell-command edits are intentionally excluded.
+		const tracksProviderFileEdits = config.fileOperationStrategy === 'fileTools' && config.streamingFileCreateToolName !== undefined;
+		(config.supportsMultipleChats && tracksProviderFileEdits ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
@@ -1829,13 +1829,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
 
-			const createPrompt = (file: string, contents: string): string => {
-				if (config.fileOperationStrategy !== 'shell') {
-					return `Create ${file} containing exactly ${contents} using your file creation tool; do not run a shell command. Then reply exactly "created".`;
-				}
-				const command = `node -e "require('fs').writeFileSync('${file}','${contents}')"`;
-				return `Run exactly this shell command, with no modifications: \`${command}\`. Then reply exactly "created".`;
-			};
+			const createPrompt = (file: string, contents: string): string =>
+				`Create ${file} containing exactly ${contents} using your file creation tool; do not run a shell command. Then reply exactly "created".`;
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
@@ -1870,8 +1865,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				'peer-provider.txt',
 			]);
 
-			// A refresh after checkpoint capture must still include shell edits that
-			// the provider's file-edit tracker cannot report.
+			// A fresh subscription recomputes the same tracked edits.
 			await context.client.call('unsubscribe', { channel: sessionChangeset });
 			const refreshed = await changesetState(sessionChangeset);
 			assert.deepStrictEqual(refreshed.files.map(fileUri).sort(), files.map(file => fileUri(file!)).sort());

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
+import { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, parseImageGenerationToolUsage, readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { getToolCallDurationMs, readToolCallMeta, readToolCallPresentation, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ToolCallConfirmationReason, ToolCallStatus } from '../../common/state/protocol/state.js';
 
@@ -58,6 +58,34 @@ suite('Image generation tool metadata', () => {
 		})), Array.from({ length: 4 }, () => ({ requestedModel: { id: 'image-preview' } })));
 	});
 
+	test('preserves reported usage, including zero billing, without retaining internal data', () => {
+		const usage = {
+			requestId: 'operation',
+			inputTokens: 21, outputTokens: 196, totalTokens: 217,
+			copilotUsage: { totalNanoAiu: 0 },
+		};
+		const image = { requestedModel: { id: 'another-host/image:model' }, usage };
+		assert.deepStrictEqual(readImageGenerationToolMetadata({
+			_meta: {
+				[imageGenerationToolMetaKey]: {
+					...image,
+					usage: { ...usage, accounting: { sequence: 1 }, quotaSnapshots: {}, prompt: 'not display metadata' },
+				},
+			},
+		}), image);
+	});
+
+	test('missing and invalid billing never becomes a zero-cost operation', () => {
+		for (const totalNanoAiu of [undefined, null, -1, NaN, Infinity, '0']) {
+			assert.deepStrictEqual(parseImageGenerationToolUsage({
+				requestId: 'operation',
+				inputTokens: -1, outputTokens: 1.5, totalTokens: Number.MAX_SAFE_INTEGER + 1,
+				copilotUsage: { totalNanoAiu },
+			}), { requestId: 'operation' });
+		}
+		assert.deepStrictEqual([undefined, null, [], {}, { requestId: ' ' }].map(parseImageGenerationToolUsage), Array(5).fill(undefined));
+	});
+
 	test('image metadata selects the VS Code convention before tool-name fallbacks', () => {
 		const values = [{ requestedModel: { id: 'remote-provider/image:preview' } }, { requestedModel: { id: '' } }];
 		const presentations = values.map(value => readToolCallPresentation({
@@ -77,4 +105,5 @@ suite('Image generation tool metadata', () => {
 			pastTenseMessage: 'Tool finished',
 		})));
 	});
+
 });

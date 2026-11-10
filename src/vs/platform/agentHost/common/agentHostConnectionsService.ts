@@ -146,8 +146,17 @@ export interface IAgentHostConnectionsService {
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
+	/**
+	 * Runs `fn`, coalescing every {@link onDidChangeSessionResolution} it would fire into a single
+	 * event emitted after the outermost batch completes. Reads inside the batch see the new state.
+	 */
+	batchSessionResolutionChanges<T>(fn: () => T): T;
+
 	/** Records an exact backend identity and adapts only its frontend provider scheme. */
 	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Binds a catalog resource to an acquired execution for the owner's lifetime. */
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable;
 
 	/** Looks up a frontend resource using its advertised backend identity on one connection. */
 	findSessionResource(backendSession: URI, authority?: string): URI | undefined;

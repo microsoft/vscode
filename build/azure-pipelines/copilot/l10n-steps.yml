@@ -26,7 +26,7 @@ steps:
 
       L10N_ROOT=$(node -e "const p=require('./package.json'); console.log(p.l10n || '.')")
 
-      npx @vscode/l10n-dev import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
+      pnpm exec vscode-l10n-dev import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
 
       # Move package.nls.*.json files from l10n root to extension root if needed
       if [ "$L10N_ROOT" != "." ]; then

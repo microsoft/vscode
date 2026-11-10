@@ -20,7 +20,7 @@ import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
@@ -299,12 +299,17 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-goal-config-slash', '/goal Reply exactly "GOAL_MODE". Do not use tools.', 1);
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = subscribed.snapshot!.state as SessionState;
+		// Mode is a chat's own setting: the command sets the chat's, not its session's.
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: state.defaultChat! });
+		const chatState = chat.snapshot!.state as ChatState;
 
 		assert.deepStrictEqual({
-			mode: state.config?.values['mode'],
+			chatMode: chatState.config?.values['mode'],
+			sessionMode: state.config?.values['mode'],
 			response: result.responseText.trim(),
 		}, {
-			mode: 'plan',
+			chatMode: 'plan',
+			sessionMode: 'interactive',
 			response: 'GOAL_MODE',
 		});
 	});
@@ -388,81 +393,71 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	(context.runRecordOnlyTests ? test : test.skip)('tool search exposes deferred client tools and executes the selected result', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('tool-search-success');
-		try {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-success-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'tool-search-success-client',
+					tools: [{
+						name: 'toolSearch',
+						description: 'Searches deferred tools by name.',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, {
+						name: 'get_magic_word',
+						description: 'Returns the magic word.',
+						inputSchema: { type: 'object', properties: {} },
+					}],
 				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			},
+		});
+		await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
 
-			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
-			assert.deepStrictEqual({
-				hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
-				hasMagicWord: result.toolNames.includes('get_magic_word'),
-				response: result.responseText.trim(),
-			}, {
-				hasSearch: true,
-				hasMagicWord: true,
-				response: 'MAGIC_WORD',
-			});
-		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: false }, 101);
-		}
+		const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
+		assert.deepStrictEqual({
+			hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
+			hasMagicWord: result.toolNames.includes('get_magic_word'),
+			response: result.responseText.trim(),
+		}, {
+			hasSearch: true,
+			hasMagicWord: true,
+			response: 'MAGIC_WORD',
+		});
 	});
 
 	(context.runRecordOnlyTests ? test : test.skip)('tool search tolerates a malformed client result without activating a deferred tool', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('tool-search-malformed');
-		try {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-malformed-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'tool-search-malformed-client',
+					tools: [{
+						name: 'toolSearch',
+						description: 'Searches deferred tools by name.',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, {
+						name: 'get_magic_word',
+						description: 'Returns the magic word.',
+						inputSchema: { type: 'object', properties: {} },
+					}],
 				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			},
+		});
+		await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
 
-			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
-			assert.deepStrictEqual({
-				hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
-				hasMagicWord: result.toolNames.includes('get_magic_word'),
-			}, {
-				hasSearch: true,
-				hasMagicWord: false,
-			});
-		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: false }, 101);
-		}
+		const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
+		assert.deepStrictEqual({
+			hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
+			hasMagicWord: result.toolNames.includes('get_magic_word'),
+		}, {
+			hasSearch: true,
+			hasMagicWord: false,
+		});
 	});
 
 	fullOnlyTest('view range returns only the requested workspace lines', async function () {

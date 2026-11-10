@@ -17,6 +17,8 @@ export const PICK_REPOSITORY_COMMAND_ID = '_chat.pickRepository';
 export interface IRepositoryPickerOptions {
 	readonly allowRepositoryUrl?: boolean;
 	readonly placeholder?: string;
+	/** Maps the typed value to what items are filtered by locally, so a search term that is rewritten for the API still matches its results. */
+	readonly filterValue?: (value: string) => string;
 }
 
 export interface IRepositoryPickResult {
@@ -58,6 +60,9 @@ export class RepositoryPicker extends Disposable {
 		quickPick.ariaLabel = quickPick.placeholder;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
+		if (options.filterValue) {
+			quickPick.filterValue = options.filterValue;
+		}
 
 		const updateItems = async () => {
 			requests.clear();

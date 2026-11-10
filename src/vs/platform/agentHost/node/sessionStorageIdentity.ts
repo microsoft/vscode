@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64 } from '../../../base/common/buffer.js';
+import { SESSION_ROW_OWNER_CHAT_METADATA_KEY } from '../common/sessionDataService.js';
 import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { AgentSession } from '../common/agent.js';
@@ -254,7 +255,7 @@ export class SessionStorageIdentity {
 		if (value === undefined || value === '') {
 			return value;
 		}
-		if (key === 'peerChatBacking') {
+		if (key === 'peerChatBacking' || key === SESSION_ROW_OWNER_CHAT_METADATA_KEY) {
 			return direction === 'storage' ? this.toStorage(value) : this.toRuntime(value);
 		}
 		if (['peerChats', 'sessionArtifacts', 'agentHost.createdBySession', 'agentHost.chatOrigin', 'vscode.remoteSession.origin', 'agentHost.turnDelegation'].includes(key)) {

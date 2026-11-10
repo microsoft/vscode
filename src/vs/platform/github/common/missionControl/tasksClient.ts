@@ -4,109 +4,191 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNumber } from '../../../../base/common/types.js';
+import { ApiPaginationOptions, ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
+import { parse, SchemaError } from '../client/schema.js';
+import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { parse } from '../client/schema.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
-import { PageOptions } from '../client/types.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, MAX_TASK_BATCH_SIZE, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'GET',
-			path: withQuery('/tasks', { ...options }),
-			expectedStatus: [200],
-		}, signal, response => paginated(response, parseListTasksResponse(response.data)));
+			path: '/feed/connect',
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => {
+			try {
+				return parseSessionFeedConnection(response.data);
+			} catch (error) {
+				if (error instanceof SchemaError) {
+					throw new GitHubRequestError('Invalid session feed connection metadata', 'schema', response.status);
+				}
+				throw error;
+			}
+		});
 	}
 
-	get(taskId: string, signal: AbortSignal): Promise<GetTaskResponse> {
+	async list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		signal.throwIfAborted();
+		const { query, ...requestOptions } = options ?? {};
+		if (query?.cursor !== undefined && query.page !== undefined) {
+			throw new GitHubRequestError('Task pagination cannot combine cursor and page', 'validation');
+		}
+		return this._client.requestPages(
+			{
+				domain: 'tasks',
+				method: 'GET',
+				path: withQuery('/tasks', { ...query }),
+				expectedStatus: 200,
+				options: requestOptions,
+			},
+			signal,
+			response => paginated(response, parseListTasksResponse(response.data)),
+			pages => {
+				const last = pages[pages.length - 1];
+				return { ...last, data: { ...last.data, tasks: pages.flatMap(page => page.data.tasks) } };
+			}
+		);
+	}
+
+	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'GET',
 			path: taskPath(taskId),
-			expectedStatus: [200],
+			expectedStatus: 200,
+			options,
 		}, signal, response => parseTaskDetail(response.data, taskId));
 	}
 
-	create(request: CreateTaskRequest, signal: AbortSignal): Promise<GetTaskResponse> {
+	async getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]> {
+		signal.throwIfAborted();
+		if (taskIds.length === 0 || taskIds.length > MAX_TASK_BATCH_SIZE) {
+			throw new GitHubRequestError(`Task batches require between 1 and ${MAX_TASK_BATCH_SIZE} IDs`, 'validation');
+		}
+		const requested = new Set(taskIds);
 		return this._client.request({
-			method: 'POST',
-			path: '/tasks',
-			body: request,
-			expectedStatus: [201],
-		}, signal, response => parseTaskDetail(response.data));
+			domain: 'tasks',
+			method: 'GET',
+			path: withQuery('/tasks/batch', { task_ids: taskIds.join(',') }),
+			expectedStatus: 200,
+			options,
+		}, signal, response => parse.refine(
+			parseListTasksResponse,
+			result => result.tasks.every(task => requested.has(task.id)),
+			'Task batch response contained an unrequested task',
+		)(response.data).tasks);
 	}
 
-	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal): Promise<GetTaskResponse> {
+	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>> {
+		return this._client.request({
+			domain: 'tasks',
+			method: 'POST',
+			path: '/tasks',
+			body: {
+				...request,
+				repositories: request.repositories?.map(repository => ({ owner: repository.owner, name: repository.repo })),
+			},
+			policy: request.environment_id === 'github-sandbox' ? { rateLimitResource: 'agents:sandbox' } : undefined,
+			expectedStatus: [200, 201],
+			options,
+		}, signal, response => ({ ...response, data: parseTaskDetail(response.data) }));
+	}
+
+	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		if (request.name === undefined && request.sharing_status === undefined) {
 			throw new GitHubRequestError('A task update requires at least one property', 'validation');
 		}
 		return this._client.request({
+			domain: 'tasks',
 			method: 'PATCH',
 			path: taskPath(taskId),
 			body: request,
-			expectedStatus: [200],
+			expectedStatus: 200,
+			options,
 		}, signal, response => parseTaskDetail(response.data, taskId));
 	}
 
-	delete(taskId: string, signal: AbortSignal): Promise<void> {
+	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'DELETE',
 			path: taskPath(taskId),
-			expectedStatus: [204],
+			expectedStatus: 204,
 			responseBody: 'none',
+			options,
 		}, signal, () => { });
 	}
 
-	archive(taskId: string, signal: AbortSignal): Promise<Task> {
-		return this._setArchived(taskId, true, signal);
-	}
-
-	unarchive(taskId: string, signal: AbortSignal): Promise<Task> {
-		return this._setArchived(taskId, false, signal);
-	}
-
-	private _setArchived(taskId: string, archived: boolean, signal: AbortSignal): Promise<Task> {
+	setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
+		if (typeof archived !== 'boolean') {
+			throw new GitHubRequestError('Task archive state must be a boolean', 'validation');
+		}
 		return this._client.request({
+			domain: 'tasks',
 			method: 'POST',
 			path: `${taskPath(taskId)}/${archived ? 'archive' : 'unarchive'}`,
-			expectedStatus: [200],
+			expectedStatus: 200,
+			options,
 		}, signal, response => parseTask(response.data, taskId));
 	}
 
-	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal): Promise<void> {
+	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'POST',
 			path: `${taskPath(taskId)}/steer`,
 			body: request,
-			expectedStatus: [202],
+			expectedStatus: 202,
 			responseBody: 'none',
+			options,
 		}, signal, () => { });
 	}
 
-	abort(taskId: string, signal: AbortSignal): Promise<void> {
-		return this.steer(taskId, { type: 'abort' }, signal);
+	abort(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+		return this.steer(taskId, { type: 'abort' }, signal, options);
 	}
 
-	getEvents(taskId: string, signal: AbortSignal, options?: PageOptions): Promise<PaginatedResponse<ListTaskEventsResponse>> {
-		return this._client.request({
-			method: 'GET',
-			path: withQuery(`${taskPath(taskId)}/events`, { ...options }),
-			expectedStatus: [200],
-			retry: false,
-		}, signal, response => paginated(response, parseTaskEventsResponse(response.data)));
+	getEvents(taskId: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>> {
+		const { query, ...requestOptions } = options ?? {};
+		return this._client.requestPages(
+			{
+				domain: 'tasks',
+				method: 'GET',
+				path: withQuery(`${taskPath(taskId)}/events`, { ...query }),
+				expectedStatus: 200,
+				policy: { retry: false },
+				options: requestOptions,
+			},
+			signal,
+			response => paginated(response, parseTaskEventsResponse(response.data)),
+			pages => ({
+				...pages[pages.length - 1],
+				data: {
+					...pages[pages.length - 1].data,
+					events: pages.flatMap(page => page.data.events)
+				}
+			})
+		);
 	}
 
-	getAhpEvents(taskId: string, signal: AbortSignal): Promise<TaskAHPEventsResponse> {
+	getAhpEvents(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'GET',
 			path: `${taskPath(taskId)}/events`,
-			expectedStatus: [200],
-			retry: false,
+			expectedStatus: 200,
+			policy: { retry: false },
 			accept: 'application/vnd.github.ahp+json',
+			options,
 		}, signal, response => parseTaskAhpEventsResponse(response.data));
 	}
 }
@@ -114,6 +196,17 @@ export class TasksClient implements ITasksClient {
 function taskPath(taskId: string): string {
 	return `/tasks/${pathSegment(taskId)}`;
 }
+
+const parseSessionFeedConnection = parse.copyObject<SessionFeedConnection>({
+	url: parse.nonEmptyString,
+	subprotocol: parse.exact('json.webpubsub.azure.v1'),
+	group: parse.nonEmptyString,
+	expires_at: parse.dateTime,
+	reconnect_after: parse.dateTime,
+	expires_in: parse.optional(parse.nonNegativeInteger),
+	reconnect_in: parse.optional(parse.nonNegativeInteger),
+	frame_schema_version: parse.exact(1),
+});
 
 const parseRepository = parse.object<Repository>({
 	id: parse.optional(parse.integer),
@@ -124,13 +217,22 @@ const parseRepository = parse.object<Repository>({
 
 const parseTaskState = parse.oneOf('queued', 'in_progress', 'completed', 'failed', 'idle', 'waiting_for_user', 'timed_out', 'cancelled');
 
+const parseTaskClient = parse.object<TaskClient>({
+	integration_id: parse.nonEmptyString,
+	slug: parse.nonEmptyString,
+	creator: parse.boolean,
+});
+
+const parseIdentifier = parse.refine(parse.nonEmptyString, value => value.trim().length > 0, 'Expected a non-blank identifier');
+
 const parseTaskFields = parse.object<Task>({
-	id: parse.nonEmptyString,
+	id: parseIdentifier,
 	url: parse.optional(parse.string),
 	html_url: parse.optional(parse.string),
 	name: parse.optional(parse.string),
 	creator: parse.optional(parseUser),
 	creator_type: parse.optional(parse.oneOf('user', 'organization')),
+	clients: parse.optional(parse.arrayOf(parseTaskClient)),
 	user_collaborators: parse.optional(parse.arrayOf(value => isNumber(value) ? parse.integer(value) : parseUser(value))),
 	agent_collaborators: parse.optional(parse.arrayOf(parse.object({
 		agent_type: parse.optional(parse.string),
@@ -169,12 +271,14 @@ const parseTaskFields = parse.object<Task>({
 	automation_id: parse.optional(parse.string),
 	automation_revision_id: parse.optional(parse.string),
 	stale_at: parse.optional(parse.dateTime),
-	compute: parse.optional(parse.object({
-		provider: parse.optional(parse.oneOf('codespaces', 'sandboxes')),
+	compute: parse.optional(parse.nullable(parse.object({
+		provider: parse.optional(parse.oneOf('codespaces', 'sandboxes', '')),
 		resource_id: parse.optional(parse.string),
 		scope: parse.optional(parse.string),
-	})),
+	}))),
 	sharing_status: parse.optional(parse.oneOf('unshared', 'shared', 'unlisted')),
+	reserved: parse.optional(parse.boolean),
+	reservation_expires_at: parse.optional(parse.dateTime),
 	azure_devops_repository_context: parse.optional(parse.object({
 		url: parse.string,
 		name: parse.optional(parse.string),
@@ -199,7 +303,9 @@ const parseBranchArtifact = parse.object<TaskArtifact>({
 
 const parseAzureDevOpsArtifact = parse.object<TaskArtifact>({
 	...artifactSchema,
-	data: parse.object({ url: parse.string }),
+	data: parse.object({
+		url: parse.string
+	}),
 });
 
 const parseRepositoryArtifact = parse.object<TaskArtifact>({
@@ -238,7 +344,7 @@ function parseTaskDetail(value: unknown, expectedId?: string): GetTaskResponse {
 	};
 }
 
-/** Parses the task listing shared by task collections and automation runs. */
+/** Parses a page of tasks and its aggregate counts. */
 export const parseListTasksResponse = parse.object<ListTasksResponse>({
 	tasks: parse.arrayOf(parseTask),
 	total_active_count: parse.optional(parse.nonNegativeInteger),
@@ -246,10 +352,12 @@ export const parseListTasksResponse = parse.object<ListTasksResponse>({
 	total_archived_count: parse.optional(parse.nonNegativeInteger),
 });
 
-const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
+const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions' | 'claimed'>>({
+	claimed: parse.optional(parse.boolean),
 	sessions: parse.optional(parse.arrayOf(parse.object({
-		id: parse.nonEmptyString,
+		id: parseIdentifier,
 		name: parse.optional(parse.string),
+		clients: parse.optional(parse.arrayOf(parseTaskClient)),
 		user: parse.optional(parseUser),
 		owner: parse.optional(parseUser),
 		repository: parse.optional(parseRepository),
@@ -285,7 +393,9 @@ const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
 			credits: parse.optional(parse.finiteNumber),
 		})),
 		remote_steerable: parse.optional(parse.boolean),
-		error: parse.optional(parse.object({ message: parse.optional(parse.string) })),
+		error: parse.optional(parse.object({
+			message: parse.optional(parse.string)
+		})),
 		stale_at: parse.optional(parse.dateTime),
 		environment_id: parse.optional(parse.string),
 		ahp_resource_uri: parse.optional(parse.string),
@@ -308,10 +418,12 @@ const parseTaskEventsResponse = parse.object<ListTaskEventsResponse>({
 });
 
 const parseAhpMessage = parse.object<Extract<AhpPayload, { kind: 'message' }>>({
-	kind: parse.oneOf('message'),
+	kind: parse.exact('message'),
 	data: parse.amend(parse.jsonObject, parse.object({
 		channel: parse.string,
-		action: parse.amend(parse.jsonObject, parse.object({ type: parse.nonEmptyString })),
+		action: parse.amend(parse.jsonObject, parse.object({
+			type: parse.nonEmptyString
+		})),
 		serverSeq: parse.integer,
 		rejectionReason: parse.optional(parse.nullable(parse.string)),
 	})),
@@ -319,10 +431,10 @@ const parseAhpMessage = parse.object<Extract<AhpPayload, { kind: 'message' }>>({
 
 const parseAhpChunk = parse.refine(
 	parse.object<Extract<AhpPayload, { kind: 'chunk' }>>({
-		kind: parse.oneOf('chunk'),
+		kind: parse.exact('chunk'),
 		group_id: parse.nonEmptyString,
 		seq: parse.nonNegativeInteger,
-		total: parse.range(1, Number.MAX_SAFE_INTEGER),
+		total: parse.positiveInteger,
 		bytes: parse.string,
 	}),
 	chunk => chunk.seq < chunk.total && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.bytes),

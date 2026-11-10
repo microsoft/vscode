@@ -18,9 +18,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
 import { createChatPillHoverElement } from '../../../browser/chatPillHover.js';
-import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../common/sessionChatPills.js';
 import { BackgroundShellCommandView, BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
 import './media/sessionBackgroundShells.css';
+import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
 
 /** A chat whose active background shells the Background Shells pill lists. */
 export interface IChatBackgroundShellsSource {
@@ -33,7 +33,7 @@ export function getBackgroundShellsPillAccessibilityHelp(): string {
 }
 
 function getShellName(shell: IChatBackgroundShell): string {
-	return shell.description.trim() || shell.command;
+	return shell.description.trim() || shell.command.trim() || shell.shellId?.trim() || localize('backgroundShells.unnamed', "Background Shell");
 }
 
 interface IShellDetails {

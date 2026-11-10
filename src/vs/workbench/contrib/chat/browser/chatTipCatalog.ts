@@ -15,6 +15,8 @@ import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
+import { SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
@@ -320,6 +322,28 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
+		id: 'tip.sendInBackground',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			return new MarkdownString(
+				localize(
+					'tip.sendInBackground',
+					"Use Send in Background{0} to start a new session without opening it. [Customize the shortcut](command:workbench.action.openGlobalKeybindings?{1} \"Open Keyboard Shortcuts\").",
+					formatKeybinding(ctx, SEND_IN_BACKGROUND_COMMAND_ID),
+					encodeURIComponent(JSON.stringify([SEND_IN_BACKGROUND_COMMAND_ID])),
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			SessionIsCreatedContext.negate(),
+		),
+		requiresCommands: [SEND_IN_BACKGROUND_COMMAND_ID],
+		excludeWhenCommandsExecuted: [SEND_IN_BACKGROUND_COMMAND_ID],
+	},
+	{
 		id: 'tip.btw',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
@@ -456,25 +480,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			OPEN_AGENTS_WINDOW_COMMAND_ID,
 			OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
 		],
-	},
-	{
-		id: 'tip.copilotCli',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.copilotCli',
-					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			IsSessionsWindowContext.negate(),
-			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.hasCanDelegateProviders,
-		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
 	},
 	{
 		id: 'tip.defaultPermissions',

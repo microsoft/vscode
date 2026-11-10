@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SignatureKind, type Project, type Symbol as NativeSymbol } from '@typescript/native/unstable/async';
+import { SignatureKind, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
 import {
 	escapeLeadingUnderscores,
 	InternalSymbolName,
@@ -28,7 +28,7 @@ import {
 	type SetAccessorDeclaration,
 	type SourceFile,
 	type __String,
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 import { FunctionLikeContextProvider, FunctionLikeContextRunnable } from './baseContextProviders';
 import { CodeSnippetBuilder } from './code';
 import {

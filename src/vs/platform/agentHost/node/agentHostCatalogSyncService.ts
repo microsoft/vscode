@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SESSION_STATE_VALUE_KEYS } from './agentHostSessionStateMirror.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
@@ -13,6 +14,7 @@ import { type IDisposable, type IReference } from '../../../base/common/lifecycl
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase, SessionCatalogSyncTransitionResult, SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore, ISessionStateExclusive, SessionStateDeletedError, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
@@ -29,7 +31,7 @@ export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
 
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
-	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
+	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' | 'acknowledgementFailed' };
 
 export type AgentHostCatalogPendingReplayOutcome =
 	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed'; readonly sourceRevision: number }
@@ -63,6 +65,21 @@ export function matchesAcknowledgedCatalogReceipt(
 		&& catalog.payloadHash === receipt.payloadHash;
 }
 
+/**
+ * Whether the local receipt already records `acknowledgement`. A write that
+ * replays an acknowledged receipt leaves nothing pending to acknowledge.
+ */
+function isCatalogReceiptAcknowledged(
+	receipt: ISessionCatalogSyncSnapshot | undefined,
+	acknowledgement: ISessionCatalogSyncAcknowledgement,
+): boolean {
+	return receipt?.state === 'acknowledged'
+		&& receipt.sessionGeneration === acknowledgement.sessionGeneration
+		&& receipt.sourceRevision === acknowledgement.sourceRevision
+		&& receipt.projectionVersion === acknowledgement.projectionVersion
+		&& receipt.payloadHash === acknowledgement.payloadHash;
+}
+
 /** Whether every legacy compatibility key the request carries is already persisted. */
 export async function catalogLegacyMetadataMatches(
 	database: ReturnType<ISessionDataService['openDatabase']>['object'],
@@ -74,6 +91,11 @@ export async function catalogLegacyMetadataMatches(
 	}
 	const persistedMetadata = await database.getMetadataObject(metadataKeys);
 	return Object.entries(legacyMetadata).every(([key, value]) => persistedMetadata[key] === value);
+}
+
+/** Projected values are read from the central state, which may legitimately be ahead of a queued request; they never indicate a diverged mirror. */
+function withoutProjectedKeys(legacyMetadata: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
+	return Object.fromEntries(Object.entries(legacyMetadata).filter(([key]) => !SESSION_STATE_VALUE_KEYS.some(entry => entry.projected && entry.key === key)));
 }
 
 /** Replays a durable snapshot without resolving provider metadata or changing its generation or revision. */
@@ -171,6 +193,7 @@ export class AgentHostCatalogSyncService {
 	constructor(
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _catalogDatabase: IAgentHostDatabase,
+		private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		private readonly _logService: ILogService,
 	) { }
 
@@ -234,13 +257,14 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>): Promise<AgentHostCatalogSyncResult> {
+	/** @param imported whether the session has central state, when the caller already read it (e.g. a page prefetch). */
+	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>, validate?: () => Promise<void>, writeValidator?: () => boolean, imported?: boolean): Promise<AgentHostCatalogSyncResult> {
 		return this.runExclusive(session, async (synchronize, database) => {
 			await this._markPayloadDirty(session);
 			let result: AgentHostCatalogSyncResult;
 			for (let attempt = 0; ; attempt++) {
 				const request = await requestFactory(database);
-				result = await synchronize(request);
+				result = await synchronize(request, validate, writeValidator);
 				if (request.chatCatalogRevision === undefined || result.status !== 'pending'
 					|| result.reason !== 'conflict' || attempt + 1 >= MAX_GENERATION_RETRIES) {
 					break;
@@ -248,7 +272,7 @@ export class AgentHostCatalogSyncService {
 			}
 			await this._markPayloadDirty(session);
 			return result;
-		});
+		}, imported);
 	}
 
 	synchronizeMigrationWithFactory(
@@ -277,9 +301,9 @@ export class AgentHostCatalogSyncService {
 	}
 
 	runExclusive<T>(session: URI, operation: (
-		synchronize: (request: IAgentHostCatalogSyncRequest) => Promise<AgentHostCatalogSyncResult>,
+		synchronize: (request: IAgentHostCatalogSyncRequest, validate?: () => Promise<void>, writeValidator?: () => boolean) => Promise<AgentHostCatalogSyncResult>,
 		database: AgentHostCatalogDatabaseReference,
-	) => Promise<T>): Promise<T> {
+	) => Promise<T>, imported?: boolean): Promise<T> {
 		if (this.isSessionDeletionFenced(session)) {
 			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
@@ -288,7 +312,13 @@ export class AgentHostCatalogSyncService {
 			async () => {
 				const database = this._sessionDataService.openDatabase(session);
 				try {
-					return await operation(request => this._synchronizeWithDatabaseNow(session, request, database), database);
+					// Never imports: an imported session's central state is loaded first, so the projection includes older builds'
+					// edits; a session without central state (one only discovered) is still sourced from its session.db.
+					const known = { imported };
+					const withCentral = <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => this._withCentralIfImported(session, run, known);
+					return await operation(
+						(request, validate, writeValidator) => this._synchronizeWithDatabaseNow(session, request, database, withCentral, validate, writeValidator),
+						this._projectFromCentral(database, withCentral));
 				} finally {
 					database.dispose();
 				}
@@ -305,15 +335,19 @@ export class AgentHostCatalogSyncService {
 		}
 		return this._queue(session, 'migration', async () => {
 			const database = await this._sessionDataService.tryOpenDatabase(session);
+			if (!database) {
+				return operation(undefined, (request, validate, writeValidator) => this._synchronizeCentralOnlyNow(session, request, validate, writeValidator));
+			}
 			try {
+				// Re-projection never imports: a session without central state is still sourced from its session.db.
+				const known: { imported?: boolean } = {};
+				const withCentral = <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => this._withCentralIfImported(session, run, known);
 				return await operation(
-					database,
-					(request, validate, writeValidator) => database
-						? this._synchronizeWithDatabaseNow(session, request, database, validate, writeValidator)
-						: this._synchronizeCentralOnlyNow(session, request, validate, writeValidator),
+					this._projectFromCentral(database, withCentral),
+					(request, validate, writeValidator) => this._synchronizeWithDatabaseNow(session, request, database, withCentral, validate, writeValidator),
 				);
 			} finally {
-				database?.dispose();
+				database.dispose();
 			}
 		});
 	}
@@ -343,10 +377,69 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	private async _synchronizeWithDatabaseNow(
+	/**
+	 * {@link _withCentral} for a session with central state; without it (never imported) the operation runs against
+	 * session.db alone. Whether it has central state is read once per synchronization (`known`); a loaded session always has.
+	 */
+	private async _withCentralIfImported<T>(session: URI, operation: (exclusive: ISessionStateExclusive | undefined) => Promise<T>, known: { imported?: boolean }): Promise<T> {
+		if (!this._sessionStateStore.peek(session)) {
+			known.imported ??= !!(await this._catalogDatabase.readSessionStateValues([session.toString()], [])).get(session.toString())?.imported;
+			if (!known.imported) {
+				return operation(undefined);
+			}
+		}
+		return this._withCentral(session, operation);
+	}
+
+	/** Runs in the store's exclusive section; a deleted session has no central state, so the operation runs against session.db alone. */
+	private async _withCentral<T>(session: URI, operation: (exclusive: ISessionStateExclusive | undefined) => Promise<T>): Promise<T> {
+		let started = false;
+		try {
+			return await this._sessionStateStore.runExclusive(session, exclusive => {
+				started = true;
+				return operation(exclusive);
+			});
+		} catch (error) {
+			if (started || !(error instanceof SessionStateDeletedError)) {
+				throw error;
+			}
+			return operation(undefined);
+		}
+	}
+
+	/** The database reference with the metadata the store owns served from central state. */
+	private _projectFromCentral(database: AgentHostCatalogDatabaseReference, withCentral: <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => Promise<R>): AgentHostCatalogDatabaseReference {
+		const object = new Proxy(database.object, {
+			get: (target, property) => {
+				if (property === 'getMetadataObject') {
+					// A short exclusive section per read: the request factory may itself use the store.
+					return <T extends Record<string, unknown>>(keys: T) => withCentral(exclusive => exclusive
+						? this._sessionStateStore.catalogMetadataReference(exclusive).object.getMetadataObject(keys)
+						: target.getMetadataObject(keys));
+				}
+				const value = Reflect.get(target, property, target);
+				return typeof value === 'function' ? value.bind(target) : value;
+			},
+		});
+		return { object, dispose: () => { } };
+	}
+
+	private _synchronizeWithDatabaseNow(
 		session: URI,
 		request: IAgentHostCatalogSyncRequest,
 		ref: ReturnType<ISessionDataService['openDatabase']>,
+		withCentral: <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => Promise<R>,
+		validate?: () => Promise<void>,
+		writeValidator?: () => boolean,
+	): Promise<AgentHostCatalogSyncResult> {
+		return withCentral(exclusive => this._synchronizeWithDatabaseLocked(session, request, ref, exclusive, validate, writeValidator));
+	}
+
+	private async _synchronizeWithDatabaseLocked(
+		session: URI,
+		request: IAgentHostCatalogSyncRequest,
+		ref: ReturnType<ISessionDataService['openDatabase']>,
+		exclusive: ISessionStateExclusive | undefined,
 		validate?: () => Promise<void>,
 		writeValidator?: () => boolean,
 	): Promise<AgentHostCatalogSyncResult> {
@@ -365,8 +458,8 @@ export class AgentHostCatalogSyncService {
 				central = await this._catalogDatabase.getSessionV2(sessionKey);
 			} catch (error) {
 				this._logService.warn(`[AgentHostCatalogSync] Failed to read sessions_v2 row for ${sessionKey}`, error);
-				const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
-				const pending = await this._storePending(ref.object, request, encoded, existing, legacyMetadataMatches, validate, writeValidator);
+				const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, withoutProjectedKeys(request.legacyMetadata));
+				const pending = await this._storePending(ref.object, exclusive, request, encoded, existing, legacyMetadataMatches, validate, writeValidator);
 				return {
 					status: 'pending',
 					sourceRevision: pending.snapshot.sourceRevision,
@@ -377,19 +470,19 @@ export class AgentHostCatalogSyncService {
 			const sessionGeneration = central?.sessionGeneration
 				?? (existing?.state === 'pending' ? existing.sessionGeneration : generateUuid());
 			traceStage('readLegacyMetadata');
-			const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
+			const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, withoutProjectedKeys(request.legacyMetadata));
 			const sourceRevision = this._sourceRevision(existing, central, sessionGeneration, encoded.payloadHash, legacyMetadataMatches);
 			const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
 
 			if (existing && existing.sessionGeneration !== sessionGeneration) {
 				traceStage('transitionLocalReceipt');
 				await validate?.();
-				const transitioned = await ref.object.transitionMetadataValuesAndCatalogSyncSnapshot(
+				const transitioned = await this._writeThroughCentral(exclusive, request, writeValidator, () => ref.object.transitionMetadataValuesAndCatalogSyncSnapshot(
 					request.legacyMetadata,
 					existing.sessionGeneration,
 					snapshot,
 					writeValidator,
-				);
+				));
 				if (transitioned === 'cancelled') {
 					return { status: 'pending', sourceRevision, reason: 'cancelled' };
 				}
@@ -399,7 +492,7 @@ export class AgentHostCatalogSyncService {
 			} else {
 				traceStage('writeLocalReceipt');
 				await validate?.();
-				const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator);
+				const writeResult = await this._writeThroughCentral(exclusive, request, writeValidator, () => ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator));
 				if (writeResult === 'cancelled') {
 					return { status: 'pending', sourceRevision, reason: 'cancelled' };
 				}
@@ -430,7 +523,14 @@ export class AgentHostCatalogSyncService {
 				continue;
 			}
 			if (upsertResult !== 'applied' && upsertResult !== 'replayed') {
-				this._logService.warn(`[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`);
+				// A chat catalog that moved on under the request (an import or a conversion) is retried by
+				// synchronizeWithFactory, whose callers warn if it never settles.
+				const message = `[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`;
+				if (upsertResult === 'conflict' && request.chatCatalogRevision !== undefined) {
+					this._logService.trace(message);
+				} else {
+					this._logService.warn(message);
+				}
 				return { status: 'pending', sourceRevision, reason: upsertResult };
 			}
 
@@ -442,7 +542,16 @@ export class AgentHostCatalogSyncService {
 			};
 			traceStage('acknowledgeLocalReceipt');
 			await validate?.();
-			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)) {
+			let acknowledged: boolean;
+			try {
+				acknowledged = await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
+					|| isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement);
+			} catch (error) {
+				// The catalog row is committed: the receipt stays pending for reconciliation to replay and acknowledge.
+				this._logService.warn(`[AgentHostCatalogSync] Failed to acknowledge the catalog sync receipt for ${sessionKey}`, error);
+				return { status: 'pending', sourceRevision, reason: 'acknowledgementFailed' };
+			}
+			if (!acknowledged) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
 			traceStage('acknowledged');
@@ -551,8 +660,51 @@ export class AgentHostCatalogSyncService {
 			: this._catalogDatabase.upsertSessionV2FromChatCatalog(envelope, expectedSessionGeneration, chatCatalogRevision, validate);
 	}
 
+	/**
+	 * Adopts the request's store-owned values into central state, then runs the
+	 * session.db write (mirror and outbox in one transaction) and records what it mirrored.
+	 * A replayed write leaves session.db's values untouched, so its entries stay dirty for the store to mirror.
+	 * Any other write that session.db did not take (cancelled because it was superseded, or a generation mismatch) has
+	 * its adoption undone, so the store does not mirror its values either and a retry starts from the previous values.
+	 */
+	private async _writeThroughCentral<T extends string>(exclusive: ISessionStateExclusive | undefined, request: IAgentHostCatalogSyncRequest, writeValidator: (() => boolean) | undefined, write: () => Promise<T>): Promise<T> {
+		if (!exclusive || writeValidator?.() === false) {
+			return write();
+		}
+		const previous = this._sessionStateStore.legacyMetadata(URI.parse(exclusive.snapshot.session), Object.keys(request.legacyMetadata)).values;
+		let adopted: Awaited<ReturnType<ISessionStateExclusive['writeLegacyMetadata']>>;
+		try {
+			adopted = await exclusive.writeLegacyMetadata(request.legacyMetadata, SessionStateMirrorFlush.Coalesced);
+		} catch (error) {
+			if (error instanceof SessionStateDeletedError) {
+				// A session being deleted drains its in-flight synchronization against session.db alone.
+				return write();
+			}
+			throw error;
+		}
+		const result = await write();
+		if (result === 'applied') {
+			exclusive.noteMirrored(adopted.revision, adopted.entries);
+		} else if (result !== 'replayed') {
+			await this._undoAdoption(exclusive, previous);
+		}
+		return result;
+	}
+
+	private async _undoAdoption(exclusive: ISessionStateExclusive, previous: Readonly<Record<string, string | undefined>>): Promise<void> {
+		try {
+			await exclusive.writeLegacyMetadata(Object.fromEntries(Object.entries(previous).map(([key, value]) => [key, value ?? null])), SessionStateMirrorFlush.Coalesced);
+		} catch (error) {
+			if (!(error instanceof SessionStateDeletedError)) {
+				throw error;
+			}
+			// A session being deleted has no central state left to restore.
+		}
+	}
+
 	private async _storePending(
 		database: ReturnType<ISessionDataService['openDatabase']>['object'],
+		exclusive: ISessionStateExclusive | undefined,
 		request: IAgentHostCatalogSyncRequest,
 		encoded: IAgentHostCatalogEncodedPayload,
 		existing: ISessionCatalogSyncSnapshot | undefined,
@@ -565,10 +717,10 @@ export class AgentHostCatalogSyncService {
 		const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
 		await validate?.();
 		if (existing && existing.sessionGeneration !== sessionGeneration) {
-			const result = await database.transitionMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, existing.sessionGeneration, snapshot, writeValidator);
+			const result = await this._writeThroughCentral(exclusive, request, writeValidator, () => database.transitionMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, existing.sessionGeneration, snapshot, writeValidator));
 			return { snapshot, result };
 		}
-		const result = await database.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator);
+		const result = await this._writeThroughCentral(exclusive, request, writeValidator, () => database.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator));
 		return { snapshot, result };
 	}
 

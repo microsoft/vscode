@@ -44,6 +44,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
@@ -153,6 +154,12 @@ suite('codexSessionConfigKeys', () => {
 			defaultedValues: { mode: 'interactive', preset: 'default' },
 			fullAccessPreset: 'full-access',
 		});
+	});
+
+	test('a chat may set its own mode, permissions preset and tool permissions', async () => {
+		const agent = createAgent(disposables);
+		const { schema } = await agent.resolveChatConfig({ config: {} });
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions].sort());
 	});
 
 	test('resolveChatConfig describes workspace-scoped default permissions', async () => {

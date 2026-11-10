@@ -18,10 +18,15 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { NullLogService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { IRootConfigChangedAction, ClientAnnotationsAction, INotification, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -29,6 +34,7 @@ import { StateComponents, type ComponentToState } from '../../../../../../platfo
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { SessionLifecycle, SessionStatus, type SessionConfigPropertySchema, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IAgentSession, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -85,6 +91,7 @@ interface ISubscriptionEntry {
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 
+	override readonly resourceUris = identityAgentHostResourceUriMapper;
 	override readonly onAgentHostStart = Event.None;
 	override readonly onAgentHostExit = Event.None;
 	override readonly onDidAction = Event.None;
@@ -187,15 +194,24 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService()) {
+	function createConnectionsService(agentHostService: IAgentHostService): AgentHostConnectionsService {
+		return store.add(new AgentHostConnectionsService(agentHostService, new NullRemoteAgentHostService(), new TestPathService(), new NullLogService()));
+	}
+
+	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService(), backendSession = BACKEND_SESSION) {
 		const agentHostService = new MockAgentHostService();
 		store.add({ dispose: () => agentHostService.dispose() });
+		const connectionsService = createConnectionsService(agentHostService);
 		if (initialState) {
-			agentHostService.setSessionState(BACKEND_SESSION, initialState);
+			agentHostService.setSessionState(backendSession, initialState);
+			if (!(initialState instanceof Error)) {
+				connectionsService.registerSessionResource(backendSession, undefined, initialState.provider);
+			}
 		}
 
 		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
 			[IAgentHostService, agentHostService],
+			[IAgentHostConnectionsService, connectionsService],
 			[IConfigurationService, configurationService],
 			[ILogService, new NullLogService()],
 		)));
@@ -203,7 +219,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		const schemaRegistrar = store.add(instantiationService.createInstance(AgentSessionSettingsSchemaRegistrar));
 		const fs = store.add(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider, schemaRegistrar));
 
-		return { fs, agentHostService, uri: agentSessionSettingsUri(BACKEND_SESSION) };
+		return { fs, agentHostService, connectionsService, uri: agentSessionSettingsUri(backendSession) };
 	}
 
 	test('URI routing: encodes and round-trips the backend session URI', () => {
@@ -256,7 +272,8 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 			mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['a', 'b'] },
 			isolation: { type: 'string', title: 'Isolation', enum: ['worktree'] }, // non-mutable, must be preserved
 			branch: { type: 'string', title: 'Branch', sessionMutable: true, readOnly: true, enum: ['main'] }, // readOnly, must be preserved
-		}, { autoApprove: 'default', mode: 'a', isolation: 'worktree', branch: 'main' }));
+			[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
+		}, { autoApprove: 'default', mode: 'a', isolation: 'worktree', branch: 'main', [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } }));
 
 		// Omit `mode` entirely — it should be cleared, not defaulted.
 		await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "autoApprove" }\n').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
@@ -265,6 +282,15 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		const action = agentHostService.dispatchedActions[0].action as { config: Record<string, unknown> };
 		assert.deepStrictEqual(action.config, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' });
 		assert.strictEqual(Object.hasOwn(action.config, 'mode'), false);
+	});
+
+	test('writeFile does not dispatch unchanged settings when a host model report is present', async () => {
+		const { fs, uri, agentHostService } = createHarness(makeSessionState({
+			autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default', 'autoApprove'] },
+			[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
+		}, { autoApprove: 'default', [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } }));
+		await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "default" }\n').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 	});
 
 	test('writeFile clamps autoApprove to default when org policy disables global auto-approve', async () => {
@@ -365,6 +391,113 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 	});
 
 	suite('subscription lifecycle', () => {
+
+		for (const provider of ['claude', 'codex']) {
+			for (const { initiallyBlocked, backendScheme } of [
+				{ initiallyBlocked: false, backendScheme: provider },
+				{ initiallyBlocked: true, backendScheme: provider },
+				{ initiallyBlocked: false, backendScheme: 'ahp-session' },
+				{ initiallyBlocked: true, backendScheme: 'ahp-session' },
+			]) {
+				test(`policy-disabled ${provider} settings suspend restored watches and file access (cold=${initiallyBlocked}, backend=${backendScheme})`, async () => {
+					const setting = `chat.agentHost.${provider}Agent.enabled`;
+					const configuration = new class extends TestConfigurationService {
+						blocked = initiallyBlocked;
+						override inspect<T>(key: string) {
+							const value = super.inspect<T>(key);
+							return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+						}
+					}({ [setting]: !initiallyBlocked });
+					store.add(configuration.onDidChangeConfigurationEmitter);
+					const backendSession = URI.parse(`${backendScheme}:/restored`);
+					const state = makeSessionState({ mode: { type: 'string', title: 'Mode', sessionMutable: true } }, { mode: 'interactive' });
+					const { fs, uri, agentHostService } = createHarness({ ...state, provider }, configuration, backendSession);
+					const changes: URI[] = [];
+					store.add(fs.onDidChangeFile(events => changes.push(...events.map(event => event.resource))));
+					const watch = store.add(fs.watch(uri, { recursive: false, excludes: [] }));
+					const snapshot = () => ({ acquired: agentHostService.acquireCount(backendSession), released: agentHostService.disposeCount(backendSession), changes: changes.length });
+					const opened = snapshot();
+					const setPolicy = async (blocked: boolean) => {
+						configuration.blocked = blocked;
+						await configuration.setUserConfiguration(setting, !blocked);
+						configuration.onDidChangeConfigurationEmitter.fire({
+							source: ConfigurationTarget.USER,
+							affectedKeys: new Set([setting]),
+							change: { keys: [setting], overrides: [] },
+							affectsConfiguration: key => key === setting,
+						});
+					};
+					if (!initiallyBlocked) {
+						await setPolicy(true);
+					}
+					const revoked = snapshot();
+					const attempts = await Promise.allSettled([
+						fs.stat(uri),
+						fs.readFile(uri),
+						fs.writeFile(uri, VSBuffer.fromString('{ "mode": "plan" }').buffer, { create: false, overwrite: true, unlock: false, atomic: false }),
+					]);
+					agentHostService.setSessionState(backendSession, { ...state, provider });
+					const blocked = snapshot();
+					const dispatchedWhileBlocked = agentHostService.dispatchedActions.length;
+					await setPolicy(false);
+					const recovered = snapshot();
+					const config = readJson(await fs.readFile(uri));
+					watch.dispose();
+
+					assert.deepStrictEqual({
+						opened, revoked, blocked, recovered, config,
+						attempts: attempts.map(attempt => attempt.status === 'rejected' ? toFileSystemProviderErrorCode(attempt.reason) : attempt.status),
+						dispatchedWhileBlocked,
+						closed: snapshot(),
+					}, {
+						opened: { acquired: initiallyBlocked ? 0 : 1, released: 0, changes: 0 },
+						revoked: { acquired: initiallyBlocked ? 0 : 1, released: initiallyBlocked ? 0 : 1, changes: initiallyBlocked ? 0 : 1 },
+						blocked: { acquired: initiallyBlocked ? 0 : 1, released: initiallyBlocked ? 0 : 1, changes: initiallyBlocked ? 0 : 1 },
+						recovered: { acquired: initiallyBlocked ? 1 : 2, released: initiallyBlocked ? 0 : 1, changes: initiallyBlocked ? 1 : 2 },
+						config: { mode: 'interactive' },
+						attempts: [FileSystemProviderErrorCode.NoPermissions, FileSystemProviderErrorCode.NoPermissions, FileSystemProviderErrorCode.NoPermissions],
+						dispatchedWhileBlocked: 0,
+						closed: { acquired: initiallyBlocked ? 2 : 3, released: initiallyBlocked ? 2 : 3, changes: initiallyBlocked ? 1 : 2 },
+					});
+				});
+			}
+		}
+
+		for (const { provider, watched } of [
+			{ provider: 'claude', watched: true },
+			{ provider: 'codex', watched: true },
+			{ provider: 'copilotcli', watched: true },
+			{ provider: 'copilotcli', watched: false },
+		]) {
+			test(`policy-disabled providers keep unknown native settings passive until ${provider} metadata arrives (watched=${watched})`, async () => {
+				const configuration = new class extends TestConfigurationService {
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: value.value };
+					}
+				}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+				store.add(configuration.onDidChangeConfigurationEmitter);
+				const backendSession = URI.parse('ahp-session:/restored');
+				const { fs, uri, agentHostService, connectionsService } = createHarness(undefined, configuration, backendSession);
+				const changes: string[] = [];
+				store.add(fs.onDidChangeFile(events => changes.push(...events.map(event => event.resource.toString()))));
+				const watch = watched ? store.add(fs.watch(uri, { recursive: false, excludes: [] })) : undefined;
+				const unknownStat = await fs.stat(uri).then(() => 'resolved', error => toFileSystemProviderErrorCode(error));
+				const unknownRead = await fs.readFile(uri).then(() => 'resolved', error => toFileSystemProviderErrorCode(error));
+				const unknown = { acquired: agentHostService.acquireCount(backendSession), released: agentHostService.disposeCount(backendSession), stat: unknownStat, read: unknownRead };
+				agentHostService.setSessionState(backendSession, { ...makeSessionState({ mode: { type: 'string', title: 'Mode', sessionMutable: true } }, { mode: 'interactive' }), provider });
+				connectionsService.registerSessionResource(backendSession, undefined, provider);
+				const knownRead = await fs.readFile(uri).then(content => readJson(content), error => toFileSystemProviderErrorCode(error));
+				watch?.dispose();
+				assert.deepStrictEqual({ unknown, metadataChangedFile: changes.includes(uri.toString()), known: { acquired: agentHostService.acquireCount(backendSession), released: agentHostService.disposeCount(backendSession), read: knownRead } }, {
+					unknown: { acquired: 0, released: 0, stat: FileSystemProviderErrorCode.Unavailable, read: FileSystemProviderErrorCode.Unavailable },
+					metadataChangedFile: true,
+					known: provider === 'copilotcli'
+						? { acquired: watched ? 2 : 1, released: watched ? 2 : 1, read: { mode: 'interactive' } }
+						: { acquired: 0, released: 0, read: FileSystemProviderErrorCode.NoPermissions },
+				});
+			});
+		}
 
 		test('readFile acquires and releases its own scoped reference', async () => {
 			const { fs, uri, agentHostService } = createHarness(makeSessionState({}, {}));
@@ -484,6 +617,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 
 			const instantiationService = new TestInstantiationService(new ServiceCollection(
 				[IAgentHostService, agentHostService],
+				[IAgentHostConnectionsService, createConnectionsService(agentHostService)],
 				[IConfigurationService, new TestConfigurationService()],
 				[ILogService, new NullLogService()],
 			));

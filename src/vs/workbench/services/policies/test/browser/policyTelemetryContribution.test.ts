@@ -40,7 +40,6 @@ const POLICY_SOURCE_FIELDS = {
 	pluginsEnabledSource: 'ChatPluginsEnabled',
 	enabledPluginsSource: 'ChatEnabledPlugins',
 	extraMarketplacesSource: 'ChatExtraMarketplaces',
-	strictMarketplacesSource: 'ChatStrictMarketplaces',
 	strictPluginOnlyCustomizationSource: 'ChatStrictPluginOnlyCustomization',
 	hooksSource: 'ChatHooks',
 	allowManagedHooksOnlySource: 'ChatAllowManagedHooksOnly',
@@ -66,14 +65,12 @@ const EMPTY_EVENT = {
 	toolsAutoApproveSet: false,
 	enabledPluginsSet: false,
 	extraMarketplacesSet: false,
-	strictMarketplacesSet: false,
 	approvedOrgsSet: false,
 	otelSet: false,
 	telemetryLevelSet: false,
 	enableFeedbackSet: false,
 	defaultModelForcedToAuto: false,
 	toolsAutoApproveForcedOff: false,
-	strictMarketplacesLockdown: false,
 	otelForcedEnabled: false,
 	telemetryLevel: undefined,
 	...Object.fromEntries(Object.keys(POLICY_SOURCE_FIELDS).map(field => [field, 'none'])),
@@ -111,7 +108,6 @@ suite('PolicyTelemetryContribution', () => {
 		policyService.setPolicy('ChatToolsAutoApprove', false);
 		policyService.setPolicy('ChatEnabledPlugins', '[]');
 		policyService.setPolicy('ChatExtraMarketplaces', '[]');
-		policyService.setPolicy('ChatStrictMarketplaces', '[]');
 		policyService.setPolicy('ChatApprovedAccountOrganizations', '[]');
 		policyService.setPolicy('CopilotOtelEnabled', true);
 		policyService.setPolicy('TelemetryLevel', 'all');
@@ -122,31 +118,27 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			devicePolicyCount: 9,
+			devicePolicyCount: 8,
 			defaultModelSet: true,
 			toolsAutoApproveSet: true,
 			enabledPluginsSet: true,
 			extraMarketplacesSet: true,
-			strictMarketplacesSet: true,
 			approvedOrgsSet: true,
 			otelSet: true,
 			telemetryLevelSet: true,
 			enableFeedbackSet: true,
 			defaultModelForcedToAuto: true,
 			toolsAutoApproveForcedOff: true,
-			strictMarketplacesLockdown: true,
 			otelForcedEnabled: true,
 			telemetryLevel: 'all',
 			enabledPluginsSource: PolicyValueSource.Device,
 			extraMarketplacesSource: PolicyValueSource.Device,
-			strictMarketplacesSource: PolicyValueSource.Device,
 			otelEnabledSource: PolicyValueSource.Device,
 		});
 	});
 
 	test('buckets unexpected values without reporting them', () => {
 		const policyService = new TestPolicyService();
-		policyService.setPolicy('ChatStrictMarketplaces', 'not-json');
 		policyService.setPolicy('TelemetryLevel', 1);
 
 		const { events, clock } = createContribution(policyService);
@@ -154,11 +146,9 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			devicePolicyCount: 2,
-			strictMarketplacesSet: true,
+			devicePolicyCount: 1,
 			telemetryLevelSet: true,
 			telemetryLevel: 'unknown',
-			strictMarketplacesSource: PolicyValueSource.Device,
 		});
 	});
 
@@ -217,7 +207,6 @@ suite('PolicyTelemetryContribution', () => {
 					devicePolicyCount: 1,
 					enabledPluginsSet: name === 'ChatEnabledPlugins',
 					extraMarketplacesSet: name === 'ChatExtraMarketplaces',
-					strictMarketplacesSet: name === 'ChatStrictMarketplaces',
 					otelSet: name === 'CopilotOtelEnabled',
 					[field]: PolicyValueSource.Device,
 				},
@@ -257,7 +246,6 @@ suite('PolicyTelemetryContribution', () => {
 					[countField]: Object.keys(POLICY_SOURCE_FIELDS).length,
 					enabledPluginsSet: true,
 					extraMarketplacesSet: true,
-					strictMarketplacesSet: true,
 					otelSet: true,
 					...Object.fromEntries(Object.keys(POLICY_SOURCE_FIELDS).map(field => [field, source ?? PolicyValueSource.Device])),
 				},

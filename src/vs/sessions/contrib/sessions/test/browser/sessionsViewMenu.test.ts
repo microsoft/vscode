@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { $, getActiveElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,20 +24,30 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextMenuHandler } from '../../../../../platform/contextview/browser/contextMenuHandler.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
-import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
-import { TestCommandService } from './sessionsListTestUtils.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
@@ -70,23 +83,33 @@ suite('Sessions - View Menu', () => {
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
+		let workspaceGroupCapped = true;
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
+			isSessionListed: (session, reader) => !session.isAutomation?.read(reader),
 			isExcludeArchived: () => excludeArchived,
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
-			isWorkspaceGroupCapped: () => capped.get() ?? true,
+			isWorkspaceGroupCapped: () => workspaceGroupCapped,
+			setWorkspaceGroupCapped: value => { workspaceGroupCapped = value; },
 			resetFilters: () => {
+				const previous = { excludeArchived, workspaceGroupCapped, restoreFilters: filters.capture() };
 				excludeArchived = true;
-				capped.set(true);
+				workspaceGroupCapped = true;
 				filters.reset();
+				return () => {
+					({ excludeArchived, workspaceGroupCapped } = previous);
+					previous.restoreFilters();
+				};
 			},
 		});
+		const notices: ISessionsListNotice[] = [];
 		const host = {
 			scopedContextKeyService: contextKeyService,
 			configurationService,
 			workspaceGroupCappedContextKey: capped,
-			filterContextKeys: new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>(),
+			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
+			listNotification: upcastPartial<SessionsListNotification>({ show: notice => { notices.push(notice); } }),
 			sessionsManagementService: {
 				onDidChangeSessions: sessionsChanged.event,
 				onDidChangeSessionTypes: Event.None,
@@ -97,11 +120,16 @@ suite('Sessions - View Menu', () => {
 				getProviders: () => environments.map(environment => ({ environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
+			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
+			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as () => void,
+			resetFilters: SessionsView.prototype.resetFilters,
+			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
+		host.registerResetFiltersAction();
 
 		const snapshot = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(item => contextKeyService.contextMatchesRules(item.when))
@@ -126,7 +154,12 @@ suite('Sessions - View Menu', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
-			snapshot, sorting, grouping, capped, compact, contextKeyService, filters, run, sessionsControl,
+			snapshot, sorting, grouping, capped, compact, contextKeyService, configurationService, filters, run, sessionsControl, notices,
+			/** Chooses Show: All, as its action does. */
+			showAll: () => {
+				sessionsControl.setWorkspaceGroupCapped(false);
+				capped.set(false);
+			},
 			setSessions: (value: readonly ISession[]) => {
 				sessions = value;
 				sessionsChanged.fire();
@@ -137,6 +170,207 @@ suite('Sessions - View Menu', () => {
 			},
 		};
 	}
+
+	test('keeps Open to the Side without Open in Grid in the session context menu', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionItemOpenIn);
+		assert.deepStrictEqual({
+			openToTheSide: items.filter(isIMenuItem).some(item => item.command.id === 'sessionsViewPane.openToTheSide'),
+			openInGridSubmenu: items.filter(isISubmenuItem).some(item => item.submenu.id === 'SessionsGridOpen'),
+			openInGridCommands: ['left', 'right', 'up', 'down'].filter(direction => CommandsRegistry.getCommand(`sessionsViewPane.openInGrid.${direction}`)),
+		}, {
+			openToTheSide: true,
+			openInGridSubmenu: false,
+			openInGridCommands: [],
+		});
+	});
+
+	test('inbox mode is offered only when the experimental setting and AI are enabled', async () => {
+		const { snapshot, configurationService, contextKeyService } = createMenu();
+		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Inbox Mode');
+		const initial = offered();
+		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const enabled = offered();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const hiddenAI = offered();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
+			initial: false, enabled: true, hiddenAI: false, disabled: false,
+		});
+	});
+
+	test('inbox triage menu respects the mode, triage state, and disabled AI', () => {
+		const { snapshot, grouping, contextKeyService } = createMenu();
+		const state = SessionItemInboxStateContext.bindTo(contextKeyService);
+		const actions = () => snapshot(SessionItemContextMenuId).filter(item => ['Dismiss from Inbox', 'Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark Session as Done'].includes(item.title)).map(item => item.title);
+		const archiveFilter = () => snapshot(Menus.SessionsViewFilter).filter(item => ['Show Done', 'Show Archived'].includes(item.title)).map(item => item.title);
+		const ordinary = actions();
+		const ordinaryFilter = archiveFilter();
+		grouping.set(SessionsGrouping.Inbox);
+		const active = actions();
+		state.set('done');
+		const done = actions();
+		state.set('hold');
+		const held = actions();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({ ordinary, ordinaryFilter, active, done, held, hidden: actions(), inboxFilter: archiveFilter() }, {
+			ordinary: [], ordinaryFilter: ['Show Done'], active: ['Put on Hold', 'Snooze...', 'Dismiss from Inbox', 'Mark Session as Done'], done: ['Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark Session as Done'],
+			held: ['Return to Inbox', 'Snooze...', 'Dismiss from Inbox', 'Mark Session as Done'], hidden: [], inboxFilter: ['Show Archived'],
+		});
+	});
+
+	test('inbox rows have distinct dismiss and archive actions in the toolbar and context menu', () => {
+		const { grouping, contextKeyService } = createMenu();
+		const actions = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.filter(item => ['sessionsViewPane.inboxDone', ARCHIVE_SESSION_COMMAND_ID].includes(item.command.id) && contextKeyService.contextMatchesRules(item.when))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => [item.command.id, typeof item.command.title === 'string' ? item.command.title : item.command.title.value, item.command.icon]);
+		const snapshot = () => ({ toolbar: actions(Menus.SessionItemToolbar), contextMenu: actions(SessionItemContextMenuId) });
+		const ordinary = snapshot();
+		grouping.set(SessionsGrouping.Inbox);
+		const active = snapshot();
+		SessionItemInboxStateContext.bindTo(contextKeyService).set('done');
+		const dismissed = snapshot();
+		const archivedContext = SessionIsArchivedContext.bindTo(contextKeyService);
+		archivedContext.set(true);
+		const archived = snapshot();
+		archivedContext.set(false);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const dismissAction = ['sessionsViewPane.inboxDone', 'Dismiss from Inbox', Codicon.close];
+		const archiveAction = [ARCHIVE_SESSION_COMMAND_ID, 'Mark Session as Done', Codicon.check];
+		assert.deepStrictEqual({ ordinary, active, dismissed, archived, hidden: snapshot() }, {
+			ordinary: { toolbar: [], contextMenu: [] },
+			active: { toolbar: [archiveAction, dismissAction], contextMenu: [dismissAction, archiveAction] },
+			dismissed: { toolbar: [archiveAction], contextMenu: [archiveAction] },
+			archived: { toolbar: [], contextMenu: [] },
+			hidden: { toolbar: [], contextMenu: [] },
+		});
+	});
+
+	test('bulk inbox actions are undoable and never archive sessions', async () => {
+		const sessions = ['first', 'second', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived' }).session);
+		const harness = createListHarness(store, sessions);
+		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+		harness.instantiationService.stub(ISessionsListModelService, model);
+		const notices: ISessionsListNotice[] = [];
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
+			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const run = (id: string) => CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, sessions);
+		const states = () => sessions.map(session => model.getInboxState(session)?.kind);
+		model.setInboxState([sessions[0]], 'untilActivity');
+		await run('sessionsViewPane.inboxDone');
+		const done = states();
+		await notices[0].undo!();
+		const undone = states();
+		await run('sessionsViewPane.inboxResume');
+		const resumed = states();
+		await notices[1].undo!();
+		const restored = states();
+		await run('sessionsViewPane.inboxHold');
+		const held = states();
+		await notices[2].undo!();
+		assert.deepStrictEqual({ done, undone, resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown) }, {
+			done: ['done', 'done', undefined], undone: ['untilActivity', undefined, undefined],
+			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
+			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined], archived: [false, false, true],
+			countdowns: [false, true, true],
+		});
+	});
+
+	test('inbox snooze handles cancellation, timed presets, and validated custom dates', async () => {
+		const session = buildTestSession({ id: 'first', title: 'First' }).session;
+		const harness = createListHarness(store, [session]);
+		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+		harness.instantiationService.stub(ISessionsListModelService, model);
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
+		let choice: number | undefined;
+		let input: string | undefined = undefined;
+		const validation: (string | undefined | null)[] = [];
+		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => choice === undefined ? undefined : items[choice]);
+		harness.instantiationService.stub(IQuickInputService, 'input', async (options: IInputOptions) => {
+			for (const value of ['not a date', '2000-01-01 09:00', '2099-02-30 09:00', '2099-12-01 09:00']) {
+				const result = await options.validateInput!(value);
+				validation.push(typeof result === 'object' && result ? result.content : result);
+			}
+			return input;
+		});
+		const run = () => CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, session);
+		await run();
+		const cancelled = model.getInboxState(session);
+		choice = 1;
+		const now = new Date();
+		await run();
+		const timed = model.getInboxState(session);
+		choice = 4;
+		await run();
+		const cancelledCustom = model.getInboxState(session);
+		input = '2099-12-01 09:00';
+		await run();
+		assert.deepStrictEqual({ cancelled, timed, cancelledCustom, custom: model.getInboxState(session), validation: validation.map(Boolean), archived: session.isArchived.get() }, {
+			cancelled: undefined,
+			timed: { kind: 'snoozed', until: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9).getTime() },
+			cancelledCustom: timed,
+			custom: { kind: 'snoozed', until: new Date(2099, 11, 1, 9).getTime() },
+			validation: [true, true, true, false, true, true, true, false], archived: false,
+		});
+	});
+
+	test('application filter command opens the Sessions view before showing its filter menu', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'openView', async (id: string) => {
+			calls.push(id);
+			return upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push('showApplicationFilters') });
+		});
+		await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+
+		assert.deepStrictEqual(calls, ['sessions.workbench.view.sessionsView', 'showApplicationFilters']);
+	});
+
+	test('opens the filter menu with Created In focused and returns focus to the list', () => {
+		const { contextKeyService } = createMenu([buildTestSession({ id: 'external', title: 'External', application: 'copilot-cli' }).session]);
+		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
+		const container = mainWindow.document.body.appendChild($('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contextViewService = upcastPartial<IContextViewService>({
+			showContextView: delegate => {
+				store.add(delegate.render(container));
+				delegate.focus?.();
+				return { close: () => delegate.onHide?.() };
+			},
+		});
+		const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
+		let shownMenu: IContextMenuDelegate | undefined;
+		let shown = 0;
+		let focused = 0;
+		let hoverHidden = 0;
+		const view = {
+			sessionsHeaders: new Set(),
+			sessionsControlContainer: container,
+			scopedContextKeyService: contextKeyService,
+			menuService,
+			hoverService: { hideHover: () => hoverHidden++ },
+			sessionsControl: { reportFilterMenuShown: () => shown++, focus: () => focused++ },
+			contextMenuService: {
+				showContextMenu: (delegate: IContextMenuDelegate) => {
+					shownMenu = delegate;
+					handler.showContextMenu(delegate);
+				},
+			},
+			showApplicationFilters: SessionsView.prototype.showApplicationFilters,
+		};
+		view.showApplicationFilters();
+		const focusedAction = getActiveElement()?.textContent;
+		shownMenu?.onHide?.(true);
+
+		assert.deepStrictEqual({ focusedAction, shown, focused, hoverHidden }, {
+			focusedAction: 'Created In',
+			shown: 1,
+			focused: 1,
+			hoverHidden: 1,
+		});
+	});
 
 	test('exposes each category at the top level and keeps view actions separate from filters', () => {
 		const { snapshot } = createMenu();
@@ -153,8 +387,12 @@ suite('Sessions - View Menu', () => {
 		]);
 	});
 
-	test('places Compact View and Collapse All Groups in their own header overflow group', () => {
+	test('places Compact View and Collapse All Groups before the management overflow group', () => {
 		const { snapshot, contextKeyService } = createMenu();
+		store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+			command: { id: 'test.manage', title: 'Manage' },
+			group: '2_manage',
+		}));
 		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
 		const { primary, secondary } = getActionBarActions(
 			menuService.getMenuActions(Menus.SidebarSessionsHeader, contextKeyService),
@@ -162,24 +400,24 @@ suite('Sessions - View Menu', () => {
 		);
 		const viewActionIds = ['sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
 		assert.deepStrictEqual({
-			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view'),
+			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view'),
 			primary: primary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
-			secondary: secondary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
+			secondary: secondary.filter(action => [...viewActionIds, 'test.manage'].includes(action.id)).map(action => action.id),
 			filter: snapshot(Menus.SessionsViewFilter).filter(item => item.title === 'Compact View' || item.title === 'Collapse All Groups'),
 		}, {
 			group: [
-				{ title: 'Compact View', group: 'view', checked: false },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: false },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
 			primary: [],
-			secondary: viewActionIds,
+			secondary: [...viewActionIds, 'test.manage'],
 			filter: [],
 		});
 	});
 
 	test('preserves the Compact View toggle and hides header view actions when AI is disabled', () => {
 		const { snapshot, compact, contextKeyService } = createMenu();
-		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view');
+		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view');
 		compact.set(true);
 		const checked = viewActions();
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -187,10 +425,10 @@ suite('Sessions - View Menu', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ checked, phone, disabled: viewActions() }, {
 			checked: [
-				{ title: 'Compact View', group: 'view', checked: true },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: true },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
-			phone: [{ title: 'Collapse All Groups', group: 'view' }],
+			phone: [{ title: 'Collapse All Groups', group: '1_view' }],
 			disabled: [],
 		});
 	});
@@ -243,16 +481,40 @@ suite('Sessions - View Menu', () => {
 		capped.set(false);
 		const workspaceTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
 		const show = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Repository);
+		const repositoryTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
+		const repositoryShow = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Environment);
+		const environmentTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
+		const environmentGrouping = snapshot(Menus.SessionsViewGrouping);
+		const environmentShow = snapshot(Menus.SessionsViewShow);
 		grouping.set(SessionsGrouping.Date);
 
 		assert.deepStrictEqual({
 			workspaceTitles,
+			repositoryTitles,
+			environmentTitles,
+			environmentGrouping,
+			environmentShow,
 			timeTitles: snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title),
 			ordering: snapshot(Menus.SessionsViewOrdering),
 			grouping: snapshot(Menus.SessionsViewGrouping),
 			show,
+			repositoryShow,
 		}, {
 			workspaceTitles: ['Ordering', 'Grouping', 'Show'],
+			repositoryTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentGrouping: [
+				{ title: 'Time', group: '1_group', checked: false },
+				{ title: 'Workspace', group: '1_group', checked: false },
+				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: true },
+			],
+			environmentShow: [
+				{ title: 'Recent', group: '1_show', checked: false },
+				{ title: 'All', group: '1_show', checked: true },
+			],
 			timeTitles: ['Ordering', 'Grouping'],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
@@ -261,8 +523,14 @@ suite('Sessions - View Menu', () => {
 			grouping: [
 				{ title: 'Time', group: '1_group', checked: true },
 				{ title: 'Workspace', group: '1_group', checked: false },
+				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: false },
 			],
 			show: [
+				{ title: 'Recent', group: '1_show', checked: false },
+				{ title: 'All', group: '1_show', checked: true },
+			],
+			repositoryShow: [
 				{ title: 'Recent', group: '1_show', checked: false },
 				{ title: 'All', group: '1_show', checked: true },
 			],
@@ -355,11 +623,11 @@ suite('Sessions - View Menu', () => {
 	test('VS Code toggles work before any sessions and Reset restores defaults and Show Recent', async () => {
 		const local = buildTestSession({ id: 'local', title: 'Local' }).session;
 		const cloud = buildTestSession({ id: 'cloud', title: 'Cloud', environment: 'cloud' }).session;
-		const { snapshot, filters, capped, run, sessionsControl, setSessions } = createMenu();
+		const { snapshot, filters, capped, run, sessionsControl, setSessions, showAll } = createMenu();
 		const localAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem)[0];
 		await run(localAction.command.id);
 		await run('sessionsViewPane.filterArchived');
-		capped.set(false);
+		showAll();
 		setSessions([local, cloud]);
 		const selected = {
 			local: filters.matches(local),
@@ -376,6 +644,7 @@ suite('Sessions - View Menu', () => {
 				cloud: filters.matches(cloud),
 				archived: !sessionsControl.isExcludeArchived(),
 				show: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewShow.id)?.title,
+				capped: capped.get(),
 			},
 		}, {
 			selected: {
@@ -391,7 +660,34 @@ suite('Sessions - View Menu', () => {
 					{ title: 'Cloud', group: '2_environments', checked: true },
 				],
 			},
-			reset: { local: true, cloud: true, archived: false, show: 'Show' },
+			reset: { local: true, cloud: true, archived: false, show: 'Show', capped: true },
+		});
+	});
+
+	test('Reset Filters shows an undo notice that restores the previous filters and their checked menu items', async () => {
+		const local = buildTestSession({ id: 'local', title: 'Local' }).session;
+		const { snapshot, filters, capped, run, notices, showAll } = createMenu([local]);
+		const localAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem).find(item => item.command.title === 'VS Code (This Computer)');
+		assert.ok(localAction);
+		await run(localAction.command.id);
+		await run('sessionsViewPane.filterArchived');
+		showAll();
+		const state = () => ({
+			local: filters.matches(local),
+			localChecked: snapshot(Menus.SessionsViewSource).find(item => item.title === 'VS Code (This Computer)')?.checked,
+			showDoneChecked: snapshot(Menus.SessionsViewFilter).find(item => item.title === 'Show Done')?.checked,
+			showRecent: capped.get(),
+		});
+		const before = state();
+		await run('sessionsViewPane.resetFilters');
+		const reset = state();
+		await notices[0].undo!();
+
+		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message), undone: state() }, {
+			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
+			reset: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
+			notices: ['Filters reset'],
+			undone: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
 		});
 	});
 

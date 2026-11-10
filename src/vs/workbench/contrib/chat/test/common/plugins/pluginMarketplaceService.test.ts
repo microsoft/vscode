@@ -9,9 +9,9 @@ import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../..
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isWeb, isWindows } from '../../../../../../base/common/platform.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -23,6 +23,7 @@ import { IFileService, IFileSystemWatcher } from '../../../../../../platform/fil
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -34,22 +35,32 @@ import { AgentPluginEnablementService } from '../../../common/plugins/agentPlugi
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestMeteredConnectionService } from '../../../../../../platform/meteredConnection/test/common/testMeteredConnectionService.js';
 
-class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+class TestManagedSettingsService extends Disposable implements IManagedSettingsService {
 	declare readonly _serviceBrand: undefined;
+	private readonly emitter = this._register(new Emitter<void>());
+	readonly onDidChangeManagedSettings = this.emitter.event;
 
-	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
-	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
-
-	constructor(public isConnectionMetered: boolean) {
+	constructor(private allowlist?: StrictKnownMarketplaces) {
 		super();
 	}
 
-	setIsConnectionMetered(isConnectionMetered: boolean): void {
-		this.isConnectionMetered = isConnectionMetered;
-		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	getManagedSettings(): ManagedSettingsData {
+		return this.allowlist === undefined ? {} : { [COPILOT_STRICT_MARKETPLACES_KEY]: JSON.stringify(this.allowlist) };
+	}
+
+	getManagedSettingValue(key: string) {
+		return this.getManagedSettings()[key];
+	}
+
+	setAllowlist(allowlist: StrictKnownMarketplaces | undefined): void {
+		this.allowlist = allowlist;
+		this.emitter.fire();
 	}
 }
 
@@ -62,6 +73,7 @@ const unmeteredConnectionService: IMeteredConnectionService = {
 function stubMarketplaceServices(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
 	instantiationService.stub(IMeteredConnectionService, service);
 	instantiationService.stub(IAgentPluginEnablementService, { copyEnablement: () => { } });
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 }
 
 suite('PluginMarketplaceService', () => {
@@ -177,7 +189,6 @@ suite('PluginMarketplaceService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: [allowed],
 			[ChatConfiguration.PluginsEnabled]: true,
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/vscode' }],
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') });
 		instantiationService.stub(IFileService, {
@@ -209,6 +220,7 @@ suite('PluginMarketplaceService', () => {
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
 		stubMarketplaceServices(instantiationService);
+		instantiationService.stub(IManagedSettingsService, store.add(new TestManagedSettingsService([{ source: 'github', repo: 'microsoft/vscode' }])));
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -920,6 +932,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		configurationService?: TestConfigurationService;
 		meteredConnectionService?: IMeteredConnectionService;
 		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
+		managedSettingsService?: IManagedSettingsService;
 	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -948,6 +961,9 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 		stubMarketplaceServices(instantiationService, options?.meteredConnectionService);
+		if (options?.managedSettingsService) {
+			instantiationService.stub(IManagedSettingsService, options.managedSettingsService);
+		}
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -956,6 +972,41 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const service = createService();
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
 	});
+
+	for (const staleValue of [[], [{ source: 'github', repo: 'other/catalog' }]]) {
+		test(`ignores stale user marketplace restrictions ${JSON.stringify(staleValue)}`, () => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.PluginsEnabled]: true,
+				[ChatConfiguration.PluginMarketplaces]: ['user/catalog'],
+				[ChatConfiguration.ExtraMarketplaces]: { managed: 'enterprise/catalog' },
+				'chat.plugins.strictMarketplaces': staleValue,
+			});
+			const managedSettingsService = store.add(new TestManagedSettingsService());
+			const service = createService({ configurationService, managedSettingsService });
+			const managed = parseMarketplaceReference('enterprise/catalog')!;
+			service.trustMarketplace(managed);
+			const snapshot = () => ({
+				active: service.isStrictMarketplacePolicyActive(),
+				references: service.getMarketplaceReferences().map(reference => reference.canonicalId),
+				managedTrusted: service.isMarketplaceTrusted(managed),
+			});
+			const unrestricted = snapshot();
+			managedSettingsService.setAllowlist([{ source: 'github', repo: 'user/catalog' }]);
+			const restricted = snapshot();
+			managedSettingsService.setAllowlist([{ source: 'github', repo: 'enterprise/catalog' }]);
+			const managedOnly = snapshot();
+			managedSettingsService.setAllowlist([]);
+			const lockdown = snapshot();
+			managedSettingsService.setAllowlist(undefined);
+			assert.deepStrictEqual({ unrestricted, restricted, managedOnly, lockdown, restored: snapshot() }, {
+				unrestricted: { active: false, references: ['github:user/catalog', 'github:enterprise/catalog'], managedTrusted: true },
+				restricted: { active: true, references: ['github:user/catalog'], managedTrusted: false },
+				managedOnly: { active: true, references: ['github:enterprise/catalog'], managedTrusted: true },
+				lockdown: { active: true, references: [], managedTrusted: false },
+				restored: unrestricted,
+			});
+		});
+	}
 
 	test('queries selected marketplaces with stable opaque pagination and errors', async () => {
 		const service = createService();
@@ -1016,6 +1067,27 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			affectsConfiguration: key => key === ChatConfiguration.PluginMarketplaces,
 		} satisfies IConfigurationChangeEvent);
 		await assert.rejects(service.queryMarketplacePlugins({ ...query, cursor: page.nextCursor }, CancellationToken.None), /invalid/);
+	});
+
+	test('query text treats dashes and spaces as equivalent separators', async () => {
+		const service = createService();
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([makePlugin('handy-commands', 'handy-commands'), makePlugin('other', 'other')]);
+		const results: Record<string, string[]> = {};
+		for (const text of ['handy commands', 'handy-commands', 'HANDY_commands', 'commands handy']) {
+			const page = await service.queryMarketplacePlugins({
+				text,
+				pageSize: 10,
+				marketplaceIds: new Set([marketplaceRef.canonicalId]),
+				marketplaceTypes: new Set([MarketplaceType.Copilot]),
+			}, CancellationToken.None);
+			results[text] = page.items.map(plugin => plugin.name);
+		}
+		assert.deepStrictEqual(results, {
+			'handy commands': ['handy-commands'],
+			'handy-commands': ['handy-commands'],
+			'HANDY_commands': ['handy-commands'],
+			'commands handy': [],
+		});
 	});
 
 	test('filters unsupported marketplace types before paging and totals', async () => {
@@ -1088,48 +1160,45 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 	test('defers an overdue check until queued updates are acknowledged', async () => {
 		const updateCheckInterval = 24 * 60 * 60 * 1000;
 		const clock = sinon.useFakeTimers({ now: updateCheckInterval + 1 });
-		try {
-			let runIdle: ((idle: IdleDeadline) => void) | undefined;
-			store.add(installFakeRunWhenIdle((_target, runner) => {
-				runIdle = runner;
-				return Disposable.None;
-			}));
-			const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
-			let fetchCount = 0;
-			const service = createService({
-				meteredConnectionService,
-				pluginRepositoryService: {
-					fetchRepository: async () => ++fetchCount === 1,
-				},
-			});
-			service.addInstalledPlugin(
-				URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
-				makePlugin('my-plugin', 'my-plugin'),
-			);
+		store.add(toDisposable(() => clock.restore()));
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => ++fetchCount === 1,
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
 
-			assert.ok(runIdle);
-			runIdle({ didTimeout: false, timeRemaining: () => 50 });
-			await clock.tickAsync(0);
-			assert.deepStrictEqual({
-				fetchCount,
-				marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
-			}, {
-				fetchCount: 1,
-				marketplacesWithUpdates: [marketplaceRef.canonicalId],
-			});
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await clock.tickAsync(0);
+		assert.deepStrictEqual({
+			fetchCount,
+			marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
+		}, {
+			fetchCount: 1,
+			marketplacesWithUpdates: [marketplaceRef.canonicalId],
+		});
 
-			meteredConnectionService.setIsConnectionMetered(true);
-			await clock.tickAsync(updateCheckInterval);
-			meteredConnectionService.setIsConnectionMetered(false);
-			await clock.tickAsync(0);
-			assert.strictEqual(fetchCount, 1);
+		meteredConnectionService.setIsConnectionMetered(true);
+		await clock.tickAsync(updateCheckInterval);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await clock.tickAsync(0);
+		assert.strictEqual(fetchCount, 1);
 
-			service.clearUpdatesAvailable(new Set([marketplaceRef.canonicalId]));
-			await clock.tickAsync(0);
-			assert.strictEqual(fetchCount, 2);
-		} finally {
-			clock.restore();
-		}
+		service.clearUpdatesAvailable(new Set([marketplaceRef.canonicalId]));
+		await clock.tickAsync(0);
+		assert.strictEqual(fetchCount, 2);
 	});
 
 	test('unmetering before startup idle does not start an update check', async () => {
@@ -1246,7 +1315,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
 	});
 
-	test('configuration changes during a check queue one rerun without overlapping fetches', async () => {
+	test('managed allowlist changes during a check queue one rerun without overlapping fetches', async () => {
 		let runIdle: ((idle: IdleDeadline) => void) | undefined;
 		store.add(installFakeRunWhenIdle((_target, runner) => {
 			runIdle = runner;
@@ -1257,19 +1326,24 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: [skippedRef.canonicalId, deferredRef.canonicalId],
 			[ChatConfiguration.PluginsEnabled]: true,
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/deferred' }],
 		});
+		const managedSettingsService = store.add(new TestManagedSettingsService([{ source: 'github', repo: 'microsoft/deferred' }]));
 		const firstFetch = new DeferredPromise<boolean>();
+		const thirdFetch = new DeferredPromise<void>();
 		const fetched: string[] = [];
 		let activeFetches = 0;
 		let maxActiveFetches = 0;
 		const service = createService({
 			configurationService,
+			managedSettingsService,
 			pluginRepositoryService: {
 				fetchRepository: async reference => {
 					fetched.push(reference.canonicalId);
 					activeFetches++;
 					maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+					if (fetched.length === 3) {
+						thirdFetch.complete();
+					}
 					try {
 						return fetched.length === 1 ? await firstFetch.p : false;
 					} finally {
@@ -1292,23 +1366,16 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
 
-		await configurationService.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [
+		managedSettingsService.setAllowlist([
 			{ source: 'github', repo: 'microsoft/skipped' },
 			{ source: 'github', repo: 'microsoft/deferred' },
 		]);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ChatConfiguration.StrictMarketplaces]),
-			change: { keys: [ChatConfiguration.StrictMarketplaces], overrides: [] },
-			affectsConfiguration: key => key === ChatConfiguration.StrictMarketplaces,
-		} satisfies IConfigurationChangeEvent);
 		await timeout(0);
 		assert.deepStrictEqual({ fetched, maxActiveFetches }, { fetched: [deferredRef.canonicalId], maxActiveFetches: 1 });
 
 		firstFetch.complete(false);
-		for (let i = 0; i < 5 && fetched.length < 3; i++) {
-			await timeout(0);
-		}
+		// The queued rerun fetches the newly allowed marketplace, then the deferred one again.
+		await thirdFetch.p;
 
 		assert.deepStrictEqual({
 			fetched,
@@ -1396,6 +1463,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 	class TestFileService {
 		readonly files = new Map<string, string>();
 		readonly folders = new Set<string>();
+		private readonly _onDidWriteFile = new Emitter<void>();
 
 		async exists(resource: URI): Promise<boolean> {
 			const key = resource.toString();
@@ -1413,6 +1481,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 		async writeFile(resource: URI, content: VSBuffer): Promise<unknown> {
 			this.files.set(resource.toString(), content.toString());
+			this._onDidWriteFile.fire();
 			return {};
 		}
 
@@ -1427,6 +1496,14 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 		setFile(resource: URI, content: string): void {
 			this.files.set(resource.toString(), content);
+		}
+
+		/** Resolves once the content of `resource` satisfies `predicate`, checking it again after each write. */
+		async whenFile(resource: URI, predicate: (content: string | undefined) => boolean): Promise<void> {
+			const matches = () => predicate(this.files.get(resource.toString()));
+			if (!matches()) {
+				await Event.toPromise(Event.filter(this._onDidWriteFile.event, matches));
+			}
 		}
 	}
 
@@ -1503,18 +1580,8 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' });
 		stubMarketplaceServices(instantiationService);
-		instantiationService.stub(IAgentPluginEnablementService, store.add(new AgentPluginEnablementService(storageService)));
+		instantiationService.stub(IAgentPluginEnablementService, store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())));
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
-	}
-
-	async function waitFor(predicate: () => boolean): Promise<void> {
-		for (let i = 0; i < 50; i++) {
-			if (predicate()) {
-				return;
-			}
-			await timeout(10);
-		}
-		assert.fail('Condition not met in time');
 	}
 
 	test('refreshes marketplace catalogs cached before source validation', async () => {
@@ -1617,12 +1684,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
 		// FileBackedInstalledPluginsStore initialises asynchronously.
-		for (let i = 0; i < 50; i++) {
-			if (service.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		await waitForState(service.installedPlugins, plugins => plugins.length === 1);
 
 		const installed = service.installedPlugins.get();
 		assert.strictEqual(installed.length, 1, 'azure plugin should be hydrated from marketplace data');
@@ -1695,12 +1757,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
-		for (let i = 0; i < 50; i++) {
-			if (service.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		await waitForState(service.installedPlugins, plugins => plugins.length === 1);
 
 		assert.strictEqual(service.installedPlugins.get().length, 1, 'single-plugin repo should survive a restart');
 		assert.strictEqual(service.installedPlugins.get()[0].plugin.name, 'vscode-corpus');
@@ -1799,7 +1856,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const relocatedHome = URI.file('/relocated/data/agent-plugins');
 		fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), fileService.files.get(installedJson.toString())!);
 		const second = createPersistedService(fileService, storageService, relocatedHome);
-		await waitFor(() => second.installedPlugins.get().length === 1);
+		await waitForState(second.installedPlugins, plugins => plugins.length === 1);
 		const installed = second.installedPlugins.get();
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'azure');
@@ -1820,7 +1877,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
 				for (const profile of profiles) {
 					storeMarketplaceCache(profile, marketplace, plugin);
-					const enablement = store.add(new AgentPluginEnablementService(profile));
+					const enablement = store.add(new AgentPluginEnablementService(profile, new TestUserDataProfileService()));
 					enablement.setEnabled(identity.toString(), state);
 					if (hasStableIdentity) {
 						enablement.copyEnablement(identity, targetUri);
@@ -1837,22 +1894,19 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 					}],
 				}));
 				const first = createPersistedService(fileService, profiles[0]);
-				await waitFor(() => first.installedPlugins.get().length === 1);
+				await waitForState(first.installedPlugins, plugins => plugins.length === 1);
 				if (hasStableIdentity) {
 					first.addInstalledPlugin(targetUri, plugin, previousUri);
 					first.removeInstalledPlugin(previousUri);
 				}
 				first.addInstalledPlugin(targetUri, plugin, previousUri);
 				first.removeInstalledPlugin(previousUri);
-				await waitFor(() => {
-					const content = fileService.files.get(installedJson.toString());
-					return !!content?.includes('"enablementUri"') && content.includes(targetUri.toString());
-				});
+				await fileService.whenFile(installedJson, content => !!content?.includes('"enablementUri"') && content.includes(targetUri.toString()));
 				first.dispose();
 
 				const second = createPersistedService(fileService, profiles[1]);
-				await waitFor(() => second.installedPlugins.get().length === 1);
-				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				await waitForState(second.installedPlugins, plugins => plugins.length === 1);
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1], new TestUserDataProfileService()));
 				assert.deepStrictEqual({
 					file: JSON.parse(fileService.files.get(installedJson.toString())!),
 					state: enablement.readEnabled(targetUri.toString()),
@@ -1885,7 +1939,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
 				for (const profile of profiles) {
 					storeMarketplaceCache(profile, marketplace, plugin);
-					store.add(new AgentPluginEnablementService(profile)).setEnabled(identity.toString(), state);
+					store.add(new AgentPluginEnablementService(profile, new TestUserDataProfileService())).setEnabled(identity.toString(), state);
 				}
 				fileService.setFile(installedJson, JSON.stringify({
 					version: 1,
@@ -1898,18 +1952,18 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 					}],
 				}));
 				const first = createPersistedService(fileService, profiles[0]);
-				await waitFor(() => first.installedPlugins.get().length === 1);
+				await waitForState(first.installedPlugins, plugins => plugins.length === 1);
 				first.addInstalledPlugin(intermediateUri, plugin, previousUri);
 				first.removeInstalledPlugin(previousUri);
 				first.addInstalledPlugin(pluginUri, plugin, intermediateUri);
 				first.removeInstalledPlugin(intermediateUri);
 				first.addInstalledPlugin(pluginUri, plugin);
-				await waitFor(() => !!fileService.files.get(installedJson.toString())?.includes(pluginUri.toString()));
+				await fileService.whenFile(installedJson, content => !!content?.includes(pluginUri.toString()));
 				first.dispose();
 
 				const second = createPersistedService(fileService, profiles[1]);
-				await waitFor(() => second.installedPlugins.get().length === 1);
-				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				await waitForState(second.installedPlugins, plugins => plugins.length === 1);
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1], new TestUserDataProfileService()));
 				assert.deepStrictEqual({
 					file: JSON.parse(fileService.files.get(installedJson.toString())!),
 					installed: second.installedPlugins.get().map(entry => entry.pluginUri.toString()),
@@ -1931,6 +1985,76 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			});
 		}
 	}
+});
+
+suite('plugin repository provenance', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes only canonical HTTPS GitHub repositories', () => {
+		assert.deepStrictEqual({
+			shorthand: getGitHubRepositoryUri('octocat/plugin')?.toString(),
+			https: getGitHubRepositoryUri('https://github.com/octocat/plugin.git')?.toString(),
+			scpGitHub: getGitHubRepositoryUri('git@github.com:octocat/plugin.git')?.toString(),
+			scpGitLab: getGitHubRepositoryUri('git@gitlab.com:octocat/plugin.git')?.toString(),
+			malformed: getGitHubRepositoryUri('https ://github.com/octocat/plugin.git')?.toString(),
+			query: getGitHubRepositoryUri('https://github.com/octocat/plugin?ref=main')?.toString(),
+			extraPath: getGitHubRepositoryUri('https://github.com/octocat/plugin/tree/main')?.toString(),
+		}, {
+			shorthand: 'https://github.com/octocat/plugin',
+			https: 'https://github.com/octocat/plugin',
+			scpGitHub: undefined,
+			scpGitLab: undefined,
+			malformed: undefined,
+			query: undefined,
+			extraPath: undefined,
+		});
+	});
+
+	test('uses the marketplace repository only for relative-path sources', () => {
+		const marketplaceReference = parseMarketplaceReference('octocat/marketplace')!;
+		const repositoryFor = (sourceDescriptor: IPluginSourceDescriptor) => getMarketplacePluginRepositoryUri({
+			sourceDescriptor,
+			marketplaceReference,
+		})?.toString();
+
+		assert.deepStrictEqual({
+			relativePath: repositoryFor({ kind: PluginSourceKind.RelativePath, path: 'plugins/example' }),
+			gitHub: repositoryFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin' }),
+			gitUrl: repositoryFor({ kind: PluginSourceKind.GitUrl, url: 'https://github.com/octocat/monorepo.git' }),
+			scpGitUrl: repositoryFor({ kind: PluginSourceKind.GitUrl, url: 'git@github.com:octocat/monorepo.git' }),
+			npm: repositoryFor({ kind: PluginSourceKind.Npm, package: '@octocat/plugin' }),
+			pip: repositoryFor({ kind: PluginSourceKind.Pip, package: 'octocat-plugin' }),
+		}, {
+			relativePath: 'https://github.com/octocat/marketplace',
+			gitHub: 'https://github.com/octocat/plugin',
+			gitUrl: 'https://github.com/octocat/monorepo',
+			scpGitUrl: undefined,
+			npm: undefined,
+			pip: undefined,
+		});
+	});
+
+	test('links to the exact GitHub plugin source when source provenance includes a ref or path', () => {
+		const marketplaceReference = parseMarketplaceReference('octocat/marketplace#release/next')!;
+		const sourceFor = (sourceDescriptor: IPluginSourceDescriptor) => getMarketplacePluginSourceUri({
+			sourceDescriptor,
+			marketplaceReference,
+		})?.toString();
+
+		assert.deepStrictEqual({
+			relativePath: sourceFor({ kind: PluginSourceKind.RelativePath, path: 'plugins/example' }),
+			gitHubSha: sourceFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin', ref: 'main', sha: 'abc123', path: 'plugins/example' }),
+			gitUrlRef: sourceFor({ kind: PluginSourceKind.GitUrl, url: 'https://github.com/octocat/monorepo.git', ref: 'release/next', path: 'plugins/example' }),
+			repositoryOnly: sourceFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin' }),
+			installedSource: getGitHubRepositorySourceUri('octocat/plugin', 'abc123', 'plugins/example')?.toString(),
+		}, {
+			relativePath: 'https://github.com/octocat/marketplace/tree/release/next/plugins/example',
+			gitHubSha: 'https://github.com/octocat/plugin/tree/abc123/plugins/example',
+			gitUrlRef: 'https://github.com/octocat/monorepo/tree/release/next/plugins/example',
+			repositoryOnly: 'https://github.com/octocat/plugin',
+			installedSource: 'https://github.com/octocat/plugin/tree/abc123/plugins/example',
+		});
+	});
 });
 
 suite('parsePluginSource', () => {

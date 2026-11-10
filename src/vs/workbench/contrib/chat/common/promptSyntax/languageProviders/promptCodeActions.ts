@@ -20,6 +20,7 @@ import { MARKERS_OWNER_ID, PromptValidatorMarkerCode } from './promptValidator.j
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
 import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -32,6 +33,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IFileService private readonly fileService: IFileService,
 		@IMarkerService private readonly markerService: IMarkerService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 	}
 
@@ -207,7 +209,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		if (!toolsAttr || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}
-		const target = getTarget(promptType, promptFile.header);
+		const target = getTarget(promptType, promptFile.header, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 		if (!isVSCodeOrDefaultTarget(target)) {
 			// GitHub Copilot and Claude custom agents use a fixed set of tool names that are not deprecated
 			return;

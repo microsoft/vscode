@@ -3,21 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { localize } from '../../../../../nls.js';
+import { AgentHostMcpConnectorsEnabledConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { getStrictKnownMarketplaces } from '../../common/plugins/strictKnownMarketplaces.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
 		type: 'boolean',
-		tags: ['experimental', 'advanced'],
+		tags: ['preview'],
 		description: localize('chat.customizations.marketplace.enabled', "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
-		default: false,
+		default: true,
 		experiment: { mode: 'auto' },
+		policy: {
+			name: 'ChatCustomizationMarketplace',
+			category: PolicyCategory.InteractiveSession,
+			minimumVersion: '1.144',
+			value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+			localization: {
+				description: {
+					key: 'chat.customizations.marketplace.enabled',
+					value: localize('chat.customizations.marketplace.enabled', "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
+				},
+			},
+		},
+	},
+	[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
+		type: 'boolean',
+		tags: ['preview'],
+		description: localize('chat.customizations.copilotConnectors.enabled', "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."),
+		default: true,
+		scope: ConfigurationScope.APPLICATION,
+		experiment: { mode: 'auto' },
+		agentHost: { key: AgentHostMcpConnectorsEnabledConfigKey },
+		policy: {
+			name: 'ChatCopilotConnectors',
+			category: PolicyCategory.InteractiveSession,
+			minimumVersion: '1.144',
+			value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+			localization: {
+				description: {
+					key: 'chat.customizations.copilotConnectors.enabled',
+					value: localize('chat.customizations.copilotConnectors.enabled', "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."),
+				},
+			},
+		},
 	},
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
@@ -27,12 +61,8 @@ export const customizationMarketplaceConfigurationProperties = {
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
 
-export function isAgentFinderPublicFeedAvailable(configurationService: IConfigurationService, harnessProvidesMarketplaceSearch: boolean): boolean {
-	return harnessProvidesMarketplaceSearch && !isStrictMarketplacePolicyConfigured(configurationService);
-}
-
-export function isStrictMarketplacePolicyConfigured(configurationService: IConfigurationService): boolean {
-	return getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
+export function isAgentFinderPublicFeedAvailable(marketplaceService: IPluginMarketplaceService, harnessProvidesMarketplaceSearch: boolean): boolean {
+	return harnessProvidesMarketplaceSearch && !marketplaceService.isStrictMarketplacePolicyActive();
 }
 
 export function isCustomizationDiscoveryAvailable(configurationService: IConfigurationService, marketplaceService: ICustomizationMarketplaceService): boolean {
@@ -52,6 +82,5 @@ export function isCustomizationMarketplaceValueFromDefault(configurationService:
 }
 
 export function affectsCustomizationDiscoveryAvailability(event: IConfigurationChangeEvent, marketplaceService: ICustomizationMarketplaceService): boolean {
-	return event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-		affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
+	return affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
 }
