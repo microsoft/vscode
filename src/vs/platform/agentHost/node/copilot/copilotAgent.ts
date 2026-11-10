@@ -26,6 +26,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
+import { setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
 import { localize } from '../../../../nls.js';
@@ -3368,12 +3369,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return context;
 	}
 
-	async setPluginEnabled(plugin: string, enabled: boolean): Promise<void> {
+	async setPluginEnabled(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		if (scope === 'repository' && !this._findPluginOperationSession(session, chat)) {
+			throw new Error(localize('copilot.pluginEnablementChatRequired', "Repository plugin enablement requires an active chat in the target session."));
+		}
 		await this._retryAfterClosedConnection('setPluginEnabled', async client => {
 			const installed = (await client.rpc.plugins.list()).plugins.find(candidate =>
 				candidate.directSourceId === plugin || (candidate.marketplace && `${candidate.name}@${candidate.marketplace}` === plugin));
 			if (!installed) {
 				throw new Error(localize('copilot.pluginEnablementNotInstalled', "Plugin '{0}' is not installed.", plugin));
+			}
+			if (scope === 'repository') {
+				const workingDirectory = this._findPluginOperationSession(session, chat)?.workingDirectory;
+				if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
+					throw new Error(localize('copilot.pluginEnablementLocalRepositoryRequired', "Repository plugin enablement requires a filesystem working directory."));
+				}
+				if (!installed.marketplace) {
+					throw new Error(localize('copilot.pluginEnablementMarketplaceRequired', "Repository enablement is not available for directly installed plugins."));
+				}
+				const repository = await this._gitService.getRepositoryRoot(workingDirectory);
+				if (!repository) {
+					throw new Error(localize('copilot.pluginEnablementRepositoryRequired', "The working directory is not in a Git repository."));
+				}
+				await setCopilotRepositoryPluginEnabled(this._fileService, repository, `${installed.name}@${installed.marketplace}`, enabled);
+				return;
 			}
 			if (enabled) {
 				await client.rpc.plugins.enable({ names: [plugin] });
