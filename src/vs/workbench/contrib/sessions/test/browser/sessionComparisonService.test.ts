@@ -1644,6 +1644,10 @@ suite('SessionComparisonService', () => {
 			completions: completionEvents.map(event => ({
 				attemptIndex: event.data.attemptIndex,
 				elapsedMs: event.data.elapsedMs,
+				inputTokens: event.data.inputTokens,
+				cachedTokens: event.data.cachedTokens,
+				outputTokens: event.data.outputTokens,
+				tokenCountIsComplete: event.data.tokenCountIsComplete,
 			})),
 			outcomes: outcomeEvents.map(event => ({
 				attemptIndex: event.data.attemptIndex,
@@ -1669,8 +1673,8 @@ suite('SessionComparisonService', () => {
 			persistedCompletionCount: JSON.parse(storageService.get('sessions.comparisonAttemptTelemetry', StorageScope.PROFILE) ?? '[]').length,
 		}, {
 			completions: [
-				{ attemptIndex: 0, elapsedMs: 95_000 },
-				{ attemptIndex: 1, elapsedMs: 120_000 },
+				{ attemptIndex: 0, elapsedMs: 95_000, inputTokens: 30, cachedTokens: 12, outputTokens: 8, tokenCountIsComplete: true },
+				{ attemptIndex: 1, elapsedMs: 120_000, inputTokens: 20, cachedTokens: undefined, outputTokens: 5, tokenCountIsComplete: false },
 			],
 			outcomes: [
 				{ attemptIndex: 0, attemptCount: 2, providerId: 'other', agentId: 'type-one', modelId: 'model-one', recommended: false, judgeProviderId: 'other', judgeAgentId: 'judge-type', judgeModelId: 'judge-model' },
@@ -1688,6 +1692,46 @@ suite('SessionComparisonService', () => {
 			eventCount: 4,
 			persistedCompletionCount: 2,
 		});
+	});
+
+	test('reports first-turn tokens without follow-up usage and distinguishes zero from missing usage', async () => {
+		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
+			kind: 'usage',
+			promptTokens: 0,
+			completionTokens: 0,
+			modelTotals: [{ model: 'model-one', inputTokens: 0, cachedTokens: 0, outputTokens: 0 }],
+		}, {
+			kind: 'usage',
+			promptTokens: 100,
+			completionTokens: 50,
+			modelTotals: [{ model: 'model-one', inputTokens: 100, cachedTokens: 20, outputTokens: 50 }],
+		}], 10);
+		chatService.setUsage(URI.parse('test-chat:/attempt-two'), [undefined], 20);
+
+		await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Error, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events
+			.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted')
+			.map(event => ({
+				attemptIndex: event.data.attemptIndex,
+				elapsedMs: event.data.elapsedMs,
+				inputTokens: event.data.inputTokens,
+				cachedTokens: event.data.cachedTokens,
+				outputTokens: event.data.outputTokens,
+				tokenCountIsComplete: event.data.tokenCountIsComplete,
+			})), [
+			{ attemptIndex: 0, elapsedMs: 10, inputTokens: 0, cachedTokens: 0, outputTokens: 0, tokenCountIsComplete: true },
+			{ attemptIndex: 1, elapsedMs: 20, inputTokens: undefined, cachedTokens: undefined, outputTokens: undefined, tokenCountIsComplete: false },
+		]);
 	});
 
 	test('removes remote connection details from comparison model telemetry', async () => {
@@ -2443,12 +2487,12 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 }
 
 class TestChatService extends mock<IChatService>() {
-	private readonly _responses = new Map<string, readonly { usage: IChatUsage; elapsedMs?: number }[]>();
+	private readonly _responses = new Map<string, readonly { usage: IChatUsage | undefined; elapsedMs?: number }[]>();
 	readonly releasedModels: string[] = [];
 	readonly acquiredModels: IChatModel[] = [];
 	readonly requestInProgress = observableValue('requestInProgress', true);
 
-	setUsage(resource: URI, usages: readonly IChatUsage[], firstTurnElapsedMs?: number): void {
+	setUsage(resource: URI, usages: readonly (IChatUsage | undefined)[], firstTurnElapsedMs?: number): void {
 		this._responses.set(resource.toString(), usages.map((usage, index) => ({
 			usage,
 			elapsedMs: index === 0 ? firstTurnElapsedMs : undefined,
