@@ -32,6 +32,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ISizeService } from '../../../../../platform/theme/common/sizeService.js';
 import { INotebookExecutionService } from '../../common/notebookExecutionService.js';
 import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { INotebookKernelService } from '../../common/notebookKernelService.js';
@@ -46,6 +47,11 @@ suite('NotebookEditor layout styles', () => {
 			configurationService: () => configurationService,
 		}, disposables);
 		instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
+		instantiationService.stub(ISizeService, {
+			_serviceBrand: undefined,
+			onDidChangeSizes: Event.None,
+			getSize: () => undefined,
+		});
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
 		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { });
 		instantiationService.stub(INotebookRendererMessagingService, new class extends mock<INotebookRendererMessagingService>() { });
