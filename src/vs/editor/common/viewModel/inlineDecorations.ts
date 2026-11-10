@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
+import { IModelDecoration, IModelDecorationOptions, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { Range } from '../core/range.js';
 import { Position } from '../core/position.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
@@ -49,7 +49,7 @@ export interface IViewDecorationsCollection {
 	 */
 	readonly hasVariableFonts: boolean[];
 	/**
-	 * Inherited font sizes indexed relative to the range's start view line; null uses the default font.
+	 * Line font sizes for each view line.
 	 */
 	readonly lineFontSizes: (string | null)[];
 }
@@ -116,7 +116,7 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
-			if (decorationOptions.inlineClassName || (decorationOptions.isWholeLine && decorationOptions.affectsFont)) {
+			if (decorationOptions.inlineClassName || this._isLineFontSizeDecoration(decorationOptions)) {
 				const inlineDecoration = decorationOptions.inlineClassName
 					? new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular)
 					: null;
@@ -128,9 +128,9 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 					}
 					if (decorationOptions.affectsFont) {
 						hasVariableFonts[j - startLineNumber] = true;
-						if (decorationOptions.isWholeLine && !decorationOptions.inlineClassName && decorationOptions.fontSize) {
-							lineFontSizes[j - startLineNumber] ??= decorationOptions.fontSize;
-						}
+					}
+					if (this._isLineFontSizeDecoration(decorationOptions)) {
+						lineFontSizes[j - startLineNumber] ??= decorationOptions.fontSize!;
 					}
 				}
 			}
@@ -168,6 +168,10 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 			hasVariableFonts,
 			lineFontSizes
 		};
+	}
+
+	private _isLineFontSizeDecoration(decorationOptions: IModelDecorationOptions): boolean {
+		return !!decorationOptions.isWholeLine && !decorationOptions.inlineClassName && !!decorationOptions.fontSize;
 	}
 
 	public reset(): void {

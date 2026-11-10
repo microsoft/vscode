@@ -156,7 +156,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.allowVariableFonts)
+				|| e.hasChanged(EditorOption.effectiveAllowVariableFonts)
 				|| e.hasChanged(EditorOption.allowVariableLineHeights)) {
 				this.applyFontInfo();
 			}

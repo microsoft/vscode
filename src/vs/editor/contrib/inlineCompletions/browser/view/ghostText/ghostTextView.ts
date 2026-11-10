@@ -336,19 +336,35 @@ export class GhostTextView extends Disposable {
 				+ inlineExtraClassNames
 				+ p.lineDecorations.map(d => ' ' + d.className).join(' '); // TODO: take the ranges into account for line decorations
 			const leadingWhitespaceLength = /^\s+/.exec(p.text)?.[0].length ?? 0;
-			const whitespaceClassName = leadingWhitespaceLength > 0 ? ' ' + this._whitespaceFontSizeClassName.read(reader) : '';
-			const ranges = leadingWhitespaceLength > 0 && leadingWhitespaceLength < p.text.length
-				? [new OffsetRange(0, leadingWhitespaceLength), new OffsetRange(leadingWhitespaceLength, p.text.length)]
-				: [new OffsetRange(0, p.text.length)];
-			for (const range of ranges) {
+			let parts: { content: string; tokens: typeof p.tokens; inlineClassName: string }[];
+			if (leadingWhitespaceLength > 0 && leadingWhitespaceLength < p.text.length) {
+				const whitespaceRange = new OffsetRange(0, leadingWhitespaceLength);
+				const remainingRange = new OffsetRange(leadingWhitespaceLength, p.text.length);
+				parts = [{
+					content: whitespaceRange.substring(p.text),
+					tokens: p.tokens?.slice(whitespaceRange),
+					inlineClassName: inlineClassName + ' ' + this._whitespaceFontSizeClassName.read(reader),
+				}, {
+					content: remainingRange.substring(p.text),
+					tokens: p.tokens?.slice(remainingRange),
+					inlineClassName,
+				}];
+			} else {
+				parts = [{
+					content: p.text,
+					tokens: p.tokens,
+					inlineClassName,
+				}];
+			}
+			for (const part of parts) {
 				decorations.push({
 					range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 					options: {
 						description: 'ghost-text-decoration',
 						after: {
-							content: range.substring(p.text),
-							tokens: range.length === p.text.length ? p.tokens : p.tokens?.slice(range),
-							inlineClassName: inlineClassName + (range.start === 0 ? whitespaceClassName : ''),
+							content: part.content,
+							tokens: part.tokens,
+							inlineClassName: part.inlineClassName,
 							cursorStops: InjectedTextCursorStops.Left,
 							attachedData: new GhostTextAttachedData(this),
 						},
