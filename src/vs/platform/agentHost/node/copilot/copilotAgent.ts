@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkAuthenticateBasicRequest, type NetworkAuthenticateBasicResult, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -10590,10 +10590,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			scope: 'runtime',
 			resolveProxy: request => this._resolveRuntimeProxy(request.url),
 			authenticateNegotiate: request => this._lookupKerberosToken(request.spn),
-			// Like Electron's login attempts: the first may reuse the setting's, session or stored credentials, a later
-			// one asks for different credentials.
-			authenticateBasic: request => this._proxyResolver.lookupBasicAuthorization(request.proxy, request.realm, request.previousRejected ? 2 : 1),
+			authenticateBasic: request => this._lookupBasicCredentials(request),
 		};
+	}
+
+	/**
+	 * Basic credentials for a proxy of the Copilot runtime, with Electron's login attempts: the first may reuse the
+	 * setting's, session or stored credentials, a later one asks for different credentials.
+	 */
+	private _lookupBasicCredentials({ proxy, realm, previousRejected }: NetworkAuthenticateBasicRequest): Promise<NetworkAuthenticateBasicResult | undefined> {
+		this._logService.info(`[Copilot] The Copilot runtime asks for Basic credentials for the proxy ${originsOnlyForLog(proxy)}${previousRejected ? ', after the proxy rejected earlier ones' : ''}`);
+		return this._proxyResolver.lookupBasicAuthorization(proxy, realm, previousRejected ? 2 : 1);
 	}
 
 	/**

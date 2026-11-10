@@ -512,7 +512,8 @@ export function setup(logger: Logger, quality: Quality) {
 
 	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac, which provisions a WSL
 	// proxy with Basic authentication and a Windows PAC script that selects it, and passes the credentials to type into
-	// the proxy login dialog. No setting or environment variable carries them.
+	// the proxy login dialog. No setting or environment variable carries them. Each test then changes the proxy password
+	// and logs in again with the new one, after the proxy rejected the old one the Copilot runtime still had.
 	const basicPacProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_BASIC_PAC_PROXY : undefined;
 	if (!basicPacProxyScheme) {
 		logger.log('Skipping the AgentHost Basic PAC proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac on Windows');
@@ -521,10 +522,14 @@ export function setup(logger: Logger, quality: Quality) {
 	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy)', () => {
 		const scenario = 'smoke-local-basic-pac-proxy-agent-host';
 		const reply = 'LOCAL_BASIC_PAC_PROXY_RESPONSE';
+		const newPasswordReply = 'LOCAL_BASIC_PAC_PROXY_NEW_PASSWORD_RESPONSE';
 		const context = setupAgentHostSuite(logger, {
 			serverLabel: 'Local Basic PAC proxy AgentHost',
 			mockServerHost: '0.0.0.0',
-			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
+			},
 			settings: {},
 		});
 
@@ -538,11 +543,19 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				const requestsBefore = context.mockServer.getRequests().length;
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the PAC proxy [scenario:${scenario}] ${requestTag}`);
+				const prompt = `hello through the PAC proxy [scenario:${scenario}] ${requestTag}`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				await assertProxyPasswordChangeAsksAgain(app, context.mockServer, {
+					scenario: `${scenario}-new-password`,
+					firstPrompt: prompt,
+					firstReply: reply,
+					reply: newPasswordReply,
+					readAgentHostLog: () => readFileIfExists(path.join(context.logsPath, 'agenthost.log')),
+				});
 			} catch (error) {
 				logger.log(`Agents Window (local Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -554,12 +567,16 @@ export function setup(logger: Logger, quality: Quality) {
 	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Basic PAC proxy)', () => {
 		const scenario = 'smoke-wsl-basic-pac-proxy-agent-host';
 		const reply = 'WSL_BASIC_PAC_PROXY_RESPONSE';
+		const newPasswordReply = 'WSL_BASIC_PAC_PROXY_NEW_PASSWORD_RESPONSE';
 		const context = setupAgentHostSuite(logger, {
 			serverLabel: 'WSL Basic PAC proxy AgentHost',
 			mockServerHost: '0.0.0.0',
 			remoteTransport: 'wsl',
 			wslClientProxy: 'agentHost',
-			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
+			},
 			settings: {
 				'chat.remoteAgentHostsEnabled': true,
 			},
@@ -578,13 +595,23 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
 				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
 				const requestsBefore = context.mockServer.getRequests().length;
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the Windows PAC proxy [scenario:${scenario}] ${requestTag}`);
+				const prompt = `hello through the Windows PAC proxy [scenario:${scenario}] ${requestTag}`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
 				await fixture.verifyMockServerRouting?.();
 				await assertClientNetworkServed(context.logsPath, 'wsl', basicPacProxyScheme === 'https' ? 'HTTPS' : 'PROXY', { basicUsername: basicPacProxyCredentials.username });
+				const readAgentHostLog = fixture.readAgentHostLog;
+				assert.ok(readAgentHostLog, 'Expected the WSL fixture to read the AgentHost log');
+				await assertProxyPasswordChangeAsksAgain(app, context.mockServer, {
+					scenario: `${scenario}-new-password`,
+					firstPrompt: prompt,
+					firstReply: reply,
+					reply: newPasswordReply,
+					readAgentHostLog,
+				});
 			} catch (error) {
 				logger.log(`Agents Window (WSL Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				if (fixture.dumpConnectionDiagnostics) {
@@ -1198,6 +1225,54 @@ async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: n
 	throw new Error(`Timed out waiting for the Copilot model request with ${requestTag}`);
 }
 
+/**
+ * Changes the password of the Basic PAC proxy, then sends a follow-up prompt to the session of `firstPrompt`, logging in
+ * to the proxy login dialogs with the new password. The Copilot runtime still has the old password, so the proxy rejects
+ * it and the runtime asks the Agent Host for credentials again with `previousRejected`, for which the client asks for
+ * new credentials instead of returning the ones it remembers. Restores the password afterwards.
+ */
+async function assertProxyPasswordChangeAsksAgain(app: Application, mockServer: MockLlmServer, options: {
+	readonly scenario: string;
+	readonly firstPrompt: string;
+	readonly firstReply: string;
+	readonly reply: string;
+	readonly readAgentHostLog: () => string | Promise<string>;
+}): Promise<void> {
+	const { VSCODE_SMOKE_TEST_WSL_DISTRO: distro, VSCODE_SMOKE_TEST_PROXY_USER: username, VSCODE_SMOKE_TEST_PROXY_PASSWORD: password, VSCODE_SMOKE_TEST_PROXY_NEW_PASSWORD: newPassword, VSCODE_SMOKE_TEST_PROXY_HTPASSWD: passwordFile } = process.env;
+	assert.ok(distro && username && password && newPassword && passwordFile, 'Expected the proxy credentials and password file from run-agents-window-wsl-kerberos-proxy.ps1');
+	const setProxyPassword = async (value: string) => {
+		cp.execFileSync(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'wsl.exe'), ['--distribution', distro, '--exec', 'bash', '-c', 'echo "$1:$(openssl passwd -1 "$2")" > "$3"', 'bash', username, value, passwordFile], { stdio: 'pipe', windowsHide: true, timeout: 60_000 });
+		// Squid's password helper reloads the file when its modification time in seconds changes, and Squid checks the
+		// credentials it cached again after a second.
+		await new Promise(resolve => setTimeout(resolve, 1_500));
+	};
+	const rejectedLogLine = /\[Copilot\] The Copilot runtime asks for Basic credentials for the proxy \S+, after the proxy rejected earlier ones/g;
+	const rejectedCount = (log: string) => log.match(rejectedLogLine)?.length ?? 0;
+	const rejectedBefore = rejectedCount(await options.readAgentHostLog());
+
+	await setProxyPassword(newPassword);
+	const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(username, newPassword);
+	try {
+		// The session title falls back to the first prompt shortened to about 40 characters, so match its text before the tags.
+		const rowMatch = [options.firstPrompt.split(' [')[0], options.firstReply];
+		await app.workbench.agentsWindow.activateSessionByLabel(rowMatch, options.firstReply, 60_000);
+		const requestTag = `[proxy-request:${randomUUID()}]`;
+		const requestsBefore = mockServer.getRequests().length;
+		// The Copilot runtime keeps its connection through the proxy open, so close it to make the runtime connect again.
+		mockServer.closeConnections();
+		await app.workbench.agentsWindow.sendFollowUpMessage(`hello again through the PAC proxy [scenario:${options.scenario}] ${requestTag}`, 600, options.firstReply, rowMatch);
+		await app.workbench.agentsWindow.waitForAssistantText(options.reply, 2 * 60 * 1000);
+		await waitForPromptRequest(mockServer, requestsBefore, requestTag);
+		const log = await waitForLogContent(options.readAgentHostLog, log => rejectedCount(log) > rejectedBefore, 30_000);
+		assert.ok(rejectedCount(log) > rejectedBefore, 'Expected the Copilot runtime to ask the Agent Host for credentials again after the proxy rejected the old password');
+		const details = await logins.stop();
+		assert.ok(details.some(detail => /^The proxy localhost:\d+ requires a username and password\.$/.test(detail)), `Expected a proxy login dialog for the new password, got ${JSON.stringify(details)}`);
+	} finally {
+		await logins.stop();
+		await setProxyPassword(password);
+	}
+}
+
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {
 	interface IFrame {
 		readonly _ahpLog?: { readonly transport?: string };
@@ -1264,13 +1339,13 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
  * suites are written through async queues (e.g. AhpJsonlLogger), so an entry
  * may not be on disk yet even after the assistant reply has rendered.
  */
-async function waitForLogContent(readContent: () => string, matcher: RegExp | string | ((content: string) => boolean), timeoutMs = 5_000): Promise<string> {
+async function waitForLogContent(readContent: () => string | Promise<string>, matcher: RegExp | string | ((content: string) => boolean), timeoutMs = 5_000): Promise<string> {
 	const matches = (content: string) => typeof matcher === 'function' ? matcher(content) : typeof matcher === 'string' ? content.includes(matcher) : matcher.test(content);
 	const deadline = Date.now() + timeoutMs;
-	let content = readContent();
+	let content = await readContent();
 	while (!matches(content) && Date.now() < deadline) {
 		await new Promise(resolve => setTimeout(resolve, 100));
-		content = readContent();
+		content = await readContent();
 	}
 	return content;
 }

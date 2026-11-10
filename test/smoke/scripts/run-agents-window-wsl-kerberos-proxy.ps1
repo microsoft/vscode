@@ -24,7 +24,8 @@
 
 	With -ProxyAuth BasicPac, the Agents Window suites run with a local Agent Host and with one in WSL. Squid requires
 	Basic authentication, the PAC selects it, and the smoke tests type its credentials into the proxy login dialog, with
-	no http.proxy setting, KDC or network-only credentials.
+	no http.proxy setting, KDC or network-only credentials. Each suite then changes the proxy's password, and types the
+	new one when the proxy rejects the remembered credentials.
 
 	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy.
 
@@ -550,6 +551,8 @@ if ($WslCopilotRuntimePath) {
 }
 
 $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
+# The proxy's password after the BasicPac smoke tests change it.
+$newPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
 $savedProxySettings = $null
 $script:WindowsConfigured = $false
 $kdcProcess = $null
@@ -641,6 +644,8 @@ echo "${ProxyUser}:`$(openssl passwd -1 "`$PASSWORD")" > proxy.htpasswd
 auth_param basic program /usr/lib/squid/basic_ncsa_auth `$WSL_ROOT/proxy.htpasswd
 auth_param basic children 5
 auth_param basic realm vscode-smoke
+# Checks the credentials again after a second, so a changed password applies.
+auth_param basic credentialsttl 1 second
 "@
 	}
 
@@ -759,6 +764,9 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 		# The smoke tests type these into the proxy login dialog.
 		$environment['VSCODE_SMOKE_TEST_PROXY_USER'] = $ProxyUser
 		$environment['VSCODE_SMOKE_TEST_PROXY_PASSWORD'] = $password
+		# The smoke tests change the proxy's password to this one in Squid's password file.
+		$environment['VSCODE_SMOKE_TEST_PROXY_NEW_PASSWORD'] = $newPassword
+		$environment['VSCODE_SMOKE_TEST_PROXY_HTPASSWD'] = "$WslRoot/proxy.htpasswd"
 	} else {
 		$environment['VSCODE_SMOKE_TEST_WSL_BASIC_PROXY'] = '1'
 		# The smoke tests set this as the http.proxy setting.

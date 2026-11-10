@@ -269,25 +269,68 @@ export class AgentsWindow {
 	async fillProxyAuthenticationDialog(username: string, password: string, timeoutMs: number): Promise<string> {
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
-			for (const page of this.code.driver.getAllWindows()) {
-				if (page.isClosed()) {
-					continue;
-				}
-				const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
-				if (!await dialog.isVisible().catch(() => false)) {
-					continue;
-				}
-				const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
-				this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
-				await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
-				await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
-				await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
-				await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			const detail = await this.tryFillProxyAuthenticationDialog(username, password);
+			if (detail !== undefined) {
 				return detail;
 			}
 			await new Promise(resolve => setTimeout(resolve, 250));
 		}
 		throw new Error(`Timed out waiting ${timeoutMs}ms for the proxy login dialog`);
+	}
+
+	/**
+	 * Like {@link fillProxyAuthenticationDialog}, but logs in to every proxy login dialog until stopped, as a proxy that
+	 * rejects the remembered credentials makes each client that used them ask again. `stop` returns the details of the
+	 * dialogs filled.
+	 */
+	fillProxyAuthenticationDialogs(username: string, password: string): { stop(): Promise<string[]> } {
+		const details: string[] = [];
+		let stopped = false;
+		const loop = (async () => {
+			while (!stopped) {
+				let detail: string | undefined;
+				try {
+					detail = await this.tryFillProxyAuthenticationDialog(username, password);
+				} catch (error) {
+					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
+				}
+				if (detail !== undefined) {
+					details.push(detail);
+				} else {
+					await new Promise(resolve => setTimeout(resolve, 250));
+				}
+			}
+		})();
+		return {
+			stop: async () => {
+				stopped = true;
+				await loop;
+				return details;
+			}
+		};
+	}
+
+	/**
+	 * Logs in to a visible proxy login dialog of any window, returning its detail, or `undefined` if no window shows one.
+	 */
+	private async tryFillProxyAuthenticationDialog(username: string, password: string): Promise<string | undefined> {
+		for (const page of this.code.driver.getAllWindows()) {
+			if (page.isClosed()) {
+				continue;
+			}
+			const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+			if (!await dialog.isVisible().catch(() => false)) {
+				continue;
+			}
+			const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+			this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+			await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+			await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+			await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+			await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			return detail;
+		}
+		return undefined;
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {

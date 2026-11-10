@@ -54,6 +54,8 @@ export interface IRemoteDevContainerFixture {
 	 * http.proxy setting with credentials to the Copilot runtime.
 	 */
 	verifyMockServerRouting?(options?: { readonly credentialedProxy?: boolean }): Promise<void>;
+	/** WSL only: the Agent Host's log. */
+	readAgentHostLog?(): Promise<string>;
 	dumpConnectionDiagnostics?(uiState: string): Promise<void>;
 	dispose(): Promise<void>;
 }
@@ -1040,6 +1042,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			: `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
 	].join(' && ');
 	resources.log(`Using ${distro} ${server ? 'server with a client-proxy Agent Host' : clientProxy ? 'client-proxy Agent Host' : 'source workspace'} ${workspacePath}`);
+	const readAgentHostLog = () => run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
 	return {
 		name: distro,
 		workspacePath,
@@ -1051,8 +1054,9 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		} : {
 			settings: { 'chat.wslRemoteAgentHostCommand': command },
 		}),
+		readAgentHostLog,
 		verifyMockServerRouting: async verifyOptions => {
-			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
+			const logs = await readAgentHostLog();
 			if (clientProxy) {
 				// The pinned server of the pull request CI predates the runtime's network callbacks and forwards the client-resolved
 				// proxy through the runtime's environment instead.
