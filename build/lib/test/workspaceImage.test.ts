@@ -34,7 +34,7 @@ function loadSteps(workflow: string, job: string): readonly IStep[] {
 suite('workspace images', () => {
 	// image.ts finds vhd.ps1 in the win32 folder beside it, which the download keeps. The jobs of a
 	// test workflow share their steps, so its first job stands for all of them. The jobs of pr.yml
-	// list the jobs that start from an image.
+	// and component-fixtures.yml list the jobs that start from an image.
 	test('the jobs that use the images download the scripts like the jobs that build them', () => {
 		const download = (workflow: string, job: string) => {
 			const step = loadSteps(workflow, job).find(step => step.id === 'image-scripts');
@@ -45,6 +45,8 @@ suite('workspace images', () => {
 			['pr-linux-test.yml', 'electron-unit-electron'],
 			['pr-win32-test.yml', 'electron-unit'],
 			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests', 'chat-lib-windows-tests'].map(job => ['pr.yml', job] as const),
+			['component-fixtures.yml', 'playwright'],
+			['component-fixtures.yml', 'screenshots'],
 		];
 		const builder = download('pr-workspace-images.yml', 'linux');
 		assert.deepEqual(
