@@ -710,7 +710,7 @@ suite('Sessions chat window provider', () => {
 		const sizes: Record<string, { chatWindow: number; mainWindow: number }> = {};
 		for (const size of [getSessionActivityBarSize(storage), MenuActivityBarSize.Normal, MenuActivityBarSize.Compact]) {
 			setSessionActivityBarSize(storage, size);
-			mainColumn.setLayout(AGENTS_FLOATING_PANEL_GAP, false, size);
+			mainColumn.setLayout(AGENTS_FLOATING_PANEL_GAP - 1, false, size);
 			sizes[`${Object.keys(sizes).length ? 'then ' : 'initially '}${size}`] = { chatWindow: strip.size.get(), mainWindow: mainColumn.minimumWidth };
 		}
 
@@ -729,7 +729,7 @@ suite('Sessions chat window provider', () => {
 		}
 	});
 
-	test('the strip of a chat window fills its column and keeps the main window\'s distances, to the card beside it and to the right edge of the window, inside the card of its column, which clips what it shows, in Default and Compact density, whatever the main window\'s state', () => {
+	test('the strip of a chat window aligns with the card frames and keeps the main window\'s distances, to the card beside it and to the right edge of the window, inside the card of its column, which clips what it shows, in Default and Compact density, whatever the main window\'s state', () => {
 		const store = disposables.add(new DisposableStore());
 		const { provider, storage, windowInstantiationService, configuration } = createProvider(store, []);
 		const part = (name: string) => new class extends mock<IContentPart>() {
@@ -771,7 +771,6 @@ suite('Sessions chat window provider', () => {
 		const dock = (host: HTMLElement, size: MenuActivityBarSize) => {
 			const docked = append(host, $('.menu-activity-bar.session-activity-bar.docked'));
 			docked.classList.toggle('size-compact', size === MenuActivityBarSize.Compact);
-			docked.style.top = '0px';
 			return docked;
 		};
 		// Between the boxes, and as they show: a card that leaves its frame to what it holds shows it inside its border
@@ -782,7 +781,7 @@ suite('Sessions chat window provider', () => {
 			const columnCard = column.closest('.part-grid-card') ?? column;
 			return {
 				width: stripRect.width,
-				fillsColumn: stripRect.top === rect(column).top && stripRect.bottom === rect(column).bottom,
+				verticalInsets: [stripRect.top - rect(column).top, rect(column).bottom - stripRect.bottom],
 				insideItsCard: stripRect.left >= rect(columnCard).left && stripRect.right <= rect(columnCard).right,
 				toCard: stripRect.left - rect(card).right,
 				visibleToCard: stripRect.left - rect(card).right + frameInset,
@@ -802,14 +801,16 @@ suite('Sessions chat window provider', () => {
 			const main = createWorkbench(mainStore, compact, ['noeditorpane']);
 			const gridGutter = compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
 			const mainColumn = mainStore.add(new SessionActivityBarColumn(constObservable(true)));
-			mainColumn.setLayout(gridGutter, compact, size);
+			mainColumn.setLayout(compact ? 0 : gridGutter - 1, compact, size);
 			const columnLeft = windowWidth - gridGutter - mainColumn.minimumWidth;
 			const chatCard = append(main, $('div'));
 			chatCard.style.cssText = `position: fixed; top: 0; left: 0; width: ${columnLeft}px; height: ${windowHeight}px;`;
 			append(main, mainColumn.element).style.cssText = `position: fixed; top: 0; left: ${columnLeft}px; width: ${mainColumn.minimumWidth}px; height: ${windowHeight}px;`;
 			// Its chat shows its frame inset within its card (`--agents-session-frame-inset`)
 			const sessionFrameInset = parseFloat(mainWindow.getComputedStyle(main).getPropertyValue('--agents-session-frame-inset')) || 0;
-			expected[density] = distances(dock(mainColumn.element, size), mainColumn.element, chatCard, sessionFrameInset);
+			const mainDistances = distances(dock(mainColumn.element, size), mainColumn.element, chatCard, sessionFrameInset);
+			expected[density] = mainDistances;
+			assert.strictEqual(mainDistances.visibleToCard, mainDistances.toEdge);
 			mainStore.dispose();
 
 			// A chat window beside the chat, and beside its main part, whatever the state of the main window, whose classes it mirrors
