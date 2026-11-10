@@ -421,6 +421,23 @@ jobs:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile & Hygiene
 
+      # Copilot has its own TypeScript projects and ESLint configuration, which the steps above don't check (see
+      # build/filters.ts). Like the Copilot stage's build, the checks run after Copilot's vscode-capi mixin, so that
+      # they cover the code that ships. microsoft/vscode-capi is a separate repository that installs with npm.
+      - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+        workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
+        displayName: Mixin vscode-capi (Copilot)
+
+      - script: pnpm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: ESLint (Copilot)
+
+      # In CI, .esbuild.mts stamps the release version into package.json, which the type check reads. The compile
+      # only checks that Copilot builds, so it skips the stamp: the type check can't read a partly written file.
+      - script: BUILD_SOURCEVERSION= pnpm exec npm-run-all -lp compile typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Compile (Copilot)
+
       - task: AzureCLI@2
         displayName: Fetch secrets
         inputs:
