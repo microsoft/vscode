@@ -30,7 +30,6 @@ import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessi
 import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
-import { authenticationAccountId, authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
@@ -12063,9 +12062,8 @@ suite('ProtocolServerHandler', () => {
 		const first = connectClient('first-client');
 		const second = connectClient('second-client');
 		const resource = 'https://other-host.example/protected-resource';
-		const account = { providerId: 'provider', accountId: 'selection', authorizationServer: 'https://issuer.example' };
-		const accountId = authenticationAccountId(account);
-		const _meta = { ...authenticationAccountMeta(account), 'example.other': true };
+		const accountId = 'opaque-selection';
+		const _meta = { 'vscode.authentication.account': { providerId: 'provider', accountId: 'legacy-selection' }, 'example.other': true };
 		const forwarded: { accountId: string | undefined; _meta: Record<string, unknown> | undefined }[] = [];
 		agentService.authenticate = async params => {
 			forwarded.push({ accountId: params.accountId, _meta: params._meta });
@@ -12086,7 +12084,7 @@ suite('ProtocolServerHandler', () => {
 			await response;
 		}
 		assert.deepStrictEqual(forwarded, [
-			{ accountId: JSON.stringify(['first-client', resource, null, accountId]), _meta },
+			{ accountId: undefined, _meta },
 			{ accountId: JSON.stringify(['first-client', resource, null, accountId]), _meta },
 			{ accountId: JSON.stringify(['second-client', resource, null, accountId]), _meta: undefined },
 			{ accountId: JSON.stringify(['first-client', `${resource}/other`, null, accountId]), _meta: undefined },
@@ -12094,6 +12092,22 @@ suite('ProtocolServerHandler', () => {
 			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-1'], accountId]), _meta: undefined },
 			{ accountId: JSON.stringify(['first-client', resource, ['mcpServer', target.session, 'mcp-2'], accountId]), _meta: undefined },
 		]);
+	});
+
+	test('authenticate rejects invalid standard hints before they can become namespaced strings', async () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		agentService.authenticate = params => authentication.authenticate(params, []);
+		const transport = connectClient('invalid-account-client');
+		const responses: ProtocolMessage[] = [];
+		const accountIds = ['', null, 42, [], {}];
+		for (const accountId of accountIds) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.example.com', token: 'token', accountId }));
+			responses.push(await response);
+		}
+		assert.deepStrictEqual(responses, accountIds.map(() => ({
+			jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'accountId must be a nonempty string' },
+		})));
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {

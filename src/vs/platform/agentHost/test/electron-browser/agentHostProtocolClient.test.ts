@@ -29,7 +29,6 @@ import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webP
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -8842,12 +8841,12 @@ suite('AgentHostProtocolClient', () => {
 				jsonrpc: '2.0', id: initialAnnotationsSubscribe.id,
 				result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 5 } },
 			});
-			const accountMeta = authenticationAccountMeta({ providerId: 'github', accountId: 'account' });
+			const meta = { 'example.other': true };
 			const accountId = '["github","account",null]';
-			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, accountId, _meta: accountMeta });
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, accountId, _meta: meta });
 			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
 			const initialParams = initialAuthenticate.params as AuthenticateParams;
-			assert.deepStrictEqual({ accountId: initialParams.accountId, _meta: initialParams._meta }, { accountId, _meta: accountMeta });
+			assert.deepStrictEqual({ accountId: initialParams.accountId, _meta: initialParams._meta }, { accountId, _meta: meta });
 			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
 			await authentication;
 			await flushMicrotasks();
@@ -8888,7 +8887,7 @@ suite('AgentHostProtocolClient', () => {
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
 			const restoredParams = restoredAuthenticate.params as AuthenticateParams;
-			assert.deepStrictEqual({ accountId: restoredParams.accountId, _meta: restoredParams._meta }, { accountId, _meta: accountMeta });
+			assert.deepStrictEqual({ accountId: restoredParams.accountId, _meta: restoredParams._meta }, { accountId, _meta: meta });
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');

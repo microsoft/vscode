@@ -68,7 +68,7 @@ Anonymous clients expose only content reads, `gist.get`, and `search.issues`. Th
 
 The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, unverified client-local selection hint. The protocol boundary scopes it to the originating client, protected resource, and optional target; the GitHub credential service still resolves the token's identity with `GET /user`. Stable hints preserve renewal cooldowns, while a changed selection can be verified without inheriting another selection's bootstrap wait. Neither a changed hint nor token rotation clears a verified account's cooldown or establishes authorization or cross-client credential equivalence.
 
-During migration, VS Code sends its provider/account/authorization-server tuple in the standard field and also retains `_meta['vscode.authentication.account']` for older hosts. New hosts prefer the standard hint and normalize the private metadata only when the standard field is absent. Clients without either hint retain legacy authentication and renewal behavior. Remove the private writer only after supported hosts understand the standard field, and retain the legacy reader while older clients remain supported; general `_meta` support is unaffected.
+VS Code sends its provider/account/authorization-server tuple only in the standard field. The private `_meta['vscode.authentication.account']` convention is neither emitted nor interpreted. Older hosts ignore the standard hint, and older clients without it retain ordinary token authentication and renewal behavior; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
 
 ## Typed domains
 

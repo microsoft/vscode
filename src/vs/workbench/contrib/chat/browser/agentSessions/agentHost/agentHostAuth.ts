@@ -15,7 +15,6 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -659,18 +658,16 @@ function toAuthenticateRequest(
 	entitlement?: IAgentEntitlementHint,
 ): IAgentHostAuthenticateRequest {
 	const expiresAfter = session?.expiresAfter;
-	const account = providerId && session?.account?.id ? {
-		providerId,
-		accountId: session.account.id,
-		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
-	} : undefined;
+	const accountId = providerId && session?.account?.id
+		? JSON.stringify([providerId, session.account.id, session.authorizationServer?.toString()])
+		: undefined;
 	return {
 		resource,
 		scopes,
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...(account ? { accountId: authenticationAccountId(account) } : {}),
-		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
+		...(accountId !== undefined ? { accountId } : {}),
+		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }
 

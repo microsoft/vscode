@@ -15,7 +15,6 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgent } from '../../common/agent.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
-import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccountId } from '../../common/meta/agentAuthenticationAccount.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -63,10 +62,10 @@ suite('Agent Host GitHub clients', () => {
 			override getProtectedResources() { return [resource]; }
 			override async authenticate() { return true; }
 		}();
-		const account = { providerId: 'github', accountId: '101' };
+		const accountId = 'host-account';
 		await authentication.authenticate({
 			resource: resource.resource, scopes: resource.scopes_supported, token: 'host-token', expiresIn: 1,
-			_meta: authenticationAccountMeta(account),
+			accountId,
 		}, [provider]);
 		const service = store.add(new AgentHostGitHubService({}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		const signal = new AbortController().signal;
@@ -78,7 +77,7 @@ suite('Agent Host GitHub clients', () => {
 			account: authentication.getAuthAccountId({ resource: resource.resource, scopes: resource.scopes_supported }),
 			sameClient: store.add(service.acquireRepositoryClient(signal)).object === client,
 			resets,
-		}, { account: authenticationAccountId(account), sameClient: true, resets: 0 });
+		}, { account: accountId, sameClient: true, resets: 0 });
 	}));
 
 	test('concurrent peer chats preserve their exact credential sources', async () => {
@@ -352,7 +351,7 @@ suite('Agent Host GitHub clients', () => {
 		});
 	}
 
-	for (const accountFormat of ['absent', 'legacy', 'standard'] as const) {
+	for (const accountFormat of ['absent', 'standard'] as const) {
 		test(`same-account renewal after expiry keeps the repository selection (${accountFormat})`, () => runWithFakedTimers({}, async () => {
 			const endpoint = createTestGitHubEndpointService();
 			const resource = endpoint.getRepoResource();
@@ -361,8 +360,7 @@ suite('Agent Host GitHub clients', () => {
 				override getProtectedResources() { return [resource]; }
 				override async authenticate() { return true; }
 			}();
-			const metadata = accountFormat === 'standard' ? { accountId: 'account-a' }
-				: accountFormat === 'legacy' ? { _meta: authenticationAccountMeta({ providerId: 'github', accountId: 'account-a' }) } : {};
+			const metadata = accountFormat === 'standard' ? { accountId: 'account-a' } : {};
 			await authentication.authenticate({ resource: resource.resource, scopes: ['repo'], token: 'first-token', expiresIn: 1, ...metadata }, [provider]);
 			const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
 			try {
@@ -386,7 +384,7 @@ suite('Agent Host GitHub clients', () => {
 		}));
 	}
 
-	for (const transition of ['same', 'different', 'revokeDifferent', 'legacyDifferent', 'standardSame', 'standardDifferent', 'standardRevokeDifferent', 'migration'] as const) {
+	for (const transition of ['same', 'different', 'revokeDifferent', 'withoutHintDifferent', 'legacyMetadataDifferent'] as const) {
 		test(`bootstrap cooldown uses the forwarded account identity (${transition})`, () => runWithFakedTimers({}, async () => {
 			const endpoint = createTestGitHubEndpointService();
 			const resource = endpoint.getRepoResource();
@@ -398,12 +396,12 @@ suite('Agent Host GitHub clients', () => {
 			let accountId = 101;
 			const start = Date.now();
 			const requests: { accountId: number; at: number }[] = [];
-			const sameAccount = transition === 'same' || transition === 'standardSame' || transition === 'migration';
+			const sameAccount = transition === 'same';
 			const authenticate = (token: string, account: string) => authentication.authenticate({
 				resource: resource.resource, scopes: ['repo'], token,
-				...(transition.startsWith('standard') || transition === 'migration' && token !== 'first-token'
-					? { accountId: authenticationAccountId({ providerId: 'github', accountId: account }) }
-					: transition !== 'legacyDifferent' ? { _meta: authenticationAccountMeta({ providerId: 'github', accountId: account }) } : {}),
+				...(transition === 'legacyMetadataDifferent'
+					? { _meta: { 'vscode.authentication.account': { providerId: 'github', accountId: account } } }
+					: transition === 'withoutHintDifferent' ? {} : { accountId: account }),
 			}, [provider]);
 			await authenticate('first-token', 'account-a');
 			const service = store.add(new AgentHostGitHubService({
@@ -418,7 +416,7 @@ suite('Agent Host GitHub clients', () => {
 				getGitHubClientInternals(first).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
 					status: 429, headers: { 'Retry-After': '60' },
 				}));
-				if (transition === 'revokeDifferent' || transition === 'standardRevokeDifferent') {
+				if (transition === 'revokeDifferent') {
 					await authenticate('', 'account-a');
 				}
 				accountId = sameAccount ? 101 : 202;
@@ -427,9 +425,9 @@ suite('Agent Host GitHub clients', () => {
 				await second.credentials.getCredential(new AbortController().signal);
 				assert.deepStrictEqual(requests, [
 					{ accountId: 101, at: 0 },
-					{ accountId, at: sameAccount || transition === 'legacyDifferent' ? 60_000 : 0 },
+					{ accountId, at: sameAccount || transition === 'withoutHintDifferent' || transition === 'legacyMetadataDifferent' ? 60_000 : 0 },
 				]);
-				if (transition === 'different' || transition === 'standardDifferent') {
+				if (transition === 'different') {
 					accountId = 101;
 					await authenticate('third-token', 'account-a');
 					const returning = store.add(service.acquireRepositoryClient(new AbortController().signal)).object;
@@ -479,19 +477,19 @@ suite('Agent Host GitHub clients', () => {
 	test('account provenance follows the selected scoped token and survives provider replay', async () => {
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
 		const resource = createTestGitHubEndpointService().getRepoResource();
-		const account = { providerId: 'github', accountId: 'repository-account' };
-		const replayed: ReturnType<typeof readAuthenticationAccountId>[] = [];
+		const accountId = 'repository-selection';
+		const replayed: (string | undefined)[] = [];
 		const provider = new class extends mock<IAgent>() {
 			override getProtectedResources() { return [resource]; }
 			override async authenticate() { return true; }
 			override async handleAuthenticationToken(params: Parameters<NonNullable<IAgent['handleAuthenticationToken']>>[0]) {
-				replayed.push(readAuthenticationAccountId(params));
+				replayed.push(params.accountId);
 				return true;
 			}
 		}();
 		await authentication.authenticate({
 			resource: resource.resource, scopes: ['repo', 'gist'], token: 'repository-token',
-			_meta: authenticationAccountMeta(account),
+			accountId,
 		}, [provider]);
 		await authentication.authenticate({
 			resource: resource.resource, scopes: ['read:user'], token: 'profile-token',
@@ -501,7 +499,7 @@ suite('Agent Host GitHub clients', () => {
 		await authentication.replay(provider);
 		const request = { resource: resource.resource, scopes: ['repo'] };
 		assert.deepStrictEqual({ token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request), replayed }, {
-			token: 'repository-token', account: authenticationAccountId(account), replayed: [authenticationAccountId(account), 'profile-selection'],
+			token: 'repository-token', account: accountId, replayed: [accountId, 'profile-selection'],
 		});
 	});
 
@@ -553,7 +551,7 @@ suite('Agent Host GitHub clients', () => {
 			override getProtectedResources() { return [resource]; }
 			override async authenticate() { return true; }
 		}();
-		const request = { resource: resource.resource, scopes: ['repo'], _meta: authenticationAccountMeta({ providerId: 'github', accountId: 'account' }) };
+		const request = { resource: resource.resource, scopes: ['repo'], accountId: 'account' };
 		await authentication.authenticate({ ...request, token: 'first-token', expiresIn: 1 }, [provider]);
 		const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		try {
@@ -581,7 +579,7 @@ suite('Agent Host GitHub clients', () => {
 		}
 	}));
 
-	test('unrecognized account metadata remains optional and rejected tokens cannot replace it', async () => {
+	test('legacy account metadata is ignored and rejected tokens cannot replace a standard hint', async () => {
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
 		const resource = createTestGitHubEndpointService().getRepoResource();
 		const provider = new class extends mock<IAgent>() {
@@ -589,11 +587,11 @@ suite('Agent Host GitHub clients', () => {
 			override async authenticate(_resource: string, token: string) { return token !== 'rejected'; }
 		}();
 		const request = { resource: resource.resource, scopes: ['repo'] };
-		await authentication.authenticate({ ...request, token: 'legacy', _meta: { 'vscode.authentication.account': { accountId: 101 } } }, [provider]);
+		const _meta = { 'vscode.authentication.account': { providerId: 'github', accountId: 'legacy-selection' } };
+		await authentication.authenticate({ ...request, token: 'legacy', _meta }, [provider]);
 		const legacy = { token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request) };
-		const account = { providerId: 'github', accountId: 'accepted' };
-		await authentication.authenticate({ ...request, token: 'accepted', accountId: 'standard-selection', _meta: authenticationAccountMeta(account) }, [provider]);
-		await authentication.authenticate({ ...request, token: 'rejected', accountId: 'other-selection', _meta: authenticationAccountMeta({ providerId: 'github', accountId: 'other' }) }, [provider]);
+		await authentication.authenticate({ ...request, token: 'accepted', accountId: 'standard-selection', _meta }, [provider]);
+		await authentication.authenticate({ ...request, token: 'rejected', accountId: 'other-selection', _meta }, [provider]);
 		await assert.rejects(authentication.authenticate({ ...request, token: 'accepted', accountId: '' }, [provider]), { code: JsonRpcErrorCodes.InvalidParams });
 		assert.deepStrictEqual({ legacy, token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request) }, {
 			legacy: { token: 'legacy', account: undefined }, token: 'accepted', account: 'standard-selection',

@@ -11,7 +11,6 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -96,7 +95,6 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 			requests: [{
 				resource: resource.resource, scopes: ['read'], token: session.accessToken, expiresIn: 2,
 				accountId: '["test","account","https://example.com/"]',
-				_meta: authenticationAccountMeta({ providerId: 'test', accountId: 'account', authorizationServer: 'https://example.com/' }),
 			}],
 			ongoing: requests,
 		});

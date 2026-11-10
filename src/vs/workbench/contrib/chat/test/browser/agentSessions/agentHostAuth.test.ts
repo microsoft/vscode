@@ -15,7 +15,6 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -2235,7 +2234,6 @@ suite('authenticateProtectedResources', () => {
 			scopes: ['read'],
 			token: 'provider-token',
 			accountId: '["example-provider","account",null]',
-			_meta: authenticationAccountMeta({ providerId: 'example-provider', accountId: 'account' }),
 		}]);
 	});
 
@@ -2433,18 +2431,18 @@ suite('authenticateProtectedResources', () => {
 		});
 		const instantiation = createAuthInstantiationService(disposables, authentication);
 		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
-		const requests: { resource: string; accountId: string | undefined; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
+		const requests: IAgentHostAuthenticateRequest[] = [];
 		await instantiation.invokeFunction(authenticateProtectedResources, agents, {
 			logPrefix: '[AgentHost]',
 			authenticate: async request => {
-				requests.push({ resource: request.resource, accountId: request.accountId, account: readAuthenticationAccount(request), metadata: request._meta });
+				requests.push(request);
 			},
 		});
 		assert.deepStrictEqual(requests, [{
 			resource: resource.resource,
+			scopes: ['read'],
+			token: 'token',
 			accountId: '["provider","provider-account",null]',
-			account: { providerId: 'provider', accountId: 'provider-account' },
-			metadata: { 'vscode.authentication.account': { providerId: 'provider', accountId: 'provider-account' } },
 		}]);
 	});
 
@@ -3193,7 +3191,6 @@ suite('resolveAuthenticationInteractively', () => {
 			requests: [{
 				resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token',
 				accountId: '["provider-1","account-1",null]',
-				_meta: authenticationAccountMeta({ providerId: 'provider-1', accountId: 'account-1' }),
 			}],
 		});
 	});
