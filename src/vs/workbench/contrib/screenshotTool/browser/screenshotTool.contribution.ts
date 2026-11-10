@@ -27,7 +27,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			included: isNative,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			markdownDescription: localize('workbench.screenshotTool.enabled', "Controls whether taking a screenshot from chat's Add Context, the issue reporter, or the Integrated Browser opens a screenshot tool. Click to capture the window or a browser page, or drag to capture an area. The screenshot is attached right away, and clicking it opens it for editing."),
+			markdownDescription: localize('workbench.screenshotTool.enabled', "Controls whether taking a screenshot from chat's Add Context, the issue reporter, or the Integrated Browser opens a screenshot tool. Click to capture the window or a browser page, or drag to capture an area. The screenshot is attached right away, and clicking it lets you mark it up. In chat, the other images of the input can be marked up from the Images Preview as well."),
 		},
 	},
 });
@@ -46,8 +46,8 @@ class ScreenshotToolAccessibilityHelp implements IAccessibleViewImplementation {
 			() => [
 				localize('screenshotTool.accessibilityHelp.overview', "You are in the screenshot tool."),
 				localize('screenshotTool.accessibilityHelp.capture', "Press Enter to capture the whole window, or Escape to cancel. With a pointer, click to capture the window or a browser page, or drag to capture an area."),
-				localize('screenshotTool.accessibilityHelp.attach', "The screenshot is attached right away. To edit an attached screenshot, focus it and press Enter."),
-				localize('screenshotTool.accessibilityHelp.edit', "The edit dialog keeps your changes as you make them. Use Tab and Shift+Tab to move between the drawing tools, Undo, Redo, and Close. Press Escape to close it."),
+				localize('screenshotTool.accessibilityHelp.attach', "The screenshot is attached right away. To mark up an attached screenshot, focus it and press Enter. In chat, this opens the Images Preview, where Mark Up starts the markup of an image in the input."),
+				localize('screenshotTool.accessibilityHelp.markUp', "While marking up, use Tab and Shift+Tab to move between the drawing tools, Undo, Redo, and Done. Select Done or press Escape to apply your changes."),
 			].join('\n'),
 			() => screenshotToolService.focus(),
 			AccessibilityVerbositySettingId.ScreenshotTool,

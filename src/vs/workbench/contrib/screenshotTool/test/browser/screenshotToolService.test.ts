@@ -15,9 +15,12 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IEditorPane } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { createScreenshotToolImage, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolEntryPoint, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
+import { ImageCarouselEditorInput } from '../../../imageCarousel/browser/imageCarouselEditorInput.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolEntryPoint, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
 import { resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 import { TestScreenshotToolTelemetryService } from './screenshotToolTestUtils.js';
@@ -58,7 +61,7 @@ suite('ScreenshotTool', () => {
 			return decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
 		}
 
-		function createService(options: { enabled?: boolean; supported?: boolean } = {}) {
+		function createService(options: { enabled?: boolean; supported?: boolean; editorService?: Partial<IEditorService> } = {}) {
 			const container = $('div');
 			mainWindow.document.body.appendChild(container);
 			store.add(toDisposable(() => container.remove()));
@@ -88,6 +91,7 @@ suite('ScreenshotTool', () => {
 				new MockKeybindingService(),
 				new MockContextKeyService(),
 				new NullLogService(),
+				upcastPartial<IEditorService>(options.editorService ?? {}),
 			));
 			return { service, telemetry, accessibility, container, captures, focusedWindows };
 		}
@@ -110,22 +114,23 @@ suite('ScreenshotTool', () => {
 				: result;
 		}
 
-		/** Waits until the edit dialog has loaded its screenshot, which sizes its canvas. */
-		async function waitForDialog(container: HTMLElement): Promise<HTMLElement> {
-			const dialog = container.querySelector<HTMLElement>('.screenshot-annotation-editor')!;
-			const canvas = dialog.querySelector('canvas')!;
-			if (!canvas.style.width) {
-				const sized = new DeferredPromise<void>();
-				const observer = new MutationObserver(() => {
-					if (canvas.style.width) {
-						void sized.complete();
-					}
-				});
-				observer.observe(canvas, { attributes: true, attributeFilter: ['style'] });
-				await sized.p;
+		/** Waits until a markup has loaded its screenshot, which sizes its canvas. */
+		async function waitForMarkUp(container: HTMLElement): Promise<HTMLElement> {
+			const loaded = new DeferredPromise<HTMLElement>();
+			const check = () => {
+				const markUp = container.querySelector<HTMLElement>('.screenshot-annotation-editor');
+				if (markUp?.querySelector('canvas')?.style.width) {
+					void loaded.complete(markUp);
+				}
+			};
+			const observer = new MutationObserver(check);
+			observer.observe(container, { attributes: true, attributeFilter: ['style'], childList: true, subtree: true });
+			check();
+			try {
+				return await loaded.p;
+			} finally {
 				observer.disconnect();
 			}
-			return dialog;
 		}
 
 		test('logs the experiment trigger in both arms before reading the setting, and nothing where unsupported', () => {
@@ -232,43 +237,88 @@ suite('ScreenshotTool', () => {
 			});
 		});
 
-		test('editing keeps changes when the dialog closes, without a Save button', async () => {
+		test('a markup keeps its changes when it ends, and the next one restores them', async () => {
 			const { service, container, telemetry } = createService();
-			const button = $('button');
-			container.appendChild(button);
-			button.focus();
+			const active: boolean[] = [];
+			store.add(service.onDidChangeActive(event => active.push(event.active)));
 			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
-			const edited = service.edit(mainWindow, { original, annotationState: undefined }, ScreenshotToolSurface.Chat);
-			const dialog = await waitForDialog(container);
-			const title = mainWindow.document.getElementById(dialog.getAttribute('aria-labelledby')!)?.textContent;
-			const labels = [...dialog.querySelectorAll<HTMLElement>('.tool-btn, .monaco-button')].map(element => element.getAttribute('aria-label') ?? element.textContent);
-			dialog.querySelector<HTMLElement>('.crop-btn')!.click();
-			[...dialog.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
-			key(dialog, 'Escape', 27);
-			const edit = await edited;
+			const first = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const markUp = await waitForMarkUp(container);
+			const hint = mainWindow.document.getElementById(markUp.getAttribute('aria-describedby')!)?.textContent;
+			const labels = [...markUp.querySelectorAll<HTMLElement>('.tool-btn, .monaco-button')].map(element => element.getAttribute('aria-label') ?? element.textContent);
+			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
+			[...markUp.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
+			key(markUp, 'Escape', 27);
+			const edit = await first.result;
 
-			// Reopening restores the annotations, and closing without changes keeps the screenshot as it is.
-			const reopened = service.edit(mainWindow, edit!, ScreenshotToolSurface.Chat);
-			key(await waitForDialog(container), 'Escape', 27);
+			// Done without changes keeps the screenshot as it is.
+			const second = store.add(service.markUp(container, Promise.resolve(edit!), ScreenshotToolSurface.Chat));
+			[...(await waitForMarkUp(container)).querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Done')!.click();
 			assert.deepStrictEqual({
-				title,
+				label: markUp.getAttribute('aria-label'),
+				hint,
 				labels,
 				edit: edit && { annotated: edit.annotated, size: `${edit.image.width}x${edit.image.height}`, actions: edit.annotationState?.actions.length, original: edit.original === original },
-				reopened: await reopened,
-				open: container.querySelectorAll('.screenshot-annotation-backdrop').length,
-				focused: mainWindow.document.activeElement === button,
+				unchanged: await second.result,
+				open: container.querySelectorAll('.screenshot-annotation-editor').length,
+				// Like captures, markups let the issue reporter hide its floating bar.
+				active,
 				edits: telemetry.edits,
 			}, {
-				title: 'Edit Screenshot',
-				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Close'],
+				label: 'Mark Up Image',
+				hint: 'Draw on the image or crop it, then select Done to apply your changes.',
+				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Done'],
 				edit: { annotated: true, size: '40x30', actions: 1, original: true },
-				reopened: undefined,
+				unchanged: undefined,
 				open: 0,
-				focused: true,
+				active: [true, false, true, false],
 				edits: [
 					{ surface: 'chat', changed: true, annotated: true },
 					{ surface: 'chat', changed: false, annotated: true },
 				],
+			});
+		});
+
+		test('edits a screenshot in the Images Preview, which resolves once the preview closes', async () => {
+			const opened: ImageCarouselEditorInput[] = [];
+			const { service, container, telemetry } = createService({
+				editorService: {
+					openEditor: async (input: unknown) => {
+						opened.push(input as ImageCarouselEditorInput);
+						return upcastPartial<IEditorPane>({});
+					},
+				} as Partial<IEditorService>,
+			});
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+			let resolved = false;
+			const edited = service.edit({ original, annotationState: undefined }, ScreenshotToolSurface.IssueReporter).then(edit => {
+				resolved = true;
+				return edit;
+			});
+			const [input] = opened;
+			const [image] = input.collection.sections[0].images;
+			const preview = image.markUp!(container);
+			const markUp = await waitForMarkUp(container);
+			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
+			[...markUp.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
+			[...markUp.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Done')!.click();
+			const shown = await preview.result;
+			const resolvedBeforeClose = resolved;
+			input.dispose();
+			const edit = await edited;
+			preview.dispose();
+			assert.deepStrictEqual({
+				input: { title: input.getName(), markUpOnly: input.markUpOnly, image: { name: image.name, mimeType: image.mimeType, size: image.data?.byteLength === getScreenshotToolImageData(original).data.byteLength } },
+				shown: shown && { mimeType: shown.mimeType, matchesEdit: shown.data.byteLength === getScreenshotToolImageData(edit!.image).data.byteLength },
+				resolvedBeforeClose,
+				edit: edit && { annotated: edit.annotated, original: edit.original === original },
+				edits: telemetry.edits,
+			}, {
+				input: { title: 'Edit Screenshot', markUpOnly: true, image: { name: 'Screenshot', mimeType: 'image/png', size: true } },
+				shown: { mimeType: 'image/png', matchesEdit: true },
+				resolvedBeforeClose: false,
+				edit: { annotated: true, original: true },
+				edits: [{ surface: 'issueReporter', changed: true, annotated: true }],
 			});
 		});
 	});

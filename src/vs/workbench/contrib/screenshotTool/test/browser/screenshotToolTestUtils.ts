@@ -12,6 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolResult } from '../../browser/screenshotTool.js';
@@ -48,7 +49,7 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 	result: ScreenshotToolResult = { kind: 'cancelled', mode: 'none' };
 	windowImage: IScreenshotToolImage | undefined;
 	editResult: IScreenshotToolEdit | undefined;
-	/** Runs while a scripted capture or edit is active. */
+	/** Runs while a scripted capture is active. */
 	duringSession: (() => void) | undefined;
 
 	private readonly _onDidChangeScriptedActive = this._register(new Emitter<{ readonly targetWindow: CodeWindow; readonly active: boolean }>());
@@ -69,9 +70,8 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 		return this.windowImage;
 	}
 
-	override async edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable): Promise<IScreenshotToolEdit | undefined> {
+	override async edit(screenshot: IScreenshotToolEditable): Promise<IScreenshotToolEdit | undefined> {
 		this.requests.push(`edit ${screenshot.original.width}x${screenshot.original.height}${screenshot.annotationState ? ' with annotations' : ''}`);
-		this.runSession(targetWindow);
 		return this.editResult;
 	}
 
@@ -93,6 +93,7 @@ export function createTestScreenshotToolService(store: Pick<DisposableStore, 'ad
 		new MockKeybindingService(),
 		new MockContextKeyService(),
 		new NullLogService(),
+		new class extends mock<IEditorService>() { }(),
 	));
 	return { service, telemetry };
 }

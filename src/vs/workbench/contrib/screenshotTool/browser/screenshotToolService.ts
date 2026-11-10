@@ -5,15 +5,16 @@
 
 import { $, addDisposableListener, EventType, getActiveWindow, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { DeferredPromise, isThenable, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -23,13 +24,15 @@ import { ResultKind } from '../../../../platform/keybinding/common/keybindingRes
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { ImageCarouselEditorInput } from '../../imageCarousel/browser/imageCarouselEditorInput.js';
 import { ScreenshotAnnotationEditor, ScreenshotAnnotationEditorMode } from './screenshotAnnotation.js';
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
-import { createScreenshotToolImage, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolService, ScreenshotToolActiveContext, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface } from './screenshotTool.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolActiveContext, SCREENSHOT_TOOL_ENABLED_SETTING_ID, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
 
 /** How long the window gets to repaint, without the overlay or UI that just closed, before it is captured. */
 const REPAINT_DELAY = 100;
@@ -71,11 +74,11 @@ type ScreenshotToolEditEvent = {
 
 type ScreenshotToolEditClassification = {
 	owner: 'Giuspepe';
-	comment: 'Reports how editing an attached screenshot in the screenshot tool ended.';
-	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the edited screenshot was attached: chat or the issue reporter.' };
-	changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot changed while the edit dialog was open.' };
-	annotated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot has annotations or a crop when the edit dialog closes.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds the edit dialog was open.' };
+	comment: 'Reports how marking up an attached image with the screenshot tool ended.';
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the marked up image was attached: chat or the issue reporter.' };
+	changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the image changed during the markup.' };
+	annotated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the image has annotations or a crop when the markup ends.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds the markup was shown.' };
 };
 
 export class ScreenshotToolService extends Disposable implements IScreenshotToolService {
@@ -84,6 +87,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 
 	private readonly layers = new Set<IScreenshotToolLayer>();
 	private readonly sessions = new Map<CodeWindow, ISession>();
+	private readonly markUps = new Set<IScreenshotToolMarkUp>();
+	/** How many captures and markups each window shows, which overlap when a markup's host lets the user capture. */
+	private readonly activeSurfaces = new Map<CodeWindow, number>();
 	private readonly editableAttachments = new LRUCache<string, IScreenshotToolEditable>(MAX_EDITABLE_ATTACHMENTS);
 	private readonly activeContext: IContextKey<boolean>;
 
@@ -99,6 +105,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.activeContext = ScreenshotToolActiveContext.bindTo(contextKeyService);
@@ -146,7 +153,11 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	focus(): void {
 		const sessions = [...this.sessions];
 		const [, session] = sessions.find(([targetWindow]) => targetWindow.document.hasFocus()) ?? sessions.at(-1) ?? [];
-		session?.surface?.focus();
+		if (session?.surface) {
+			session.surface.focus();
+		} else {
+			[...this.markUps].at(-1)?.focus();
+		}
 	}
 
 	async capture(targetWindow: CodeWindow, token = CancellationToken.None): Promise<ScreenshotToolResult> {
@@ -196,27 +207,148 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, token = CancellationToken.None): Promise<IScreenshotToolEdit | undefined> {
-		const session = this.startSession(targetWindow);
-		if (!session) {
-			return undefined;
-		}
-		const stopWatch = StopWatch.create(false);
-		let edit: IScreenshotToolEdit | undefined;
+	async edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined> {
+		// The Images Preview opens as a modal editor in the main window, which comes to the front, and focus goes back to a reporter in its own window afterwards.
+		const previousWindow = getActiveWindow();
+		const previousFocus = previousWindow.document.activeElement;
+		const outcome = new DeferredPromise<IScreenshotToolEdit | undefined>();
+		const { data, mimeType } = getScreenshotToolImageData(screenshot.original);
+		const input = new ImageCarouselEditorInput({
+			id: generateUuid(),
+			title: localize('editScreenshot', "Edit Screenshot"),
+			sections: [{
+				title: '',
+				images: [{
+					id: generateUuid(),
+					name: localize('screenshot', "Screenshot"),
+					mimeType,
+					data,
+					markUp: container => {
+						const markUp = this.markUp(container, screenshot, surface);
+						void markUp.result.then(edit => outcome.complete(edit));
+						return toImageCarouselMarkUp(markUp);
+					},
+				}],
+			}],
+		}, 0, true);
+		const closed = Event.toPromise(input.onWillDispose);
 		try {
-			edit = await this.openEditDialog(targetWindow, session, screenshot, token);
+			if (previousWindow !== mainWindow) {
+				await this.hostService.focus(mainWindow);
+			}
+			if (!await this.editorService.openEditor(input, { pinned: true })) {
+				input.dispose();
+				return undefined;
+			}
+			// The markup ends when the editor closes, unless the editor closed before it began.
+			void closed.then(() => outcome.complete(undefined));
+			const edit = await outcome.p;
+			await closed;
 			return edit;
 		} catch (error) {
 			this.logService.error('[ScreenshotTool] Editing a screenshot failed:', error);
+			input.dispose();
 			return undefined;
 		} finally {
-			session.dispose();
+			if (previousWindow !== mainWindow && !previousWindow.closed) {
+				await this.hostService.focus(previousWindow);
+				if (isHTMLElement(previousFocus) && previousFocus.isConnected) {
+					previousFocus.focus();
+				}
+			}
+		}
+	}
+
+	markUp(container: HTMLElement, screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>, surface: ScreenshotToolSurface): IScreenshotToolMarkUp {
+		const store = new DisposableStore();
+		const result = new DeferredPromise<IScreenshotToolEdit | undefined>();
+		const stopWatch = StopWatch.create(false);
+		let editor: ScreenshotAnnotationEditor | undefined;
+		let editable: IScreenshotToolEditable | undefined;
+		let focusRequested = false;
+		const markUp: IScreenshotToolMarkUp = {
+			result: result.p,
+			focus: () => {
+				focusRequested = true;
+				editor?.focus();
+			},
+			finish: () => {
+				if (editor) {
+					editor.finish();
+				} else {
+					void result.complete(undefined);
+				}
+			},
+			dispose: () => {
+				void result.complete(undefined);
+				store.dispose();
+			},
+		};
+		const targetWindow = getWindow(container);
+		this.markUps.add(markUp);
+		this.setActive(targetWindow, true);
+		store.add(toDisposable(() => {
+			this.markUps.delete(markUp);
+			this.setActive(targetWindow, false);
+		}));
+
+		const show = (loaded: IScreenshotToolEditable) => {
+			if (result.isSettled) {
+				return;
+			}
+			editable = loaded;
+			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, loaded.annotationState, ScreenshotAnnotationEditorMode.MarkUp);
+			store.add(toDisposable(() => annotationEditor.dispose()));
+			for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
+				// Workbench shortcuts would act on what is underneath the markup and take focus from it.
+				store.add(addDisposableListener(annotationEditor.element, type, (e: KeyboardEvent) => {
+					if (!this.isAccessibilityHelpKey(new StandardKeyboardEvent(e))) {
+						e.stopPropagation();
+					}
+				}));
+			}
+			store.add(annotationEditor.onDidSave(saved => void result.complete({
+				original: loaded.original,
+				annotationState: saved.state,
+				image: saved.annotated ? { dataUrl: saved.dataUrl, width: saved.width, height: saved.height } : loaded.original,
+				annotated: saved.annotated,
+			})));
+			store.add(annotationEditor.onDidCancel(() => void result.complete(undefined)));
+			if (focusRequested) {
+				annotationEditor.focus();
+			}
+		};
+		if (isThenable(screenshot)) {
+			screenshot.then(show, error => {
+				this.logService.error('[ScreenshotTool] Loading a screenshot to mark up failed:', error);
+				void result.complete(undefined);
+			});
+		} else {
+			show(screenshot);
+		}
+
+		void result.p.then(edit => {
+			store.dispose();
 			this.telemetryService.publicLog2<ScreenshotToolEditEvent, ScreenshotToolEditClassification>('screenshotTool.edit', {
 				surface,
 				changed: !!edit,
-				annotated: edit ? edit.annotated : !!screenshot.annotationState?.actions.length || !!screenshot.annotationState?.crop,
+				annotated: edit ? edit.annotated : !!editable?.annotationState?.actions.length || !!editable?.annotationState?.crop,
 				durationMs: Math.round(stopWatch.elapsed()),
 			});
+		});
+		return markUp;
+	}
+
+	private setActive(targetWindow: CodeWindow, active: boolean): void {
+		const count = (this.activeSurfaces.get(targetWindow) ?? 0) + (active ? 1 : -1);
+		if (count > 0) {
+			this.activeSurfaces.set(targetWindow, count);
+		} else {
+			this.activeSurfaces.delete(targetWindow);
+		}
+		this.activeContext.set(this.activeSurfaces.size > 0);
+		if (count === (active ? 1 : 0)) {
+			this._onDidChangeActive.fire({ targetWindow, active });
 		}
 	}
 
@@ -237,8 +369,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 					return;
 				}
 				this.sessions.delete(targetWindow);
-				this.activeContext.set(this.sessions.size > 0);
-				this._onDidChangeActive.fire({ targetWindow, active: false });
+				this.setActive(targetWindow, false);
 				if (previousWindow !== targetWindow && !previousWindow.closed) {
 					void this.hostService.focus(previousWindow);
 				}
@@ -250,8 +381,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			}
 		};
 		this.sessions.set(targetWindow, session);
-		this.activeContext.set(true);
-		this._onDidChangeActive.fire({ targetWindow, active: true });
+		this.setActive(targetWindow, true);
 		return session;
 	}
 
@@ -287,37 +417,6 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return keybinding
 			? localize('screenshotModeAnnouncementWithHelp', "{0} Use {1} for accessibility help.", message, keybinding)
 			: message;
-	}
-
-	private async openEditDialog(targetWindow: CodeWindow, session: ISession, screenshot: IScreenshotToolEditable, token: CancellationToken): Promise<IScreenshotToolEdit | undefined> {
-		const store = new DisposableStore();
-		const result = new DeferredPromise<IScreenshotToolEdit | undefined>();
-		const editor = new ScreenshotAnnotationEditor(screenshot.original, this.layoutService.getContainer(targetWindow), screenshot.annotationState, ScreenshotAnnotationEditorMode.Dialog);
-		store.add(toDisposable(() => editor.dispose()));
-		for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-			// Workbench shortcuts would open UI underneath the dialog and take focus from it.
-			store.add(addDisposableListener(editor.element, type, (e: KeyboardEvent) => {
-				if (!this.isAccessibilityHelpKey(new StandardKeyboardEvent(e))) {
-					e.stopPropagation();
-				}
-			}));
-		}
-		store.add(editor.onDidSave(saved => void result.complete({
-			original: screenshot.original,
-			annotationState: saved.state,
-			image: saved.annotated ? { dataUrl: saved.dataUrl, width: saved.width, height: saved.height } : screenshot.original,
-			annotated: saved.annotated,
-		})));
-		store.add(editor.onDidCancel(() => void result.complete(undefined)));
-		store.add(token.onCancellationRequested(() => void result.complete(undefined)));
-		session.surface = editor;
-		try {
-			editor.focus();
-			return await result.p;
-		} finally {
-			session.surface = undefined;
-			store.dispose();
-		}
 	}
 
 	private async capturePage(layer: IScreenshotToolLayer): Promise<Omit<ICapture, 'mode'> | undefined> {

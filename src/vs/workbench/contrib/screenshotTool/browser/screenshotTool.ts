@@ -12,13 +12,14 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IImageCarouselMarkUp } from '../../imageCarousel/browser/imageCarouselTypes.js';
 import { IAnnotationEditorState } from './screenshotAnnotation.js';
 
 /** Experiment-controlled setting that routes the screenshot entry points through the screenshot tool. */
 export const SCREENSHOT_TOOL_ENABLED_SETTING_ID = 'workbench.screenshotTool.enabled';
 
-/** True while the screenshot tool lets the user select a capture or edit a screenshot. */
-export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or editing a screenshot"));
+/** True while the screenshot tool lets the user select a capture or mark up a screenshot. */
+export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or marking up a screenshot"));
 
 export const IScreenshotToolService = createDecorator<IScreenshotToolService>('screenshotToolService');
 
@@ -75,6 +76,15 @@ export interface IScreenshotToolEdit extends IScreenshotToolEditable {
 	readonly annotated: boolean;
 }
 
+/** The markup of a screenshot, see {@link IScreenshotToolService.markUp}. */
+export interface IScreenshotToolMarkUp extends IDisposable {
+	/** Resolves once the markup ends, with the edited screenshot, or `undefined` when nothing changed. */
+	readonly result: Promise<IScreenshotToolEdit | undefined>;
+	focus(): void;
+	/** Ends the markup and keeps its changes, like its Done button does. */
+	finish(): void;
+}
+
 /** Native content, such as a browser page, that window captures do not include. */
 export interface IScreenshotToolLayer {
 	/** The element whose bounds the native content covers, or `undefined` while it shows no native content. */
@@ -88,7 +98,7 @@ export interface IScreenshotToolLayer {
 export interface IScreenshotToolService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when the tool starts or stops covering a window to let the user capture or edit. */
+	/** Fires when the tool starts or stops letting the user capture in a window, or mark up a screenshot there. */
 	readonly onDidChangeActive: Event<{ readonly targetWindow: CodeWindow; readonly active: boolean }>;
 
 	/**
@@ -107,10 +117,16 @@ export interface IScreenshotToolService {
 	captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined>;
 
 	/**
-	 * Opens an attached screenshot in a dialog above the window, where changes apply as they are made.
-	 * Resolves with the edited screenshot when the dialog closes, or `undefined` when nothing changed.
+	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it.
+	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed.
 	 */
-	edit(targetWindow: CodeWindow, screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, token?: CancellationToken): Promise<IScreenshotToolEdit | undefined>;
+	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined>;
+
+	/**
+	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Escape and Done end it, as does
+	 * `finish`, which keeps its changes. A screenshot that is still loading shows once it has loaded.
+	 */
+	markUp(container: HTMLElement, screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>, surface: ScreenshotToolSurface): IScreenshotToolMarkUp;
 
 	/** Remembers a screenshot attached to chat, so that it can be edited while it is attached. */
 	registerEditableAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): void;
@@ -118,7 +134,7 @@ export interface IScreenshotToolService {
 	/** Returns a screenshot attached to chat that can be edited. */
 	getEditableAttachment(attachmentId: string): IScreenshotToolEditable | undefined;
 
-	/** Moves focus back to the screenshot tool while it is active. */
+	/** Moves focus back to the screenshot tool while it is active, or to the latest markup. */
 	focus(): void;
 
 	registerLayer(layer: IScreenshotToolLayer): IDisposable;
@@ -142,6 +158,16 @@ export function getScreenshotToolImageData(image: IScreenshotToolImage): { reado
 	return {
 		data: decodeBase64(match?.groups?.data ?? ''),
 		mimeType: match?.groups?.mimeType ?? 'image/png',
+	};
+}
+
+/** Lets the Images Preview show a markup, and the image that it changed. */
+export function toImageCarouselMarkUp(markUp: IScreenshotToolMarkUp): IImageCarouselMarkUp {
+	return {
+		result: markUp.result.then(edit => edit && getScreenshotToolImageData(edit.image)),
+		focus: () => markUp.focus(),
+		finish: () => markUp.finish(),
+		dispose: () => markUp.dispose(),
 	};
 }
 

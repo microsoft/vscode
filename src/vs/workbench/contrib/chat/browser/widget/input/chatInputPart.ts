@@ -82,7 +82,7 @@ import { bindContextKey, observableConfigValue } from '../../../../../../platfor
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { getScreenshotToolImageData, IScreenshotToolEditable, IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
+import { IScreenshotToolEditable, IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -142,6 +142,7 @@ import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
+import { applyScreenshotToolEdit } from '../../attachments/chatScreenshotContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
@@ -4979,7 +4980,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (attachment.kind === 'terminalCommand') {
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
-			// Screenshots from the screenshot tool open for editing instead of a preview.
+			// Screenshots from the screenshot tool can be marked up: in the Images Preview, or else right away.
 			const screenshot = this.screenshotToolService.getEditableAttachment(attachment.id);
 			const imageOptions = screenshot ? { ...widgetOptions, edit: () => this.editScreenshotAttachment(attachment.id, screenshot) } : widgetOptions;
 			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
@@ -5003,17 +5004,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Edits a screenshot from the screenshot tool in its dialog, and keeps it attached with the changes.
+	 * Marks up a screenshot from the screenshot tool, and keeps it attached with the changes.
 	 */
 	private async editScreenshotAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): Promise<void> {
-		const edit = await this.screenshotToolService.edit(dom.getWindow(this.container), screenshot, ScreenshotToolSurface.Chat);
-		const attachment = this._attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
-		if (!edit || !attachment || !isImageVariableEntry(attachment)) {
-			return;
+		const edit = await this.screenshotToolService.edit(screenshot, ScreenshotToolSurface.Chat);
+		if (edit) {
+			applyScreenshotToolEdit(this._attachmentModel, attachmentId, edit, this.screenshotToolService);
 		}
-		this.screenshotToolService.registerEditableAttachment(attachmentId, { original: edit.original, annotationState: edit.annotationState });
-		const { data, mimeType } = getScreenshotToolImageData(edit.image);
-		this._attachmentModel.updateContext([], [{ ...attachment, value: data.buffer, mimeType }]);
 	}
 
 	/**

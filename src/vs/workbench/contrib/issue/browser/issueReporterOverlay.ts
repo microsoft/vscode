@@ -2295,11 +2295,11 @@ export class IssueReporterOverlay {
 	}
 
 	/**
-	 * Edits a screenshot in the screenshot tool's dialog. It opens over the window that screenshots
-	 * capture, which keeps it large even when the reporter has a narrow window of its own.
+	 * Marks up a screenshot in the Images Preview, which opens as a modal editor over the main window, so that it stays
+	 * large even when the reporter has a narrow window of its own.
 	 */
 	private async editScreenshot(id: string, screenshot: IScreenshot): Promise<void> {
-		const edit = await this.screenshotToolService.edit(getWindow(this.captureContainer), {
+		const edit = await this.screenshotToolService.edit({
 			original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
 			annotationState: screenshot.annotationState,
 		}, ScreenshotToolSurface.IssueReporter);

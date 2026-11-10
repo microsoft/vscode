@@ -528,6 +528,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const modelName = currentLanguageModel?.metadata.name;
 		const omittedState = getEffectiveImageOmittedState(attachment.omittedState, currentLanguageModel, options.isCurrentInput);
 		this.element.classList.toggle('auto-image-warning', isAutoModel);
+		const ref = attachment.references?.[0]?.reference;
+		resource = ref && URI.isUri(ref) ? ref : undefined;
+		const imageData = coerceImageBuffer(attachment.value);
+		// The Images Preview opens first; a screenshot that can be edited is marked up there, or else right away.
+		const canPreview = (!!resource || !!imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
 		let ariaLabel: string;
 		if (omittedState === OmittedState.Full && modelName && !modelSupportsVision(currentLanguageModel)) {
 			ariaLabel = localize('chat.unsupportedImageAttachment', "Image not sent because {0} does not support images: {1}", modelName, attachment.name);
@@ -539,22 +544,23 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			ariaLabel = localize('chat.imageLimitExceededAttachment', "Image not sent due to limit: {0}", attachment.name);
 		} else if (isAutoModel) {
 			ariaLabel = options.edit
-				? localize('chat.autoEditableImageAttachment', "Attached image, {0}. Press Enter to edit it. Image support depends on the model selected by Copilot Fusion.", attachment.name)
+				? canPreview
+					? localize('chat.autoMarkUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
+					: localize('chat.autoEditableImageAttachment', "Attached image, {0}. Press Enter to edit it. Image support depends on the model selected by Copilot Fusion.", attachment.name)
 				: localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Copilot Fusion.", attachment.name);
 		} else {
 			ariaLabel = options.edit
-				? localize('chat.editableImageAttachment', "Attached image, {0}. Press Enter to edit it.", attachment.name)
+				? canPreview
+					? localize('chat.markUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up.", attachment.name)
+					: localize('chat.editableImageAttachment', "Attached image, {0}. Press Enter to edit it.", attachment.name)
 				: localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 		}
 
-		const ref = attachment.references?.[0]?.reference;
-		resource = ref && URI.isUri(ref) ? ref : undefined;
-		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
-			if (options.edit) {
-				await options.edit();
-			} else if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 				await this.openInCarousel(attachment.id, attachment.name, imageData, resource, options.isCurrentInput);
+			} else if (options.edit) {
+				await options.edit();
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -563,7 +569,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		const hoverHint = options.edit ? localize('chat.editImageAttachmentHint', "Click to edit this screenshot.") : undefined;
+		const hoverHint = options.edit
+			? canPreview
+				? localize('chat.markUpImageAttachmentHint', "Click to preview or mark up this screenshot.")
+				: localize('chat.editImageAttachmentHint', "Click to edit this screenshot.")
+			: undefined;
 
 		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
 			this._register(this.renderInlineImage(resource, attachment.name, fullName, options.imageBase64Data ?? imageData, ariaLabel, options.imageReveal, options.imageDimensions));

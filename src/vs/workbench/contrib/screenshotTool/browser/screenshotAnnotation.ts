@@ -49,8 +49,8 @@ const MIN_TEXT_BOX_WIDTH = 48;
 const TEXT_DRAG_THRESHOLD = 4;
 /** Padding on each side of the displayed image inside the canvas container at fit-to-window scale. */
 const CANVAS_BREATHING_ROOM = 64;
-/** The dialog already has a margin around it, so its image needs less padding. */
-const DIALOG_CANVAS_BREATHING_ROOM = 24;
+/** The image of a markup fills less of its parent, such as a modal editor, which already has a margin around it. */
+const MARK_UP_CANVAS_BREATHING_ROOM = 24;
 const FILL_COLORS = ['transparent', ...COLORS];
 const STROKE_WIDTHS = [2, 4, 8, 12];
 const TEXT_SIZES = [14, 18, 24, 32, 48];
@@ -118,10 +118,10 @@ export const enum ScreenshotAnnotationEditorMode {
 	/** Edits an attached screenshot inside its parent, with Save and Discard. */
 	Edit = 'edit',
 	/**
-	 * Edits an attached screenshot in a dialog above the whole window. There is no Save: closing the
-	 * dialog fires `onDidSave` when something changed, and `onDidCancel` when nothing did.
+	 * Marks up an image inside its parent, such as the Images Preview. There is no Save: Done, Escape and
+	 * {@link ScreenshotAnnotationEditor.finish} fire `onDidSave` when something changed, and `onDidCancel` when nothing did.
 	 */
-	Dialog = 'dialog',
+	MarkUp = 'markUp',
 }
 
 function cloneDrawAction(action: IAnnotationDrawAction, identityMap: Map<IAnnotationDrawAction, IAnnotationDrawAction> = new Map()): IAnnotationDrawAction {
@@ -208,8 +208,6 @@ export class ScreenshotAnnotationEditor {
 	private readonly _onDidCancel = new Emitter<void>();
 	readonly onDidCancel: Event<void> = this._onDidCancel.event;
 
-	/** The element added to the parent: the dialog's backdrop, or else the editor itself. */
-	private root!: HTMLElement;
 	private container!: HTMLElement;
 	private canvas!: HTMLCanvasElement;
 	private ctx!: CanvasRenderingContext2D;
@@ -221,9 +219,10 @@ export class ScreenshotAnnotationEditor {
 	private activeOpacity = 1;
 	private readonly actions: DrawAction[] = [];
 	private readonly undoneActions: DrawAction[] = [];
-	/** Counts changes to the actions, so the dialog knows whether closing it changed the screenshot. */
+	/** Counts changes to the actions, so that finishing a markup knows whether it changed the image. */
 	private revision = 0;
 	private savedRevision = 0;
+	private disposed = false;
 	private currentAction: DrawAction | null = null;
 	private isDrawing = false;
 	private isErasing = false;
@@ -262,6 +261,8 @@ export class ScreenshotAnnotationEditor {
 	private preCropState: { element: HTMLImageElement; width: number; height: number; currentCrop: { x: number; y: number; width: number; height: number } | null } | null = null;
 	private mainToolbar: HTMLElement | null = null;
 	private cropToolbar: HTMLElement | null = null;
+	/** Holds Done while marking up, which hides with the main toolbar while cropping. */
+	private doneContainer: HTMLElement | null = null;
 
 	/** Annotations are stored in original-image coords. While in crop mode the canvas already shows the original image, so the offset is 0. */
 	private get cropOffsetX(): number { return this.cropMode ? 0 : (this.currentCrop?.x ?? 0); }
@@ -319,48 +320,41 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	get element(): HTMLElement {
-		return this.root;
+		return this.container;
 	}
 
 	focus(): void {
 		this.container.focus();
 	}
 
-	private get isDialog(): boolean {
-		return this.mode === ScreenshotAnnotationEditorMode.Dialog;
+	private get isMarkUp(): boolean {
+		return this.mode === ScreenshotAnnotationEditorMode.MarkUp;
 	}
 
 	private get canvasBreathingRoom(): number {
-		return this.isDialog ? DIALOG_CANVAS_BREATHING_ROOM : CANVAS_BREATHING_ROOM;
+		return this.isMarkUp ? MARK_UP_CANVAS_BREATHING_ROOM : CANVAS_BREATHING_ROOM;
 	}
 
 	private createUI(): void {
-		const isDialog = this.isDialog;
-		if (isDialog) {
-			this.root = append(this.parentElement, $('div.screenshot-annotation-backdrop'));
-			this.container = append(this.root, $('div.screenshot-annotation-editor.dialog-mode'));
-			this.disposables.add(addDisposableListener(this.root, EventType.CLICK, e => {
-				if (e.target === this.root) {
-					this.close();
-				}
-			}));
-		} else {
-			this.container = this.root = append(this.parentElement, $('div.screenshot-annotation-editor'));
-		}
+		const isMarkUp = this.isMarkUp;
+		this.container = append(this.parentElement, $('div.screenshot-annotation-editor'));
 		this.container.tabIndex = -1;
-		this.container.setAttribute('role', 'dialog');
-		this.container.setAttribute('aria-modal', 'true');
-
-		// In a dialog, the title, the tools and the Close button share a header row.
-		let toolbarParent = this.container;
-		if (isDialog) {
-			toolbarParent = append(this.container, $('div.annotation-dialog-header'));
-			const title = append(toolbarParent, $('div.annotation-dialog-title'));
-			title.textContent = localize('editScreenshot', "Edit Screenshot");
-			title.id = `screenshot-annotation-title-${ScreenshotAnnotationEditor.hintIds}`;
-			this.container.setAttribute('aria-labelledby', title.id);
+		if (isMarkUp) {
+			// The markup is part of whatever hosts it, such as a modal editor that already is a dialog.
+			this.container.classList.add('mark-up-mode');
+			this.container.setAttribute('role', 'group');
+			this.container.setAttribute('aria-label', localize('markUpImage', "Mark Up Image"));
 		} else {
+			this.container.setAttribute('role', 'dialog');
+			this.container.setAttribute('aria-modal', 'true');
 			this.container.setAttribute('aria-label', localize('editScreenshot', "Edit Screenshot"));
+		}
+
+		// While marking up, the tools are centered in a header row that ends with Done.
+		let toolbarParent = this.container;
+		if (isMarkUp) {
+			toolbarParent = append(this.container, $('div.annotation-mark-up-header'));
+			append(toolbarParent, $('div.annotation-mark-up-header-start'));
 		}
 
 		// Main toolbar (hidden during crop mode)
@@ -435,7 +429,7 @@ export class ScreenshotAnnotationEditor {
 		this.updateUndoRedoState();
 
 		let saveButton: HTMLElement | undefined;
-		if (!isDialog) {
+		if (!isMarkUp) {
 			// 8. Separator
 			append(toolbar, $('div.toolbar-separator'));
 
@@ -477,19 +471,17 @@ export class ScreenshotAnnotationEditor {
 			this.commitCrop();
 		}));
 
-		let closeButton: HTMLElement | undefined;
-		if (isDialog) {
-			closeButton = append(toolbarParent, $('button.tool-btn.annotation-close-btn'));
-			closeButton.appendChild(renderIcon(Codicon.close));
-			closeButton.title = localize('closeEditor', "Close");
-			closeButton.setAttribute('aria-label', localize('closeEditor', "Close"));
-			this.disposables.add(addDisposableListener(closeButton, EventType.CLICK, () => this.close()));
+		if (isMarkUp) {
+			this.doneContainer = append(toolbarParent, $('div.annotation-mark-up-header-end'));
+			const doneBtn = this.disposables.add(new Button(this.doneContainer, defaultButtonStyles));
+			doneBtn.label = localize('done', "Done");
+			this.disposables.add(doneBtn.onDidClick(() => this.finish()));
 		}
 
 		// Hint label
 		const hint = append(this.container, $('div.annotation-hint'));
-		hint.textContent = isDialog
-			? localize('dialogAnnotationHint', "Highlight the problem on the screenshot. Your changes are kept when you close.")
+		hint.textContent = isMarkUp
+			? localize('markUpHint', "Draw on the image or crop it, then select Done to apply your changes.")
 			: localize('annotationHint', "Edit screenshot to highlight the problem");
 		hint.id = `screenshot-annotation-hint-${ScreenshotAnnotationEditor.hintIds++}`;
 		this.container.setAttribute('aria-describedby', hint.id);
@@ -569,14 +561,19 @@ export class ScreenshotAnnotationEditor {
 					return;
 				}
 				if (this.selectedActionIndex >= 0) {
+					if (isMarkUp) {
+						// Whoever hosts the markup ends it on Escape, which must only clear the selection here.
+						e.preventDefault();
+						e.stopPropagation();
+					}
 					this.selectedActionIndex = -1;
 					this.redraw();
 					return;
 				}
 				e.preventDefault();
 				e.stopPropagation();
-				if (isDialog) {
-					this.close();
+				if (isMarkUp) {
+					this.finish();
 				} else {
 					this._onDidCancel.fire();
 					this.dispose();
@@ -605,7 +602,7 @@ export class ScreenshotAnnotationEditor {
 			}
 		}));
 
-		// Re-fit canvas when container resizes. The dialog can open in any window, so observe with that window's observer.
+		// Re-fit canvas when container resizes. The editor can be in any window, so observe with that window's observer.
 		const resizeObserver = this.disposables.add(new DisposableResizeObserver('screenshotAnnotationEditor', () => {
 			if (this.imageElement) {
 				// On resize, ensure the user's current zoom is still at least the new fit-to-window
@@ -625,10 +622,14 @@ export class ScreenshotAnnotationEditor {
 		}, getWindow(this.parentElement)));
 		this.disposables.add(resizeObserver.observe(canvasContainer));
 
-		this.trapFocus(
-			() => this.cropMode ? cropCancelBtn.element : this.toolButtons[0].element,
-			() => closeButton ?? (this.cropMode ? cropApplyBtn.element : saveButton!),
-		);
+		// A markup's host, such as a modal editor, keeps focus inside itself.
+		if (saveButton) {
+			const lastButton = saveButton;
+			this.trapFocus(
+				() => this.cropMode ? cropCancelBtn.element : this.toolButtons[0].element,
+				() => this.cropMode ? cropApplyBtn.element : lastButton,
+			);
+		}
 	}
 
 	/** Keeps Tab and Shift+Tab inside the editor while it covers its parent, with focusable edges that pass focus around. */
@@ -867,6 +868,7 @@ export class ScreenshotAnnotationEditor {
 		}
 		// Toggle toolbars
 		if (this.mainToolbar) { this.mainToolbar.style.display = 'none'; }
+		if (this.doneContainer) { this.doneContainer.style.visibility = 'hidden'; }
 		if (this.cropToolbar) { this.cropToolbar.style.display = ''; }
 		// Reset zoom/pan to fit original
 		this.hasUserZoomed = false;
@@ -886,6 +888,7 @@ export class ScreenshotAnnotationEditor {
 		this.preCropState = null;
 		// Restore main toolbar
 		if (this.mainToolbar) { this.mainToolbar.style.display = ''; }
+		if (this.doneContainer) { this.doneContainer.style.visibility = ''; }
 		if (this.cropToolbar) { this.cropToolbar.style.display = 'none'; }
 		// Reactivate previous tool
 		this.setActiveTool(this.activeTool);
@@ -2515,8 +2518,14 @@ export class ScreenshotAnnotationEditor {
 		return finalCanvas.toDataURL('image/png');
 	}
 
-	/** Closes the dialog, which keeps what changed. */
-	private close(): void {
+	/**
+	 * Ends a markup and keeps what changed: fires `onDidSave` when something changed, and `onDidCancel` when nothing
+	 * did. Done and Escape end it as well.
+	 */
+	finish(): void {
+		if (this.disposed) {
+			return;
+		}
 		this.cancelTextPlacement();
 		this.commitTextEdit();
 		if (this.cropMode) {
@@ -2538,6 +2547,10 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
 		if (this.pendingZoomRaf) {
 			getWindow(this.canvas).cancelAnimationFrame(this.pendingZoomRaf);
 			this.pendingZoomRaf = 0;
@@ -2546,7 +2559,7 @@ export class ScreenshotAnnotationEditor {
 		this.cancelTextPlacement();
 		// Whoever opened the editor restores focus, so closing it must not move focus itself.
 		this.cleanupTextEditor(false);
-		this.root.remove();
+		this.container.remove();
 		this.toolOptionsDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidSave.dispose();
