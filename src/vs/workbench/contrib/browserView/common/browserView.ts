@@ -267,8 +267,8 @@ export interface IBrowserViewOpenHandler {
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 
-/** Whether the page is dimmed while a hover overlaps it (the screenshot swap happens regardless). */
-export const BrowserDimOnHoverSettingId = 'workbench.browser.dimOnHover';
+/** Whether the page is dimmed while something overlaps it (the screenshot swap happens regardless). */
+export const BrowserDimOverlaySettingId = 'workbench.browser.dimOnOverlay';
 
 /**
  * Resolves the opening network and optional workspace storage partition,

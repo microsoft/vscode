@@ -15,7 +15,7 @@ import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/commo
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { BrowserDimOnHoverSettingId, IBrowserViewModel } from '../common/browserView.js';
+import { BrowserDimOverlaySettingId, IBrowserViewModel } from '../common/browserView.js';
 import { BrowserOverlayManager, BrowserOverlayType } from './overlayManager.js';
 
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
@@ -32,7 +32,6 @@ export class WebContentsViewHost extends Disposable {
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
 	private _overlayObscured = false;
-	private _overlayHoverOnly = false;
 	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -56,7 +55,7 @@ export class WebContentsViewHost extends Disposable {
 		super();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BrowserDimOnHoverSettingId)) {
+			if (e.affectsConfiguration(BrowserDimOverlaySettingId)) {
 				this._refresh();
 			}
 		}));
@@ -192,7 +191,7 @@ export class WebContentsViewHost extends Disposable {
 		const placeholderActive = !!this._model?.url && !this._model.error;
 		this._placeholderScreenshot.style.display = placeholderActive ? '' : 'none';
 		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
-		const dim = pauseActive && !(this._overlayHoverOnly && !this.configurationService.getValue<boolean>(BrowserDimOnHoverSettingId));
+		const dim = pauseActive && this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false;
 		this._overlayPauseElement.classList.toggle('visible', dim);
 		if (!this._model) {
 			return;
@@ -231,10 +230,8 @@ export class WebContentsViewHost extends Disposable {
 		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
 		const obscured = overlays.length > 0;
 		this._overlayPauseElement.classList.toggle('show-message', overlays.some(overlay => overlay.type === BrowserOverlayType.Notification));
-		const hoverOnly = obscured && overlays.every(overlay => overlay.type === BrowserOverlayType.Hover);
-		if (obscured !== this._overlayObscured || hoverOnly !== this._overlayHoverOnly) {
+		if (obscured !== this._overlayObscured) {
 			this._overlayObscured = obscured;
-			this._overlayHoverOnly = hoverOnly;
 			this._refresh();
 		}
 	}

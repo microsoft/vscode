@@ -104,7 +104,7 @@ suite('WebContentsViewHost', () => {
 		});
 	});
 
-	test('dims the page for hovers only when the setting is enabled, and always for other overlays', async () => {
+	test('dims the page for overlays only when the setting is enabled', async () => {
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
 			error: undefined,
@@ -119,7 +119,7 @@ suite('WebContentsViewHost', () => {
 			setVisible: async () => { },
 			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 		});
-		const configurationService = new TestConfigurationService({ workbench: { browser: { dimOnHover: false } } });
+		const configurationService = new TestConfigurationService({ workbench: { browser: { dimOnOverlay: false } } });
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
@@ -139,20 +139,18 @@ suite('WebContentsViewHost', () => {
 		host.setModel(model);
 		host.setVisible(true);
 
-		const hover = place('monaco-hover');
+		const menu = place('monaco-menu-container');
 		host.layout();
-		const hoverDisabled = host.pauseElement.classList.contains('visible');
+		const disabled = host.pauseElement.classList.contains('visible');
 
-		await configurationService.setUserConfiguration('workbench.browser.dimOnHover', true);
-		configurationService.onDidChangeConfigurationEmitter.fire({ source: ConfigurationTarget.USER, affectedKeys: new Set(['workbench.browser.dimOnHover']), change: { keys: [], overrides: [] }, affectsConfiguration: () => true });
-		const hoverEnabled = host.pauseElement.classList.contains('visible');
+		await configurationService.setUserConfiguration('workbench.browser.dimOnOverlay', true);
+		configurationService.onDidChangeConfigurationEmitter.fire({ source: ConfigurationTarget.USER, affectedKeys: new Set(['workbench.browser.dimOnOverlay']), change: { keys: [], overrides: [] }, affectsConfiguration: () => true });
+		const enabled = host.pauseElement.classList.contains('visible');
 
-		await configurationService.setUserConfiguration('workbench.browser.dimOnHover', false);
-		place('monaco-menu-container');
-		hover.remove();
+		menu.remove();
 		host.layout();
-		const menuDisabled = host.pauseElement.classList.contains('visible');
+		const cleared = host.pauseElement.classList.contains('visible');
 
-		assert.deepStrictEqual({ hoverDisabled, hoverEnabled, menuDisabled }, { hoverDisabled: false, hoverEnabled: true, menuDisabled: true });
+		assert.deepStrictEqual({ disabled, enabled, cleared }, { disabled: false, enabled: true, cleared: false });
 	});
 });
