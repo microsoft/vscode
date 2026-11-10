@@ -35542,6 +35542,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const target of ['default', 'peer'] as const) {
+			test(`get_session_context restores a cold ${target} chat without opening it`, async () => {
+				class ContextAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+						const targetName = parseChatUri(chat)?.chatId === 'peer-context' ? 'peer' : 'default';
+						return [{
+							id: 'completed-turn', state: TurnState.Complete,
+							message: { text: 'Original task', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: `Completed ${targetName} answer` }],
+							usage: undefined,
+						}];
+					}
+				}
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ContextAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const caller = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const peer = buildChatUri(session, 'peer-context');
+				await seedNormalizedPeers(localService, session, [{ chat: peer, order: 0, providerData: 'peer-context' }]);
+				getStateManager(localService).deleteSession(session.toString());
+				const result = await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.GetSessionContext, {
+					session: buildOpenSessionLinkUri(session.toString(), target === 'peer' ? 'peer-context' : undefined),
+				});
+				assert.deepStrictEqual(JSON.parse(result).transcript, [
+					{ turn: 1, state: 'complete', user: 'Original task', assistant: `Completed ${target} answer` },
+				]);
+			});
+		}
+
 		test('get_session_context resolves a restored peer chat before reading its transcript', async () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {

@@ -465,8 +465,8 @@ export class NewChatWidget extends Disposable {
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 			derived(this, reader => {
-				const session = this._session.read(reader);
-				return !session || session.loading.read(reader) || comparisonConfigResolving.read(reader);
+				comparisonWorkspaceChanged.read(reader);
+				return this._isComparisonPending(reader, comparisonConfigResolving);
 			})));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -2110,6 +2110,15 @@ export class NewChatWidget extends Disposable {
 			return workspaceBranch;
 		}
 		return undefined;
+	}
+
+	private _isComparisonPending(reader: IReader, configurationResolving: IObservable<boolean>): boolean {
+		const session = this._session.read(reader);
+		if (!session || session.loading.read(reader) || configurationResolving.read(reader)) {
+			return true;
+		}
+		const selectedFolder = this._workspacePicker.selectedFolderUri;
+		return !!selectedFolder && !session.workspace.read(reader)?.folders.some(folder => isEqual(folder.root, selectedFolder));
 	}
 
 	private _getComparisonModelIds(): Set<string> {

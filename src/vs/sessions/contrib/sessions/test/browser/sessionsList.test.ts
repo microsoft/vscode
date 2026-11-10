@@ -7389,6 +7389,11 @@ suite('Sessions - SessionsList', () => {
 
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
+		const comparisonConfiguration = [
+			'Original comparison settings', 'Repository: ~/workspace', 'Isolation: Separate worktrees',
+			'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Copilot · Balance',
+			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
+		].join('\n');
 
 		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
@@ -7535,6 +7540,30 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ waiting, completed: order(), archiveButton: !!container.querySelector('.session-comparison-group .action-label[aria-label="Mark All as Done"]'), archived: harness.managementService.archived }, {
 				waiting: ['group:comparison-group', 'recent'], completed: ['recent', 'group:comparison-group'], archiveButton: false, archived: [],
 			});
+		});
+
+		test('comparison parent exposes saved model configurations in its hover and accessible label', () => {
+			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+			const { container, harness } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+				harness.instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (target, options) => {
+						hovers.set(target, typeof options === 'function' ? options : () => options);
+						return toDisposable(() => hovers.delete(target));
+					},
+				});
+			}, true);
+			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+			const content = hovers.get(parent)?.().content;
+			const ariaLabel = parent.closest('.monaco-list-row')?.getAttribute('aria-label');
+			assert.deepStrictEqual({
+				content,
+				accessible: typeof content === 'string' && ariaLabel?.includes(content),
+			}, {
+				content: comparisonConfiguration.replace('Attempt 2: Copilot', 'Attempt 2: Claude'),
+				accessible: true,
+			});
+			harness.store.dispose();
 		});
 
 		test('inbox groups retain comparison groups in their highest-attention category', () => {
@@ -7747,7 +7776,7 @@ suite('Sessions - SessionsList', () => {
 					title: 'Improve the picker',
 					summary: 'Comparison · 2 attempts working',
 					layersIcon: true,
-					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
+					ariaLabel: `Improve the picker, Comparison · 2 attempts working, ${comparisonConfiguration}`,
 					connector: null,
 					childOrder: [
 						'session-section-chevron collapsible codicon codicon-chevron-down',
@@ -8558,7 +8587,7 @@ suite('Sessions - SessionsList', () => {
 				ariaLabel: parent?.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				summary: 'Comparison · Review ready',
-				ariaLabel: 'Improve the picker, Comparison · Review ready',
+				ariaLabel: `Improve the picker, Comparison · Review ready, ${comparisonConfiguration}`,
 			});
 		});
 	});

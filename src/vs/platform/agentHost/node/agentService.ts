@@ -2980,21 +2980,20 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.handleAction(chat, action);
 	}
 
-	/**
-	 * Reads a point-in-time snapshot of a session's chat conversation for the
-	 * `get_session_context` server tool. Targets the session's default chat, or a
-	 * specific peer chat when `chatId` is provided. Returns `undefined` when no
-	 * live conversation state exists (e.g. a cold/unsubscribed session).
-	 */
+	/** Restores and reads the requested chat for the `get_session_context` server tool. */
 	private async _getChatContext(session: URI, chatId?: string): Promise<IChatContextSnapshot | undefined> {
-		let chatState: ChatState | undefined;
-		if (chatId) {
-			const chats = (await this._getSessionMetadata(session))?.chats ?? [];
-			const chat = getSessionChatResource({ chats: chats.map(entry => ({ resource: entry.chat.toString() })) }, chatId, this._chatOwnership.getDefaultChat(session.toString()));
-			chatState = chat === undefined ? undefined : await this._stateManager.resolveChatState(chat);
-		} else {
-			chatState = this._stateManager.getDefaultChatState(session.toString());
+		await this.restoreSession(session);
+		const state = this._stateManager.getSessionState(session.toString());
+		if (!state) {
+			return undefined;
 		}
+		const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
+		const chat = chatId === undefined ? defaultChat : getSessionChatResource(state, chatId, defaultChat);
+		if (chat === undefined) {
+			return undefined;
+		}
+		this._assertSessionOwnsChat(session, URI.parse(chat), 'Session context');
+		const chatState = await this._stateManager.resolveChatState(chat);
 		if (!chatState) {
 			return undefined;
 		}

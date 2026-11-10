@@ -592,6 +592,12 @@ export class TabbedActionListWidget extends Disposable {
 							tabAction.run();
 						}
 					}));
+					renderDisposables.add(dom.addStandardDisposableListener(button, dom.EventType.KEY_DOWN, e => {
+						if (e.equals(KeyCode.Enter)) {
+							dom.EventHelper.stop(e, true);
+							button.click();
+						}
+					}));
 					if (tabAction.render) {
 						renderDisposables.add(tabAction.render(button));
 					}
@@ -970,6 +976,13 @@ export class TabbedActionListWidget extends Disposable {
 					if (e.keyCode === KeyCode.Enter && listNavigation) {
 						dom.EventHelper.stop(e, true);
 						list.acceptSelected();
+						return;
+					}
+					if (e.equals(KeyCode.Space) && listNavigation && !onEditable) {
+						dom.EventHelper.stop(e, true);
+						if (!list.toggleFocusedSection()) {
+							list.acceptSelected();
+						}
 						return;
 					}
 					if (e.keyCode === KeyCode.UpArrow && listNavigation) {
