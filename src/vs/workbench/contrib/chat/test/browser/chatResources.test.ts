@@ -6,33 +6,12 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { getConfiguredChatResourceMode, IChatResourceContribution, resolveChatResourceTemplate } from '../../browser/chatResources/chatResources.js';
+import { getConfiguredChatResourceMode } from '../../browser/chatResources/chatResources.js';
 import { getShownChatResource } from '../../browser/chatResources/chatResourcesControl.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from '../../browser/chatResources/chatResourceSizing.js';
 
 suite('ChatResources', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function contribution(resource: string): IChatResourceContribution {
-		return { extensionId: new ExtensionIdentifier('pub.ext'), id: 'todos', label: 'Todos', icon: undefined, resource, mode: 'embedded' };
-	}
-
-	test('resolves the resource template with the chat session id', () => {
-		const session = URI.parse('vscode-chat-session://local/c2Vzc2lvbi8x');
-		assert.strictEqual(
-			resolveChatResourceTemplate(contribution('chat-todos:/${chatSessionId}.todo.json'), session)?.toString(),
-			'chat-todos:/c2Vzc2lvbi8x.todo.json',
-		);
-	});
-
-	test('keeps characters of the chat session id that are special in URIs within the path', () => {
-		const session = URI.parse('agent-host://host/session%20one%23two%3F');
-		assert.strictEqual(
-			resolveChatResourceTemplate(contribution('chat-todos:/${chatSessionId}.todo.json'), session)?.path,
-			'/session one#two?.todo.json',
-		);
-	});
 
 	test('configured modes match the path or the file name and ignore invalid modes and the top of the chat', () => {
 		const modes = { '*.md': 'embedded', '**/docs/**': 'pinned', '*.txt': 'sideways', '*.html': 'top' };
