@@ -406,6 +406,7 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 import './contrib/onboarding/browser/onboarding.contribution.js';
 import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
+import './contrib/chat/browser/onboarding/agentPickerSpotlight.contribution.js';
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy

@@ -76,6 +76,7 @@ export const Menus = {
 	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	/** Actions of the editor header row after {@link SessionsEditorHeaderSecondary}, behind a separator. */
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
+	DetailsPosition: new MenuId('SessionsDetailsPosition'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),

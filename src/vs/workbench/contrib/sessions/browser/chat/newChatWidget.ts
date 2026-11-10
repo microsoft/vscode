@@ -370,7 +370,8 @@ export class NewChatWidget extends Disposable {
 			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider);
+				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider,
+					this._workspacePicker?.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;
@@ -465,8 +466,8 @@ export class NewChatWidget extends Disposable {
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 			derived(this, reader => {
-				const session = this._session.read(reader);
-				return !session || session.loading.read(reader) || comparisonConfigResolving.read(reader);
+				comparisonWorkspaceChanged.read(reader);
+				return this._isComparisonPending(reader, comparisonConfigResolving);
 			})));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -2110,6 +2111,27 @@ export class NewChatWidget extends Disposable {
 			return workspaceBranch;
 		}
 		return undefined;
+	}
+
+	private _isComparisonPending(reader: IReader, configurationResolving: IObservable<boolean>): boolean {
+		const session = this._session.read(reader);
+		if (!session || session.loading.read(reader) || configurationResolving.read(reader)) {
+			return true;
+		}
+		const selectedFolder = this._workspacePicker.selectedFolderUri;
+		const workspace = session.workspace.read(reader);
+		if (!selectedFolder) {
+			return workspace !== undefined;
+		}
+		const folder = workspace?.folders.find(folder => isEqual(folder.root, selectedFolder));
+		if (!folder) {
+			return true;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		const config = provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, session.mainChat.read(reader).resource) : undefined;
+		// The host resolves worktree support before publishing the draft's Git metadata.
+		return !!config && getSessionWorkspaceProperties(config.schema).isolation?.schema.enum?.includes('worktree') === true
+			&& folder.gitRepository?.isRepository?.read(reader) !== true;
 	}
 
 	private _getComparisonModelIds(): Set<string> {

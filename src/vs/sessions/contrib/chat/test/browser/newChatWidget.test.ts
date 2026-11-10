@@ -5696,6 +5696,87 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	test('keeps comparison mode while the selected workspace is waiting for its replacement draft', () => {
+		const second = URI.file('/second');
+		const isRepository = observableValue('isRepository', false);
+		const createWorkspace = (root: URI) => upcastPartial<ISessionWorkspace>({
+			folders: [{ root, workingDirectory: root, name: 'Workspace', description: '', gitRepository: upcastPartial<ISessionGitRepository>({ isRepository }) }],
+		});
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const loading = observableValue('loading', false);
+		const resolving = observableValue('resolving', false);
+		const isolationOptions = observableValue('isolationOptions', ['folder', 'worktree']);
+		const selectedFolder = observableValue<URI | undefined>('selectedFolder', undefined);
+		const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({
+			workspace, loading,
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/draft') })),
+		}));
+		const harness = {
+			_session: session,
+			_workspacePicker: { get selectedFolderUri() { return selectedFolder.get(); } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: isolationOptions.get() } } }, values: { isolation: 'folder' } }),
+				}),
+			},
+		};
+		const isPending = Reflect.get(NewChatWidget.prototype, '_isComparisonPending') as (this: typeof harness, reader: IReader, resolving: IObservable<boolean>) => boolean;
+		const pending = derived(reader => {
+			selectedFolder.read(reader);
+			isolationOptions.read(reader);
+			return isPending.call(harness, reader, resolving);
+		});
+		const available = observableValue('available', true);
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, pending, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		selection.start();
+		selection.select('one');
+		selection.select('two');
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
+		selection.finish();
+		const snapshots: { pending: boolean; enabled: boolean; judge: string | undefined; synthesizer: string | undefined }[] = [];
+		disposables.add(autorun(reader => snapshots.push({
+			pending: pending.read(reader),
+			enabled: selection.enabled.read(reader),
+			judge: selection.judgeModelId.read(reader),
+			synthesizer: selection.synthesizerModelId.read(reader),
+		})));
+		transaction(tx => {
+			selectedFolder.set(second, tx);
+			available.set(false, tx);
+		});
+		transaction(tx => {
+			workspace.set(createWorkspace(second), tx);
+			resolving.set(true, tx);
+		});
+		resolving.set(false, undefined);
+		transaction(tx => {
+			isRepository.set(true, tx);
+			available.set(true, tx);
+		});
+		transaction(tx => {
+			isolationOptions.set(['folder'], tx);
+			isRepository.set(false, tx);
+			available.set(false, tx);
+		});
+		selectedFolder.set(undefined, undefined);
+		transaction(tx => {
+			workspace.set(undefined, tx);
+			available.set(true, tx);
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: true, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: false, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: true, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+		]);
+	});
+
 	for (const committed of [false, true]) {
 		test(`preserves comparison choices across workspace draft replacement and clearing (committed: ${committed})`, () => {
 			const available = observableValue('available', true);

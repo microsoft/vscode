@@ -24,6 +24,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { hasKey, isDefined } from '../../../../../base/common/types.js';
@@ -68,6 +69,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -82,7 +84,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
-import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
+import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../sessionGroupsService.js';
@@ -134,9 +136,7 @@ import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
-import { WindowCanvasInput } from '../windowCanvas.js';
-import { IInboxNotificationsService, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
 import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
@@ -147,7 +147,6 @@ import { IShownChat } from '../../../../services/sessions/common/sessionPane.js'
 
 const $ = DOM.$;
 
-const INBOX_NOTIFICATIONS_SECTION_ID = 'inboxNotifications';
 const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
@@ -171,10 +170,6 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 	} else {
 		container.style.removeProperty(SESSION_GROUP_DEPTH_PROPERTY);
 	}
-}
-
-function lookupPrimaryCommandKeybinding(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, commandId: string) {
-	return keybindingService.lookupKeybinding(commandId, contextKeyService, true) ?? keybindingService.lookupKeybindings(commandId)[0];
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -298,6 +293,7 @@ export interface ISessionGroupItem {
 		readonly title: string;
 		readonly launching: boolean;
 		readonly summary: (reader?: IReader) => string;
+		readonly configuration: string;
 	};
 }
 
@@ -457,8 +453,6 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.chatImport;
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
-		case INBOX_NOTIFICATIONS_SECTION_ID:
-			return Codicon.inbox;
 		case SessionInboxSection.ReadyForYou:
 			return Codicon.inbox;
 		case SessionInboxSection.ReadyToMerge:
@@ -492,7 +486,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === INBOX_NOTIFICATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId);
+	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId);
 }
 
 function isPinnedCanvasSection(sectionId: string): boolean {
@@ -827,7 +821,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			// with no chat rows aggregate an approval from any of the session's chats.
 			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
 			if (approval) {
-				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
+				height += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
 			}
 		}
 		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
@@ -859,7 +853,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return height;
 		}
 		return height
-			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines)
 			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
@@ -1365,7 +1359,7 @@ interface IApprovalRowElements {
  * approval appears or clears).
  */
 function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLines: number): number {
-	return info ? SessionItemRenderer.getApprovalRowHeight(info.label, maxLines) : 0;
+	return info ? SessionItemRenderer.getApprovalRowHeight(info, maxLines) : 0;
 }
 
 interface ICompactInputNeededPresentationOptions {
@@ -1429,17 +1423,26 @@ function renderApprovalRowContent(
 
 	elements.label.textContent = '';
 	store.add(markdownRendererService.render(labelContent, {}, elements.label));
+	if (info.executionTarget?.workingDirectory) {
+		appendApprovalWorkingDirectory(elements.label, info.executionTarget.workingDirectory);
+	}
 
 	if (showHover) {
 		const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+		const executionTargetMessage = getTerminalExecutionTargetMessage(info);
+		if (executionTargetMessage) {
+			fullContent.appendMarkdown(`\n${executionTargetMessage.value}`);
+		}
 		store.add(hoverService.setupDelayedHover(elements.label, {
 			content: fullContent,
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.BELOW },
+			additionalClasses: ['session-approval-hover'],
 		}));
 	}
 
 	elements.buttonContainer.textContent = '';
+	const executionTargetDescription = getTerminalExecutionTargetDescription(info);
 	const button = store.add(new Button(elements.buttonContainer, {
 		title: localize('allowActionOnce', "Allow once"),
 		// All simultaneously visible "Allow" buttons share the same visible label
@@ -1447,7 +1450,9 @@ function renderApprovalRowContent(
 		// command/action it approves — otherwise screen-reader users can't tell
 		// which chat's action a button belongs to. Keep the "once" scope so the
 		// one-time nature of the permission is still conveyed.
-		ariaLabel: localize('allowActionAria', "Allow once: {0}", info.label),
+		ariaLabel: executionTargetDescription
+			? localize('allowActionAriaWithExecutionTarget', "Allow once: {0} ({1})", info.label, executionTargetDescription)
+			: localize('allowActionAria', "Allow once: {0}", info.label),
 		secondary: true,
 		...defaultButtonStyles
 	}));
@@ -1459,6 +1464,19 @@ function renderApprovalRowContent(
 		info.confirm();
 		onApprove(approvalId);
 	}));
+}
+
+/**
+ * Appends the line naming where a pending command runs. A long path is cut at
+ * its start, keeping the folders nearest the command, which tell same-named
+ * relative commands apart.
+ */
+function appendApprovalWorkingDirectory(container: HTMLElement, workingDirectory: string): void {
+	const line = DOM.append(container, $('.session-approval-working-directory'));
+	DOM.append(line, $(`span${ThemeIcon.asCSSSelector(Codicon.folderCompact)}`));
+	const path = DOM.append(line, $('span.session-approval-working-directory-path'));
+	// Isolated left-to-right so the right-to-left box that moves the ellipsis to the start cannot reorder the path.
+	DOM.append(path, $('span', { dir: 'ltr' }, escapeControlAndFormatCharacters(workingDirectory)));
 }
 
 //#endregion
@@ -1671,8 +1689,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	/** Height of the single-line "Fix CI" row (label + orange button), including its top margin. */
 	static readonly CI_ROW_HEIGHT = 32;
 
-	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
-		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
+	static getApprovalRowHeight(approval: IAgentSessionApprovalInfo, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
+		const lineCount = Math.min(approval.label.split(/\r?\n/).length, maxLines) + (approval.executionTarget?.workingDirectory ? 1 : 0);
 		return lineCount * SessionItemRenderer._APPROVAL_ROW_LINE_HEIGHT + SessionItemRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 
@@ -2769,11 +2787,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
 		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
-		private readonly inboxNotificationCount: IObservable<number> = constObservable(0),
-		private readonly inboxOpenKeybindingLabel: IObservable<string | undefined> = constObservable(undefined),
 		/** Whether the Sessions list shows the session; the Automations entry ignores such runs. */
 		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
-		private readonly inboxActive: IObservable<boolean> = constObservable(false),
 		/** Whether the canvas page shows a pinned canvas, which highlights its row. */
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
 	) { }
@@ -2898,7 +2913,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
-		template.container.classList.remove('session-section-inbox');
 		template.container.classList.remove('session-section-new-session');
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('session-section-pinned-canvas', 'pending', 'unavailable');
@@ -2991,26 +3005,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
-		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-			template.container.classList.add('session-section-inbox');
-			template.icon.style.display = '';
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => {
-				const keybindingLabel = this.inboxOpenKeybindingLabel.get();
-				return withSessionsListHoverPresentation({
-					content: keybindingLabel
-						? localize('inboxNotificationsSectionHoverWithKeybinding', "Open Inbox ({0})", keybindingLabel)
-						: localize('inboxNotificationsSectionHover', "Open Inbox"),
-				});
-			}));
-			template.elementDisposables.add(autorun(reader => {
-				template.container.classList.toggle('active', this.inboxActive.read(reader));
-			}));
-			template.elementDisposables.add(autorun(reader => {
-				const count = this.inboxNotificationCount.read(reader);
-				template.countLabel.textContent = count > 0 ? String(count) : '';
-				template.count.style.display = count > 0 ? '' : 'none';
-			}));
-			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
 		} else if (!element.pinnedCanvas) {
 			const defaultIcon = getSessionSectionIcon(element.id);
 			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;
@@ -3032,10 +3026,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		template.label.textContent = element.label;
 		template.countLabel.style.display = '';
-		if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID && (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut)) {
+		if (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
-		} else if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID) {
+		} else {
 			template.countLabel.textContent = String(element.sessions.length);
 			template.count.style.display = '';
 		}
@@ -3210,6 +3204,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -3262,6 +3257,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			template.elementDisposables.add(autorun(reader => {
 				template.description.textContent = comparison.summary(reader);
 			}));
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => withSessionsListHoverPresentation({
+				content: comparison.configuration,
+			}), { groupId: 'sessions-list' }));
 		} else {
 			template.description.textContent = '';
 		}
@@ -3491,8 +3489,6 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly getEnvironmentBadgeLabel?: (session: ISession) => string | undefined;
 	readonly includeQuickChatInAriaLabel?: boolean;
-	readonly inboxNotificationCount?: IObservable<number>;
-	readonly inboxOpenKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
@@ -3573,7 +3569,7 @@ class SessionsAccessibilityProvider {
 		}
 		if (isSessionGroupItem(element)) {
 			return element.comparison
-				? derived(this, reader => localize('comparisonGroupAria', "{0}, {1}", element.comparison!.title, element.comparison!.summary(reader)))
+				? derived(this, reader => localize('comparisonGroupAria', "{0}, {1}, {2}", element.comparison!.title, element.comparison!.summary(reader), element.comparison!.configuration))
 				: this.getSectionAriaLabel(element.group.name, element.subtreeSessions);
 		}
 		if (isSessionSection(element)) {
@@ -3600,28 +3596,6 @@ class SessionsAccessibilityProvider {
 							break;
 					}
 					return label;
-				});
-			}
-			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				if (!this.options?.inboxNotificationCount && !this.options?.inboxOpenKeybindingAriaLabel) {
-					return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
-				}
-				return derived(this, reader => {
-					const count = this.options?.inboxNotificationCount?.read(reader) ?? 0;
-					const keybindingAriaLabel = this.options?.inboxOpenKeybindingAriaLabel?.read(reader);
-					if (count <= 0) {
-						return keybindingAriaLabel
-							? localize('inboxNotificationsAriaLabelWithKeybinding', "{0}, open inbox notifications, keyboard shortcut {1}", element.label, keybindingAriaLabel)
-							: localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
-					}
-					if (count === 1) {
-						return keybindingAriaLabel
-							? localize('inboxNotificationsAriaLabelOneNotificationWithKeybinding', "{0}, {1} notification, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
-							: localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count);
-					}
-					return keybindingAriaLabel
-						? localize('inboxNotificationsAriaLabelManyNotificationsWithKeybinding', "{0}, {1} notifications, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
-						: localize('inboxNotificationsAriaLabelManyNotifications', "{0}, {1} notifications, open inbox notifications", element.label, count);
 				});
 			}
 			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
@@ -4813,7 +4787,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
+		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -5082,15 +5056,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
-		const inboxNotificationCount = this.inboxNotificationsService.attentionCount;
-		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
-			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
-		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
-			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getAriaLabel() ?? undefined);
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
-		const activeCanvas = observableFromEvent(this, editorService.onDidActiveEditorChange, () =>
-			editorService.activeEditor instanceof WindowCanvasInput ? editorService.activeEditor.descriptor.id : undefined);
-		const inboxActive = derived(this, reader => activeCanvas.read(reader) === INBOX_CANVAS_ID && !this.customViewService.activeCustomView.read(reader));
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
@@ -5125,10 +5091,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationExtensionSuggestionsAvailable,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
-			inboxNotificationCount,
-			inboxOpenKeybindingLabel,
 			(session, reader) => this._sessionsListModelService.isSessionListed(session, reader),
-			inboxActive,
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 		);
@@ -5140,7 +5103,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.getTree(element).toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService, hoverService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -5177,8 +5140,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 						grouping: this.options.grouping,
 						isPinned: session => this.isSessionPinned(session),
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
-						inboxNotificationCount,
-						inboxOpenKeybindingAriaLabel,
 						customizationsCount,
 						customizationMigrationsAvailable,
 						customizationExtensionSuggestionsAvailable,
@@ -5237,8 +5198,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					aggregateChatApprovals: false,
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
-					inboxNotificationCount,
-					inboxOpenKeybindingAriaLabel,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 					externalApplicationBadgeMode,
@@ -5507,11 +5466,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.beginOpenRequest(element.session, element.chat, preserveFocus, e.sideBySide);
 				return;
 			}
-			if (isSessionSection(element) && element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				this.tree.setSelection([]);
-				this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
-				return;
-			}
 			if (isSessionGroupItem(element) && element.comparison) {
 				if (!DOM.isMouseEvent(e.browserEvent) || e.browserEvent.button !== 0) {
 					this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, element.comparison.id);
@@ -5570,7 +5524,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatInboxEnabledContext.key, ChatContextKeys.enabled.key]);
+		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(sectionVisibilityKeys)) {
 				this.update();
@@ -5855,7 +5809,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (inbox && this.visible) {
 			let initial = true;
 			this.inboxObserver.value = autorun(reader => {
-				const attention = this.inboxNotificationsService.sessionAttention.read(reader);
+				const attention = this.sessionAttentionService.sessionAttention.read(reader);
 				for (const session of filtered) {
 					session.updatedAt.read(reader);
 					getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, attention.get(session.sessionId));
@@ -6072,6 +6026,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					title: comparison.title,
 					launching: comparison.launching === true,
 					summary: reader => getComparisonGroupSummary(comparison, this.sessions, reader),
+					configuration: getComparisonGroupConfiguration(comparison, this.labelService),
 				} : undefined,
 			};
 			this.groupDepths.set(group.id, depth);
@@ -6325,15 +6280,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const showNavigationShortcuts = this.options.showNavigationShortcuts?.() === true;
 		if (showNavigationShortcuts) {
 			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
-		}
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
-			&& this.contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key)) {
-			const inboxSection: ISessionSection = { id: INBOX_NOTIFICATIONS_SECTION_ID, label: localize('inboxNotifications', "Inbox"), sessions: [] };
-			if (showNavigationShortcuts) {
-				navigationSections.push(inboxSection);
-			} else {
-				children.push(renderSection(inboxSection));
-			}
 		}
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			const automationsSection: ISessionSection = { id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] };
@@ -6650,9 +6596,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				break;
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
-				break;
-			case INBOX_NOTIFICATIONS_SECTION_ID:
-				await this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
 				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
@@ -6977,7 +6920,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private updateInboxDemand(): void {
 		if (this.visible && this.options.grouping() === SessionsGrouping.Inbox) {
-			this.inboxDemand.value ??= this.inboxNotificationsService.acquireSessionAttention();
+			this.inboxDemand.value ??= this.sessionAttentionService.acquireSessionAttention();
 		} else {
 			this.inboxDemand.clear();
 		}
@@ -8945,11 +8888,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getInboxSection(session: ISession): SessionInboxSection {
-		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.inboxNotificationsService.sessionAttention.get().get(session.sessionId));
+		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 	}
 
 	private getInboxPriority(session: ISession): InboxNotificationPriority {
-		return getSessionInboxPriority(session, this.inboxNotificationsService.sessionAttention.get().get(session.sessionId));
+		return getSessionInboxPriority(session, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 	}
 
 	isRenderedInCustomGroup(session: ISession): boolean {
@@ -9683,6 +9626,32 @@ function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: IS
 
 function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
 	return comparison.launching === true;
+}
+
+function getComparisonGroupConfiguration(comparison: ISessionComparison, labelService: ILabelService): string {
+	const lines = [localize('comparisonGroup.originalConfiguration', "Original comparison settings")];
+	if (comparison.workspace) {
+		lines.push(localize('comparisonGroup.repository', "Repository: {0}", labelService.getUriLabel(comparison.workspace)));
+		lines.push(localize('comparisonGroup.isolation', "Isolation: Separate worktrees"));
+		if (comparison.branch) {
+			lines.push(localize('comparisonGroup.branch', "Base branch: {0}", comparison.branch));
+		}
+	} else {
+		lines.push(localize('comparisonGroup.noWorkspace', "Workspace: None"));
+	}
+	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+	for (const [index, attempt] of attempts.entries()) {
+		lines.push(localize('comparisonGroup.attemptConfiguration', "Attempt {0}: {1}", index + 1, getSessionComparisonHarnessDisplayLabel(attempt.harness)));
+	}
+	const judge = comparison.judgeHarness ?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.harness;
+	const synthesizer = comparison.synthesisHarness ?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.harness;
+	lines.push(judge
+		? localize('comparisonGroup.judgeConfiguration', "Judge: {0}", getSessionComparisonHarnessDisplayLabel(judge))
+		: localize('comparisonGroup.noJudge', "Judge: None"));
+	lines.push(synthesizer
+		? localize('comparisonGroup.synthesizerConfiguration', "Synthesizer: {0}", getSessionComparisonHarnessDisplayLabel(synthesizer))
+		: localize('comparisonGroup.noSynthesizer', "Synthesizer: None"));
+	return lines.join('\n');
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {

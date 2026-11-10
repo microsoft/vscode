@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { getTerminalExecutionTargetDescription, migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -59,6 +59,10 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 			if (v.toolSpecificData.kind === 'terminal') {
 				const terminalData = migrateLegacyTerminalToolSpecificData(v.toolSpecificData);
 				input = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				const executionTarget = getTerminalExecutionTargetDescription(terminalData);
+				if (executionTarget) {
+					input = localize('terminalInputWithExecutionTarget', "{0} ({1})", input, executionTarget);
+				}
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {
