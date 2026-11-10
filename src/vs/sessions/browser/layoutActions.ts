@@ -24,7 +24,7 @@ import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutConte
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
@@ -279,7 +279,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 });
 
 // The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate());
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate());
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 
 const showPanelCommand = {

@@ -74,7 +74,7 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -3740,7 +3740,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
+		const configurationService = new TestConfigurationService();
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		const legacyUri = URI.parse('copilotcli:/missing-from-list');
 		const twinUri = URI.parse('agent-host-copilotcli:/missing-from-list');

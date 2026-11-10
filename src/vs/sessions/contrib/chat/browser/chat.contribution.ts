@@ -841,7 +841,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other clients. Requires Remote Environments management."),
+			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other devices. Requires Remote Environments management."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

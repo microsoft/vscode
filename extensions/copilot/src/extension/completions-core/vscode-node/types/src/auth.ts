@@ -5,6 +5,9 @@
 
 import { Static, Type } from '@sinclair/typebox';
 import * as lsp from 'vscode-languageserver-protocol';
+// The declarations of the schemas refer to TypeBox's types, which TypeScript can't name through a
+// symlinked node_modules (pnpm's isolated layout). Export them from here, so the declarations can.
+export type { TObject, TOptional, TString } from '@sinclair/typebox';
 
 export const DidChangeAuthParams = Type.Object({
 	accessToken: Type.Optional(Type.String({ minLength: 1 })),

@@ -277,9 +277,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Only accessible from this machine.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: 'Don\'t allow connections from other devices through this app.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', badge: undefined, role: 'menuitemcheckbox' },
 		]);
 	});
 
@@ -723,6 +723,29 @@ suite('RemoteConnectionsActionViewItem', () => {
 		]);
 	});
 
+	for (const method of ['devTunnel', 'off'] as const) {
+		test(`logs the resulting method when the toolbar replaces the view item while ${method === 'off' ? 'disabling' : 'enabling'} sharing`, async () => {
+			const { openMenu, viewItem, executeCommand, remoteTunnel, selectMethodEvents } = fixture();
+			const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false };
+			await timeout(0);
+			if (method === 'off') {
+				remoteTunnel.fireStatus(connected);
+			}
+			executeCommand.callsFake(async () => {
+				viewItem.dispose();
+				if (method === 'off') {
+					await remoteTunnel.stopTunnel();
+				} else {
+					remoteTunnel.fireStatus(connected);
+				}
+			});
+			await openMenu().find(action => action.id === `remoteConnections.${method}`)!.run();
+			assert.deepStrictEqual(selectMethodEvents(), [
+				{ source: 'titleBar', method, previousMethod: method === 'off' ? 'devTunnel' : 'off', activeMethod: method, result: 'applied', gitHubEnvironments: 'enabled' },
+			]);
+		});
+	}
+
 	test('clicking the single button opens the picker without changing sharing', async () => {
 		const { primary, openMenu, run, update } = fixture();
 		primary.click();
@@ -917,7 +940,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
