@@ -109,7 +109,7 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	}
 
 	/** Connects the entry to the Working Set file it reviews; called right after creating it. */
-	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, edit: StringEdit): void {
+	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, edit: StringEdit, refreshReview: () => void): void {
 		this._operations = operations;
 		this._file = file;
 		// Before the first diff starts, the original takes the document's line endings, which edits map onto.
@@ -118,6 +118,9 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		this._register(this.modifiedModel.onDidChangeContent(e => {
 			if (e.isEolChange) {
 				this._matchLineEndings();
+			}
+			if (!this._isExternalEditInProgress && (e.isUndoing || e.isRedoing || e.detailedReasons.some(reason => reason.metadata.source === 'reloadFromDisk'))) {
+				refreshReview();
 			}
 		}));
 	}
@@ -454,18 +457,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				if (isCancellationError(error) || token.isCancellationRequested) {
 					return;
 				}
-				this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
-				if (error instanceof EditReviewSynchronizationError) {
-					const entry = this._entries.get(resource);
-					if (entry) {
-						entry.setEditing(false);
-						this._removeEntry(entry);
-					}
-					if (!this._blockedFiles.has(resource)) {
-						this._blockedFiles.add(resource);
-						this._notificationService.warn(localize('agentHostEditReview.reconcileFailed', "Could not update editor review for '{0}': {1} Your text has been preserved. Resolve the file's changes and save or revert it to resume editor review.", basename(resource), error.message));
-					}
-				}
+				this._handleReviewError(resource, error);
 			}
 		}
 		if (token.isCancellationRequested) {
@@ -481,6 +473,51 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				this._removeEntry(entry);
 			}
 		}
+	}
+
+	private _handleReviewError(resource: URI, error: unknown): void {
+		this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
+		if (error instanceof EditReviewSynchronizationError) {
+			const entry = this._entries.get(resource);
+			if (entry) {
+				entry.setEditing(false);
+				this._removeEntry(entry);
+			}
+			if (!this._blockedFiles.has(resource)) {
+				this._blockedFiles.add(resource);
+				this._notificationService.warn(localize('agentHostEditReview.reconcileFailed', "Could not update editor review for '{0}': {1} Your text has been preserved. Resolve the file's changes and save or revert it to resume editor review.", basename(resource), error.message));
+			}
+		}
+	}
+
+	/** Rebase reloads and undo/redo against recorded edits, since their replacements can include unchanged agent text. */
+	private _refreshReview(entry: AgentHostEditReviewEntry): void {
+		void this._updates.queue(async () => {
+			const file = entry.file;
+			const isCurrent = () => {
+				if (this._lifetimeToken.isCancellationRequested || !this._isReviewing(entry)
+					|| entry.file !== file || entry.isAgentEditing || entry.state.get() !== ModifiedFileEntryState.Modified) {
+					return false;
+				}
+				const workingSet = this._workingSet.get();
+				const state = workingSet?.state.get();
+				const latest = workingSet && state ? this._findWorkingSetFile(state, workingSet, entry) : undefined;
+				return !!latest && !latest.editing && isSameWorkingSetFile(latest, file);
+			};
+			if (!isCurrent()) {
+				return;
+			}
+			try {
+				const prepared = await this._prepareFile(file, entry.modifiedModel, this._lifetimeToken);
+				if (isCurrent()) {
+					await entry.update(file, prepared.original, prepared.edit);
+				}
+			} catch (error) {
+				if (!isCancellationError(error) && isCurrent()) {
+					this._handleReviewError(entry.modifiedURI, error);
+				}
+			}
+		});
 	}
 
 	private async _updateFile(resource: URI, change: IWorkingSetFileChange, token: CancellationToken): Promise<void> {
@@ -559,7 +596,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			file.diff.isCreated ? ChatEditKind.Created : ChatEditKind.Modified,
 			prepared.original,
 		);
-		entry.connect(this, file, prepared.edit);
+		entry.connect(this, file, prepared.edit, () => this._refreshReview(entry));
 		entry.setEditing(file.editing);
 		// Agent changes wait for a decision, whatever the auto-accept delay.
 		entry.enableReviewModeUntilSettled();
@@ -580,6 +617,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			}
 			if (version !== model.getVersionId()) {
 				continue;
+			}
+			if (original === undefined) {
+				throw new EditReviewSynchronizationError(localize('agentHostEditReview.impreciseDiff', "The file's changes could not be compared precisely."));
 			}
 			const edit = await computeEdit(original, live, this._editorWorkerService)
 				?? StringEdit.replace(OffsetRange.ofLength(original.length), live).removeCommonSuffixAndPrefix(original);
@@ -902,19 +942,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 }
 
-/**
- * The content to compare a document with: its Working Set baseline, with the
- * changes made to the document since the session last recorded it moved into
- * it. As in the Working Set, changes that touch the agent's stay with them.
- */
-async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService): Promise<string> {
+/** The Working Set baseline with unrecorded, non-conflicting edits applied, or undefined if they cannot be compared precisely. */
+async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService): Promise<string | undefined> {
 	const baseline = withLineEndings(file.baseline, eol);
 	const current = withLineEndings(file.current, eol);
 	if (live === current) {
 		return baseline;
 	}
 	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
-	return agent && user ? user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline) : baseline;
+	return agent && user ? user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline) : undefined;
 }
 
 /**
