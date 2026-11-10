@@ -932,11 +932,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					const message = localize('remoteAgentHost.protocolIncompatible', "The remote agent host does not support this client's protocol versions.");
 					observer?.('failed');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
+					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, getAgentHostSupportedProtocolVersions())
+						?? RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
 					entry.lastConnectionError = undefined;
 					this._reconnectAttempts.delete(address);
 					if (wasReconnecting) {
-						this._rejectPendingConnectionWait(address, new Error(message));
+						this._rejectPendingConnectionWait(address, client.connectionError ?? new Error(message));
 					}
 					this._onDidChangeConnections.fire();
 					break;

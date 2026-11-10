@@ -69,6 +69,7 @@ class MockProtocolClient extends Disposable {
 	readonly onDidReceiveOtlpLogs = Event.None;
 	readonly onDidConnectionDiagnostic = Event.None;
 	readonly connectionState = 'connecting' as const;
+	connectionError: ProtocolError | undefined;
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
@@ -1470,6 +1471,28 @@ suite('RemoteAgentHostService', () => {
 			await recovered;
 			await assert.rejects(service.waitForConnection(address), /protocol versions/);
 		}));
+
+		test('recovery preserves host protocol versions and the advertised server upgrade method', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:upgrade-after-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const waiting = assert.rejects(service.waitForConnection(address), /host requires an upgrade/);
+			client.connectionError = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'host requires an upgrade', {
+				supportedVersions: ['2.0.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' },
+			});
+			client.fireConnectionState('incompatible');
+			await waiting;
+			const status = service.connections[0].status;
+			assert.ok(RemoteAgentHostConnectionStatus.isIncompatible(status));
+			const upgrade = await service.triggerServerUpgrade(address, status.vscodeUpgradeMethod!);
+			assert.deepStrictEqual({ status, upgrade, methods: client.triggerVscodeUpgradeCalls }, {
+				status: RemoteAgentHostConnectionStatus.incompatible('host requires an upgrade', ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0'], '_vscodeUpgrade'),
+				upgrade: { ok: true, upgradeStarted: true }, methods: ['_vscodeUpgrade'],
+			});
+		});
 
 		test('protocol incompatibility stops outer retries', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();

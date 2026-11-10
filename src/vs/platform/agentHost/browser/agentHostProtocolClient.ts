@@ -540,6 +540,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
 	private _isSuspended = false;
+	private _resumeGate: DeferredPromise<void> | undefined;
 	private _firstSessionRequestPending = false;
 	private _firstSessionOpenPending = false;
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
@@ -571,6 +572,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	get connectionError(): ProtocolError | undefined {
+		return this._state.kind === AgentHostClientState.Incompatible || this._state.kind === AgentHostClientState.Closed
+			? this._state.error : undefined;
 	}
 
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
@@ -826,6 +832,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		this._isSuspended = true;
+		this._resumeGate = new DeferredPromise<void>();
 		this._diagnostic('power.suspend', '');
 		this._cancelLivenessTimers();
 		this._relayKeepAliveTimer.cancel();
@@ -854,6 +861,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		this._isSuspended = false;
+		this._resumeGate?.complete();
+		this._resumeGate = undefined;
 		this._diagnostic('power.resume', '');
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
 			const reconnect = this._state.reconnect;
@@ -882,12 +891,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _checkReconnectState(reconnect: IReconnectState): boolean {
-		if (this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect !== reconnect || this._isSuspended) {
+		if (this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect !== reconnect) {
 			return false;
 		}
 		if (reconnect.deadline !== undefined && Date.now() >= reconnect.deadline) {
 			this._handleReconnectTimeout();
 			return false;
+		}
+		return true;
+	}
+
+	private async _continueReconnectAfterResume(reconnect: IReconnectState, attempt: number, transport?: IProtocolTransport): Promise<boolean> {
+		while (this._resumeGate) {
+			await this._raceClose(this._resumeGate.p, transport);
+		}
+		if (!this._checkReconnectState(reconnect) || reconnect.attempt !== attempt) {
+			return false;
+		}
+		if (transport && (transport !== this._transport || !reconnect.transportConnected)) {
+			throw transportLostError(this._address);
 		}
 		return true;
 	}
@@ -1166,7 +1188,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const reconnect = this._state.reconnect;
-		if (!this._checkReconnectState(reconnect) || reconnect.inFlight) {
+		if (this._isSuspended || !this._checkReconnectState(reconnect) || reconnect.inFlight) {
 			return;
 		}
 		reconnect.inFlight = true;
@@ -1178,7 +1200,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		try {
 			if (this._prepareReconnect) {
 				await this._raceClose(this._prepareReconnect());
-				if (!this._checkReconnectState(reconnect) || reconnect.attempt !== attempt) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt)) {
 					return;
 				}
 			}
@@ -1188,7 +1210,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				const clientTransport = transport;
 				await this._traceConnection('transport.reconnect', () => this._raceClose(clientTransport.connect()));
 			}
-			if (!this._checkReconnectState(reconnect)) {
+			if (!await this._continueReconnectAfterResume(reconnect, attempt)) {
 				return;
 			}
 
@@ -1204,7 +1226,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const { result, freshInitialize, windowSnapshots } = await this._traceConnection('protocol.reconnect', () => this._reconnectOrInitialize(lastSeenServerSeq, subscriptions));
 			this._diagnostic('protocol.reconnect.result', `mode=${freshInitialize ? 'freshInitialize' : result.type}`);
 
-			if (!this._checkReconnectState(reconnect)) {
+			if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 				return;
 			}
 
@@ -1220,7 +1242,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._markSubscriptionsAwaitingRestore(result.snapshots);
 				}
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Reconnecting));
-				if (!this._checkReconnectState(reconnect)) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 					return;
 				}
 			}
@@ -1229,7 +1251,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// the reconnect above resolved to a snapshot-less `replay`.
 			if (windowSnapshots.size > 0 || this._subscriptionsAwaitingRestore.size > 0) {
 				await this._traceConnection('protocol.subscriptions', () => this._restoreSubscriptionsAwaitingRestore(windowSnapshots));
-				if (!this._checkReconnectState(reconnect)) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 					return;
 				}
 			}

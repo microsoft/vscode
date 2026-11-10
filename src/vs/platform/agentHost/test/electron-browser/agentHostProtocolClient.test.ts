@@ -7560,6 +7560,162 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
+		for (const stage of ['preparation', 'transport', 'protocol', 'authentication'] as const) {
+			test(`a successful last reconnect attempt finishing ${stage} during sleep continues after wake`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const preparation = new DeferredPromise<void>();
+				let restoring = false;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 1, maxElapsedTimeMs: 60_000,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false },
+					stage === 'preparation' ? () => preparation.p : undefined, {
+					resolveInitialAuthentication: async () => restoring && stage === 'authentication'
+						? { resource: 'https://api.example.com', token: 'fresh-credential' } : undefined,
+				}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				restoring = true;
+				transports[0].fireClose();
+				client.reconnectNow();
+				if (stage === 'preparation') {
+					suspend.fire();
+					await preparation.complete();
+				} else {
+					const replacement = transports[1];
+					if (stage === 'transport') {
+						suspend.fire();
+						replacement.connectDeferred.complete();
+					} else {
+						replacement.connectDeferred.complete();
+						await flushMicrotasks();
+						const reconnect = findRequest(replacement, 'reconnect')!;
+						if (stage === 'protocol') {
+							suspend.fire();
+							replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+						} else {
+							replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+							await flushMicrotasks();
+							const authentication = findRequest(replacement, 'authenticate')!;
+							suspend.fire();
+							replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: { authenticated: true } });
+						}
+					}
+				}
+				await clock.tickAsync(600_000);
+				const whileAsleep = { state: client.connectionState, transports: transports.length };
+				resume.fire();
+				await clock.tickAsync(0);
+				const replacement = transports[1];
+				if (stage === 'preparation') {
+					replacement.connectDeferred.complete();
+					await flushMicrotasks();
+				}
+				if (stage === 'preparation' || stage === 'transport') {
+					const reconnect = findRequest(replacement, 'reconnect')!;
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await flushMicrotasks();
+				}
+				await clock.tickAsync(100);
+				assert.deepStrictEqual({ whileAsleep, state: client.connectionState, transports: transports.length }, {
+					whileAsleep: { state: AgentHostClientState.Reconnecting, transports: stage === 'preparation' ? 1 : 2 },
+					state: AgentHostClientState.Connected, transports: 2,
+				});
+				client.dispose();
+			});
+		}
+
+		for (const failure of ['authentication', 'protocol'] as const) {
+			test(`preserves a terminal ${failure} rejection received during sleep`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				let restoring = false;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => restoring && failure === 'authentication'
+						? { resource: 'https://api.example.com', token: 'rejected-credential' } : undefined,
+				}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				restoring = true;
+				transports[0].fireClose();
+				client.reconnectNow();
+				const replacement = transports[1];
+				replacement.connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(replacement, 'reconnect')!;
+				replacement.fireMessage(failure === 'protocol'
+					? { jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'host restarted' } }
+					: { jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				const request = findRequest(replacement, failure === 'protocol' ? 'initialize' : 'authenticate')!;
+				suspend.fire();
+				replacement.fireMessage({
+					jsonrpc: '2.0', id: request.id, error: {
+						code: failure === 'protocol' ? AhpErrorCodes.UnsupportedProtocolVersion : JsonRpcErrorCodes.InvalidParams,
+						message: `${failure} rejected`,
+					},
+				});
+				await clock.tickAsync(600_000);
+				const stateBeforeWake = client.connectionState;
+				resume.fire();
+				await clock.tickAsync(1000);
+				assert.deepStrictEqual({ stateBeforeWake, stateAfterWake: client.connectionState, transports: transports.length }, {
+					stateBeforeWake: failure === 'protocol' ? AgentHostClientState.Incompatible : AgentHostClientState.Closed,
+					stateAfterWake: failure === 'protocol' ? AgentHostClientState.Incompatible : AgentHostClientState.Closed,
+					transports: 2,
+				});
+				client.dispose();
+			});
+		}
+
+		for (const teardown of ['transport loss', 'disposal'] as const) {
+			test(`a reconnect response held for wake does not survive ${teardown}`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 2, maxElapsedTimeMs: 60_000,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+					{ onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				transports[0].fireClose();
+				client.reconnectNow();
+				transports[1].connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(transports[1], 'reconnect')!;
+				suspend.fire();
+				transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await clock.tickAsync(0);
+				if (teardown === 'disposal') {
+					client.dispose();
+				} else {
+					transports[1].fireClose();
+				}
+				await clock.tickAsync(600_000);
+				const whileAsleep = { state: client.connectionState, transports: transports.length };
+				resume.fire();
+				await clock.tickAsync(10);
+				if (teardown === 'transport loss') {
+					transports[2].connectDeferred.complete();
+					await flushMicrotasks();
+					const retry = findRequest(transports[2], 'reconnect')!;
+					transports[2].fireMessage({ jsonrpc: '2.0', id: retry.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await waitForConnectedWithin(client, 100);
+				}
+				assert.deepStrictEqual({ whileAsleep, state: client.connectionState, transports: transports.length }, {
+					whileAsleep: { state: teardown === 'disposal' ? AgentHostClientState.Closed : AgentHostClientState.Reconnecting, transports: 2 },
+					state: teardown === 'disposal' ? AgentHostClientState.Closed : AgentHostClientState.Connected,
+					transports: teardown === 'disposal' ? 2 : 3,
+				});
+				client.dispose();
+			});
+		}
+
 		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			disposables.add(toDisposable(() => clock.restore()));
@@ -7594,17 +7750,22 @@ suite('AgentHostProtocolClient', () => {
 			const reconnect = await waitForRequest(replacement, 'reconnect');
 			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'host restarted' } });
 			const initialize = await waitForRequest(replacement, 'initialize');
+			const mismatch = {
+				code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'version mismatch',
+				data: { supportedVersions: ['2.0.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+			};
 			replacement.fireMessage({
 				jsonrpc: '2.0', id: initialize.id,
-				error: { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'version mismatch' },
+				error: mismatch,
 			});
 			await flushMicrotasks();
 			const upgrade = client.triggerVscodeUpgrade('_vscodeUpgrade');
 			const request = await waitForRequest(replacement, '_vscodeUpgrade');
 			replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: { ok: true, upgradeStarted: true } });
 			const result = await raceTimeout(upgrade, 100);
-			assert.deepStrictEqual({ result, state: client.connectionState, transports: transports.length }, {
+			assert.deepStrictEqual({ result, state: client.connectionState, transports: transports.length, errorData: client.connectionError?.data }, {
 				result: { ok: true, upgradeStarted: true }, state: AgentHostClientState.Incompatible, transports: 2,
+				errorData: mismatch.data,
 			});
 			client.dispose();
 		}));
@@ -7707,6 +7868,7 @@ suite('AgentHostProtocolClient', () => {
 					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
 					await flushMicrotasks();
 				}
+				await waitForConnectedWithin(client, 100);
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				client.dispose();
 			});
