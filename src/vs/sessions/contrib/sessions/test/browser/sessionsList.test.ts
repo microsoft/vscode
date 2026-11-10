@@ -7028,20 +7028,34 @@ suite('Sessions - SessionsList', () => {
 			return constObservable(upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(chat) }));
 		}
 
-		function createList(sessions: ISession[], options: IListHarnessOptions & { readonly grouping?: SessionsGrouping; readonly sectionCollapseState?: Record<string, boolean> }) {
+		function createList(sessions: ISession[], options: IListHarnessOptions & { readonly grouping?: SessionsGrouping; readonly sectionCollapseState?: Record<string, boolean>; readonly height?: number }) {
 			const harness = createListHarness(disposables, sessions, { livePins: true, ...options });
 			const storageService = harness.instantiationService.get(IStorageService);
 			if (options.sectionCollapseState) {
 				storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify(options.sectionCollapseState), StorageScope.PROFILE, StorageTarget.USER);
 			}
-			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			const container = harness.createContainer();
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => options.grouping ?? SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
+				findWidgetContainer,
 				onSessionOpen: () => { },
 			}));
-			list.layout(300, 400);
+			list.layout(options.height ?? 300, 400);
 			const persistedCollapseState = () => JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}');
-			return { list, persistedCollapseState };
+			const search = (pattern: string) => {
+				list.openFind();
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				input.value = pattern;
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			};
+			/** Closes the find widget, which disposes itself after its closing animation. */
+			const closeSearch = async () => {
+				list.closeFind();
+				await timeout(350);
+			};
+			return { list, container, persistedCollapseState, search, closeSearch };
 		}
 
 		function snapshot(list: TestSessionsList, item: SessionsListItemReference) {
@@ -7127,6 +7141,46 @@ suite('Sessions - SessionsList', () => {
 
 			const expected = { selected: [{ session: open.resource }], inViewport: true };
 			assert.deepStrictEqual({ beforeUnpin, afterUnpin: snapshot(list, { session: open.resource }) }, { beforeUnpin: expected, afterUnpin: expected });
+		});
+
+		test('keeps the open session clear of the sticky show more footer when unpinning it into a capped section', () => {
+			const sessions = createSessions(8);
+			const open = sessions[7];
+			// After the unpin, the open session's row ends inside the list but under the sticky "+2 more" footer.
+			const { list, container } = createList(sessions, {
+				grouping: SessionsGrouping.Workspace,
+				activeSession: openIn(open),
+				pinnedSessionIds: new Set([open.sessionId]),
+				sectionCollapseState: { pinned: false },
+				height: 370,
+			});
+
+			list.unpinSession(open);
+
+			const footer = container.querySelector<HTMLElement>('.sessions-list-sticky-show-more')!;
+			const rowBottom = list.getItemRow({ session: open.resource })?.getBoundingClientRect().bottom;
+			assert.deepStrictEqual({
+				selected: list.getSelectedItems(),
+				clearOfFooter: rowBottom !== undefined && (footer.hidden || rowBottom <= footer.getBoundingClientRect().top),
+			}, {
+				selected: [{ session: open.resource }],
+				clearOfFooter: true,
+			});
+		});
+
+		test('selects the session row when a search hides its open chat', async () => {
+			const peer = createChat('Peer chat');
+			const sessions = createSessions(3);
+			const open: ISession = { ...sessions[2], chats: constObservable([sessions[2].mainChat.get(), peer]) };
+			sessions[2] = open;
+			const { list, search, closeSearch } = createList(sessions, { activeSession: openIn(open, peer) });
+			search('Session 2');
+
+			list.pinSession(open);
+
+			const afterPin = snapshot(list, { session: open.resource });
+			await closeSearch();
+			assert.deepStrictEqual(afterPin, { selected: [{ session: open.resource }], inViewport: true });
 		});
 
 		test('expands a collapsed date section to keep the open session selected and in view when unpinning it', () => {

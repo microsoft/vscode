@@ -6766,8 +6766,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * Keeps the row of the open chat selected and in view after `session` moved to another section, when `session` is
-	 * the session the main window shows. A collapsed session row stands for its open chat. Revealing the row expands a
-	 * collapsed section that holds it.
+	 * the session the main window shows. A session row stands for its open chat when the chat's row is collapsed or a
+	 * search hides it. Revealing the row expands a collapsed section that holds it.
 	 */
 	private revealOpenChatRow(session: ISession): void {
 		const shown = this._mainWindowShown.get();
@@ -6779,11 +6779,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		const chatRow = this.findChatRow(listed, shown.chat.resource);
-		const row = chatRow && (!chatRow.parent || !this.getTree(chatRow.parent).isCollapsed(chatRow.parent)) ? chatRow.chatItem : listed;
+		const chatItem = chatRow && (!chatRow.parent || !this.getTree(chatRow.parent).isCollapsed(chatRow.parent)) ? chatRow.chatItem : undefined;
+		const row = chatItem && this.getTree(chatItem).getNode(chatItem).visible ? chatItem : listed;
 		const tree = this.getTree(row);
 		if (tree.getRelativeTop(row) === null) {
 			tree.reveal(row, 0.5);
 		}
+		this.revealAboveStickyShowMore(row);
 		tree.setFocus([row]);
 		tree.setSelection([row]);
 	}
