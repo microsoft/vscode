@@ -39,11 +39,11 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 	required: ['type', 'label', 'isArtifact'],
 };
 
-/** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file or website. */
+/** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file. */
 const artifactModeProperty = {
 	type: 'string',
 	enum: ['pinned', 'embedded'],
-	description: 'Optional. How the chat shows the entry; omit it to list the entry with the others. `pinned` gives it a pill of its own. `embedded` shows it above the chat input, for example a Markdown file, a diff, or a website. Recording an existing entry again with a mode changes how it is shown.',
+	description: 'Optional. How the chat shows the entry; omit it to list the entry with the others. `pinned` gives it a pill of its own. `embedded` shows it above the chat input, for example a Markdown file or a diff. Recording an existing entry again with a mode changes how it is shown.',
 };
 
 const artifactInputSchemaWithMode: NonNullable<ToolDefinition['inputSchema']> = {
