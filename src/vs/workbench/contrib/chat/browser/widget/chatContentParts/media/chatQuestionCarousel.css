@@ -141,11 +141,6 @@
 		padding-top: 0;
 	}
 
-	/* boolean questions are answered from the footer */
-	.chat-question-answers:empty {
-		display: none;
-	}
-
 	/* some hackiness to get the focus looking right */
 	.chat-question-list-item:focus,
 	.chat-question-list:focus {
@@ -283,13 +278,21 @@
 		}
 	}
 
+	/* The input frame wraps the whole row so the custom answer lines up with the options above it. */
 	.chat-question-freeform {
-		margin: 0;
+		margin: 4px 0 0;
 		display: flex;
 		flex-direction: row;
 		align-items: center;
-		padding: 4px 8px;
+		padding: 0 calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
 		gap: 8px;
+		border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+		border-radius: var(--vscode-cornerRadius-medium);
+		background-color: var(--vscode-input-background);
+
+		&:focus-within {
+			border-color: var(--vscode-focusBorder);
+		}
 
 		.chat-question-freeform-number {
 			height: fit-content;
@@ -299,6 +302,9 @@
 			flex: 1 1 0;
 			width: auto;
 			min-width: 0;
+			padding: 0;
+			border: none;
+			border-radius: 0;
 		}
 	}
 
