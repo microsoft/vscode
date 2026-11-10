@@ -1345,10 +1345,12 @@ suite('ModernUIContribution', () => {
 				};
 				const rounded = geometry();
 				actionItem.focus();
+				// Electron can retain document.activeElement while its window is inactive, so CSS :focus does not match.
+				const hasCssFocus = actionItem.matches(':focus');
 				const focusedStyle = targetWindow.getComputedStyle(indicator);
 				const focused = {
 					active: targetWindow.document.activeElement === actionItem,
-					outline: [focusedStyle.outlineStyle, focusedStyle.outlineWidth, focusedStyle.outlineColor],
+					outline: hasCssFocus ? [focusedStyle.outlineStyle, focusedStyle.outlineWidth, focusedStyle.outlineColor] : undefined,
 					capRadius: focusedStyle.borderTopLeftRadius,
 				};
 				actionItem.blur();
@@ -1362,7 +1364,7 @@ suite('ModernUIContribution', () => {
 				expected.push({
 					partClass, stripClass,
 					rounded: { borderBoxClip: true, stripRadius: '8px', capRadius: '7px 8px', capBackgroundClip: 'padding-box', edgeClip: 'inset(0px 0px 7px 7px)', edgeColor: 'rgb(171, 205, 239)', perimeterVisible: true },
-					focused: { active: true, outline: ['solid', '1px', 'rgb(19, 87, 155)'], capRadius: '7px 8px' },
+					focused: { active: true, outline: hasCssFocus ? ['solid', '1px', 'rgb(19, 87, 155)'] : undefined, capRadius: '7px 8px' },
 					compact: { borderBoxClip: true, stripRadius: '0px', capRadius: '0px', capBackgroundClip: 'border-box', edgeClip: 'inset(0px 0px 7px)', edgeColor: 'rgb(171, 205, 239)', perimeterVisible: true },
 					pill: 'hidden',
 					agents: 'hidden',
