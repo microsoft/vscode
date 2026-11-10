@@ -232,11 +232,12 @@ function renderValue(value, depth) {
 	}).join('\n')}\n${indentation}}`;
 }
 
-/** The digest covers the exact UTF-8 JSON text, including whitespace, rather than a reserialized object. */
+/** The digest preserves UTF-8 source formatting except checkout-specific CRLF line endings. */
 export function generateMotionResponses(sourceText) {
 	if (typeof sourceText !== 'string' || Buffer.byteLength(sourceText, 'utf8') > 65536) {
 		throw new TypeError('The motion response source must be UTF-8 JSON text of at most 65536 bytes');
 	}
+	sourceText = sourceText.replace(/\r\n/g, '\n');
 	let source;
 	try {
 		source = JSON.parse(sourceText);
@@ -286,7 +287,7 @@ export async function runCli(args, io = { readFile, writeFile }) {
 				throw error;
 			}
 		}
-		if (actual !== generated) {
+		if (actual === undefined || actual.replace(/\r\n/g, '\n') !== generated) {
 			throw new Error(`motionResponses.ts is missing or stale. Run: ${regenerateCommand}`);
 		}
 		return 'motionResponses.ts is current';
