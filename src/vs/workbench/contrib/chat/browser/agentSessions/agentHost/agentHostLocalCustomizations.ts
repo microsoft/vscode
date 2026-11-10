@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -240,7 +240,8 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
- * belonging to installed plugins are de-duped to a single plugin ref;
+ * belonging to client-provided plugins are de-duped to a single plugin ref;
+ * local Copilot discovers its SDK-managed installations natively;
  * remaining loose files are bundled into a synthetic Open Plugin. Standalone
  * user and workspace skills and agents, together with the MCP servers that
  * VS Code forwards (user, workspace, or extension-contributed), go into a
@@ -266,8 +267,12 @@ export async function resolveCustomizationRefs(
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
 	const looseFiles: ISyncableFile[] = [];
+	const usesNativeCopilotPlugins = !windowRemoteAuthority && isCopilotAgentHostSessionType(sessionType) && !isRemoteAgentHostSessionType(sessionType) && parseAgentHostHarness(sessionType) !== undefined;
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (usesNativeCopilotPlugins && plugin.copilotCliInstallation) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {
