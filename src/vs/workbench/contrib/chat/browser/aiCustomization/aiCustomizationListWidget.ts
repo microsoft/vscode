@@ -1221,6 +1221,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
+			autoSelectItem: lifecycle ? true : undefined,
 			onHide: () => {
 				menuDisposables.dispose();
 				lifecycle?.onHide();

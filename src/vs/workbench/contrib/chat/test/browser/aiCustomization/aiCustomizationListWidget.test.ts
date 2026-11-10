@@ -1143,6 +1143,7 @@ suite('aiCustomizationListWidget', () => {
 				menuOpen: openRow.classList.contains('menu-open'),
 				hasPopup: openAction.getAttribute('aria-haspopup'),
 				expanded: openAction.getAttribute('aria-expanded'),
+				autoSelectItem: contextMenuDelegate.autoSelectItem,
 				focusedRows: widget.element.querySelectorAll('.monaco-list-row.focused').length,
 			};
 
@@ -1172,6 +1173,7 @@ suite('aiCustomizationListWidget', () => {
 					menuOpen: true,
 					hasPopup: 'menu',
 					expanded: 'true',
+					autoSelectItem: true,
 					focusedRows: 0,
 				},
 				refreshedState: {
