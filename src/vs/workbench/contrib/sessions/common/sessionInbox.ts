@@ -42,8 +42,11 @@ export function isSessionInboxStateCurrent(state: SessionInboxState, session: IS
 		return state.until > now;
 	}
 	const notificationIds = state.notificationIds;
+	const pendingInput = attention?.pendingInput;
 	return !session || session.loading.read(reader) || state.activity === getSessionInboxActivity(session, reader)
-		&& (!notificationIds || !attention || attention.notificationIds.every(id => notificationIds.includes(id)));
+		&& (!notificationIds || !attention || attention.notificationIds.every(id => notificationIds.includes(id)
+			|| !!pendingInput && (id === pendingInput.provisionalId
+				|| id === pendingInput.notificationId && notificationIds.includes(pendingInput.provisionalId))));
 }
 
 export function getSessionInboxPriority(session: ISession, attention?: IInboxSessionAttention): InboxNotificationPriority {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -19,7 +20,8 @@ import { InMemoryStorageService, StorageScope } from '../../../../../platform/st
 import { IChatModelReference, IChatPlanReview, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
@@ -78,8 +80,11 @@ suite('SessionAttentionService', () => {
 		const chat = new TestChatService();
 		const github = new TestGitHubService();
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
+		const sessionsManagement = upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, getSessions: () => [...sessions],
+		});
 		const service = store.add(new SessionAttentionService(
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: sessionsChanged.event, getSessions: () => [...sessions] }),
+			sessionsManagement,
 			upcastPartial<IChatService>(chat),
 			upcastPartial<IGitHubService>(github),
 			storage,
@@ -88,6 +93,9 @@ suite('SessionAttentionService', () => {
 		));
 		return {
 			service, chat, github, sentiment, storage, contentProvidersChanged,
+			createListModel() {
+				return store.add(new SessionsListModelService(storage, sessionsManagement, new TestConfigurationService(), service));
+			},
 			setSessions(value: readonly ISession[]) {
 				sessions = value;
 				sessionsChanged.fire({ added: [], removed: [], changed: [...sessions] });
@@ -300,6 +308,81 @@ suite('SessionAttentionService', () => {
 		});
 	});
 
+	for (const action of ['done', 'untilActivity'] as const) {
+		for (const initiallyHydrated of [false, true]) {
+			test(`persisted ${action} survives delayed input hydration after triaging ${initiallyHydrated ? 'hydrated' : 'provisional'} input`, async () => {
+				const session = createSession('input', SessionStatus.NeedsInput);
+				const resource = session.chats.get()[0].resource;
+				const original = createFixture([session]);
+				if (initiallyHydrated) {
+					original.chat.setRequests(resource, [pendingRequest('r', [question('one')])]);
+				}
+				store.add(original.service.acquireSessionAttention());
+				const list = original.createListModel();
+				list.setInboxState([session], action);
+				list.dispose();
+				original.service.dispose();
+
+				const restored = createFixture([session], original.storage);
+				const pending = new DeferredPromise<IChatModelReference>();
+				restored.chat.acquire = async () => pending.p;
+				const restoredList = restored.createListModel();
+				store.add(restored.service.acquireSessionAttention());
+				const provisional = restoredList.getInboxState(session)?.kind;
+				restored.chat.setRequests(resource, [pendingRequest('r', [question('one')])]);
+				await pending.complete({ object: restored.chat.getSession(resource)!, dispose: () => { } });
+				await timeout(0);
+				const hydrated = restoredList.getInboxState(session)?.kind;
+				restoredList.dispose();
+				const reloadedList = restored.createListModel();
+				const reloaded = reloadedList.getInboxState(session)?.kind;
+				restored.chat.setRequests(resource, [pendingRequest('r', [question('two')])]);
+				assert.deepStrictEqual({ provisional, hydrated, reloaded, newInput: reloadedList.getInboxState(session)?.kind }, {
+					provisional: action, hydrated: action, reloaded: action, newInput: undefined,
+				});
+			});
+		}
+
+		for (const kind of ['question', 'plan'] as const) {
+			test(`${action} expires on a response-only ${kind} change and releases response listeners`, () => {
+				const session = createSession('input', SessionStatus.NeedsInput);
+				const fixture = createFixture([session]);
+				const changed = store.add(new Emitter<ChatResponseModelChangeReason>());
+				const part = (id: string) => kind === 'question' ? question(id)
+					: upcastPartial<IChatPlanReview>({ kind: 'planReview', isUsed: false, resolveId: id });
+				const parts = [part('one')];
+				const request = pendingRequest('r', parts, 10, changed.event);
+				fixture.chat.setRequests(session.chats.get()[0].resource, [request]);
+				const lease = store.add(fixture.service.acquireSessionAttention());
+				const list = fixture.createListModel();
+				list.setInboxState([session], action);
+				const before = list.getInboxState(session)?.kind;
+				const listening = changed.hasListeners();
+				parts.splice(0, 1, part('two'));
+				changed.fire({ reason: 'other' });
+				const after = list.getInboxState(session)?.kind;
+				const next = fixture.service.sessionAttention.get().get(session.sessionId)!.notificationIds;
+				lease.dispose();
+				assert.deepStrictEqual({ before, listening, after, next, released: !changed.hasListeners() }, {
+					before: action, listening: true, after: undefined,
+					next: [`input:needsInput:${kind === 'question' ? 'qc' : 'pr'}:r:two`], released: true,
+				});
+			});
+		}
+	}
+
+	test('triage before hydration remains undoable after its identity is refined', () => {
+		const session = createSession('input', SessionStatus.NeedsInput);
+		const fixture = createFixture([session]);
+		store.add(fixture.service.acquireSessionAttention());
+		const list = fixture.createListModel();
+		const undo = list.setInboxState([session], 'done');
+		fixture.chat.setRequests(session.chats.get()[0].resource, [pendingRequest('r', [question('one')])]);
+		const hydrated = list.getInboxState(session)?.kind;
+		undo();
+		assert.deepStrictEqual({ hydrated, undone: list.getInboxState(session)?.kind }, { hydrated: 'done', undone: undefined });
+	});
+
 	test('input identities distinguish approvals, confirmation precedence, successive plans and question fallback keys', () => {
 		const session = createSession('input', SessionStatus.NeedsInput);
 		const fixture = createFixture([session]);
@@ -437,10 +520,10 @@ function question(resolveId: string): Extract<IChatResponseModel['response']['va
 	return { kind: 'questionCarousel', resolveId, allowSkip: true, questions: [{ id: 'q', type: 'text', title: 'Question', required: true }], isUsed: false };
 }
 
-function pendingRequest(requestId: string, parts: IChatResponseModel['response']['value'], startedWaitingAt = 10): IChatRequestModel {
+function pendingRequest(requestId: string, parts: IChatResponseModel['response']['value'], startedWaitingAt = 10, onDidChange: IChatResponseModel['onDidChange'] = Event.None): IChatRequestModel {
 	return upcastPartial<IChatRequestModel>({
 		response: upcastPartial<IChatResponseModel>({
-			requestId, isCanceled: false, isComplete: false,
+			requestId, isCanceled: false, isComplete: false, onDidChange,
 			response: upcastPartial<IChatResponseModel['response']>({ value: parts }),
 			isPendingConfirmation: observableValue('pending', { startedWaitingAt }),
 		}),

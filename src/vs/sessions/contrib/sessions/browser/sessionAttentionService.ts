@@ -42,6 +42,7 @@ interface IAttentionNotification {
 	readonly id: string;
 	readonly kind: AttentionKind;
 	readonly priority: InboxNotificationPriority;
+	readonly provisionalId?: string;
 }
 
 interface IPullRequestCandidate {
@@ -64,6 +65,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 	private readonly _unregisteredChatProviders = new Set<string>();
 	private readonly _chatProvidersChanged = observableSignal(this);
 	private readonly _chatModelChangeSignals = new WeakMap<IChatModel, IObservable<void>>();
+	private readonly _responseChangeSignals = new WeakMap<IChatResponseModel, IObservable<void>>();
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -171,6 +173,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 				this.chatService.chatModels.read(reader);
 				const owners = new Map(assignedPullRequests.read(reader).map(key => [key, session]));
 				const notifications = this.collectSessionNotifications(session, owners, reader).sort((a, b) => a.priority - b.priority);
+				const pendingInput = notifications.find(item => item.kind === AttentionKind.NeedsInput);
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
 				const attentionStartTime = this._attentionStartTime.read(reader);
 				const needsAttention = notifications.some(item => item.kind !== AttentionKind.PassingCI);
@@ -179,6 +182,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 						: notifications.some(item => item.kind === AttentionKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou,
 					priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
 					notificationIds: notifications.map(item => item.id).sort(),
+					...(pendingInput?.provisionalId ? { pendingInput: { notificationId: pendingInput.id, provisionalId: pendingInput.provisionalId } } : {}),
 					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
 						&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged),
 				} satisfies IInboxSessionAttention;
@@ -250,7 +254,10 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		const updatedAt = session.updatedAt.read(reader).getTime();
 		if (status === SessionStatus.NeedsInput) {
 			const key = this.getNeedsInputKey(session, reader) ?? `${updatedAt}`;
-			notifications.push({ id: `${session.sessionId}:needsInput:${key}`, kind: AttentionKind.NeedsInput, priority: InboxNotificationPriority.Now });
+			notifications.push({
+				id: `${session.sessionId}:needsInput:${key}`, kind: AttentionKind.NeedsInput, priority: InboxNotificationPriority.Now,
+				provisionalId: `${session.sessionId}:needsInput:${updatedAt}`,
+			});
 		}
 		if (status !== SessionStatus.InProgress) {
 			this.collectPullRequestNotifications(notifications, session, owners, reader);
@@ -380,6 +387,12 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 					|| (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop)) {
 					continue;
 				}
+				let responseChanged = this._responseChangeSignals.get(response);
+				if (!responseChanged) {
+					responseChanged = observableSignalFromEvent(this, response.onDidChange);
+					this._responseChangeSignals.set(response, responseChanged);
+				}
+				responseChanged.read(reader);
 				const pending = response.isPendingConfirmation.read(reader);
 				if (!pending) {
 					continue;
