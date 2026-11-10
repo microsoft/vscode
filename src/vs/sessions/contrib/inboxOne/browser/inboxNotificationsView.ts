@@ -76,7 +76,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { WelcomeName } from '../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
-import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1749,7 +1749,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.createChatContentPartRenderContext(),
 			{
 				shouldAutoFocus: false,
-				hideDuplicateDetailedMessage: true,
+				sessionResource: part.chatResource,
 				onSubmit: answers => {
 					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);

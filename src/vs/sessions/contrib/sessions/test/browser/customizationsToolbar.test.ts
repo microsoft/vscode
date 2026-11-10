@@ -47,7 +47,6 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
 import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
@@ -56,7 +55,9 @@ import { CustomizationsNavigationState } from '../../../../../workbench/contrib/
 import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
@@ -67,6 +68,14 @@ function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAg
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const copilotCliToolCount = [...getCopilotCliBuiltinToolSet().getTools()].length;
+
+	function telemetryInstantiationService(onActivation: () => void = () => { }) {
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stubInstance(ChatCustomizationsTelemetry, new class extends mock<ChatCustomizationsTelemetry>() {
+			override logInteraction() { onActivation(); }
+		});
+		return instantiationService;
+	}
 
 	test('does not include standalone Remotes management in Customizations', () => {
 		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
@@ -157,6 +166,7 @@ suite('Customizations toolbar', () => {
 				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: [] }); }
 			},
 			disposables.add(new MockContextKeyService()),
+			new TestConfigurationService(),
 		));
 		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === EXTENSIONS_VIEWLET_ID);
 		const keybinding = keybindingsOnLoad[0];
@@ -213,6 +223,7 @@ suite('Customizations toolbar', () => {
 				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: activeHarness.get() === 'vscode' ? [] : [AICustomizationManagementSection.Extensions] }); }
 			},
 			contextKeyService,
+			configurationService,
 		));
 
 		// As the Keyboard Shortcuts editor of editor windows writes them, scoped to the Extensions view container's enablement like the default keybinding there.
@@ -258,7 +269,7 @@ suite('Customizations toolbar', () => {
 
 	test('tracks the active customization total and migration availability', async () => {
 		const enabled = observableValue(disposables, true);
-		const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+		const activeSession = observableValue<ITestSessionWithChat | undefined>(disposables, upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host-test:/session'),
 			workspace: constObservable(undefined),
 		}));
@@ -400,19 +411,21 @@ suite('Customizations toolbar', () => {
 
 	test('renders one focus target and runs its action once', async () => {
 		let runCount = 0;
+		let activationCount = 0;
 		const action = disposables.add(new Action('test.customization', 'Customization', undefined, true, () => {
 			runCount++;
 		}));
 		const item = disposables.add(new CustomizationLinkViewItem(
 			action,
 			{},
-			{ id: 'test.customization', label: 'Customization', icon: Codicon.settingsGear },
+			{ id: 'sessions.customization.overview', label: 'Customization', icon: Codicon.settingsGear },
 			new class extends mock<IAICustomizationItemsModel>() { },
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
 			createExtensionSuggestionsService(constObservable(false)),
 			NullHoverService,
+			telemetryInstantiationService(() => activationCount++),
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
@@ -424,10 +437,12 @@ suite('Customizations toolbar', () => {
 			buttonCount: container.querySelectorAll('.customization-link-button').length,
 			focusableCount: container.querySelectorAll('a, button').length,
 			runCount,
+			activationCount,
 		}, {
 			buttonCount: 1,
 			focusableCount: 1,
 			runCount: 1,
+			activationCount: 1,
 		});
 	});
 
@@ -451,6 +466,7 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
 			createExtensionSuggestionsService(showBadge),
 			hoverService,
+			telemetryInstantiationService(),
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
@@ -487,6 +503,7 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
 			createExtensionSuggestionsService(constObservable(false)),
 			NullHoverService,
+			telemetryInstantiationService(),
 		);
 		const actionBar = disposables.add(new ActionBar(container, {
 			actionViewItemProvider: action => createViewItem(action),

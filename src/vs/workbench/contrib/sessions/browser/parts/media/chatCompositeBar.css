@@ -38,27 +38,6 @@
 	max-width: none;
 }
 
-/* The top row of its window, in the title bar: centered in it, after the window controls; its empty space moves the window. */
-.session-header-bar.window-chrome {
-	flex: 1 1 auto;
-	min-width: 0;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	-webkit-app-region: drag;
-}
-
-.session-header-bar.window-chrome > .chat-composite-bar-header {
-	max-width: none;
-	margin: 0;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-session-title,
-.session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	-webkit-app-region: no-drag;
-}
-
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 var(--vscode-spacing-size20);
@@ -464,7 +443,7 @@
 }
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
-	background-color: var(--vscode-list-warningForeground);
+	background-color: var(--vscode-agentSessionNeedsInput-foreground);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
@@ -624,6 +603,7 @@
  * Connected tabs retain the same ownership in compact density. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface) {
 	border-color: transparent;
+	border-width: var(--agents-session-frame-inset);
 	background-clip: padding-box;
 }
 
@@ -633,7 +613,7 @@
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view {
 	position: relative;
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 	overflow: hidden;
 }
 
@@ -658,8 +638,18 @@
 	content: none;
 }
 
+/* A session view shown as an editor is framed as every editor is, by its group or its part, which also frame the tabs of
+ * the group above it: it draws no frame of its own, so that its group's active tab flows into it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view {
+	border-radius: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.editor .session-view::after {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface {
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-content {

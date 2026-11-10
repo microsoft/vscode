@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 import { basename } from 'path';
+import * as internalGitHub from '@vscode/internal-github';
 
-type GitHubApi = Pick<typeof vscode.github, 'getClient' | 'getAnonymousClient'>;
+type GitHubApi = Pick<typeof internalGitHub, 'getClient' | 'getAnonymousClient'>;
 type AuthenticationApi = Pick<typeof vscode.authentication, 'getSession'>;
 
 export class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
@@ -15,7 +16,7 @@ export class GitHubGistProfileContentHandler implements vscode.ProfileContentHan
 	readonly description = vscode.l10n.t('gist');
 
 	constructor(
-		private readonly github: GitHubApi = vscode.github,
+		private readonly github: GitHubApi = internalGitHub,
 		private readonly authentication: AuthenticationApi = vscode.authentication,
 	) { }
 
@@ -42,7 +43,7 @@ export class GitHubGistProfileContentHandler implements vscode.ProfileContentHan
 	async readProfile(idOrUri: string | vscode.Uri, token?: vscode.CancellationToken): Promise<string | null> {
 		this.throwIfCancelled(token);
 		const gistId = typeof idOrUri === 'string' ? idOrUri : basename(idOrUri.path);
-		let client: vscode.GitHubAnonymousClient | undefined;
+		let client: internalGitHub.GitHubAnonymousClient | undefined;
 		try {
 			client = await this.github.getAnonymousClient(token);
 			this.throwIfCancelled(token);

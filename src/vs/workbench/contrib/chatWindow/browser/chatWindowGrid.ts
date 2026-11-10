@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IPartGridPartFactory, IPartGridPartOptions, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
-import { GroupsOrder, IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
 import { moveEditorsToChatWindow } from './chatWindowParts.js';
@@ -56,11 +56,8 @@ export interface IChatWindowGridCells {
 	readonly terminals?: IObservable<IContentPart | undefined>;
 	/** Whether the chat shows only its input: it does not move then, so that the sash on its edge takes the pointer there. */
 	readonly chatInputOnly?: IObservable<boolean>;
-	/**
-	 * Whether the title row merges into the title of the chat while the chat part leads the window, or does not, as where a
-	 * part being moved would put it: the title row hides then. Without it, it merges while the chat part leads.
-	 */
-	readonly isTitleMergedIf?: (chatPartLeads: boolean) => boolean;
+	/** Takes the terminal position the user arranged the terminals in, such as by dropping them below the main part. */
+	readonly setTerminalPosition?: (position: ChatWindowTerminalPosition) => void;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -165,7 +162,7 @@ class ChromeView implements IPartGridView {
 
 	private readonly _listener: { dispose(): void };
 
-	constructor(private readonly _chrome: IChatWindowGridChrome, private readonly _orientation: 'row' | 'column') {
+	constructor(protected readonly _chrome: IChatWindowGridChrome, private readonly _orientation: 'row' | 'column') {
 		this._listener = autorun(reader => {
 			_chrome.size.read(reader);
 			this._onDidChange.fire(undefined);
@@ -186,6 +183,48 @@ class ChromeView implements IPartGridView {
 	dispose(): void {
 		this._listener.dispose();
 		this._onDidChange.dispose();
+	}
+}
+
+/**
+ * The title row of the window, the first row of its grid: its cell keeps the row's room there, inside the outer insets of
+ * the window that the cards keep, while the title row spans the window from edge to edge over it, as the main window's
+ * title bar does, so that the window's controls are at its corners. It stays first in the window, before the grid, as the
+ * main window's title bar is first in the focus order.
+ */
+class TitleRowView extends ChromeView {
+
+	private readonly _cell = $('.chat-window-title-row-cell');
+	private readonly _visibility: { dispose(): void };
+
+	constructor(chrome: IChatWindowGridChrome, container: HTMLElement, private readonly _insets: () => IGridEdgeInsets) {
+		super(chrome, 'row');
+		const element = chrome.element;
+		if (element.parentElement !== container) {
+			container.prepend(element);
+		}
+		// Over the grid, whose cells come after it
+		element.style.position = 'absolute';
+		element.style.left = '0';
+		element.style.zIndex = '1';
+		this._visibility = autorun(reader => element.style.display = chrome.visible.read(reader) ? '' : 'none');
+	}
+
+	override get element(): HTMLElement { return this._cell; }
+
+	override layout(width: number, height: number): void {
+		const insets = this._insets();
+		const spanned = width + insets.left + insets.right;
+		const element = this._chrome.element;
+		element.style.top = `${insets.top}px`;
+		element.style.width = `${spanned}px`;
+		element.style.height = `${height}px`;
+		super.layout(spanned, height);
+	}
+
+	override dispose(): void {
+		this._visibility.dispose();
+		super.dispose();
 	}
 }
 
@@ -241,21 +280,6 @@ export class ChatWindowGrid extends Disposable {
 	/** Whether the user resizes the cells, dragging a sash between them, from the press on the sash until it lets go. */
 	readonly resizing: IObservable<boolean> = this._resizing;
 
-	private readonly _chatLeads = observableValue<boolean>(this, false);
-	/**
-	 * Whether the chat part leads the window: it shows, with no part before it, to its left or above it, as where its
-	 * parts are arranged and not moved. Parts can move, such as when dragged, and the chat can move into another part.
-	 */
-	readonly chatLeads: IObservable<boolean> = this._chatLeads;
-
-	private readonly _titleReachesRightEdge = observableValue<boolean>(this, false);
-	/**
-	 * Whether the group at the top left of the chat part, which holds the title the title row merges into, reaches the right
-	 * edge of the window: no part beside the chat part other than the strip, which ends before the window controls, and no group beside that group, whatever the layout mode or where the
-	 * parts were moved to.
-	 */
-	readonly titleReachesRightEdge: IObservable<boolean> = this._titleReachesRightEdge;
-
 	private readonly _titleRow: ChromeView | undefined;
 	private readonly _strip: ChromeView | undefined;
 
@@ -264,7 +288,6 @@ export class ChatWindowGrid extends Disposable {
 	private readonly _createdListeners = this._register(new DisposableMap<string>());
 	private readonly _partFactory: IPartGridPartFactory | undefined;
 	private readonly _partFactoryRegistration = this._register(new MutableDisposable());
-	private readonly _previewAdjusterRegistration = this._register(new MutableDisposable());
 	private readonly _movableRegistration = this._register(new MutableDisposable());
 
 	private readonly _terminalPosition: IObservable<ChatWindowTerminalPosition>;
@@ -295,9 +318,7 @@ export class ChatWindowGrid extends Disposable {
 				return created;
 			}
 		};
-		// Groups split beside the group at its top left, or taken away, change whether that group reaches the edge
-		this._register(Event.any(_cells.chat.onDidAddGroup, _cells.chat.onDidRemoveGroup, _cells.chat.onDidMoveGroup)(() => this._updateTitleReachesRightEdge(undefined)));
-		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
+		this._titleRow = _cells.titleRow && this._register(new TitleRowView(_cells.titleRow, _container, () => this._outerInsets));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
 		this._register(autorun(reader => {
@@ -438,25 +459,49 @@ export class ChatWindowGrid extends Disposable {
 			this._createdPartsChangingModeArrangement = false;
 			this._modeArrangement = this._grid.value?.describe();
 		}
-		const grid = this._grid.value;
-		transaction(tx => {
-			this._terminalsVisible.set(!!grid?.isCellVisible(ChatWindowGridCell.Terminals), tx);
-			this._chatLeads.set(!!grid?.leadsWindow(ChatWindowGridCell.Chat), tx);
-			this._updateTitleReachesRightEdge(tx);
-		});
+		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
+		this._adoptTerminalPosition();
 	}
 
-	private _updateTitleReachesRightEdge(tx: ITransaction | undefined): void {
-		// The chat part may be disposed by now, while the window closes: its last value stays, and a close that does not happen updates it
-		if (this._closing) {
+	/**
+	 * Takes the terminal position the grid shows the terminals in, as the user moved them, such as by dropping them below
+	 * the main part: the grid then shows exactly what the mode shows with them at that position, which the grid keeps as
+	 * the window's arrangement, without moving them again. Elsewhere, the position stays.
+	 */
+	private _adoptTerminalPosition(): void {
+		const grid = this._grid.value;
+		const setTerminalPosition = this._cells.setTerminalPosition;
+		const mode = this._arrangedMode;
+		if (!grid || !setTerminalPosition || mode === undefined || this._closing || !this._terminalsInGrid) {
 			return;
 		}
-		if (!this._grid.value?.isCellVisible(ChatWindowGridCell.Chat)) {
-			this._titleReachesRightEdge.set(false, tx);
+		const shown = grid.describe();
+		const current = this._terminalPosition.get();
+		if (shown === this._describeArrangement(mode, current)) {
 			return;
 		}
-		const titleGroup = this._cells.chat.getGroups(GroupsOrder.GRID_APPEARANCE)[0];
-		this._titleReachesRightEdge.set(!!titleGroup && !!this._grid.value?.reachesRightEdge(ChatWindowGridCell.Chat, titleGroup, [ChatWindowGridCell.Strip]), tx);
+		const adopted = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor].find(position => shown === this._describeArrangement(mode, position));
+		if (adopted === undefined) {
+			return;
+		}
+		this._topologyKey = this._topology(mode, adopted).key;
+		this._sizesKey = getSizesKey(this._topologyKey, mode);
+		this._arranged = shown;
+		this._modeArrangement = shown;
+		setTerminalPosition(adopted);
+	}
+
+	/** What {@link PartGrid.describe} says for the arrangement of `mode` with the terminals at `position`, as {@link _arrange} builds it. */
+	private _describeArrangement(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): string {
+		const { topology } = this._topology(mode, position);
+		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
+		const serialize = (node: TopologyNode): ISerializedNode => isBranch(node) ? { type: 'branch', data: node.children.map(serialize), size: 0 } : { type: 'leaf', data: { id: node.cell }, size: 0 };
+		const root = serialize(topology);
+		const cells = this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, 0, 0);
+		const describe = (node: ISerializedNode, along: Orientation): string => node.type === 'leaf'
+			? (node.data as { id: string }).id
+			: `${along === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.data.map(child => describe(child, along === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL)).join(', ')})`;
+		return cells.length === 1 ? describe(cells[0], orientation) : describe({ type: 'branch', data: cells, size: 0 }, orientation);
 	}
 
 	private _update(): void {
@@ -570,10 +615,9 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
-	/** The arrangement of a layout mode, with the terminals where they show, and its key. */
-	private _topology(mode: ChatWindowLayoutMode) {
+	/** The arrangement of a layout mode, with the terminals where they show, or at `position`, and its key. */
+	private _topology(mode: ChatWindowLayoutMode, position = this._terminalPosition.get()) {
 		const terminals = this._cells.terminals?.get();
-		const position = this._terminalPosition.get();
 		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
 		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
 		return { terminals, position, chrome, topology, key: describeTopology(topology) };
@@ -639,6 +683,9 @@ export class ChatWindowGrid extends Disposable {
 		// A part dropped on the chat goes beside it: its editors would join the chat's group, whose title is the chat's own.
 		// So does a part dropped on the terminals, whose groups stay locked to terminals.
 		partGrid.setMergeAllowed((_id, targetId) => targetId !== ChatWindowGridCell.Chat && targetId !== ChatWindowGridCell.Terminals);
+		// The chat showing only its input holds a part beside it in its row to the height of its input: a part dropped at its
+		// left or right goes to that edge of the window
+		partGrid.setSplitAllowed((targetId, direction) => targetId !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get() || direction === Direction.Up || direction === Direction.Down);
 		// Terminals do not lay out while cards make way: their processes would resize, also for a drag that is cancelled
 		// The chat showing only its input does not move: its edge is the sash's, which shows its conversation
 		this._movableRegistration.value = partGrid.setMovable(id => id !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get());
@@ -648,15 +695,6 @@ export class ChatWindowGrid extends Disposable {
 		if (this._titleRow) {
 			partGrid.setPinnedTopView(ChatWindowGridCell.TitleRow);
 		}
-		// The title row of the window shows while it does not merge into the chat's title, as the chat's own title stands in
-		// for it while it does: a part that moves shows where it goes with the title row as it will be
-		const merged = (chatPartLeads: boolean) => this._cells.isTitleMergedIf?.(chatPartLeads) ?? chatPartLeads;
-		this._previewAdjusterRegistration.value = this._titleRow && partGrid.setMovePreviewAdjuster(preview => {
-			const titleRowFollowsMerge = preview.isCellVisible(ChatWindowGridCell.TitleRow) === !merged(this._chatLeads.get());
-			if (titleRowFollowsMerge) {
-				preview.setCellVisible(ChatWindowGridCell.TitleRow, !merged(preview.leads(ChatWindowGridCell.Chat)));
-			}
-		});
 		this._terminalsFirstShowHeight = undefined;
 		this._gridListener.value = combinedDisposable(partGrid.onDidChangeArrangement(() => this._updateFromGrid()), partGrid.onDidChangePartEmpty(e => {
 			const height = this._terminalsFirstShowHeight;
@@ -715,8 +753,6 @@ export class ChatWindowGrid extends Disposable {
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
 	setOuterInsets(insets: IGridEdgeInsets): void {
 		this._outerInsets = insets;
-		// For what reaches to the edge of the window, such as a title row in a card at its edge.
-		this._container.style.setProperty('--chat-window-outer-inset-left', `${insets.left}px`);
 		this._grid.value?.setOuterInsets(insets);
 		this._layoutOnceStylesApply();
 	}

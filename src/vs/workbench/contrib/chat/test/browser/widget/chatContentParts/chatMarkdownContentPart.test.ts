@@ -43,6 +43,8 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { getSizeRegistry } from '../../../../../../../platform/theme/common/sizeRegistry.js';
+import { ISizeService } from '../../../../../../../platform/theme/common/sizeService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
@@ -1189,6 +1191,10 @@ suite('ChatMarkdownContentPart', () => {
 
 		setup(() => {
 			webviews = [];
+			instantiationService.stub(ISizeService, {
+				onDidChangeSizes: Event.None,
+				getSize: (id, theme) => getSizeRegistry().resolveDefaultSize(id, theme),
+			});
 			instantiationService.stub(IWebviewService, new class extends mock<IWebviewService>() {
 				override createWebviewElement(init: WebviewInitInfo): IWebviewElement {
 					const webview = new TestPreviewWebview();

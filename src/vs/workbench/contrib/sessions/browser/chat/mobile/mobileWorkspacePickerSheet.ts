@@ -5,7 +5,7 @@
 
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../../mobileLayout.js';
+import { isPhoneLayout } from '../../../../../browser/parts/sessions/mobileLayout.js';
 import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../mobile/mobilePickerSheet.js';
 import { localize } from '../../../../../../nls.js';
 import { IWorkspacePickerItem } from '../sessionWorkspacePicker.js';
@@ -13,7 +13,7 @@ import { SubmenuAction, IAction } from '../../../../../../base/common/actions.js
 import { isString } from '../../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ISessionWorkspaceBrowseAction } from '../../../common/session.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../../services/sessions/common/session.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 

@@ -46,8 +46,8 @@ import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../browser/c
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent } from '../../../../chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/media/style.css';
@@ -57,7 +57,7 @@ import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactI
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
 import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
-import { stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
 suite('Artifact Integration Presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -147,7 +147,7 @@ suite('Artifact Integration Presentation', () => {
 		const focusedActivities: string[] = [];
 		const chatWidgets = new ResourceMap<IChatWidget>();
 		const onDidAddWidget = store.add(new Emitter<IChatWidget>());
-		const activeSession = observableValue<IActiveSession | undefined>('activity chat', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activity chat', undefined);
 		let openChatResult: Promise<void> | undefined;
 		instantiation.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSessionForChatResource(resource: URI) {
@@ -161,7 +161,7 @@ suite('Artifact Integration Presentation', () => {
 			readonly activeSession = activeSession;
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				openedChats.push(resource.toString());
-				activeSession.set(new class extends mock<IActiveSession>() {
+				activeSession.set(new class extends mock<ITestSessionWithChat>() {
 					override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = resource; }());
 				}(), undefined);
 				await openChatResult;
@@ -698,6 +698,31 @@ suite('Artifact Integration Presentation', () => {
 				labels: ['Merge: Failed', 'Original Repair Title: Completed'], icons: ['codicon-git-merge', 'codicon-tools'],
 				revealable: [false, false], panelOpen: true, chats: [], readingOrder: true, reasons: true,
 			});
+		});
+
+		test('omits user clicks on footer actions, even after the integration becomes unavailable, but keeps agent and unreconciled runs', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, [
+				activity(a, 'state', { createdAt: 1 }),
+				activity(a, 'footer', { actionId: 'branch', actionKind: 'code', generalAction: true, createdAt: 2 }),
+				activity(a, 'agent', { actionId: 'branch', actionKind: 'code', generalAction: true, requestedBy: { kind: 'agent', chat: 'artifact-chat:/agent' }, createdAt: 3 }),
+				activity(a, 'unknown', { actionId: 'branch', actionKind: 'code', generalAction: true, state: 'interrupted', indeterminate: true, createdAt: 4 }),
+			]);
+			const current = a.snapshot.get();
+			// An unavailable integration retains its runs but no longer offers its general actions.
+			a.snapshot.set({
+				...current, contributions: current.contributions.map(contribution => ({
+					...contribution, view: { ...contribution.view, availability: { kind: 'unavailable', reason: 'Offline' }, stateActions: [], generalActions: [] },
+				})),
+			}, undefined);
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const text = store.add(f.controller.getAccessibilityProvider(AccessibleViewType.View)!).provideContent();
+			assert.deepStrictEqual({
+				rows: rows(panel).length,
+				shown: ['state', 'footer', 'agent', 'unknown'].filter(id => text.includes(`Activity ${id}\n`)),
+			}, { rows: 3, shown: ['state', 'agent', 'unknown'] });
 		});
 
 		for (const destination of ['turn', 'queued', 'response'] as const) {

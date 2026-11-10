@@ -10,10 +10,11 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionComparisonViewService } from '../../browser/sessionComparisonViewService.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session comparison navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +27,7 @@ suite('Session comparison navigation', () => {
 			SessionComparisonParticipantRole.Synthesis,
 		];
 		const statuses = roles.map((role, index) => observableValue(`${role}-${index}-status`, SessionStatus.Completed));
-		const sessions = roles.map((role, index) => upcastPartial<IActiveSession>({
+		const sessions = roles.map((role, index) => upcastPartial<ITestSessionWithChat>({
 			sessionId: `${role}-${index}`,
 			resource: URI.parse(`test:///${role}-${index}`),
 			status: statuses[index],
@@ -56,7 +57,7 @@ suite('Session comparison navigation', () => {
 			override getComparison(id: string) { return comparisons.get().find(comparison => comparison.id === id); }
 		}());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override getSession(resource: URI): IActiveSession | undefined {
+			override getSession(resource: URI): ITestSessionWithChat | undefined {
 				return sessions.find(session => session.resource.toString() === resource.toString());
 			}
 		}());
@@ -64,7 +65,7 @@ suite('Session comparison navigation', () => {
 			override async openSession(resource: URI): Promise<void> {
 				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
 			}
-			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
+			override async openSessionsInGrid(targets: readonly ITestSessionWithChat[]): Promise<void> {
 				openedGrids.push(targets.map(session => session.sessionId));
 			}
 			override async openChatsInGrid(targets: readonly { session: ISession; chatResource: URI }[]): Promise<void> {

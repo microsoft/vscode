@@ -22,7 +22,7 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
@@ -37,7 +37,7 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, MODEL_ROUTER_TELEMETRY_ID, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -349,6 +349,8 @@ export interface ILanguageModelChatMetadata {
 		 */
 		readonly sourceId?: string;
 	};
+	/** A file that the model picker's Details opens instead of its details card, such as a model router's file. */
+	readonly detailsResource?: UriComponents;
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -1125,7 +1127,10 @@ export function getTelemetryModelIdentifier(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	languageModelsService: ILanguageModelsService,
 ): string | TelemetryTrustedValue<string> {
-	return model && !isUserProvidedModel(model, languageModelsService) ? new TelemetryTrustedValue(model.identifier) : 'unknown';
+	if (!model || isUserProvidedModel(model, languageModelsService)) {
+		return 'unknown';
+	}
+	return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model.metadata.id) === MODEL_ROUTER_TELEMETRY_ID ? MODEL_ROUTER_TELEMETRY_ID : model.identifier);
 }
 
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {

@@ -50,11 +50,13 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { Part } from '../../../browser/part.js';
+import { Part, PartOverlayCorners } from '../../../browser/part.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { registerZIndex, ZIndex } from '../../../../platform/layout/browser/zIndexRegistry.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { contrastBorder, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { debugIconStartForeground } from '../../debug/browser/debugColors.js';
@@ -192,6 +194,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 	private _overlayContainer!: HTMLElement;
 	private _overlayLayout!: OverlayLayoutElement;
+	private readonly _overlayCorners: PartOverlayCorners;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
 	private _notebookStickyScrollContainer!: HTMLElement;
@@ -323,6 +326,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
@@ -333,6 +338,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayLayout = this._register(new OverlayLayoutElement());
 		this._overlayContainer = this._overlayLayout.content;
+		this._overlayCorners = this._register(new PartOverlayCorners(this._overlayContainer, sizeService, themeService));
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
@@ -1952,6 +1958,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const clippingContainer = isModal ? undefined : (editorPart instanceof Part ? editorPart.getContainer() : undefined) ?? this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 
 		this._overlayContainer.classList.toggle('notebook-overlay-modal', isModal);
+		this._overlayCorners.setAnchor(anchorElement, clippingContainer);
 		this._overlayContainer.style.visibility = 'visible';
 		this._overflowContainer.style.display = '';
 		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });

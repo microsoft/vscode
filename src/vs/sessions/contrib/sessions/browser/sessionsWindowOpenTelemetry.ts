@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
 
 export const FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS = 3 * 60 * 1000;
 

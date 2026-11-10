@@ -7,9 +7,9 @@ import { posix } from '../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isIChatSessionFileChange2 } from '../../../chat/common/chatSessionsService.js';
-import { ISessionFileChange } from '../../common/session.js';
+import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import type { IWorktreeSuggestion } from './worktreeSuggestionService.js';
+import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 /** Describes the uncommitted changes that make a worktree worthwhile, e.g. "main has 3 uncommitted files." */
 export function getUncommittedChangesMessage(suggestion: IWorktreeSuggestion): string {

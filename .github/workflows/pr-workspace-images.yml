@@ -1,11 +1,11 @@
 name: Code OSS (workspace images)
 
-# Builds the workspace images for the test jobs of pull requests (pr-linux-test.yml and
-# pr-win32-test.yml): a disk image of a workspace of main, with its
-# dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
-# jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
-# changed since. The macOS job is commented out with the macOS test jobs of pr.yml, which never
-# adopted the images. See .github/workflows/workspace_image/README.md.
+# Builds the workspace images for the jobs that install the dependencies (the test jobs of
+# pr-linux-test.yml and pr-win32-test.yml, and jobs of pr.yml and component-fixtures.yml): a disk image
+# of a workspace of main, with its dependencies, Electron and the Playwright browsers installed, at the
+# path of the workspaces of the jobs, and with a .git that their checkouts reuse. A job that mounts an
+# image installs only what changed since. The macOS job is commented out with the macOS test jobs of
+# pr.yml, which never adopted the images. See .github/workflows/workspace_image/README.md.
 # The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
 # wsl-distro job), and cache the apt packages of the Linux test jobs (the linux-packages job).
 on:
@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: node "$RUNNER_TEMP/workspace-image/image.ts" env
 
-      # The same packages as in pr-node-modules.yml, for the native modules
+      # The same packages as in pr-pnpm-store.yml, for the native modules
       - name: Install build tools
         run: |
           set -e
@@ -413,12 +413,12 @@ jobs:
           retention-days: 2
           if-no-files-found: error
 
-  # The WSL distribution that the Windows smoke test shard with the WSL suite imports instead of building it (see
-  # test/smoke/wslDevContainer.ps1 and electron-smoke-1 in pr-win32-test.yml). It only needs to be recent, so it is
-  # rebuilt with the daily images and on manual runs, but not on pushes. It runs on the 1ES pool like that shard, as
+  # The WSL distribution that the Windows WSL smoke test job imports instead of building it (see
+  # test/smoke/wslDevContainer.ps1 and electron-smoke-wsl in pr-win32-test.yml). It only needs to be recent, so it is
+  # rebuilt with the daily images and on manual runs, but not on pushes. It runs on the 1ES pool like that job, as
   # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution. JobId must be unique per
-  # job. The cache key hashes the files that define the distribution, so that the shard of a commit that changes them
-  # builds the distribution instead; the shard restores the newest entry of its key.
+  # job. The cache key hashes the files that define the distribution, so that the WSL job of a commit that changes them
+  # builds the distribution instead; the WSL job restores the newest entry of its key.
   wsl-distro:
     name: Windows (WSL distro)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}

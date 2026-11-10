@@ -14,6 +14,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { PartOverlayCorners } from '../../../browser/part.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
@@ -60,12 +63,15 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _anchorState: { readonly anchorElement: HTMLElement; readonly clippingContainer?: HTMLElement } | undefined;
 	private _outerEdgePart: Element | undefined;
 	private readonly _outerEdgeObserver = this._register(new MutableDisposable());
+	private readonly _overlayCorners = this._register(new MutableDisposable<PartOverlayCorners>());
 
 	public constructor(
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService,
+		@ISizeService private readonly sizeService: ISizeService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -92,6 +98,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		this._overlayLayout?.dispose();
 		this._overlayLayout = undefined;
+		this._overlayCorners.clear();
 
 		for (const msg of this._firstLoadPendingMessages) {
 			msg.resolve(false);
@@ -114,6 +121,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private get overlayLayout() {
 		if (!this._overlayLayout) {
 			this._overlayLayout = new OverlayLayoutElement();
+			this._overlayCorners.value = new PartOverlayCorners(this._overlayLayout.content, this.sizeService, this.themeService);
 			this._overlayLayout.content.style.visibility = 'hidden';
 
 			// Marker used by floating panels (Modern UI) CSS to round the overlay content (and
@@ -144,6 +152,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.clear();
 			this._overlayLayout?.dispose();
 			this._overlayLayout = undefined;
+			this._overlayCorners.clear();
 		}
 
 		this._owner = owner;
@@ -213,6 +222,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			if (part) {
 				const observer = new (getWindow(part).MutationObserver)(() => this._syncOuterEdgeClasses(part));
 				observer.observe(part, { attributes: true, attributeFilter: ['class'] });
+				const root = part.closest('.monaco-workbench');
+				if (root) {
+					observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+				}
 				this._outerEdgeObserver.value = toDisposable(() => observer.disconnect());
 			}
 		}
@@ -236,6 +249,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 					|| part?.classList.contains(`floating-editor-outer-${edge}`)
 					|| false);
 			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
+		}
+
+		if (this._anchorState) {
+			this._overlayCorners.value?.setAnchor(this._anchorState.anchorElement, part ?? undefined);
 		}
 	}
 

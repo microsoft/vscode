@@ -32,8 +32,8 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
-import { WorkspaceHistoryLoadState } from '../../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { WorkspaceHistoryLoadState } from '../../../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, RemoteDevContainerService, reportDevContainerEnvironment } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';

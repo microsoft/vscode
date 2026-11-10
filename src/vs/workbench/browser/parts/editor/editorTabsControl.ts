@@ -383,7 +383,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.editorActionsDisposables.clear();
 
-		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables, this.menuIds?.editorActions ?? MenuId.EditorTitle);
+		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables, this.menuIds?.editorActions ?? MenuId.EditorTitle, { useEditorTitleMenu: true });
 		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
 		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);

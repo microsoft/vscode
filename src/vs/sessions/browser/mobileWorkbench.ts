@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Workbench } from './workbench.js';
-import { AgentWorkbenchLayout } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 export class MobileWorkbench extends Workbench {
 	override get agentWorkbenchLayout(): AgentWorkbenchLayout {
