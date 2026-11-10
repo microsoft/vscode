@@ -1137,25 +1137,30 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not allowed by your organization.');
 	});
 
-	test('Marketplace install restriction follows rollback and metadata removal without restricting legacy advice', async () => {
-		let gallery = aGalleryExtension('deprecated', { deprecationInfo: { source: 'marketplace', disallowInstall: true } });
+	test('Marketplace advice allows installation and auto updates while legacy restrictions remain effective on fallback', async () => {
+		let gallery = aGalleryExtension('deprecated', { deprecationInfo: { source: 'marketplace', additionalInfo: 'Publisher advice' } });
 		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
 		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
-			malicious: [], search: [], deprecated: { 'pub.deprecated': { additionalInfo: 'Legacy advice' } }
+			malicious: [], search: [], deprecated: { 'pub.deprecated': { disallowInstall: true, additionalInfo: 'Legacy restriction' } }
 		});
 		testObject = await aWorkbenchService();
 		const [extension] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
-		const installable: boolean[] = [];
+		const states: { installable: boolean; autoUpdate: boolean }[] = [];
 		for (const enabled of [true, false, true]) {
 			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
-			installable.push(await testObject.canInstall(extension) === true);
+			states.push({ installable: await testObject.canInstall(extension) === true, autoUpdate: testObject.isAutoUpdateEnabledFor(extension) });
 		}
 		gallery = aGalleryExtension('deprecated');
 		const [refreshed] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
-		installable.push(await testObject.canInstall(refreshed) === true);
-		assert.deepStrictEqual({ installable, fallback: refreshed.deprecationInfo }, {
-			installable: [false, true, false, true],
-			fallback: { additionalInfo: 'Legacy advice' }
+		states.push({ installable: await testObject.canInstall(refreshed) === true, autoUpdate: testObject.isAutoUpdateEnabledFor(refreshed) });
+		assert.deepStrictEqual({ states, fallback: refreshed.deprecationInfo }, {
+			states: [
+				{ installable: true, autoUpdate: true },
+				{ installable: false, autoUpdate: false },
+				{ installable: true, autoUpdate: true },
+				{ installable: false, autoUpdate: false }
+			],
+			fallback: { disallowInstall: true, additionalInfo: 'Legacy restriction' }
 		});
 	});
 
