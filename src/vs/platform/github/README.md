@@ -26,7 +26,7 @@ The main implementation layers are:
 - [GitHubService](common/githubService.ts): client pooling and ownership of shared queue, cooldown, and telemetry state.
 - [Account](common/account/account.ts) and [anonymous](common/anonymous/anonymous.ts) facades: disposable, typed domain clients.
 - [Request providers](common/client/request.ts): serialization, response parsing, and cancellation shared by local and remote execution.
-- [IPC client](common/remote/ipcClient.ts) and [server](common/remote/ipcServer.ts): connection-scoped leases and credential callbacks.
+- [IPC client](common/remote/ipcClient.ts), [server](common/remote/ipcServer.ts), and [credential provider](common/remote/credentialProvider.ts): connection-scoped leases and credential callbacks.
 
 ## Authorization clients
 
