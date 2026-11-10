@@ -10590,7 +10590,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			scope: 'runtime',
 			resolveProxy: request => this._resolveRuntimeProxy(request.url),
 			authenticateNegotiate: request => this._lookupKerberosToken(request.spn),
-			authenticateBasic: request => this._proxyResolver.lookupBasicAuthorization(request.proxy, request.realm, request.attempt),
+			// Like Electron's login attempts: the first may reuse the setting's, session or stored credentials, a later
+			// one asks for different credentials.
+			authenticateBasic: request => this._proxyResolver.lookupBasicAuthorization(request.proxy, request.realm, request.previousRejected ? 2 : 1),
 		};
 	}
 

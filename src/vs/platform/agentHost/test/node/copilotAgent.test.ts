@@ -15190,8 +15190,8 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual({
 				credentials: [
-					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }, signal),
-					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', attempt: 2 }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
+					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: true }, signal),
 				],
 				basicLookups: proxyResolver.basicLookups,
 			}, {
