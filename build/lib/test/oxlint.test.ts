@@ -39,4 +39,18 @@ suite('oxlint', () => {
 	test('splits file lists to keep command lines short', () => {
 		assert.deepStrictEqual(splitFiles(['a.ts', 'b.ts', 'c.ts', 'd.ts'], 1, 10), [['a.ts', 'c.ts'], ['b.ts', 'd.ts']]);
 	});
+
+	test('keeps every group within the limit for alternating long and short paths', () => {
+		const files = Array.from({ length: 8 }, (_, index) => `${index}`.padEnd(index % 2 === 0 ? 18 : 5, 'x'));
+		const maxLength = 30;
+		const groups = splitFiles(files, 4, maxLength);
+
+		assert.deepStrictEqual({
+			withinLimit: groups.every(group => group.join(' ').length + 1 <= maxLength),
+			files: groups.flat().sort(),
+		}, {
+			withinLimit: true,
+			files: files.slice().sort(),
+		});
+	});
 });

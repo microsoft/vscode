@@ -112,14 +112,23 @@ export function splitByFolder(files: readonly IWeightedFile[], count: number, ex
 }
 
 /**
- * Splits a list of files into at least `count` groups whose command lines stay below `maxLength` characters.
+ * Splits a list of files into at least `count` groups (fewer if there are fewer files) of about the same length,
+ * whose command lines stay below `maxLength` characters unless a single path is longer.
  */
 export function splitFiles(files: readonly string[], count: number, maxLength = maxArgumentsLength): string[][] {
 	const length = files.reduce((sum, file) => sum + file.length + 1, 0);
 	const groupCount = Math.min(files.length, Math.max(count, Math.ceil(length / maxLength)));
-	const groups = Array.from({ length: groupCount }, () => [] as string[]);
-	files.forEach((file, index) => groups[index % groupCount].push(file));
-	return groups;
+	const groups = Array.from({ length: groupCount }, () => ({ paths: [] as string[], length: 0 }));
+	for (const file of files) {
+		let lightest = groups.reduce((min, group) => group.length < min.length ? group : min);
+		if (lightest.paths.length > 0 && lightest.length + file.length + 1 > maxLength) {
+			lightest = { paths: [], length: 0 };
+			groups.push(lightest);
+		}
+		lightest.paths.push(file);
+		lightest.length += file.length + 1;
+	}
+	return groups.map(group => group.paths);
 }
 
 function runOxlint(args: readonly string[]): Promise<IOxlintOutput & { readonly duration: number }> {
