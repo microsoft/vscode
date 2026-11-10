@@ -580,11 +580,13 @@ export function packageCopilotExtensionStream(): Stream {
  * packages the extension from a staging folder that `pnpm deploy` creates, because `vsce` can't list
  * the production dependencies in pnpm's layout (see `extensions/copilot/script/build/packageVsix.ts`).
  * The build writes the source maps of the bundles to `dist-sourcemaps`, which the VSIX excludes; the
- * product build uploads them (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`).
+ * product build uploads them (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`). It
+ * only builds the bundles that ship: with a test bundle in `dist`, the integration tests would also
+ * run the extension tests, which need the Copilot test cache that only the Copilot Tests job pulls.
  */
 async function buildCopilotVsix(extensionPath: string): Promise<void> {
 	fs.rmSync(path.join(extensionPath, 'dist-sourcemaps'), { recursive: true, force: true });
-	await spawnAsync(process.execPath, ['.esbuild.mts', '--sourcemaps'], extensionPath, false);
+	await spawnAsync(process.execPath, ['.esbuild.mts', '--sourcemaps', '--shipped-bundles-only'], extensionPath, false);
 
 	fs.rmSync(path.dirname(copilotVsixPath), { recursive: true, force: true });
 	fs.mkdirSync(path.dirname(copilotVsixPath), { recursive: true });

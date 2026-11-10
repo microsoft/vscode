@@ -13,6 +13,9 @@ const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
+// Skips the test and simulation bundles. The product build packages the built-in extension in this folder,
+// where a test bundle would also make the integration tests run the extension tests.
+const shippedBundlesOnly = process.argv.includes('--shipped-bundles-only');
 const sourceMapOutDir = './dist-sourcemaps';
 
 const baseBuildOptions = {
@@ -166,8 +169,10 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
-		{ in: './src/test-extension.ts', out: 'test-extension' },
-		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
+		...(shippedBundlesOnly ? [] : [
+			{ in: './src/test-extension.ts', out: 'test-extension' },
+			{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
+		]),
 	],
 	loader: { '.ps1': 'text' },
 	plugins: [testBundlePlugin, sanityTestBundlePlugin],
@@ -387,9 +392,11 @@ async function main() {
 		await Promise.all([
 			esbuild.build(nodeExtHostBuildOptions),
 			esbuild.build(webExtHostBuildOptions),
-			esbuild.build(nodeSimulationBuildOptions),
-			esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
-			esbuild.build(nodeExtHostSimulationTestOptions),
+			...(shippedBundlesOnly ? [] : [
+				esbuild.build(nodeSimulationBuildOptions),
+				esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
+				esbuild.build(nodeExtHostSimulationTestOptions),
+			]),
 			esbuild.build(typeScriptServerPluginBuildOptions),
 			esbuild.build(webviewBuildOptions),
 		]);
