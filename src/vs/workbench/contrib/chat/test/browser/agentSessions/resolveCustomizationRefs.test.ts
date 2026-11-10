@@ -499,7 +499,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
-	test('does not re-forward Copilot-owned plugins or agents to either Copilot provider', async () => {
+	test('keeps native agent picker metadata without re-forwarding Copilot-owned plugin content', async () => {
 		const pluginUri = URI.file('/plugins/native');
 		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
 		const plugin: IAgentPlugin = {
@@ -522,9 +522,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			results.push({ sessionType, plugins: refs.filter(ref => ref.uri === pluginUri.toString()).map(ref => ref.name), agents: agents.map(agent => agent.name) });
 		}
 		assert.deepStrictEqual(results, [
-			{ sessionType: SessionType.CopilotCLI, plugins: [], agents: [] },
-			{ sessionType: SessionType.AgentHostCopilot, plugins: [], agents: [] },
-			{ sessionType: 'remote-sandbox-copilot', plugins: [], agents: [] },
+			{ sessionType: SessionType.CopilotCLI, plugins: [], agents: ['agent-0'] },
+			{ sessionType: SessionType.AgentHostCopilot, plugins: [], agents: ['agent-0'] },
+			{ sessionType: 'remote-sandbox-copilot', plugins: [], agents: ['agent-0'] },
 			{ sessionType: 'remote-sandbox-claude', plugins: ['Plugin'], agents: ['agent-0'] },
 		]);
 	});

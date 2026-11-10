@@ -79,6 +79,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		}
 		return {
 			backendSession,
+			get defaultChatResource() {
+				return provider.getBackendChatResource(session.mainChat.get().resource);
+			},
 			clientId: provider.getClientId?.(),
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {

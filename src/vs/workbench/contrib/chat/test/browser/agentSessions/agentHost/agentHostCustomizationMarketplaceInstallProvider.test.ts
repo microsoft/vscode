@@ -955,7 +955,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}],
 			applied: ['plugin-operation'],
 			activations: [true],
-			enablement: ContributionEnablementState.EnabledProfile,
+			enablement: ContributionEnablementState.DisabledProfile,
 			confirmations: [{
 				message: 'Install and enable \'Demo Plugin\'?',
 				primaryButton: 'Install and Enable',
@@ -1074,7 +1074,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}, {
 				calls: scenario === 'cancelled' ? [] : succeeds || scenario === 'reload failed' ? ['install', 'enable:true', 'reload'] : scenario === 'enable refused' ? ['install', 'enable:true'] : ['install'],
 				changes: applied ? 2 : scenario === 'install refused' ? 1 : 0,
-				state: succeeds ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+				state: ContributionEnablementState.DisabledProfile,
 			});
 		}));
 	}

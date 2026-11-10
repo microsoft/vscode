@@ -122,16 +122,16 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 
-		const policyEnablement = derived(reader => {
+		const authoritativeEnablement = derived(reader => {
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
 			const result = new Map<string, boolean>();
-			if (discoveredPlugins && policy) {
+			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
-						const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
-						if (policyValue !== undefined) {
-							result.set(plugin.uri.toString(), policyValue);
+						const enabled = (plugin as Partial<PluginEntry>).runtimeEnablement?.read(reader).enabled ?? getAgentPluginPolicyEnablement(plugin, policy);
+						if (enabled !== undefined) {
+							result.set(plugin.uri.toString(), enabled);
 						}
 					}
 				}
@@ -148,14 +148,25 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				return new Map<string, readonly string[]>();
 			}
 			const policy = enabledPluginsPolicy.read(reader);
-			return getCanonicalAgentPluginCollisionGroups(
+			const runtimeEnabled = (plugin: IAgentPlugin) => (plugin as Partial<PluginEntry>).runtimeEnablement?.read(reader).enabled;
+			const groups = getCanonicalAgentPluginCollisionGroups(
 				discoveredPlugins,
-				plugin => isAgentPluginBlockedByPolicy(plugin, policy),
-				plugin => isAgentPluginForceEnabledByPolicy(plugin, policy),
+				plugin => runtimeEnabled(plugin) === false || (runtimeEnabled(plugin) === undefined && isAgentPluginBlockedByPolicy(plugin, policy)),
+				plugin => runtimeEnabled(plugin) === true || (runtimeEnabled(plugin) === undefined && isAgentPluginForceEnabledByPolicy(plugin, policy)),
 			);
+			const runtimePluginUris = new Set(discoveredPlugins.flatMap(discovery => discovery.plugins.filter(plugin => runtimeEnabled(plugin) === true).map(plugin => plugin.uri.toString())));
+			const resolvedGroups = new Map<string, readonly string[]>();
+			for (const group of new Set(groups.values())) {
+				// Runtime activation takes precedence over workbench priorities and policy overlays.
+				const sorted = [...group].sort((a, b) => Number(runtimePluginUris.has(b)) - Number(runtimePluginUris.has(a)));
+				for (const key of sorted) {
+					resolvedGroups.set(key, sorted);
+				}
+			}
+			return resolvedGroups;
 		});
 
-		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, policyEnablement);
+		this.enablementModel = new RuntimeAgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, authoritativeEnablement);
 
 		for (const { discovery } of discoveries) {
 			discovery.start(this.enablementModel);
@@ -205,9 +216,17 @@ function readDiscoveredAgentPlugins(discoveries: readonly IAgentPluginDiscoveryW
 	return result;
 }
 
-/** A discovered plugin with the settable managed enablement observable owned by this service. */
+/** A discovered plugin with service-owned enablement inputs. */
 interface PluginEntry extends IAgentPlugin {
 	readonly policyEnablement: IObservable<boolean | undefined>;
+	readonly runtimeEnablement?: IObservable<IAgentPluginInstallation>;
+}
+
+/** A collision model whose authoritative inputs include runtime-owned activation. */
+class RuntimeAgentPluginCollisionEnablementModel extends AgentPluginCollisionEnablementModel {
+	readRuntimeEnabled(key: string, reader: IReader): ContributionEnablementState {
+		return this.readEnabled(key, reader);
+	}
 }
 
 /**
@@ -366,7 +385,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			: observableValue<boolean | undefined>('policyEnablement', undefined);
 		const policyBlocked = derived(reader => policyEnablement.read(reader) === false);
 		const enablement = runtimeEnablement
-			? derived(reader => runtimeEnablement.read(reader).enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
+			? derived(reader => this._enablementModel instanceof RuntimeAgentPluginCollisionEnablementModel
+				? this._enablementModel.readRuntimeEnabled(key, reader)
+				: runtimeEnablement.read(reader).enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
 			: derived(r => this._enablementModel.readEnabled(key, r));
 
 		// Read the manifest up front so its `name` field can be used in the
@@ -514,6 +535,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			enablement,
 			policyEnablement,
 			policyBlocked,
+			runtimeEnablement,
 			remove: removeCallback,
 			setEnabled,
 			hooks,
@@ -1168,6 +1190,8 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	private _refreshScheduler: RunOnceScheduler | undefined;
 	private readonly _runtimePlugins = observableValue<readonly IAgentPluginInstallation[]>(this, []);
 	private _runtimeInventoryVersion = 0;
+	private _runtimeInventoryRetryCount = 0;
+	private readonly _runtimeInventoryRetryScheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 1000));
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -1201,6 +1225,8 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			return sources;
 		}
 		if (installedPlugins.length === 0) {
+			this._runtimeInventoryRetryScheduler.cancel();
+			this._runtimeInventoryRetryCount = 0;
 			this._runtimePlugins.set([], undefined);
 			return sources;
 		}
@@ -1214,12 +1240,21 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			if (isCurrent()) {
 				this._logService.warn('[CopilotCliAgentPluginDiscovery] Failed to read runtime plugin inventory', error);
 				this._runtimePlugins.set([], undefined);
+				if (this._runtimeInventoryRetryCount < 3) {
+					const delay = 1000 * 2 ** this._runtimeInventoryRetryCount++;
+					this._logService.debug(`[CopilotCliAgentPluginDiscovery] Retrying runtime plugin inventory in ${delay}ms (attempt ${this._runtimeInventoryRetryCount}/3).`);
+					this._runtimeInventoryRetryScheduler.schedule(delay);
+				} else {
+					this._logService.warn('[CopilotCliAgentPluginDiscovery] Runtime plugin inventory retry limit reached.');
+				}
 			}
 			return sources;
 		}
 		if (!isCurrent()) {
 			return sources;
 		}
+		this._runtimeInventoryRetryScheduler.cancel();
+		this._runtimeInventoryRetryCount = 0;
 		this._runtimePlugins.set(inventory, undefined);
 		for (const installedPlugin of installedPlugins) {
 			const matches = inventory.filter(plugin => plugin.name === installedPlugin.name

@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,14 +18,22 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostService, type IAgentPluginUninstallRequest } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
-import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
-import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
-import { CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { AgentPluginEnablementService } from '../../../common/plugins/agentPluginEnablement.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery } from '../../../common/plugins/agentPluginService.js';
+import { AgentPluginService, CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 
 interface ITestInstalledPlugin {
 	readonly name: string;
@@ -100,18 +108,18 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		sinon.restore();
 	});
 
-	function createDiscovery(uninstallSupported = true, readInventory: () => Promise<readonly IAgentPluginInstallation[]> = async () => runtimePlugins): TestCopilotCliAgentPluginDiscovery {
+	function createDiscovery(uninstallSupported = true, readInventory: () => Promise<readonly IAgentPluginInstallation[]> = async () => runtimePlugins, home = userHome): TestCopilotCliAgentPluginDiscovery {
 		const discovery = store.add(new TestCopilotCliAgentPluginDiscovery(
 			fileService,
 			new class extends mock<IPathService>() {
 				override userHome(options: { preferLocal: true }): URI;
 				override userHome(options?: { preferLocal: boolean }): Promise<URI>;
 				override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
-					return options?.preferLocal ? userHome : Promise.resolve(userHome);
+					return options?.preferLocal ? home : Promise.resolve(home);
 				}
 
 				override fileURI(path: string): Promise<URI> {
-					return Promise.resolve(URI.from({ scheme: Schemas.inMemory, path }));
+					return Promise.resolve(home.with({ path }));
 				}
 			},
 			logService,
@@ -145,7 +153,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		].join('\n')));
 	}
 
-	async function writeInstalledPlugins(plugins: readonly ITestInstalledPlugin[]): Promise<void> {
+	async function writeInstalledPlugins(plugins: readonly ITestInstalledPlugin[], resource = configFile): Promise<void> {
 		runtimePlugins = plugins.map(plugin => ({ name: plugin.name, marketplace: plugin.marketplace, enabled: plugin.enabled ?? true, directSourceId: plugin.directSourceId }));
 		const installedPlugins = plugins.map(plugin => ({
 			name: plugin.name,
@@ -157,7 +165,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			...(plugin.sourceSha ? { source_sha: plugin.sourceSha } : {}),
 			...(plugin.source ? { source: plugin.source } : {}),
 		}));
-		await fileService.writeFile(configFile, VSBuffer.fromString([
+		await fileService.writeFile(resource, VSBuffer.fromString([
 			'// Managed by Copilot CLI.',
 			JSON.stringify({ installedPlugins }, undefined, 2),
 		].join('\n')));
@@ -191,7 +199,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		});
 	});
 
-	test('settles failed first inventory and recovers on the next refresh', async () => {
+	test('automatically retries failed first inventory without an installation change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = joinPath(marketplaceRoot, 'spark');
 		await writePlugin(uri, 'spark');
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri, enabled: false }]);
@@ -204,11 +212,12 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			}
 			return runtimePlugins;
 		});
-		await discovery.refreshPlugins();
+		discovery.start(enablementModel);
+		await waitForState(discovery.plugins, plugins => plugins?.length === 0);
 		const failedPlugins = discovery.plugins.get();
 		const logged = warning.calledWith('[CopilotCliAgentPluginDiscovery] Failed to read runtime plugin inventory', failure);
 		fail = false;
-		await discovery.refreshPlugins();
+		await waitForState(discovery.plugins, plugins => plugins?.length === 1);
 		assert.deepStrictEqual({
 			failedPlugins, logged,
 			recovered: discovery.plugins.get()?.map(plugin => plugin.enablement.get()),
@@ -218,7 +227,58 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			recovered: [ContributionEnablementState.DisabledProfile],
 			changedEnablement: [], defaultEnablement: [],
 		});
-	});
+	}));
+
+	test('automatically restores previously discovered plugins after a transient inventory failure', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(uri, 'spark');
+		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri }]);
+		let requests = 0;
+		const discovery = createDiscovery(true, async () => {
+			if (++requests === 2) {
+				throw new Error('inventory unavailable');
+			}
+			return runtimePlugins;
+		});
+		discovery.start(enablementModel);
+		await waitForState(discovery.plugins, plugins => plugins?.length === 1);
+		await discovery.refreshPlugins();
+		const failedPlugins = discovery.plugins.get();
+		await waitForState(discovery.plugins, plugins => plugins?.length === 1);
+		assert.deepStrictEqual({
+			failedPlugins,
+			recovered: discovery.plugins.get()?.map(plugin => plugin.enablement.get()),
+			requests,
+		}, {
+			failedPlugins: [],
+			recovered: [ContributionEnablementState.EnabledProfile],
+			requests: 3,
+		});
+	}));
+
+	test('bounds runtime inventory retries and cancels them on disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(uri, 'spark');
+		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri }]);
+		const warning = sinon.spy(logService, 'warn');
+		const discovery = createDiscovery(true, async () => { throw new Error('inventory unavailable'); });
+		discovery.start(enablementModel);
+		await timeout(20000);
+		const attempts = discovery.discoveryCount;
+		await timeout(20000);
+		const attemptsAfterLimit = discovery.discoveryCount;
+		const disposableDiscovery = createDiscovery(true, async () => { throw new Error('inventory unavailable'); });
+		disposableDiscovery.start(enablementModel);
+		await waitForState(disposableDiscovery.plugins, plugins => plugins?.length === 0);
+		disposableDiscovery.dispose();
+		await timeout(20000);
+		assert.deepStrictEqual({
+			attempts,
+			attemptsAfterLimit,
+			loggedLimit: warning.calledWith('[CopilotCliAgentPluginDiscovery] Runtime plugin inventory retry limit reached.'),
+			disposedAttempts: disposableDiscovery.discoveryCount,
+		}, { attempts: 4, attemptsAfterLimit: 4, loggedLimit: true, disposedAttempts: 1 });
+	}));
 
 	test('superseded inventory cannot overwrite newer enablement or policy observables', async () => {
 		const uri = joinPath(marketplaceRoot, 'spark');
@@ -276,6 +336,84 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			runtime: [['disabled', true], ['enabled', false]],
 		});
 	});
+
+	for (const policyEnabled of [undefined, true, false]) {
+		test(`resolves marketplace collisions using runtime enablement instead of local overrides (policy: ${policyEnabled})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			const home = userHome.with({ scheme: Schemas.file });
+			const uri = joinPath(home, '.copilot/installed-plugins/_direct/microsoft--vscode-team-kit--model-council');
+			await writePlugin(uri, 'model-council');
+			await writeInstalledPlugins([{ name: 'model-council', marketplace: '', uri }], joinPath(home, '.copilot/config.json'));
+			const discovery = createDiscovery(true, async () => runtimePlugins, home);
+			await discovery.refreshPlugins();
+			const initialPlugin = discovery.plugins.get()![0];
+			const marketplaceUri = URI.file('/marketplace/model-council');
+			const marketplaceReference = parseMarketplaceReference('microsoft/vscode-team-kit')!;
+			const marketplacePlugin: IAgentPlugin = {
+				uri: marketplaceUri,
+				format: initialPlugin.format,
+				label: initialPlugin.label,
+				commands: initialPlugin.commands,
+				skills: initialPlugin.skills,
+				agents: initialPlugin.agents,
+				instructions: initialPlugin.instructions,
+				hooks: initialPlugin.hooks,
+				mcpServerDefinitions: initialPlugin.mcpServerDefinitions,
+				automations: initialPlugin.automations,
+				enablement: derived(reader => service.enablementModel.readEnabled(marketplaceUri.toString(), reader)),
+				fromMarketplace: {
+					name: 'model-council',
+					description: '',
+					version: '1.0.0',
+					source: 'model-council',
+					sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'model-council' },
+					marketplace: 'microsoft/vscode-team-kit',
+					marketplaceReference,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+			};
+			const marketplaceDiscovery = new class extends mock<IAgentPluginDiscovery>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('marketplacePlugins', [marketplacePlugin]);
+				override start(): void { }
+				override dispose(): void { }
+			}();
+			const instantiationService = store.add(new TestInstantiationService());
+			sinon.stub(instantiationService, 'createInstance').onFirstCall().returns(marketplaceDiscovery).onSecondCall().returns(discovery);
+			sinon.stub(agentPluginDiscoveryRegistry, 'getAll').returns([
+				{ descriptor: new SyncDescriptor(CopilotCliAgentPluginDiscovery), priority: AgentPluginDiscoveryPriority.Marketplace, order: 0 },
+				{ descriptor: new SyncDescriptor(CopilotCliAgentPluginDiscovery), priority: AgentPluginDiscoveryPriority.CopilotCli, order: 1 },
+			]);
+			const configurationService = new TestConfigurationService();
+			const inspected = configurationService.inspect(ChatConfiguration.EnabledPlugins);
+			sinon.stub(configurationService, 'inspect').withArgs(ChatConfiguration.EnabledPlugins).returns({
+				...inspected,
+				policyValue: policyEnabled === undefined ? undefined : { 'model-council@microsoft/vscode-team-kit': policyEnabled },
+			});
+			const baseEnablement = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			baseEnablement.setEnabled(uri.toString(), ContributionEnablementState.DisabledWorkspace);
+			baseEnablement.setEnabled(marketplaceUri.toString(), ContributionEnablementState.EnabledWorkspace);
+			const service = store.add(new AgentPluginService(instantiationService, configurationService, baseEnablement, logService));
+			await waitForState(discovery.plugins, plugins => !!plugins?.length && plugins[0] !== initialPlugin);
+			const exposed = () => service.plugins.get().filter(plugin => isContributionEnabled(plugin.enablement.get())).map(plugin => plugin.uri.toString());
+			const enabled = exposed();
+			service.enablementModel.setEnabled(uri.toString(), ContributionEnablementState.DisabledWorkspace);
+			service.enablementModel.setEnabled(marketplaceUri.toString(), ContributionEnablementState.EnabledWorkspace);
+			const afterLocalOverrides = exposed();
+			runtimePlugins = runtimePlugins.map(plugin => ({ ...plugin, enabled: false }));
+			await discovery.refreshPlugins();
+			assert.deepStrictEqual({
+				enabled,
+				afterLocalOverrides,
+				runtimeDisabled: exposed(),
+				localRuntimeState: baseEnablement.readEnabled(uri.toString()),
+			}, {
+				enabled: [uri.toString()],
+				afterLocalOverrides: [uri.toString()],
+				runtimeDisabled: policyEnabled === false ? [] : [marketplaceUri.toString()],
+				localRuntimeState: ContributionEnablementState.DisabledWorkspace,
+			});
+		}));
+	}
 
 	test('delegates direct plugin enablement to the Agent Host by source identity', async () => {
 		const uri = joinPath(installedPluginsRoot, '_direct', 'canvas');

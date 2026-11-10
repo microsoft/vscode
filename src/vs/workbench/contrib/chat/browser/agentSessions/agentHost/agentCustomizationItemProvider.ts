@@ -124,14 +124,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource, uri: URI): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const runtime = readRuntimePluginEnablement(customization);
-		const runtimeStatus = runtime?.managedDesiredEnabled !== undefined
-			? localize('runtimePluginManaged', "This plugin is managed by your organization.")
-			: runtime && !this._customAgentsService.canSetRuntimePluginEnablement?.(sessionResource)
-				? localize('runtimePluginReadOnly', "This host does not support plugin enablement.")
-				: runtime && runtime.effectiveEnabled === undefined
-					? localize('runtimePluginPending', "Plugin activation for this chat is not available yet.")
-					: runtime && !runtime.repositorySupported
-						? localize('runtimePluginRepositoryUnsupported', "Repository enablement is not available for directly installed plugins. You can change global enablement.") : undefined;
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -142,8 +134,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			scope: AICustomizationScopes.fromSource(getAgentHostCustomizationSource(customization) ?? source),
 			delivery: clientId !== undefined ? SYNCED_FROM_CLIENT : undefined,
 			status: toStatusString(customization.load),
-			statusMessage: toStatusMessage(customization.load) ?? runtimeStatus,
-			enabled: isCustomizationEnabled(customization),
+			statusMessage: toStatusMessage(customization.load) ?? (runtime && runtime.effectiveEnabled === undefined && customization.load?.kind === CustomizationLoadStatus.Loading
+				? localize('pluginWaitingForSessionStart', "Waiting for Session Start")
+				: undefined),
+			enabled: runtime && runtime.effectiveEnabled === undefined ? undefined : isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
 			extensionId: undefined,
 			pluginUri: uri,

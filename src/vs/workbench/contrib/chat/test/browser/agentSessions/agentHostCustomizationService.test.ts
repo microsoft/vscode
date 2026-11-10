@@ -23,7 +23,7 @@ import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/ag
 import { withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -55,6 +55,7 @@ import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHo
 import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
+	defaultChatResource?: URI;
 	setPluginEnabled?: IAgentConnection['setPluginEnabled'];
 	listPluginInstallations?: IAgentConnection['listPluginInstallations'];
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
@@ -226,6 +227,29 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('read-only hosts retain advertised activation only for their advertised default chat', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/conversation');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugins/native',
+			load: { kind: CustomizationLoadStatus.Loaded },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin]);
+		target.defaultChatResource = URI.parse('other-chat://opaque/default');
+		sut.setTarget(session, target);
+		sut.backendChatResource = target.defaultChatResource;
+		const [main] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		sut.backendChatResource = URI.parse('other-chat://opaque/peer');
+		const [peer] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		assert.deepStrictEqual({
+			mainPreserved: main === plugin,
+			readOnly: sut.canSetRuntimePluginEnablement(session),
+			peerActivation: readRuntimePluginEnablement(peer)?.effectiveEnabled,
+		}, { mainPreserved: true, readOnly: false, peerActivation: undefined });
+	});
+
 	test('runtime inventory failure marks only its provider unavailable and preserves unrelated customizations', async () => {
 		const log: string[] = [];
 		const sut = createSut(undefined, { logService: new RecordingLogService(log) });
@@ -267,8 +291,12 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const target = new FakeTarget([plugin], 'file:///repository');
 		const calls: unknown[][] = [];
 		target.setPluginEnabled = async (...args) => { calls.push(args); };
+		let ready = false;
+		target.listPluginInstallations = async () => [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: ready ? true : undefined }];
 		sut.setTarget(session, target);
 		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /session is ready/);
+		ready = true;
 		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', false);
 		assert.throws(() => sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, true), /owning runtime/);
 		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(plugin._meta, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true, managedDesiredEnabled: false }) }];

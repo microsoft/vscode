@@ -161,7 +161,7 @@ export async function resolveLocalCustomAgents(
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
-		if (agent.source === AICustomizationSources.plugin && (!plugin || plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType))) {
+		if (agent.source === AICustomizationSources.plugin && !plugin) {
 			continue;
 		}
 		if (plugin?.copilotCliInstallation && !isContributionEnabled(plugin.enablement.get())) {

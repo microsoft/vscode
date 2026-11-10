@@ -3144,9 +3144,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const { plugins } = await this._retryAfterClosedConnection('listPluginInstallations', client => client.rpc.plugins.list());
 		const installed = plugins.filter(plugin => plugin.installed !== false && plugin.source !== 'builtin');
 		const live = this._findPluginOperationSession(session, chat);
-		const effective = installed.length && live ? await live.listInstalledPlugins() ?? [] : [];
+		const effective = installed.length && live ? await live.listInstalledPlugins() : undefined;
 		return installed.map(plugin => {
-			const matches = effective.filter(candidate => {
+			const matches = effective?.filter(candidate => {
 				if (plugin.id && candidate.id) {
 					return candidate.id === plugin.id;
 				}
@@ -3156,13 +3156,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return candidate.directSourceId !== undefined
 					? candidate.directSourceId === plugin.directSourceId
 					: installed.filter(installation => installation.name === plugin.name && installation.marketplace === plugin.marketplace).length === 1;
-			});
+			}) ?? [];
+			const ambiguous = effective?.some(candidate =>
+				!candidate.id && candidate.directSourceId === undefined
+				&& candidate.name === plugin.name && candidate.marketplace === plugin.marketplace
+				&& installed.filter(installation => installation.name === plugin.name && installation.marketplace === plugin.marketplace).length > 1);
 			return {
 				name: plugin.name,
 				marketplace: plugin.marketplace,
 				directSourceId: plugin.directSourceId,
 				enabled: plugin.enabled,
-				effectiveEnabled: matches.length === 1 ? matches[0].enabled : undefined,
+				// A ready chat omits inactive plugins; an unavailable inventory must remain pending.
+				effectiveEnabled: matches.length === 1 ? matches[0].enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
 				managedDesiredEnabled: plugin.managedDesiredEnabled,
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
 				version: plugin.version,
@@ -10825,7 +10830,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (runtimePluginsChangedBeforeRegistration) {
 				entry.refreshRuntimePlugins();
 			} else if (isAgentChatDefaultChat({ resource: session.resourceUri, owner: session.ownerRef })) {
-				this._activeClients.get(session.ownerSessionUri)?.pluginController.publishWhenSettled();
+				this._activeClients.get(session.ownerSessionUri)?.pluginController.publishWhenSettled(true);
 			}
 		}
 	}
@@ -11878,6 +11883,8 @@ class SessionPluginController extends Disposable {
 	private _isEnablementReady = false;
 	private _runtimePlugins: readonly PluginCustomization[] = [];
 	private readonly _runtimePluginsRefresh = new Sequencer();
+	private readonly _runtimePluginContents = new ResourceMap<{ readonly version: string | undefined; readonly parsed: Promise<IParsedPlugin | undefined> }>();
+	private readonly _runtimePluginWatchers = this._register(new DisposableResourceMap<DisposableStore>());
 
 	private readonly _previousDirectories: URI[] = [];
 	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
@@ -11913,6 +11920,7 @@ class SessionPluginController extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
@@ -11923,6 +11931,7 @@ class SessionPluginController extends Disposable {
 				anchor.dispose();
 			}
 			this._anchors.clear();
+			this._runtimePluginContents.clear();
 		}));
 	}
 
@@ -12025,6 +12034,7 @@ class SessionPluginController extends Disposable {
 
 	/** Re-runs discovery for every live anchor set; a changed published set republishes the session's customizations. */
 	public async refreshDiscovery(): Promise<void> {
+		this._runtimePluginContents.clear();
 		await Promise.all([
 			this._refreshRuntimePlugins(),
 			...[...this._anchors.values()].map(({ anchor }) => anchor.refreshDiscovery()),
@@ -12037,13 +12047,39 @@ class SessionPluginController extends Disposable {
 	}
 
 	private async _readRuntimePlugins(): Promise<void> {
-		const installed = await this._installedPlugins();
+		if (this._store.isDisposed) {
+			return;
+		}
+		let installed: readonly IAgentPluginInstallation[];
+		try {
+			installed = await this._installedPlugins();
+		} catch (error) {
+			this._logService.warn('[Copilot:SessionPluginController] Failed to read runtime plugin inventory', error);
+			// Retain ownership and content, but never reuse an unconfirmed activation decision.
+			this._runtimePlugins = this._runtimePlugins.map(plugin => ({
+				...plugin,
+				load: { kind: CustomizationLoadStatus.Error, message: localize('copilotAgent.pluginInventoryError', "Plugin activation is unavailable.") },
+				_meta: withRuntimePluginEnablement(plugin._meta, { ...readRuntimePluginEnablement(plugin)!, effectiveEnabled: undefined }),
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}));
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		const resources = new ResourceSet(installed.flatMap(plugin => plugin.resource ? [plugin.resource] : []));
+		for (const resource of this._runtimePluginWatchers.keys()) {
+			if (!resources.has(resource)) {
+				this._runtimePluginWatchers.deleteAndDispose(resource);
+				this._runtimePluginContents.delete(resource);
+			}
+		}
 		const plugins = await Promise.all(installed.map(async installation => {
 			if (!installation.resource || installation.enabled === undefined) {
 				return undefined;
 			}
 			const uri = installation.resource.toString();
-			const parsed = await this._parent.tryParsePlugin(installation.resource);
+			const parsed = await this._readRuntimePluginContents(installation.resource, installation.version);
 			return {
 				type: CustomizationType.Plugin,
 				id: customizationId(uri),
@@ -12073,6 +12109,27 @@ class SessionPluginController extends Disposable {
 		}
 	}
 
+	private _readRuntimePluginContents(resource: URI, version: string | undefined): Promise<IParsedPlugin | undefined> {
+		if (!this._runtimePluginWatchers.has(resource)) {
+			const store = new DisposableStore();
+			this._runtimePluginWatchers.set(resource, store);
+			// Correlated watchers do not support recursive content invalidation.
+			store.add(this._fileService.watch(resource, { recursive: true, excludes: [] }));
+			store.add(this._fileService.onDidFilesChange(event => {
+				if (event.affects(resource)) {
+					this._runtimePluginContents.delete(resource);
+					void this.publishWhenSettled();
+				}
+			}));
+		}
+		let cached = this._runtimePluginContents.get(resource);
+		if (!cached || cached.version !== version) {
+			cached = { version, parsed: this._parent.tryParsePlugin(resource) };
+			this._runtimePluginContents.set(resource, cached);
+		}
+		return cached.parsed;
+	}
+
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {
 		// Only the published view's anchor set feeds session state; a chat on
 		// another set picks up its changes from its next snapshot. Compared by
@@ -12087,11 +12144,23 @@ class SessionPluginController extends Disposable {
 	 * a move of the published view that no host operation republishes (a
 	 * chat-only move of the default chat): a set's initial scan does not notify.
 	 */
-	public publishWhenSettled(): Promise<void> {
-		return this.getCustomizationsSettled().then(() => this._publish(() => ({
-			type: ActionType.SessionCustomizationsChanged,
-			customizations: [...this.getCustomizations()],
-		})), error => this._logService.warn('[Copilot:SessionPluginController] Failed to publish customizations after the anchor moved', error));
+	public async publishWhenSettled(onlyIfRuntimePluginsChanged = false): Promise<void> {
+		try {
+			if (onlyIfRuntimePluginsChanged) {
+				const previous = this._runtimePlugins;
+				await this._refreshRuntimePlugins();
+				if (equals(previous, this._runtimePlugins)) {
+					return;
+				}
+			}
+			await this.getCustomizationsSettled();
+			this._publish(() => ({
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [...this.getCustomizations()],
+			}));
+		} catch (error) {
+			this._logService.warn('[Copilot:SessionPluginController] Failed to publish settled customizations', error);
+		}
 	}
 
 	/** The anchor set of the published view, or `undefined` before the session has a customization directory or once it is disposed. */
@@ -12207,10 +12276,41 @@ class SessionPluginController extends Disposable {
 			...result,
 			...workspaceDefinitions.map(definition => definition.customization),
 		]).map(server => server.name));
-		for (const plugin of this._runtimePlugins) {
+		const runtimePlugins = this._runtimePlugins.map(plugin => {
 			const native = discovered.find(customization => customization.type === CustomizationType.Plugin && isEqual(URI.parse(customization.uri), URI.parse(plugin.uri)));
-			const children = (native?.type === CustomizationType.Plugin ? native.children ?? plugin.children : plugin.children)
-				?.filter(child => child.type !== CustomizationType.McpServer || !declaredMcpNames.has(child.name));
+			return { ...plugin, children: native?.type === CustomizationType.Plugin ? native.children ?? plugin.children : plugin.children };
+		});
+		const liveInventory: ITopLevelMcpServers = runtimePlugins.some(plugin => plugin.children?.some(child => child.type === CustomizationType.McpServer))
+			? this._topLevelMcpServers() : { customizations: [] };
+		const livePluginOwners = new Map(liveInventory.owners);
+		for (const server of liveInventory.customizations) {
+			if (server.type === CustomizationType.McpServer) {
+				const native = findDiscoveredPluginMcpServer(runtimePlugins, server.name, readMcpServerSource(server), readMcpServerSourcePlugin(server));
+				if (native) {
+					livePluginOwners.set(server.name, native.plugin.uri);
+				}
+			}
+		}
+		const runtimeMcpOwners = new Map<string, { readonly plugin: PluginCustomization; readonly priority: number }>();
+		for (const plugin of runtimePlugins) {
+			const native = discovered.find(candidate => candidate.type === CustomizationType.Plugin && isEqual(URI.parse(candidate.uri), URI.parse(plugin.uri)));
+			for (const child of plugin.children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					const liveOwner = livePluginOwners.get(child.name);
+					// Inactive installations cannot reserve a live server's name ahead of active ones.
+					const priority = (readRuntimePluginEnablement(plugin)?.effectiveEnabled === true ? 4 : 0)
+						+ (liveOwner && isEqual(URI.parse(liveOwner), URI.parse(plugin.uri)) ? 2 : 0)
+						+ (native?.type === CustomizationType.Plugin && native.children?.some(server => server.type === CustomizationType.McpServer && server.name === child.name) ? 1 : 0);
+					const previous = runtimeMcpOwners.get(child.name);
+					if (!previous || priority > previous.priority) {
+						runtimeMcpOwners.set(child.name, { plugin, priority });
+					}
+				}
+			}
+		}
+		for (const plugin of runtimePlugins) {
+			const children = plugin.children?.filter(child => child.type !== CustomizationType.McpServer
+				|| !declaredMcpNames.has(child.name) && runtimeMcpOwners.get(child.name)?.plugin === plugin);
 			result.push({ ...plugin, children });
 			for (const child of children ?? []) {
 				if (child.type === CustomizationType.McpServer) {

@@ -268,17 +268,20 @@ export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAg
 	if (runtime) {
 		const available = agentHostCustomizations.canSetRuntimePluginEnablement?.(sessionResource) === true;
 		const managed = runtime.managedDesiredEnabled !== undefined;
+		const ready = runtime.effectiveEnabled !== undefined;
 		const create = (scope: 'global' | 'repository', enabled: boolean, supported: boolean): ICustomizationItemAction => ({
 			id: `agentPlugin.runtime.${enabled ? 'enable' : 'disable'}.${scope}`,
 			label: scope === 'global'
 				? enabled ? localize('runtimePluginEnableGlobal', "Enable Globally") : localize('runtimePluginDisableGlobal', "Disable Globally")
 				: enabled ? localize('runtimePluginEnableRepository', "Enable for Repository") : localize('runtimePluginDisableRepository', "Disable for Repository"),
-			enabled: available && !managed && supported,
+			enabled: available && !managed && ready && supported,
+			checked: scope === 'global' ? runtime.globalEnabled : undefined,
 			tooltip: managed ? getPluginManagedByOrganizationMessage()
 				: !available ? localize('runtimePluginHostUnsupported', "This host does not support plugin enablement.")
-					: !supported ? localize('runtimePluginRepositoryUnsupported', "Repository enablement requires a marketplace plugin and an initialized chat.") : undefined,
+					: !supported ? localize('runtimePluginRepositoryUnsupported', "This plugin does not support workspace enablement. You can change global enablement.")
+						: !ready ? localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready.") : undefined,
 			run: async () => {
-				if (!available || managed || !supported || !agentHostCustomizations.setRuntimePluginEnablement) {
+				if (!available || managed || !ready || !supported || !agentHostCustomizations.setRuntimePluginEnablement) {
 					throw new Error(localize('runtimePluginActionUnavailable', "Plugin enablement is unavailable."));
 				}
 				await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, customization.id, scope, enabled);
@@ -286,7 +289,7 @@ export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAg
 		});
 		return [
 			create('global', !runtime.globalEnabled, true),
-			...(hasWorkspace ? [create('repository', runtime.effectiveEnabled === false, runtime.repositorySupported && runtime.effectiveEnabled !== undefined)] : []),
+			...(hasWorkspace ? [create('repository', runtime.effectiveEnabled === false, runtime.repositorySupported)] : []),
 		];
 	}
 	const enablement = getCustomizationScopeEnablement(customization);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -189,6 +190,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 
 export interface IAgentHostCustomizationTarget {
 	readonly backendSession: URI;
+	readonly defaultChatResource?: URI;
 	readonly clientId?: string;
 	readonly customizations: readonly Customization[];
 	readonly resourceUris: IAgentHostResourceUriMapper;
@@ -704,9 +706,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	async resolveRuntimePluginEnablement(sessionResource: URI, customizations: readonly Customization[]): Promise<readonly Customization[]> {
+		const providers = new Set(customizations.map(customization => readRuntimePluginEnablement(customization)?.provider).filter(provider => provider !== undefined));
+		if (providers.size === 0) {
+			return customizations;
+		}
 		const target = this._resolveTarget(sessionResource);
 		const chat = this.getBackendChatResource(sessionResource);
-		const providers = new Set(customizations.map(customization => readRuntimePluginEnablement(customization)?.provider).filter(provider => provider !== undefined));
 		const failedProviders = new Set<string>();
 		const inventories = new Map(await Promise.all([...providers].map(async provider => {
 			try {
@@ -720,6 +725,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return customizations.map(customization => {
 			const runtime = readRuntimePluginEnablement(customization);
 			if (customization.type !== CustomizationType.Plugin || !runtime) {
+				return customization;
+			}
+			if (target && !target.listPluginInstallations && chat && target.defaultChatResource
+				&& isEqual(chat, target.defaultChatResource) && runtime.effectiveEnabled !== undefined) {
 				return customization;
 			}
 			const matches = inventories.get(runtime.provider)?.filter(installation =>
@@ -748,12 +757,20 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	async setRuntimePluginEnablement(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean): Promise<void> {
 		const target = this._resolveTarget(sessionResource);
-		const customization = target && this._findCustomization(target.customizations, customizationId);
+		const customization = target?.customizations.find(customization => customization.type === CustomizationType.Plugin && customization.id === customizationId);
 		const runtime = customization && readRuntimePluginEnablement(customization);
-		if (!target?.setPluginEnabled || !runtime) {
+		if (!target?.setPluginEnabled || !customization || !runtime) {
 			throw new Error(localize('runtimePluginEnablementUnavailable', "Plugin enablement is unavailable on this host."));
 		}
 		if (runtime.managedDesiredEnabled !== undefined) {
+			throw new Error(localize('runtimePluginEnablementManaged', "This plugin is managed by your organization."));
+		}
+		const [resolved] = await this.resolveRuntimePluginEnablement(sessionResource, [customization]);
+		const currentRuntime = readRuntimePluginEnablement(resolved);
+		if (currentRuntime?.effectiveEnabled === undefined) {
+			throw new Error(localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready."));
+		}
+		if (currentRuntime.managedDesiredEnabled !== undefined) {
 			throw new Error(localize('runtimePluginEnablementManaged', "This plugin is managed by your organization."));
 		}
 		const chat = this.getBackendChatResource?.(sessionResource);
@@ -1083,8 +1100,10 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => target.connection.resourceUris.fromAgentHost(URI.parse(directory)));
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
+		const defaultChatResource = sessionState && getSessionChatResource(sessionState, DEFAULT_CHAT_ID, sessionState.defaultChat);
 		return {
 			backendSession: target.backendSession,
+			defaultChatResource: defaultChatResource ? URI.parse(defaultChatResource.toString()) : undefined,
 			clientId: target.connection.clientId,
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
