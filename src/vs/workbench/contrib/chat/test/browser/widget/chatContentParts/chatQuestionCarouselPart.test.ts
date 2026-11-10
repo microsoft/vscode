@@ -1337,6 +1337,20 @@ suite('ChatQuestionCarouselPart', () => {
 			});
 		});
 
+		test('custom answer text that a selected option overrides survives navigating to another question and back', () => {
+			createWidget(createMockCarousel([
+				{ id: 'q1', type: 'singleSelect', title: 'Choose one', options: [{ id: 'a', label: 'Option A', value: 'a' }], allowFreeformInput: true },
+				{ id: 'q2', type: 'text', title: 'Anything else?' },
+			]));
+
+			setAnswer('custom');
+			// Selects the option, which goes to the next question
+			(widget.domNode.querySelector('.chat-question-list-item') as HTMLElement).click();
+			(widget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement).click();
+
+			assert.deepStrictEqual({ selected: selectedIndex(), freeform: getAnswerEditor().getValue() }, { selected: 0, freeform: 'custom' });
+		});
+
 		test('aria-activedescendant follows the selection', () => {
 			const list = createSelectWidget(3);
 

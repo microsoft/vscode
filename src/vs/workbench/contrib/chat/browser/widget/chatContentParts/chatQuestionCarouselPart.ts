@@ -22,7 +22,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
-import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst, isBooleanQuestion } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -58,17 +58,6 @@ const ANSWERS_VISIBLE_THRESHOLD = 24;
 const ANSWERS_REVEAL_CONTEXT = 32;
 /** How far the scroll body moves for one arrow key press. */
 const BODY_SCROLL_LINE_HEIGHT = 20;
-
-/**
- * Whether the question is a yes/no choice, the shape MCP elicitation and the agent host emit for boolean fields.
- */
-function isBooleanQuestion(question: IChatQuestion): boolean {
-	const options = question.options;
-	return question.type === 'singleSelect'
-		&& options?.length === 2
-		&& options.some(opt => opt.value === 'true')
-		&& options.some(opt => opt.value === 'false');
-}
 
 /**
  * The title renders as one line of inline markdown, so a leading block marker must not start a block:
@@ -193,6 +182,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number; optionIndices: number[] }> = new Map();
 	private readonly _multiSelectCheckboxes: Map<string, { checkboxes: Checkbox[]; optionIndices: number[] }> = new Map();
 	private readonly _freeformAnswerEditors: Map<string, ChatQuestionAnswerEditor> = new Map();
+	/** Custom answer text that a selected option overrides, kept so it survives navigating between questions. */
+	private readonly _ignoredFreeformValues = new Map<string, string>();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
 
@@ -1359,9 +1350,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
 		const booleanQuestion = isBooleanQuestion(question);
 		const orderedOptions = getOptionsWithDefaultsFirst(question);
-		if (booleanQuestion) {
-			orderedOptions.sort((a, b) => Number(b.option.value === 'true') - Number(a.option.value === 'true'));
-		}
 		const selectContainer = dom.$('.chat-question-list');
 		container.appendChild(selectContainer);
 
@@ -1459,7 +1447,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			listItems.push(listItem);
 		});
 
-		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) });
+		const selectionData = { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) };
+		this._singleSelectItems.set(question.id, selectionData);
 
 		// Paints the initial row and points `aria-activedescendant` at it. Deliberately not
 		// `updateSelection`, which would commit an answer the user has not given yet.
@@ -1475,8 +1464,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			freeformContainer.appendChild(freeformNumber);
 			container.appendChild(freeformContainer);
 
-			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform);
+			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform ?? this._ignoredFreeformValues.get(question.id));
 			freeformEditor = capturedFreeform;
+			// The saved answer leaves out text that a selected option overrides, so keep it here when the question is unrendered.
+			this._inputBoxes.add(toDisposable(() => {
+				if (selectionData.selectedIndex >= 0 && capturedFreeform.value) {
+					this._ignoredFreeformValues.set(question.id, capturedFreeform.value);
+				} else {
+					this._ignoredFreeformValues.delete(question.id);
+				}
+			}));
 
 			// clear when we start typing in freeform
 			this._inputBoxes.add(capturedFreeform.onDidChangeValue(value => {
