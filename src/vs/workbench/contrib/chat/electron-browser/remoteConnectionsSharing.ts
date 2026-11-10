@@ -249,15 +249,37 @@ export class RemoteConnectionsSharing extends Disposable {
 			result = 'failed';
 			this._notificationService.error(error);
 		}
+		let activeMethod: RemoteConnectionsMethod;
+		try {
+			activeMethod = await this._readActiveMethod();
+		} catch {
+			activeMethod = this.activeMethod;
+		}
 		// Logged in every arm of the This Computer experiment, so sharing changes can be compared across them.
 		this._telemetryService.publicLog2<RemoteConnectionsSelectMethodEvent, RemoteConnectionsSelectMethodClassification>('remoteConnections.selectMethod', {
 			source: this._source,
 			method,
 			previousMethod,
-			activeMethod: this.activeMethod,
+			activeMethod,
 			result,
 			gitHubEnvironments,
 		});
+	}
+
+	/**
+	 * Reads the {@link activeMethod} from the sharing services: a toolbar can replace its view item, and with it
+	 * the state source, while a selection is applied, which leaves the state source with the state before the change.
+	 */
+	private async _readActiveMethod(): Promise<RemoteConnectionsMethod> {
+		if (this.usesGitHubEnvironment) {
+			return this._missionControlSharingService.state.get() === 'disabled' ? 'off' : 'githubEnvironment';
+		}
+		const [mode, status] = await Promise.all([
+			this._remoteTunnelService.getMode(),
+			this._remoteTunnelService.getTunnelStatus(),
+		]);
+		const state = getRemoteTunnelAccessState(mode, status);
+		return state.isSharing || state.isConnecting ? 'devTunnel' : 'off';
 	}
 
 	private async _applyMethod(method: RemoteConnectionsMethod): Promise<RemoteConnectionsSelectionResult> {
