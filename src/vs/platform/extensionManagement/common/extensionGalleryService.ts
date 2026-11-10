@@ -589,11 +589,14 @@ function getDeprecationInfo(galleryExtension: IRawGalleryExtension, logService: 
 			logService.warn('Invalid Marketplace deprecation replacement identifier');
 		}
 	}
+	if (deprecation.customMessage !== undefined && deprecation.customMessage !== null && typeof deprecation.customMessage !== 'string') {
+		logService.warn('Invalid Marketplace deprecation custom message');
+	}
 	return {
 		source: 'marketplace',
 		disallowInstall: true,
 		extension,
-		additionalInfo: deprecation.customMessage
+		additionalInfo: typeof deprecation.customMessage === 'string' ? deprecation.customMessage : undefined
 	};
 }
 

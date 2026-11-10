@@ -64,6 +64,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -89,6 +90,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IEditorService, { editors: [] });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IExtensionGalleryManifestService, {

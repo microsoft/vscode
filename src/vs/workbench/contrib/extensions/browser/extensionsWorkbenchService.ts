@@ -1790,6 +1790,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
+			// Refresh extension-wide metadata without replacing the editor's selected version or assets.
+			for (const input of this.editorService.editors) {
+				if (input instanceof ExtensionsInput && input.extension instanceof Extension && !input.extension.local && areSameExtensions(input.extension.identifier, gallery.identifier)) {
+					if (input.extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo)) {
+						this._onChange.fire(input.extension);
+					}
+				}
+			}
 		} else {
 			const installedExtension = extension as Extension;
 			const deprecationInfoChanged = installedExtension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);

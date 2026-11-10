@@ -28,7 +28,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { coalesce, distinct, range } from '../../../../base/common/arrays.js';
+import { coalesce, distinct, equals, range } from '../../../../base/common/arrays.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ActionRunner } from '../../../../base/common/actions.js';
@@ -352,6 +352,9 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
 				const { extensions: newExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 				if (!isDisposed) {
+					if (isDeprecatedQuery && equals(extensions, newExtensions)) {
+						return;
+					}
 					const mergedExtensions = isDeprecatedQuery ? newExtensions : this.mergeAddedExtensions(extensions, newExtensions);
 					if (mergedExtensions) {
 						extensions = mergedExtensions;
