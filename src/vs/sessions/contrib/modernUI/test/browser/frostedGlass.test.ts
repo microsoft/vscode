@@ -193,6 +193,17 @@ suite('Agents frosted glass styles', () => {
 		const { root, hover, scrollable, container } = createSessionHover(content);
 		const pointer = container.querySelector<HTMLElement>('.workbench-hover-pointer')!;
 		const pointerPosition = { className: pointer.className, top: pointer.style.top, left: pointer.style.left };
+		const focusOutline = () => {
+			const style = getWindow(link).getComputedStyle(link);
+			return {
+				color: style.outlineColor,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+				offset: style.outlineOffset,
+			};
+		};
+		link.focus();
+		const originalFocusOutline = focusOutline();
 		root.classList.add('modern-ui-frosted-glass');
 		const rect = link.getBoundingClientRect();
 		const linkHit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === link;
@@ -200,7 +211,6 @@ suite('Agents frosted glass styles', () => {
 		link.addEventListener('click', event => { event.preventDefault(); clicked = true; }, { once: true });
 		link.focus();
 		link.click();
-		const linkStyle = getWindow(link).getComputedStyle(link);
 		const contents = hover.domNode.querySelector<HTMLElement>('.monaco-hover-content')!;
 		const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 });
 		// Chromium's synthetic wheel event reports the legacy delta with the opposite sign.
@@ -222,7 +232,7 @@ suite('Agents frosted glass styles', () => {
 		assert.deepStrictEqual({
 			linkHit,
 			linkFocused: document.activeElement === link,
-			focusOutlineVisible: linkStyle.outlineStyle !== 'none' && parseFloat(linkStyle.outlineWidth) > 0,
+			focusOutline: focusOutline(),
 			clicked,
 			scrolled: scrollAfterWheel > 0,
 			scrollbarHit,
@@ -232,7 +242,7 @@ suite('Agents frosted glass styles', () => {
 		}, {
 			linkHit: true,
 			linkFocused: true,
-			focusOutlineVisible: true,
+			focusOutline: originalFocusOutline,
 			clicked: true,
 			scrolled: true,
 			scrollbarHit: true,
