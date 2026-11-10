@@ -53,11 +53,21 @@ export async function createChatResourceContent(
 			// Only custom editors that an extension provides render in a webview here; other editors, such as notebooks, show
 			// the resource as text.
 			if (customEditorService.getCustomEditorCapabilities(defaultEditor)) {
-				return instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, body, getClippingContainer).ready();
+				return whenReady(instantiationService.createInstance(ChatResourceWebviewContent, target, defaultEditor, body, getClippingContainer));
 			}
 		}
-		return instantiationService.createInstance(ChatResourceTextContent, target.resource, body).ready();
+		return whenReady(instantiationService.createInstance(ChatResourceTextContent, target.resource, body));
 	});
+}
+
+/** The content once it is ready; content that fails to get ready is disposed. */
+async function whenReady<T extends IChatResourceContent & { ready(): Promise<T> }>(content: T): Promise<T> {
+	try {
+		return await content.ready();
+	} catch (error) {
+		content.dispose();
+		throw error;
+	}
 }
 
 

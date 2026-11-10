@@ -30,8 +30,6 @@ import { markOnboardingTarget } from '../../onboarding/browser/spotlight/onboard
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
-	/** Whether a context menu on one of this source's pills offers its {@link getContextMenuPrimaryActions}, although it has no kind. */
-	readonly offersPillContextMenu?: boolean;
 	readonly hasData: IObservable<boolean>;
 	/** Whether any entries remain after the pill's own filtering. */
 	readonly isVisible?: IObservable<boolean>;
@@ -59,10 +57,22 @@ export interface IStandardChatInputPillSections {
 	/** Keeps configuration reachable when the source filters out all its entries. */
 	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
-	/** Whether an entry can be pinned out of the pill's dropdown into a pill of its own. Defaults to `true`. */
-	isPinnable?(entry: IChatPillEntry): boolean;
+	/**
+	 * Decorates the entries that render as a pill of their own: the pinned ones, and the lone entry the pill shows
+	 * inline. Their pill runs the entry's `open`, shows its {@link IChatPillEntry.checked} state, and offers its actions
+	 * in its context menu.
+	 */
+	presentOwnPill?(entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader): IChatPillEntry;
 	getContextMenuActions?(): readonly IAction[];
 	getContextMenuPrimaryActions?(): readonly IAction[];
+}
+
+/** See {@link IStandardChatInputPillSections.presentOwnPill}. */
+export interface IChatInputOwnPillContext {
+	/** Whether the user pinned the entry, rather than the pill showing it inline as its only entry. */
+	readonly pinned: boolean;
+	/** Pins the entry, so that it keeps a pill of its own when the pill lists more entries. */
+	pin(): void;
 }
 
 export interface IStandardChatInputPillsData {
@@ -243,7 +253,7 @@ export class StandardChatInputPillSources extends Disposable {
 	constructor(
 		data: IStandardChatInputPillsData,
 		offeredKinds: readonly SessionChatPillKind[],
-		pinScope: IObservable<string | undefined>,
+		private readonly pinScope: IObservable<string | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -287,6 +297,14 @@ export class StandardChatInputPillSources extends Disposable {
 				const sections = source.sections.read(reader);
 				const scope = pinScope.read(reader);
 				const pinnedIds = pins.getPinned(scope, kind, reader);
+				const presentOwnPill = (entry: IChatPillEntry, pinned: boolean) => source.presentOwnPill?.(entry, {
+					pinned,
+					pin: () => {
+						if (scope) {
+							pins.setPinned(scope, kind, entry.id, entry.label, true);
+						}
+					},
+				}, reader) ?? entry;
 				const pinnedEntries: IChatPillEntry[] = [];
 				const unpinnedSections = sections.map(section => ({
 					...section,
@@ -294,7 +312,7 @@ export class StandardChatInputPillSources extends Disposable {
 						if (!pinnedIds.has(entry.id)) {
 							return true;
 						}
-						pinnedEntries.push(this.withPinAction(entry, kind, scope, true));
+						pinnedEntries.push(presentOwnPill(this.withPinAction(entry, kind, scope, true), true));
 						return false;
 					}),
 				})).filter(section => section.entries.length > 0);
@@ -303,16 +321,17 @@ export class StandardChatInputPillSources extends Disposable {
 				const unpinnedOptions = inlineRemaining
 					? { ...pillOptions, singleEntry: ChatPillSingleEntry.Inline }
 					: pillOptions;
-				const pinAvailable = !!scope && unpinnedEntries.length > 0 && !getChatPillInlineEntry(unpinnedEntries, unpinnedOptions);
+				const inlineEntry = getChatPillInlineEntry(unpinnedEntries, unpinnedOptions);
+				const pinAvailable = !!scope && unpinnedEntries.length > 0 && !inlineEntry;
 				return {
 					inlineRemaining,
 					pinnedEntries,
-					sections: pinAvailable
-						? unpinnedSections.map(section => ({
-							...section,
-							entries: section.entries.map(entry => source.isPinnable?.(entry) === false ? entry : this.withPinAction(entry, kind, scope, false)),
-						}))
-						: unpinnedSections,
+					sections: unpinnedSections.map(section => ({
+						...section,
+						entries: section.entries.map(entry => entry === inlineEntry
+							? presentOwnPill(entry, false)
+							: pinAvailable ? this.withPinAction(entry, kind, scope, false) : entry),
+					})),
 				};
 			});
 			const unpinnedSections = derived(this, reader => presentation.read(reader).sections);
@@ -389,6 +408,11 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
 		addSections(SessionChatPillKind.BackgroundShells, data.backgroundShells, sessionBackgroundShellsPillOptions);
 		this.sources = sources;
+	}
+
+	/** The IDs of the entries of a pill kind that the user pinned into pills of their own. */
+	getPinned(kind: SessionChatPillKind, reader: IReader | undefined): ReadonlySet<string> {
+		return this.pins.getPinned(this.pinScope.read(reader), kind, reader);
 	}
 
 	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
@@ -476,7 +500,7 @@ export class ChatInputPills extends Disposable {
 		});
 		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: { readonly source: IChatInputPillSource; readonly pill: IChatPill }) => {
 			const kinds = kindsWithData.get();
-			if (kinds.size === 0 && !target?.source.offersPillContextMenu) {
+			if (kinds.size === 0) {
 				return;
 			}
 			this._contextMenuService.showContextMenu({
@@ -584,10 +608,6 @@ export class ChatInputPills extends Disposable {
 		});
 		const targetActions: IAction[] = [];
 		const optionsActions: IAction[] = [];
-		// Sources without a kind, such as chat resources, can still offer actions on their own pills.
-		if (target && !target.source.kind && target.source.offersPillContextMenu) {
-			targetActions.push(...(target.source.getContextMenuPrimaryActions?.(target.pill) ?? []).map(withFocusRestoration));
-		}
 		for (const source of this._options.sources.get()) {
 			if (!source.kind || !this._options.offeredKinds.includes(source.kind)) {
 				continue;

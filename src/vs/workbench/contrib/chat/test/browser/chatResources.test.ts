@@ -4,25 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getConfiguredChatResourceMode } from '../../browser/chatResources/chatResources.js';
 import { getShownChatResource } from '../../browser/chatResources/chatResourcesControl.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from '../../browser/chatResources/chatResourceSizing.js';
 
 suite('ChatResources', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('configured modes match the path or the file name and ignore invalid modes', () => {
-		const modes = { '*.md': 'embedded', '**/docs/**': 'pinned', '*.txt': 'sideways', '*.html': 'top' };
-		assert.deepStrictEqual([
-			getConfiguredChatResourceMode(modes, URI.file('/repo/PLAN.md')),
-			getConfiguredChatResourceMode(modes, URI.file('/repo/docs/guide.html')),
-			getConfiguredChatResourceMode(modes, URI.file('/repo/notes.txt')),
-			getConfiguredChatResourceMode(modes, URI.file('/repo/page.html')),
-			getConfiguredChatResourceMode(undefined, URI.file('/repo/PLAN.md')),
-		], ['embedded', 'pinned', undefined, undefined, undefined]);
-	});
 
 	suite('embedded size', () => {
 		const automatic = (maxAutomaticHeight: number): IChatEmbeddedResourceSize => ({ fixedHeight: undefined, maxAutomaticHeight });

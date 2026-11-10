@@ -5,84 +5,76 @@
 
 import './media/chatResources.css';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator, toAction } from '../../../../../base/common/actions.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatPillActionViewItem, IChatPill, withChatPillHoverLabel } from '../../../../browser/chatPills.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IChatPillEntry, withChatPillHoverLabel } from '../../../../browser/chatPills.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatInputPillSource } from '../chatInputPills.js';
+import { IChatInputOwnPillContext } from '../chatInputPills.js';
 import { createChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
-import { ChatResourceArea, ChatResourceMode, ChatResourceModesSettingId, getConfiguredChatResourceMode, isChatResourceMode } from './chatResources.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
-/** A resource recorded for a chat, for example by its agent. */
+/** A file the chat can show above its input, such as one its agent recorded as an artifact. */
 export interface IChatResource extends IChatResourceTarget {
-	/** Identifies the resource within its chat. */
+	/** The ID of the pill entry that stands for the resource. */
 	readonly id: string;
-	readonly icon: ThemeIcon | undefined;
-	/** The mode unless the user configured another. */
-	readonly defaultMode: ChatResourceMode;
 }
 
 /** The transcript height that shown resources leave visible. */
 const MIN_TRANSCRIPT_HEIGHT = 80;
 /** The height a shown resource takes up besides its body: its header, its resize edge, its border, and spacing. */
 const SHOWN_RESOURCE_CHROME_HEIGHT = 36;
-const MODE_OVERRIDES_STORAGE_KEY = 'chat.resources.modeOverrides';
+const OPENS_IN_CHAT_STORAGE_KEY = 'chat.resources.opensInChat';
 
 /**
- * Shows a chat's resources as the user chose (see {@link ChatResourceMode}): it supplies the pills of
- * resources that have one, and shows the selected resource above the chat input. The pills of the resources shown there
- * act as tabs: one of them is shown at a time, and clicking the shown one hides it.
+ * Lets the pinned pills of a chat's files open them above the chat input instead of in an editor.
+ *
+ * Pinning is the pills' own: any entry can be pinned into a pill of its own. On top of that, the user chooses for each
+ * pinned file where its pill opens it (see {@link presentOwnPill}). The pills of the files that open in the chat act as
+ * tabs: one of them is shown at a time, and clicking the shown one hides it.
  */
 export class ChatResourcesControl extends Disposable {
 
-	readonly pillSources: IObservable<readonly IChatInputPillSource[]>;
 	/** The height the resource above the chat input takes up, including its spacing. */
 	readonly height: IObservable<number>;
 
-	/** The chat's resources that exist. */
-	readonly resources: IObservable<readonly IChatResource[]>;
-	/** Modes the user chose for single resources, by chat and resource id. */
-	private readonly _modeOverrides: ISettableObservable<Readonly<Record<string, Readonly<Record<string, ChatResourceMode>>>>>;
-	/** The shown resource by chat and area; `null` when the user hid the area, absent before the user chose; see {@link getShownChatResource}. */
+	/** The chat's files that exist, by the ID of their pill entry. */
+	private readonly _resources: IObservable<ReadonlyMap<string, IChatResource>>;
+	/** The IDs of the entries that open in the chat rather than in an editor, by chat. */
+	private readonly _opensInChat: ISettableObservable<Readonly<Record<string, readonly string[]>>>;
+	/** The ID of the shown resource by chat; `null` when the user hid it, absent before the user chose; see {@link getShownChatResource}. */
 	private readonly _selection = observableValue<ReadonlyMap<string, string | null>>(this, new Map());
-	/** Sizes by chat and resource id, kept while the control lives so that switching resources keeps their sizes. */
+	/** Sizes by chat and resource ID, kept while the control lives so that switching resources keeps their sizes. */
 	private readonly _sizes = new Map<string, ISettableObservable<IChatEmbeddedResourceSize>>();
 	/** The content height each resource last reported, so that showing it again starts at that height rather than jumping to it. */
 	private readonly _contentHeights = new Map<string, ISettableObservable<number | undefined>>();
 	private readonly _chatKey: IObservable<string | undefined>;
-	private readonly _configuredModes: IObservable<Readonly<Record<string, unknown>> | undefined>;
-	private readonly _shown: Readonly<Record<ChatResourceArea, IObservable<IChatResource | undefined>>>;
+	private readonly _shown: IObservable<IChatResource | undefined>;
 
 	/**
 	 * @param container Receives the resource shown above the chat input as its first child, so it appears above the pills that the container also hosts.
 	 * @param chatElement The chat widget. Shown resources never grow past the top of the element that clips it, and are clipped to it.
-	 * @param recorded Resources recorded for the chat, such as files its agent added as artifacts.
+	 * @param recorded Files recorded for the chat, such as files its agent added as artifacts.
+	 * @param isPinned Whether the user pinned the entry of a resource into a pill of its own; only pinned resources open in the chat.
 	 */
 	constructor(
 		container: HTMLElement,
 		chatElement: HTMLElement,
 		sessionResource: IObservable<URI | undefined>,
 		recorded: IObservable<readonly IChatResource[]>,
+		isPinned: (id: string, reader: IReader) => boolean,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -92,23 +84,25 @@ export class ChatResourcesControl extends Disposable {
 		container.prepend(element);
 		this._register(toDisposable(() => element.remove()));
 
-		this._modeOverrides = observableValue(this, this._readModeOverrides());
-		this._configuredModes = observableConfigValue<Readonly<Record<string, unknown>> | undefined>(ChatResourceModesSettingId, undefined, configurationService);
+		this._opensInChat = observableValue(this, this._readOpensInChat());
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
-		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, this._observeRecordedExists(URI.parse(target), store)] as const);
-		const existingRecorded = derived(this, reader => {
+		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, this._observeExists(URI.parse(target), store)] as const);
+		this._resources = derived(this, reader => {
+			if (this._chatKey.read(reader) === undefined) {
+				return new Map();
+			}
 			const existence = new Map(recordedExistence.read(reader));
-			return recorded.read(reader).filter(resource => existence.get(resource.resource.toString())?.read(reader) ?? false);
+			return new Map(recorded.read(reader)
+				.filter(resource => existence.get(resource.resource.toString())?.read(reader) ?? false)
+				.map(resource => [resource.id, resource]));
 		});
-		this.resources = derived(this, reader => this._chatKey.read(reader) === undefined ? [] : existingRecorded.read(reader));
-		const shownIn = (area: ChatResourceArea) => derived(this, reader => {
+		this._shown = derived(this, reader => {
 			const chat = this._chatKey.read(reader);
-			const selected = chat === undefined ? undefined : this._selection.read(reader).get(`${chat}\u0000${area}`);
-			return getShownChatResource(this.resources.read(reader).filter(resource => this.getMode(resource, reader) === area), selected);
+			const inChat = [...this._resources.read(reader).values()].filter(resource => isPinned(resource.id, reader) && this._opensInChatFor(resource.id, reader));
+			return getShownChatResource(inChat, chat === undefined ? undefined : this._selection.read(reader).get(chat));
 		});
-		this._shown = { embedded: shownIn('embedded') };
 
 		// The resource floats upwards from the pills, over the transcript and whatever else the chat's container shows above the
 		// input (such as the sessions list of an empty chat), so that container's top bounds it. It is looked up when measuring,
@@ -132,94 +126,97 @@ export class ChatResourcesControl extends Disposable {
 		this._register(toDisposable(() => layoutObserver.disconnect()));
 		this.height = height;
 
-		const renderArea = (area: ChatResourceArea, areaElement: HTMLElement, space: IObservable<number>) => {
-			const availableHeight = derived(this, reader => space.read(reader) - SHOWN_RESOURCE_CHROME_HEIGHT);
-			const shownList = derived(this, reader => {
-				const shown = this._shown[area].read(reader);
-				return shown ? [shown] : [];
-			});
-			const frames = mapObservableArrayCached(this, shownList, (resource, store) =>
-				store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, area, this._getSize(resource, area), this._getContentHeight(resource), availableHeight, getBoundary, {
-					openInEditor: () => this._openInEditor(resource, true),
-					// Closing hides the resource; its pill shows it again, like a tab.
-					close: () => this._select(area, null),
-				})), resource => `${resource.id}\u0000${resource.resource.toString()}`);
-			this._register(autorun(reader => {
-				dom.reset(areaElement, ...frames.read(reader).map(frame => frame.element));
-			}));
-		};
-		renderArea('embedded', element, availableSpace);
-
-		const withPills = derived(this, reader => this.resources.read(reader).filter(resource => this.getMode(resource, reader) !== 'none'));
-		this.pillSources = mapObservableArrayCached(this, withPills, (resource, store) => this._createPillSource(resource, store), resource => resource.id);
-	}
-
-	/** How the chat shows a resource: as the user chose for it, as configured for resources like it, or by its default. */
-	getMode(resource: IChatResource, reader: IReader | undefined): ChatResourceMode {
-		const chat = this._chatKey.read(reader);
-		const override = chat === undefined ? undefined : this._modeOverrides.read(reader)[chat]?.[resource.id];
-		return override ?? getConfiguredChatResourceMode(this._configuredModes.read(reader), resource.resource) ?? resource.defaultMode;
-	}
-
-	/** Pins a listed resource: gives it a pill of its own, whose context menu offers to show it in the chat. */
-	getPinAction(resource: IChatResource): IAction {
-		return withChatPillHoverLabel(toAction({
-			id: 'chatResources.pin',
-			label: localize('chatResources.pin', "Pin {0}", resource.label),
-			class: ThemeIcon.asClassName(Codicon.pin),
-			run: () => this._setMode(resource, 'pinned'),
-		}), localize('chatResources.pinHoverLabel', "Pin"));
-	}
-
-	/** The context menu of a resource's pill: where the chat shows it, as a choice of one, and unpinning it. */
-	private _getPillContextMenuActions(resource: IChatResource): IAction[] {
-		const mode = this.getMode(resource, undefined);
-		const showAction = (target: Exclude<ChatResourceMode, 'none'>, label: string) => toAction({
-			id: `chatResources.mode.${target}`,
-			label,
-			checked: mode === target,
-			run: () => {
-				this._setMode(resource, target);
-				// Choosing the area again shows the resource there, for example while it is hidden or open in an editor.
-				if (target === 'embedded') {
-					this._select(target, resource.id);
-				}
-			},
+		const availableHeight = derived(this, reader => availableSpace.read(reader) - SHOWN_RESOURCE_CHROME_HEIGHT);
+		const shownList = derived(this, reader => {
+			const shown = this._shown.read(reader);
+			return shown ? [shown] : [];
 		});
-		return [
-			toAction({
+		const frames = mapObservableArrayCached(this, shownList, (resource, store) =>
+			store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, this._getSize(resource), this._getContentHeight(resource), availableHeight, getBoundary, {
+				openInEditor: () => this._openInEditor(resource),
+				// Closing hides the resource; its pill shows it again, like a tab.
+				close: () => this._select(null),
+			})), resource => `${resource.id}\u0000${resource.resource.toString()}`);
+		this._register(autorun(reader => {
+			dom.reset(element, ...frames.read(reader).map(frame => frame.element));
+		}));
+	}
+
+	/**
+	 * Decorates the entry of a pill of its own (see {@link IStandardChatInputPillSections.presentOwnPill}) that stands for one
+	 * of the chat's files: its context menu offers where the pill opens the file, and a pill that opens it in the chat shows
+	 * and hides it there.
+	 */
+	presentOwnPill(entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader): IChatPillEntry {
+		const resource = this._resources.read(reader).get(entry.id);
+		if (!resource) {
+			return entry;
+		}
+		const inChat = context.pinned && this._opensInChatFor(entry.id, reader);
+		const shown = inChat && this._shown.read(reader)?.id === entry.id;
+		const choices = [
+			withChatPillHoverLabel(toAction({
 				id: 'chatResources.openInEditor',
 				label: localize('chatResources.openInEditor', "Open in Editor"),
-				run: () => this._openInEditor(resource, true),
-			}),
-			new Separator(),
-			showAction('embedded', localize('chatResources.showAboveInput', "Show Above Chat Input")),
-			showAction('pinned', localize('chatResources.showOnlyAsPill', "Show Only as Pill")),
-			new Separator(),
-			toAction({
-				id: 'chatResources.unpin',
-				label: localize('chatResources.unpin', "Unpin"),
-				run: () => this._setMode(resource, 'none'),
-			}),
+				class: ThemeIcon.asClassName(Codicon.goToFile),
+				checked: !inChat,
+				run: () => {
+					this._setOpensInChat(entry.id, false);
+					this._openInEditor(resource);
+				},
+			}), localize('chatResources.openInEditorHoverLabel', "Editor")),
+			withChatPillHoverLabel(toAction({
+				id: 'chatResources.showAboveInput',
+				label: localize('chatResources.showAboveInput', "Show Above Chat Input"),
+				class: ThemeIcon.asClassName(Codicon.layoutPanel),
+				checked: inChat,
+				run: () => {
+					// Only pinned entries open in the chat, so that the file keeps its pill when the chat records more.
+					context.pin();
+					this._setOpensInChat(entry.id, true);
+					this._select(entry.id);
+				},
+			}), localize('chatResources.showAboveInputHoverLabel', "Chat")),
 		];
+		return {
+			...entry,
+			hoverActions: [...entry.hoverActions ?? [], ...choices],
+			...(inChat ? {
+				checked: shown,
+				tooltip: shown ? localize('chatResources.hide', "Hide {0}", resource.label) : localize('chatResources.show', "Show {0}", resource.label),
+				open: () => this._select(this._shown.get()?.id === entry.id ? null : entry.id),
+			} : {}),
+		};
 	}
 
-	private _setMode(resource: IChatResource, mode: ChatResourceMode): void {
+	private _opensInChatFor(id: string, reader: IReader | undefined): boolean {
+		const chat = this._chatKey.read(reader);
+		return chat !== undefined && (this._opensInChat.read(reader)[chat]?.includes(id) ?? false);
+	}
+
+	private _setOpensInChat(id: string, opensInChat: boolean): void {
 		const chat = this._chatKey.get();
 		if (chat === undefined) {
 			return;
 		}
-		const overrides = this._modeOverrides.get();
-		this._modeOverrides.set({ ...overrides, [chat]: { ...overrides[chat], [resource.id]: mode } }, undefined);
-		this._storageService.store(MODE_OVERRIDES_STORAGE_KEY, JSON.stringify(this._modeOverrides.get()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const all = this._opensInChat.get();
+		const ids = (all[chat] ?? []).filter(candidate => candidate !== id);
+		const next: Record<string, readonly string[]> = { ...all, [chat]: opensInChat ? [...ids, id] : ids };
+		if (next[chat].length === 0) {
+			delete next[chat];
+		}
+		this._opensInChat.set(next, undefined);
+		this._storageService.store(OPENS_IN_CHAT_STORAGE_KEY, JSON.stringify(next), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private _readModeOverrides(): Record<string, Record<string, ChatResourceMode>> {
+	private _readOpensInChat(): Record<string, readonly string[]> {
 		try {
-			const value: unknown = JSON.parse(this._storageService.get(MODE_OVERRIDES_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
-			const result: Record<string, Record<string, ChatResourceMode>> = {};
-			for (const [chat, modes] of Object.entries(value && typeof value === 'object' ? value : {})) {
-				result[chat] = Object.fromEntries(Object.entries(modes && typeof modes === 'object' ? modes : {}).filter((entry): entry is [string, ChatResourceMode] => isChatResourceMode(entry[1])));
+			const value: unknown = JSON.parse(this._storageService.get(OPENS_IN_CHAT_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
+			const result: Record<string, readonly string[]> = {};
+			for (const [chat, ids] of Object.entries(value && typeof value === 'object' ? value : {})) {
+				if (Array.isArray(ids)) {
+					result[chat] = ids.filter((id): id is string => typeof id === 'string');
+				}
 			}
 			return result;
 		} catch {
@@ -227,56 +224,23 @@ export class ChatResourcesControl extends Disposable {
 		}
 	}
 
-	private _select(area: ChatResourceArea, id: string | null): void {
+	private _select(id: string | null): void {
 		const chat = this._chatKey.get();
 		if (chat !== undefined) {
-			this._selection.set(new Map(this._selection.get()).set(`${chat}\u0000${area}`, id), undefined);
+			this._selection.set(new Map(this._selection.get()).set(chat, id), undefined);
 		}
 	}
 
-	/** The area that shows the resource when it is selected, if its mode has one. */
-	private _getArea(resource: IChatResource, reader: IReader | undefined): ChatResourceArea | undefined {
-		const mode = this.getMode(resource, reader);
-		return mode === 'embedded' ? mode : undefined;
-	}
-
-	private _isShown(resource: IChatResource, reader: IReader | undefined): boolean {
-		const area = this._getArea(resource, reader);
-		return !!area && this._shown[area].read(reader)?.id === resource.id;
-	}
-
-	/** Whether an editor shows the resource. */
-	private _isOpenInEditor(resource: IChatResource): boolean {
-		return this._editorService.editors.some(editor => isEqual(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource.resource));
-	}
-
-	/**
-	 * Opens the resource in an editor, or reveals the editor that shows it.
-	 * @param pinned Whether to keep the editor open rather than letting the next opened editor replace it, as when moving the
-	 * embedded resource to an editor.
-	 */
-	private _openInEditor(resource: IChatResource, pinned = false): void {
-		const area = this._getArea(resource, undefined);
-		if (area && this._isShown(resource, undefined)) {
-			this._select(area, null);
+	/** Opens the resource in an editor, or reveals the editor that shows it, and hides it in the chat. */
+	private _openInEditor(resource: IChatResource): void {
+		if (this._shown.get()?.id === resource.id) {
+			this._select(null);
 		}
-		const options = { pinned };
-		this._editorService.openEditor({ resource: resource.resource, options }).catch(error => this._notificationService.error(error));
+		this._editorService.openEditor({ resource: resource.resource, options: { pinned: true } }).catch(error => this._notificationService.error(error));
 	}
 
-	private _onDidClickPill(resource: IChatResource): void {
-		const area = this._getArea(resource, undefined);
-		const shown = this._isShown(resource, undefined);
-		if (!area || (!shown && this._isOpenInEditor(resource))) {
-			// Opening an open resource reveals its editor.
-			this._openInEditor(resource);
-			return;
-		}
-		this._select(area, shown ? null : resource.id);
-	}
-
-	private _getSize(resource: IChatResource, area: ChatResourceArea): ISettableObservable<IChatEmbeddedResourceSize> {
-		const key = `${this._chatKey.get()}\u0000${area}\u0000${resource.id}`;
+	private _getSize(resource: IChatResource): ISettableObservable<IChatEmbeddedResourceSize> {
+		const key = `${this._chatKey.get()}\u0000${resource.id}`;
 		let size = this._sizes.get(key);
 		if (!size) {
 			size = observableValue(this, defaultChatEmbeddedResourceSize);
@@ -295,41 +259,11 @@ export class ChatResourcesControl extends Disposable {
 		return contentHeight;
 	}
 
-	private _createPillSource(resource: IChatResource, store: DisposableStore): IChatInputPillSource {
-		const action = store.add(new Action(
-			`chatResources.pill.${resource.id}`,
-			resource.label,
-			ThemeIcon.asClassName(resource.icon ?? Codicon.file),
-			true,
-			async () => this._onDidClickPill(resource),
-		));
-		store.add(autorun(reader => {
-			const hasArea = !!this._getArea(resource, reader);
-			const shown = this._isShown(resource, reader);
-			action.checked = shown;
-			action.tooltip = !hasArea
-				? localize('chatResources.open', "Open {0}", resource.label)
-				: shown
-					? localize('chatResources.hide', "Hide {0}", resource.label)
-					: localize('chatResources.show', "Show {0}", resource.label);
-		}));
-		const pill: IChatPill = {
-			action,
-			createActionViewItem: (options: IActionViewItemOptions) => new ChatResourcePillViewItem(undefined, action, options),
-		};
-		return {
-			hasData: constObservable(true),
-			pills: constObservable([pill]),
-			offersPillContextMenu: true,
-			getContextMenuPrimaryActions: () => this._getPillContextMenuActions(resource),
-		};
-	}
-
 	/**
-	 * Whether a recorded resource exists. Resources no file system provides, such as settings, always do, because nothing can
-	 * tell whether they exist.
+	 * Whether a recorded file exists. Resources no file system provides always do, because nothing can tell whether they
+	 * exist.
 	 */
-	private _observeRecordedExists(resource: URI, store: DisposableStore): IObservable<boolean> {
+	private _observeExists(resource: URI, store: DisposableStore): IObservable<boolean> {
 		const exists = observableValue(this, false);
 		let version = 0;
 		const refresh = async () => {
@@ -363,9 +297,9 @@ export class ChatResourcesControl extends Disposable {
 }
 
 /**
- * The resource an area of the chat shows, of the resources in that area. Until the user chooses one, the area shows its first
- * resource; afterwards only the chosen one, so the area does not show another one when the chosen one leaves it.
- * @param selected The id of the chosen resource, `null` when the user hid the area, `undefined` before the user chose.
+ * The resource the chat shows, of the resources that open in the chat. Until the user chooses one, the chat shows the first
+ * one; afterwards only the chosen one, so the chat does not show another one when the chosen one stops opening in the chat.
+ * @param selected The ID of the chosen resource, `null` when the user hid it, `undefined` before the user chose.
  */
 export function getShownChatResource<T extends { readonly id: string }>(resources: readonly T[], selected: string | null | undefined): T | undefined {
 	if (selected === undefined) {
@@ -382,19 +316,6 @@ function findClippingAncestor(element: HTMLElement): HTMLElement {
 		}
 	}
 	return element;
-}
-
-/** Shows on its pill whether a resource is shown above the chat input. */
-class ChatResourcePillViewItem extends ChatPillActionViewItem {
-	override render(container: HTMLElement): void {
-		super.render(container);
-		this.updateChecked();
-	}
-
-	protected override updateChecked(): void {
-		this.element?.classList.toggle('chat-resource-pill-shown', !!this.action.checked);
-		this.buttonElement?.setAttribute('aria-pressed', String(!!this.action.checked));
-	}
 }
 
 /** How long the content height must stay unchanged after the content is shown before the view follows it. */
@@ -418,7 +339,6 @@ class ChatShownResourceFrame extends Disposable {
 	private readonly _body: HTMLElement;
 	constructor(
 		private readonly _resource: IChatResource,
-		area: ChatResourceArea,
 		private readonly _size: ISettableObservable<IChatEmbeddedResourceSize>,
 		private readonly _contentHeight: ISettableObservable<number | undefined>,
 		availableHeight: IObservable<number>,

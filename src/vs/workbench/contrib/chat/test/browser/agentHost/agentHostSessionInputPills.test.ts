@@ -38,6 +38,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatResourcesEnabledSettingId } from '../../../browser/chatResources/chatResources.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -373,6 +374,7 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetRegistrations = 0;
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			domNode: persistentContent,
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -645,7 +647,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	}
 
-	test('chat resources include files recorded as resources, but not resources that are no files', async () => {
+	test('pinned pills of files, including files recorded as resources, can show them above the chat input', async () => {
 		const configurationService = new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true });
 		const harness = createActivityPills(upcastPartial<SessionState>({
 			defaultChat: 'vendor-chat:/main', chats: [],
@@ -655,15 +657,32 @@ suite('AgentHostSessionInputPills', () => {
 				{ id: 'settings', label: 'Chat settings', uri: 'vscode://settings/chat', type: SessionArtifactType.Resource, isArtifact: true },
 			]),
 		}), undefined, undefined, 'local', undefined, undefined, { configurationService });
+		// The shown file renders only its frame: rendering an editor is not what this test is about.
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: () => Promise.reject(new Error('unreadable')) }));
+		await timeout(0);
+		for (const item of harness.dropdown('3 Artifacts')) {
+			await item.toolbarActions?.find(action => action.label.startsWith('Pin '))?.run();
+		}
+		await timeout(0);
+		const pinnedPills = () => [...harness.persistentContent.querySelectorAll<HTMLElement>('.chat-pill-item')];
+		const choices = () => pinnedPills().map(pill => [pill.textContent, harness.menu(pill).filter(action => action.id.startsWith('chatResources.')).map(action => `${action.label}${action.checked ? ' (checked)' : ''}`)]);
+		const before = choices();
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'Status'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		const pressed = () => pinnedPills().filter(pill => pill.classList.contains('chat-pill-checked')).map(pill => pill.textContent);
 
-		const pinActions = harness.dropdown('3 Artifacts').filter(item => item.toolbarActions?.length).map(item => `${item.label}: ${item.toolbarActions.filter(action => action.label.startsWith('Pin ')).map(action => action.id).join(', ')}`);
-
-		// The chat's own pin, which offers to show the file in the chat, replaces the generic pin of the Artifacts list.
-		assert.deepStrictEqual(pinActions, [
-			'plan.md: chatResources.pin',
-			'Chat settings: chatInputPills.artifacts.pin.settings',
-			'Status: chatResources.pin',
-		]);
+		assert.deepStrictEqual({ before, after: choices(), pressed: pressed() }, {
+			before: [
+				['plan.md', ['Open in Editor (checked)', 'Show Above Chat Input']],
+				['Chat settings', []],
+				['Status', ['Open in Editor (checked)', 'Show Above Chat Input']],
+			],
+			after: [
+				['plan.md', ['Open in Editor (checked)', 'Show Above Chat Input']],
+				['Chat settings', []],
+				['Status', ['Open in Editor', 'Show Above Chat Input (checked)']],
+			],
+			pressed: ['Status'],
+		});
 	});
 
 	test('legacy artifact rules join the editor pill only when their setting is enabled', async () => {
