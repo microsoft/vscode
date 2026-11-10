@@ -150,8 +150,8 @@ suite('AgentsBanner', () => {
 		});
 	});
 
-	for (const sentiment of [{ hidden: true }, { disabled: true }]) {
-		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled'}`, async () => {
+	for (const sentiment of [{ hidden: true }, { disabled: true, disabledInWorkspace: true }]) {
+		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled in the workspace'}`, async () => {
 			const banner = createBanner(account, { sentiment });
 			const states = [banner.visibility().display];
 			await banner.setAgentEnabled(false);
@@ -165,6 +165,22 @@ suite('AgentsBanner', () => {
 			assert.deepStrictEqual(states, ['none', 'none', '', 'none']);
 		});
 	}
+
+	test('shows the sign-in action when the chat extension is disabled until setup completes', async () => {
+		const banner = createBanner(null, { sentiment: { installed: true, disabled: true } });
+		await Promise.resolve();
+		banner.button.click();
+
+		assert.deepStrictEqual({
+			display: banner.visibility().display,
+			label: banner.state().label,
+			signInCalls: banner.state().signInCalls,
+		}, {
+			display: '',
+			label: 'Sign in to GitHub',
+			signInCalls: 1,
+		});
+	});
 
 	test('does not offer sign-in when agent mode is disabled', async () => {
 		const banner = createBanner(null, {

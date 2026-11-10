@@ -38,10 +38,14 @@ export interface IAgentsBannerResult {
 	readonly visible: IObservable<boolean>;
 }
 
-/** Returns whether the desktop Agents window is available and agent mode and AI features are enabled. */
+/**
+ * Returns whether the desktop Agents window is available and agent mode and AI features are enabled.
+ * Matches `OPEN_AGENTS_WINDOW_PRECONDITION`: the banner is not hidden when the chat extension is
+ * merely disabled, because new profiles keep it disabled until chat setup completes.
+ */
 export function canShowAgentsBanner(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
 	const sentiment = chatEntitlementService.sentiment;
-	if (sentiment.hidden || sentiment.disabled || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+	if (sentiment.hidden || sentiment.disabledInWorkspace || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 		return false;
 	}
 	return !!CommandsRegistry.getCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID);
