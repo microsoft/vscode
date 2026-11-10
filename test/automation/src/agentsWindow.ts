@@ -365,19 +365,30 @@ export class AgentsWindow {
 
 	private async selectLocalEnvironment(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
 		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
+		// A window opened with a folder can start on Cloud and switch to This Computer by itself once the local
+		// provider registers. That re-renders the picker and closes its list, so a click into the list can miss; retry
+		// with a short timeout until the environment is no longer Cloud.
 		while (await cloudEnvironment.isVisible()) {
-			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
-			if (await localEnvironment.isVisible()) {
-				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
-				return;
-			}
-			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error(`Timed out waiting for This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 5_000 });
+					return;
+				}
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}
