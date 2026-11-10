@@ -43,6 +43,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -219,6 +220,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		let settingAgentInternally = false;
@@ -251,7 +253,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				}
 				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource);
 				return widget?.visible ? [widget] : [];
-			})));
+			}), productService));
 		}
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();
