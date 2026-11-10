@@ -14,6 +14,7 @@ import { MissionControlEnvironment } from './missionControl/missionControlEnviro
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -41,11 +42,16 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._missionControl = service;
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		if (!this._missionControl) {
-			throw new Error('Mission Control is unavailable in this Agent Host');
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
+		try {
+			if (!this._missionControl) {
+				throw new Error('Mission Control is unavailable in this Agent Host');
+			}
+			await this._missionControl.configure(options, withdrawingAccountId);
+		} catch (error) {
+			this._logService.error('GitHub environment configuration failed', error);
+			return { error: getConnectionDiagnosticError(error) };
 		}
-		return this._missionControl.configure(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

@@ -17,6 +17,7 @@ import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, toMissionControlSocket, type IMissionControlRelayRecovery, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
@@ -25,7 +26,8 @@ import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '.
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -38,7 +40,11 @@ import { basename } from '../../../../base/common/resources.js';
 import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
 import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
-import type { IMissionControlOptions } from '../../common/agentService.js';
+import { IAgentService, IConnectionTrackerService, type IMissionControlOptions } from '../../common/agentService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -108,6 +114,41 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 
 suite('Mission Control WPS', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns structured configuration failures for Management IPC without losing their original causes', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(IAgentHostSystemWakeService, new class extends mock<IAgentHostSystemWakeService>() { }());
+		instantiation.stub(IAgentHostMacAccessibilityTrustService, new class extends mock<IAgentHostMacAccessibilityTrustService>() { }());
+		const management = instantiation.createInstance(AgentHostManagementService,
+			new class extends mock<IAgentService>() { }(),
+			new class extends mock<IConnectionTrackerService>() { }(),
+			async () => { },
+		);
+		const environment = store.add(new MissionControlEnvironment({
+			userDataPath: '/unused',
+			name: 'Test',
+			fetch,
+			attach: () => toDisposable(() => { }),
+			onError: () => { },
+		}));
+		management.setMissionControl(environment);
+		const failure = new Error('Socket error', {
+			cause: Object.assign(new Error('Network failed; token=private-token'), { code: 'ETIMEDOUT', status: 401 }),
+		});
+		const configure = sinon.stub(environment, 'configure').rejects(failure);
+		store.add(toDisposable(() => configure.restore()));
+		const result = await management.configureMissionControl(undefined, 'owner');
+		assert.deepStrictEqual(result, {
+			error: {
+				name: 'Error', message: 'Socket error', code: undefined, status: undefined, requestId: undefined,
+				cause: {
+					name: 'Error', message: 'Network failed; token=[redacted]', code: 'ETIMEDOUT', status: 401, requestId: undefined, cause: undefined,
+				},
+			},
+		});
+	});
 
 	function signingFixture(kid = 'test-key', owner = 'owner') {
 		const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -249,7 +290,7 @@ suite('Mission Control WPS', () => {
 		));
 		const ready = server.connect();
 		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
-		await assert.rejects(ready, /connection closed before joining/);
+		await assert.rejects(ready, /Mission Control WPS operation rejected/);
 		assert.deepStrictEqual({ closed: socket.closed, errors: errors.map(error => error.message) }, {
 			closed: true, errors: ['Mission Control WPS operation rejected'],
 		});
@@ -272,14 +313,14 @@ suite('Mission Control WPS', () => {
 		));
 		const ready = server.connect();
 		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
-		await assert.rejects(ready, /connection closed before joining/);
+		await assert.rejects(ready, /Access denied; token=\[redacted\]/);
 		send.restore();
 		const disconnected = store.add(new MissionControlProtocolServer(
 			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
 			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
 			() => new FakeWpsSocket(), error => errors.push(error.message),
 		));
-		const timedOut = assert.rejects(disconnected.connect(), /connection closed before joining/);
+		const timedOut = assert.rejects(disconnected.connect(), { message: 'Mission Control WPS acknowledgement timed out', code: 'ETIMEDOUT' });
 		await clock.tickAsync(30_000);
 		await timedOut;
 		assert.deepStrictEqual(errors, ['Mission Control WPS operation rejected: Access denied; token=[redacted]', 'Mission Control WPS acknowledgement timed out']);
@@ -321,6 +362,21 @@ suite('Mission Control WPS', () => {
 		socket.emit('close', 1006);
 		server.dispose();
 		assert.deepStrictEqual({ closed: socket.closed, errors }, { closed: true, errors: [failure] });
+	});
+
+	test('preserves the original network failure when relay startup fails', async () => {
+		const { key } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket,
+		));
+		const ready = server.connect();
+		const failure = Object.assign(new Error('Socket connection timed out'), { code: 'ETIMEDOUT' });
+		socket.emit('error', failure);
+		await assert.rejects(ready, error => error === failure);
+		assert.strictEqual(socket.closed, true);
 	});
 
 	test('does not report socket events after intentional disposal', async () => {
@@ -2255,7 +2311,7 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /connection closed before joining/);
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /Mission Control WPS operation rejected/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
 					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name },

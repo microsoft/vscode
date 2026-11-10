@@ -24,6 +24,7 @@ import { MissionControlProtocolServer, type IMissionControlRelayDetails, type IM
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MissionControlOwnerMismatchError } from '../../common/missionControlEnvironment.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -266,7 +267,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
-			throw new Error('Agent Host already belongs to another local account; restart the process to change owners');
+			throw new MissionControlOwnerMismatchError('Agent Host already belongs to another local account; restart the process to change owners');
 		}
 		const identityApiBase = this._getIdentityApiBase();
 		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
@@ -280,7 +281,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('GitHub identity authority changed during Mission Control configuration');
 		}
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
-			throw new Error('Credential does not match the Agent Host owner');
+			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
 		const roots = await Promise.all(options.roots.map(root => realpath(root)));
 		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
