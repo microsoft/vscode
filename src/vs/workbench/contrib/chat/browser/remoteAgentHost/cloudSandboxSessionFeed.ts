@@ -44,9 +44,12 @@ export class CloudSandboxSessionFeed extends Disposable {
 			this._resumeConnection = false;
 			void this._connect(true);
 		}
+<<<<<<< HEAD
 		if (this._taskIds.size || this._refreshReason) {
 			this._refresh.schedule();
 		}
+=======
+>>>>>>> 123afb66a03 ([Perf] chat: backport suspend-aware cloud feeds to 1.146 (#347226))
 	}, reconnectPolicy.initialDelayMs));
 	private readonly _refresh = this._register(new RunOnceScheduler(() => {
 		const reason = this._refreshReason;
@@ -95,7 +98,15 @@ export class CloudSandboxSessionFeed extends Disposable {
 		this._register(this._powerService.onDidResume(() => {
 			if (this._suspended) {
 				this._suspended = false;
+<<<<<<< HEAD
 				this._resume.schedule(Math.max(computeReconnectDelay(reconnectPolicy, 1), this._retryNotBefore - Date.now()));
+=======
+				const delay = computeReconnectDelay(reconnectPolicy, 1);
+				this._resume.schedule(Math.max(delay, this._retryNotBefore - Date.now()));
+				if (this._taskIds.size || this._refreshReason) {
+					this._refresh.schedule(delay);
+				}
+>>>>>>> 123afb66a03 ([Perf] chat: backport suspend-aware cloud feeds to 1.146 (#347226))
 			}
 		}));
 		this._register(toDisposable(() => {

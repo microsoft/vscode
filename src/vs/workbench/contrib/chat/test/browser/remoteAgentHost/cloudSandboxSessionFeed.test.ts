@@ -843,6 +843,37 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+<<<<<<< HEAD
+=======
+	test('resume delivers buffered hints before an outstanding feed retry deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, {
+			connect: async () => {
+				if (++attempts === 2) {
+					throw new CloudSandboxRequestError(503, 'Unavailable', 600);
+				}
+				return connection();
+			},
+		});
+		await h.feed.start();
+		await timeout(8 * 60_000 - 100);
+		h.sockets[0].receive(changed('one'));
+		await timeout(101);
+		h.suspend.fire();
+		await timeout(1_000);
+		h.resume.fire();
+		await timeout(1_501);
+		const beforeRetry = { requests: h.requests.length, reasons: [...h.reasons], taskBatches: [...h.taskBatches] };
+		await timeout(600_000);
+		assert.deepStrictEqual({
+			beforeRetry, requests: h.requests.length, reasons: h.reasons, taskBatches: h.taskBatches, connected: h.feed.connected,
+		}, {
+			beforeRetry: { requests: 2, reasons: ['change'], taskBatches: [['one']] },
+			requests: 3, reasons: ['change', 'reconnect'], taskBatches: [['one'], undefined], connected: true,
+		});
+	}));
+
+>>>>>>> 123afb66a03 ([Perf] chat: backport suspend-aware cloud feeds to 1.146 (#347226))
 	test('a second suspend cancels scheduled wake recovery until the next resume', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
