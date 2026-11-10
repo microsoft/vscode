@@ -31,7 +31,7 @@
 	min-height: 75px;
 	padding: 8px;
 	transform: translate3d(0px, 0px, 0px);
-	border-radius: var(--workbench-custom-dialogs-corner-radius, var(--vscode-cornerRadius-xLarge));
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	box-shadow: var(--vscode-shadow-xl);
 }
 
@@ -243,7 +243,7 @@
 	outline-width: 1px;
 	outline-style: solid;
 	outline-color: var(--vscode-focusBorder);
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 }
 
 

@@ -105,7 +105,7 @@
 	padding: 4px 6px;
 	font-size: 11px;
 	line-height: 14px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 }
 
 .plan-review-feedback-overlay-widget .monaco-action-bar .actions-container {

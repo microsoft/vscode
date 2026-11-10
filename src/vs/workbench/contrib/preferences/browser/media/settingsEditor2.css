@@ -663,7 +663,7 @@
 	height: 18px;
 	width: 18px;
 	border: 1px solid transparent;
-	border-radius: var(--workbench-custom-controls-corner-radius, 3px);
+	border-radius: 3px;
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;

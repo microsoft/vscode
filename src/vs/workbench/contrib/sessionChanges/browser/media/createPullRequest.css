@@ -141,7 +141,7 @@
 
 .create-pull-request-widget .monaco-inputbox {
 	width: 100%;
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .create-pull-request-widget .monaco-inputbox > .ibwrapper > .input {

@@ -189,7 +189,7 @@
 	height: 100%;
 	padding: 0;
 	border: none;
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
 	font-family: inherit;
@@ -219,7 +219,7 @@
 	width: var(--vscode-spacing-size200);
 	height: var(--vscode-spacing-size200);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 }
 

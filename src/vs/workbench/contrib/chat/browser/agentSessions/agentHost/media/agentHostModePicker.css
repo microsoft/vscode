@@ -131,7 +131,7 @@
 	display: flex;
 	height: var(--chat-input-control-height);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow: visible;
 	background: transparent;
 	color: var(--vscode-icon-foreground);

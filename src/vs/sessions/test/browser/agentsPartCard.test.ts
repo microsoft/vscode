@@ -65,10 +65,10 @@ suite('Sessions - Agents Part Card', () => {
 			const configuration = new TestConfigurationService({
 				[SIZE_CUSTOMIZATIONS_SETTING]: {
 					'panels.cornerRadius': 3,
+					'agentsWindow.panels.cornerRadius': 7,
 					'agentsWindow.toolsPanel.cornerRadius': 1,
 					'agentsWindow.chatPanels.cornerRadius': 2,
 					'agentsWindow.editorArea.cornerRadius': 4,
-					'pages.cornerRadius': 5,
 					'agentsWindow.secondarySideBar.cornerRadius': 6,
 				},
 			});
@@ -94,7 +94,7 @@ suite('Sessions - Agents Part Card', () => {
 				: [
 					['2px', '2px', '2px', '2px'],
 					['1px', '1px', '1px', '1px'],
-					['5px', '5px', '5px', '5px'],
+					['7px', '7px', '7px', '7px'],
 					['4px', '0px', '0px', '4px'],
 					['0px', '6px', '6px', '0px'],
 					['1px', '1px', '1px', '1px'],
@@ -239,7 +239,10 @@ suite('Sessions - Agents Part Card', () => {
 			];
 			const readGrip = (sash: HTMLElement) => {
 				const style = mainWindow.getComputedStyle(sash, '::after');
-				return { content: style.content, background: style.backgroundColor, color: style.color, opacity: style.opacity };
+				return {
+					content: style.content, background: style.backgroundColor, color: style.color, opacity: style.opacity,
+					size: [style.width, style.height], shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim(),
+				};
 			};
 
 			for (const colors of [{}, { [MODERN_SASH_GRIP_FOREGROUND]: '#12345680' }]) {
@@ -247,9 +250,13 @@ suite('Sessions - Agents Part Card', () => {
 				themeStyle.textContent = generateColorThemeCSS(theme, '.sash-grip-test-theme').code;
 				const color = mainWindow.getComputedStyle(container).color;
 
-				assert.deepStrictEqual(sashes.map(readGrip), sashes.map(() => ({
-					content: '""', background: color, color, opacity: '1',
-				})));
+				for (const gap of [0, 1, 4, 8, 16]) {
+					container.style.setProperty('--vscode-agentsWindow-panels-spacing', `${gap}px`);
+					assert.deepStrictEqual(sashes.map(readGrip), sashes.map(sash => ({
+						content: '""', background: color, color, opacity: '1', size: ['2px', '2px'],
+						shadow: sash.classList.contains('vertical') ? '0px -4px 0px 0px, 0px 4px 0px 0px' : '-4px 0px 0px 0px, 4px 0px 0px 0px',
+					})));
+				}
 
 				for (const state of ['hover', 'active']) {
 					sashes.forEach(sash => sash.classList.add(state));
@@ -820,7 +827,7 @@ suite('Sessions - Agents Part Card', () => {
 		});
 
 		assert.deepStrictEqual(actual, [
-			{ frameWidth: '1px', viewInset: '0 1 1 1', cornerRadius: '6px' },
+			{ frameWidth: '1px', viewInset: '0 1 1 1', cornerRadius: '7px' },
 			{ frameWidth: '1px 0px 0px 1px', viewInset: '0 0 0 1', cornerRadius: '0px' },
 		]);
 	});

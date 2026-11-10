@@ -6,7 +6,6 @@
 
 .monaco-findInput {
 	position: relative;
-	border-radius: var(--workbench-custom-inputs-corner-radius, 0px);
 }
 
 .monaco-findInput .monaco-inputbox {

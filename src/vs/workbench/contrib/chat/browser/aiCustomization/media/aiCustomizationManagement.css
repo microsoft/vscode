@@ -987,7 +987,7 @@ per-word capitalization does not survive translation. */
 	padding: 0;
 	align-items: center;
 	justify-content: center;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Highlighted matches */
@@ -1038,7 +1038,7 @@ per-word capitalization does not survive translation. */
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-sizeNone);
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ai-customization-list-widget .section-title-header .section-title-back-slot,
@@ -1982,7 +1982,7 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size120);
 	width: 100%;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	text-align: left;
 }
 
@@ -2197,7 +2197,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button-dropdown:focus-within {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button-dropdown > .monaco-button:focus {
@@ -3017,7 +3017,7 @@ per-word capitalization does not survive translation. */
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-label1);
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .mcp-server-item .mcp-server-sign-in.monaco-button:hover,
@@ -3329,7 +3329,7 @@ per-word capitalization does not survive translation. */
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	border-color: transparent;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -3349,7 +3349,7 @@ per-word capitalization does not survive translation. */
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	border-color: transparent;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -3711,7 +3711,7 @@ per-word capitalization does not survive translation. */
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	border-color: transparent;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -3738,7 +3738,7 @@ per-word capitalization does not survive translation. */
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: var(--vscode-foreground);
 	border-color: transparent;

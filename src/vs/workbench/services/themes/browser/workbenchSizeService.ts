@@ -42,23 +42,6 @@ export class WorkbenchSizeService extends Disposable implements ISizeService {
 		return getSizeRegistry().resolveSize(id, theme, this.customizations);
 	}
 
-	isCustomized(id: SizeIdentifier): boolean {
-		const sizes = getSizeRegistry().getSizes();
-		const visited = new Set<SizeIdentifier>();
-		while (!visited.has(id)) {
-			visited.add(id);
-			if (Object.hasOwn(this.customizations, id)) {
-				return true;
-			}
-			const defaults = sizes.find(size => size.id === id)?.defaults;
-			if (typeof defaults !== 'string') {
-				break;
-			}
-			id = defaults;
-		}
-		return false;
-	}
-
 	private update(): void {
 		this.customizations = Object.create(null);
 		const value = this.configurationService.getValue<unknown>(SIZE_CUSTOMIZATIONS_SETTING);

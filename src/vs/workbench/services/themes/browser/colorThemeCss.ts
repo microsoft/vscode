@@ -5,7 +5,7 @@
 
 import { IColorTheme, ICssStyleCollector, IThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariableName as asSizeCssVariableName, buttonsCornerRadius, controlsCornerRadius, dialogsCornerRadius, getSizeRegistry, hoversCornerRadius, inputsCornerRadius, menusCornerRadius, popupsCornerRadius, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
+import { asCssVariableName as asSizeCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 
@@ -58,21 +58,6 @@ export function generateColorThemeCSS(
 		const sizeValue = sizeService ? sizeService.getSize(item.id, theme) : getSizeRegistry().resolveDefaultSize(item.id, theme);
 		if (sizeValue) {
 			variables.push(`${asSizeCssVariableName(item.id)}: ${sizeValueToCss(sizeValue)};`);
-		}
-	}
-
-	// Only customized widget families override existing, context-specific default shapes.
-	for (const [id, property] of [
-		[controlsCornerRadius, '--workbench-custom-controls-corner-radius'],
-		[buttonsCornerRadius, '--workbench-custom-buttons-corner-radius'],
-		[inputsCornerRadius, '--workbench-custom-inputs-corner-radius'],
-		[popupsCornerRadius, '--workbench-custom-popups-corner-radius'],
-		[menusCornerRadius, '--workbench-custom-menus-corner-radius'],
-		[hoversCornerRadius, '--workbench-custom-hovers-corner-radius'],
-		[dialogsCornerRadius, '--workbench-custom-dialogs-corner-radius'],
-	]) {
-		if (sizeService?.isCustomized(id)) {
-			variables.push(`${property}: var(${asSizeCssVariableName(id)});`);
 		}
 	}
 

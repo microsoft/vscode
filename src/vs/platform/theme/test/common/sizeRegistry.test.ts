@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable, defaultCornerRadius, panelsCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius, activityBarCornerRadius } from '../../common/sizeRegistry.js';
+import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable, panelsCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius, activityBarCornerRadius } from '../../common/sizeRegistry.js';
 import { TestColorTheme } from './testThemeService.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ColorScheme } from '../../common/theme.js';
@@ -19,22 +19,22 @@ suite('Size Registry', () => {
 	test('resolves primitive, role and component sizes in specificity order', () => {
 		const registry = getSizeRegistry();
 		const theme = new TestColorTheme();
-		const tokens = [cornerRadiusLarge, defaultCornerRadius, panelsCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius, activityBarCornerRadius];
+		const tokens = [cornerRadiusLarge, panelsCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius, activityBarCornerRadius];
 		const resolve = (customizations: Record<string, number>) => tokens.map(id => registry.resolveSize(id, theme, customizations)?.value);
 		assert.deepStrictEqual({
 			defaults: resolve({}),
-			surface: resolve({ 'default.cornerRadius': 6 }),
-			part: resolve({ 'default.cornerRadius': 6, 'panels.cornerRadius': 4 }),
+			panels: resolve({ 'panels.cornerRadius': 6 }),
 			component: resolve({ 'panels.cornerRadius': 4, 'primarySideBar.cornerRadius': 2 }),
 			rail: resolve({ 'primarySideBar.cornerRadius': 2, 'activityBar.cornerRadius': 0 }),
 			primitiveOverrideIgnored: resolve({ 'cornerRadius.large': 0 }),
+			removedDefaultIgnored: resolve({ 'default.cornerRadius': 0 }),
 		}, {
-			defaults: [8, 8, 8, 8, 8, 8],
-			surface: [8, 6, 6, 6, 6, 6],
-			part: [8, 6, 4, 4, 4, 4],
-			component: [8, 8, 4, 4, 2, 2],
-			rail: [8, 8, 8, 8, 2, 0],
-			primitiveOverrideIgnored: [8, 8, 8, 8, 8, 8],
+			defaults: [8, 8, 8, 8, 8],
+			panels: [8, 6, 6, 6, 6],
+			component: [8, 4, 4, 2, 2],
+			rail: [8, 8, 8, 2, 0],
+			primitiveOverrideIgnored: [8, 8, 8, 8, 8],
+			removedDefaultIgnored: [8, 8, 8, 8, 8],
 		});
 	});
 
@@ -75,18 +75,9 @@ suite('Size Registry', () => {
 				'agentsWindow.panels.spacing',
 				'agentsWindow.secondarySideBar.cornerRadius',
 				'agentsWindow.toolsPanel.cornerRadius',
-				'buttons.cornerRadius',
-				'controls.cornerRadius',
-				'default.cornerRadius',
-				'dialogs.cornerRadius',
 				'editorArea.cornerRadius',
-				'hovers.cornerRadius',
-				'inputs.cornerRadius',
-				'menus.cornerRadius',
-				'pages.cornerRadius',
 				'panels.cornerRadius',
 				'panels.spacing',
-				'popups.cornerRadius',
 				'primarySideBar.cornerRadius',
 				'secondarySideBar.cornerRadius',
 				'toolsPanel.cornerRadius',

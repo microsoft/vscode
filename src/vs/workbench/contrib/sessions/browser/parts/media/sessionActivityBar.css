@@ -72,7 +72,7 @@
 	justify-content: center;
 	width: 100%;
 	height: var(--vscode-spacing-size120);
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: grab;
 	touch-action: none;
 }

@@ -32,6 +32,25 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 suite('Sessions - EditorPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('native canvas clipping follows the component editor radius inside the connected frame', () => {
+		const root = appendElement(mainWindow.document.body, `monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel ${AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS}`);
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px;';
+		const editor = appendElement(appendElement(root, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container');
+		const canvas = appendElement(appendElement(appendElement(group, 'session-canvas-editor'), 'browser-container-wrapper'), 'browser-container');
+		const results = [0, 1, 4, 8].map(radius => {
+			root.style.setProperty('--vscode-agentsWindow-editorArea-cornerRadius', `${radius}px`);
+			return {
+				frame: mainWindow.getComputedStyle(group, '::after').borderTopLeftRadius,
+				canvas: mainWindow.getComputedStyle(canvas).borderTopLeftRadius,
+			};
+		});
+		assert.deepStrictEqual(results, [0, 1, 4, 8].map(radius => ({
+			frame: `${Math.max(0, radius - 1)}px`, canvas: `${Math.max(0, radius - 2)}px`,
+		})));
+	});
+
 	test('only modern editor tabs change scrollbar placement and painted thickness', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
 		workbench.style.cssText = '--vscode-cornerRadius-circle: 9999px; --vscode-scrollbarSlider-background: #123456;';

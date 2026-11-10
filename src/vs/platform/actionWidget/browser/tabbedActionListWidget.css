@@ -170,7 +170,7 @@
 	width: auto;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	border: none;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .tabbed-action-list-details-header > .monaco-action-bar {

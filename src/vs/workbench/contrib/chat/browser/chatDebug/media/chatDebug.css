@@ -281,7 +281,7 @@
 	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 	cursor: pointer;
 	opacity: 0.7;
 	flex-shrink: 0;
@@ -482,7 +482,7 @@
 	font-size: 16px;
 	line-height: 1;
 	padding: 2px 6px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 	opacity: 0.7;
 }
 .chat-debug-detail-button.monaco-button:hover {
@@ -692,7 +692,7 @@
 .chat-debug-section-copy-btn.monaco-button {
 	flex-shrink: 0;
 	opacity: 0.7;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 3px);
+	border-radius: 3px;
 	padding: 2px;
 	background: none;
 	border: none;

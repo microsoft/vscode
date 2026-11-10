@@ -6,7 +6,7 @@
 .monaco-select-box-dropdown-container {
 	display: none;
 	box-sizing: border-box;
-	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
 }
 

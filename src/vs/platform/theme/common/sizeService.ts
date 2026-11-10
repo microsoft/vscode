@@ -16,6 +16,4 @@ export interface ISizeService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeSizes: Event<void>;
 	getSize(id: SizeIdentifier, theme: IColorTheme): SizeValue | undefined;
-	/** Whether this token or one of its inherited defaults has a valid user override. */
-	isCustomized(id: SizeIdentifier): boolean;
 }

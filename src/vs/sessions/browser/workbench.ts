@@ -1671,7 +1671,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this._register(autorun(reader => {
 				const value = size.read(reader);
 				this.sessionActivityBarSizeKey?.set(value);
-				column.setLayout(this._gridGutter(), this.isModernUICompact(), value);
+				column.setLayout(this.getPanelSpacing(), this.isModernUICompact(), value);
 			}));
 			viewMap[SessionActivityBarColumn.ID] = column;
 			this._register(registerSessionActivityBarExternalHost(this.mainContainer, column));
@@ -2155,7 +2155,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const gridGutterW = this._gridGutter();
 		const gridGutterH = gridGutterW;
-		this.sessionActivityBarColumn?.setLayout(gridGutterW, this.isModernUICompact(), this.sessionActivityBarSize?.get() ?? MenuActivityBarSize.Compact);
+		this.sessionActivityBarColumn?.setLayout(this.getPanelSpacing(), this.isModernUICompact(), this.sessionActivityBarSize?.get() ?? MenuActivityBarSize.Compact);
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH

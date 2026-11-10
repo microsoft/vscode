@@ -31,7 +31,7 @@
 	text-align: left;
 	justify-content: flex-start;
 	text-decoration: none;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	gap: 6px;
 	display: flex;

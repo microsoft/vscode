@@ -32,6 +32,9 @@ import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sess
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { agentsPanelsSpacing } from '../../../../platform/theme/common/sizeRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -69,8 +72,8 @@ const RESTORE_SESSION_TIMEOUT = 30_000;
  * (`SessionActivityBarColumn`): the gap between cards, none with compact layout density, which it keeps to the cards to
  * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
  */
-export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize): number {
-	return (compact ? 0 : AGENTS_FLOATING_PANEL_GAP) + MenuActivityBar.getWidth(compact, size);
+export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP): number {
+	return (compact ? 0 : gap) + MenuActivityBar.getWidth(compact, size);
 }
 
 /**
@@ -683,6 +686,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IStorageService storageService: IStorageService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 		this._composers = this._register(_instantiationService.createInstance(ChatWindowComposers, resource => this._waitForChat(resource).then(resolved => resolved?.session)));
@@ -723,9 +728,11 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
 		this._compact = derived(this, reader => density.read(reader) === ModernUIDensity.Compact);
 		this._stripSize = observeSessionActivityBarSize(this, storageService, this._register(new DisposableStore()));
+		const spacing = observableFromEvent(this, Event.any(sizeService.onDidChangeSizes, themeService.onDidColorThemeChange),
+			() => sizeService.getSize(agentsPanelsSpacing, themeService.getColorTheme())!.value);
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
-			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
+			gap: derived(reader => this._compact.read(reader) ? 0 : spacing.read(reader)),
 			// The cards keep the gap to the edges of the window as the main window's do; the title row spans the window at the top.
 			outerInsets: derived(reader => {
 				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
@@ -884,7 +891,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
 			// Right beside the cards, the gap to them in the column, as in the main window's column; see the grid.
-			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader))),
+			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader), this.look.gap.read(reader))),
 			layout: () => { },
 			dispose: () => registration.dispose(),
 		};

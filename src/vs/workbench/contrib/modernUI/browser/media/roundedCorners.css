@@ -31,20 +31,17 @@
 .modern-ui .monaco-inputbox,
 .modern-ui .monaco-findInput,
 .modern-ui .monaco-findInput .monaco-inputbox {
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .modern-ui .browser-root .browser-url-container {
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Select / dropdown controls */
-.modern-ui .monaco-select-box {
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-small));
-}
-
+.modern-ui .monaco-select-box,
 .modern-ui .monaco-select-box-dropdown-container {
-	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* List / tree rows (including the notification center list rows) */
@@ -58,10 +55,6 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.modern-ui .monaco-action-bar:not(.vertical) .action-label {
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
-}
-
 /*
  * Split buttons (dropdown action items — e.g. the extension list/editor
  * "Install"/"Disable" buttons). These connect a primary action label to a
@@ -71,21 +64,21 @@
  * on the primary label, right corners on the chevron — so the seam stays flat.
  */
 .modern-ui .monaco-action-bar .action-item.action-dropdown-item > .action-label {
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) 0 0 var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 .modern-ui .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
-	border-radius: 0 var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
 .modern-ui .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
  * control it belongs to the controls tier). */
 .modern-ui .monaco-action-bar .update-indicator {
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -197,46 +190,42 @@
 
 /* Quick input (command palette, quick open) */
 .modern-ui .quick-input-widget {
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Editor / workbench hover and parameter hints. Suggestion widgets use suggestWidget.css. */
-.modern-ui .monaco-hover {
-	border-radius: var(--workbench-custom-hovers-corner-radius, var(--vscode-cornerRadius-large));
-	overflow: hidden;
-}
-
+.modern-ui .monaco-hover,
 .modern-ui .monaco-editor .parameter-hints-widget {
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Context menus and general menu surfaces */
 .modern-ui .monaco-menu .monaco-action-bar.vertical {
-	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Modal dialogs */
 .modern-ui .monaco-dialog-box {
-	border-radius: var(--workbench-custom-dialogs-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Editor find / replace widget */
 .modern-ui .monaco-editor .find-widget {
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Rename input widget */
 .modern-ui .monaco-editor .rename-box {
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Color picker widget */
 .modern-ui .colorpicker-widget {
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 

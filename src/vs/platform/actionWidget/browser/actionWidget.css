@@ -11,7 +11,7 @@
 	display: block;
 	width: 100%;
 	border: 1px solid var(--vscode-editorHoverWidget-border) !important;
-	border-radius: var(--workbench-custom-menus-corner-radius, var(--vscode-cornerRadius-large));
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
 	padding: 4px;
@@ -527,7 +527,7 @@
 	box-sizing: border-box;
 	padding: 4px 8px;
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: var(--workbench-custom-inputs-corner-radius, 3px);
+	border-radius: 3px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	/* The themed border below replaces the browser's native focus outline. */
@@ -545,7 +545,7 @@
 /* Filter action buttons remain quiet until the pointer reveals them. */
 .action-widget .action-list-filter-actions .action-label {
 	padding: 3px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 3px);
+	border-radius: 3px;
 }
 
 .action-widget .action-list-filter-actions .action-label:hover {
@@ -622,7 +622,7 @@
 .action-widget .action-list-header .action-list-header-dismiss:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 2px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Anchor for the absolutely-positioned submenu panel */
@@ -637,7 +637,7 @@
 	width: 20px;
 	height: 20px;
 	flex-shrink: 0;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 }
 
 .action-widget .action-list-submenu-indicator.has-submenu {

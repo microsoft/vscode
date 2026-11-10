@@ -45,7 +45,7 @@
 	gap: 2px;
 	padding: 2px;
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
-	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-medium));
+	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-input-background);
 }
 
@@ -54,7 +54,7 @@
 	min-width: 76px;
 	padding: 4px 8px;
 	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-label1);
@@ -66,7 +66,7 @@
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:first-child,
 .run-script-action-section .monaco-custom-radio > .monaco-button:last-child {
-	border-radius: var(--workbench-custom-controls-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:not(.active):not(:last-child),
@@ -136,7 +136,7 @@
 	width: fit-content;
 	min-height: 28px;
 	padding: 6px 12px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-medium));
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-titlebar {

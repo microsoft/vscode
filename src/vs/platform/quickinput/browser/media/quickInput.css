@@ -9,7 +9,7 @@
 	z-index: 2550;
 	left: 50%;
 	-webkit-app-region: no-drag;
-	border-radius: var(--workbench-custom-popups-corner-radius, var(--vscode-cornerRadius-xLarge));
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	box-shadow: var(--vscode-shadow-xl);
 }
 
@@ -96,7 +96,7 @@
 
 .quick-input-widget .monaco-action-bar .monaco-custom-toggle {
 	margin-left: 0;
-	border-radius: var(--workbench-custom-controls-corner-radius, 5px);
+	border-radius: 5px;
 	box-sizing: content-box;
 }
 
@@ -163,7 +163,7 @@
 }
 
 .quick-input-widget .quick-input-filter .monaco-inputbox {
-	border-radius: var(--workbench-custom-inputs-corner-radius, var(--vscode-cornerRadius-medium));
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .quick-input-widget.hidden-input .quick-input-header {

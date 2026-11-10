@@ -23,7 +23,7 @@ suite('Webview semantic sizes', () => {
 	test('exports resolved sizes and invalidates the cache when customizations change', async () => {
 		const configuration = new TestConfigurationService({
 			editor: {}, [SIZE_CUSTOMIZATIONS_SETTING]: {
-				'default.cornerRadius': 3, 'toolsPanel.cornerRadius': 0, 'controls.cornerRadius': 2, 'popups.cornerRadius': 6, 'menus.cornerRadius': 0,
+				'panels.cornerRadius': 3, 'toolsPanel.cornerRadius': 0,
 			}
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -38,13 +38,12 @@ suite('Webview semantic sizes', () => {
 			const styles = provider.getWebviewThemeData().styles;
 			return [
 				styles['vscode-toolsPanel-cornerRadius'], styles['vscode-primarySideBar-cornerRadius'], styles['vscode-cornerRadius-large'],
-				styles['vscode-buttons-cornerRadius'], styles['vscode-inputs-cornerRadius'], styles['vscode-menus-cornerRadius'], styles['vscode-dialogs-cornerRadius'],
 			];
 		};
 		const before = read();
 		let events = 0;
 		store.add(provider.onThemeDataChanged(() => events++));
-		await configuration.setUserConfiguration(SIZE_CUSTOMIZATIONS_SETTING, { 'default.cornerRadius': 5 });
+		await configuration.setUserConfiguration(SIZE_CUSTOMIZATIONS_SETTING, { 'panels.cornerRadius': 5 });
 		configuration.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: key => key === SIZE_CUSTOMIZATIONS_SETTING,
 			source: ConfigurationTarget.USER,
@@ -52,7 +51,7 @@ suite('Webview semantic sizes', () => {
 			change: { keys: [SIZE_CUSTOMIZATIONS_SETTING], overrides: [] },
 		});
 		assert.deepStrictEqual({ before, after: read(), events }, {
-			before: ['0px', '3px', '8px', '2px', '2px', '0px', '6px'], after: ['5px', '5px', '8px', '4px', '4px', '8px', '8px'], events: 1,
+			before: ['0px', '3px', '8px'], after: ['5px', '5px', '8px'], events: 1,
 		});
 	});
 });

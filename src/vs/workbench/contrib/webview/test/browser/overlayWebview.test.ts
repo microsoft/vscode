@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -188,5 +189,31 @@ suite('OverlayWebview', () => {
 			updated: '0px 0px 2px 2px',
 			split: '0px 0px 0px 2px',
 		});
+	});
+
+	test('auxiliary webview clipping refreshes after cloned theme styles propagate', async () => {
+		const sheet = createStyleSheet(undefined, undefined, store.add(new DisposableStore()));
+		sheet.textContent = '.aux-overlay-test .part { border-radius: 8px; }';
+		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
+		store.add(toDisposable(() => frame.remove()));
+		const target = frame.contentWindow!;
+		store.add(cloneGlobalStylesheets(target));
+		const root = $('.monaco-workbench.agent-sessions-workbench.aux-overlay-test');
+		target.document.body.appendChild(root);
+		const part = append(root, $('.part.editor'));
+		part.style.cssText = 'position: relative; width: 200px; height: 200px; border: 1px solid transparent;';
+		const anchor = append(part, $('div'));
+		anchor.style.cssText = 'position: absolute; inset: 0;';
+		const changes = store.add(new Emitter<void>());
+		const overlay = createOverlay(root, changes.event);
+		overlay.setAnchorElement(anchor);
+		const radii = [overlay.container.style.borderRadius];
+		for (const radius of [0, 3]) {
+			sheet.textContent = `.aux-overlay-test .part { border-radius: ${radius}px; }`;
+			changes.fire();
+			await new Promise<void>(resolve => target.requestAnimationFrame(() => resolve()));
+			radii.push(overlay.container.style.borderRadius);
+		}
+		assert.deepStrictEqual(radii, ['7px', '0px', '2px']);
 	});
 });

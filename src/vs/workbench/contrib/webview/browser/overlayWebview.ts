@@ -16,6 +16,7 @@ import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../..
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { PartOverlayCorners } from '../../../browser/part.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
@@ -62,14 +63,15 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _anchorState: { readonly anchorElement: HTMLElement; readonly clippingContainer?: HTMLElement } | undefined;
 	private _outerEdgePart: Element | undefined;
 	private readonly _outerEdgeObserver = this._register(new MutableDisposable());
+	private readonly _overlayCorners = this._register(new MutableDisposable<PartOverlayCorners>());
 
 	public constructor(
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService,
-		@ISizeService sizeService: ISizeService,
-		@IThemeService themeService: IThemeService,
+		@ISizeService private readonly sizeService: ISizeService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -80,13 +82,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
-		const updateCorners = () => {
-			if (this._anchorState) {
-				this._syncOuterEdgeClasses(this._anchorState.anchorElement.closest('.part'));
-			}
-		};
-		this._register(sizeService.onDidChangeSizes(updateCorners));
-		this._register(themeService.onDidColorThemeChange(updateCorners));
 	}
 
 	public get isFocused() {
@@ -103,6 +98,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		this._overlayLayout?.dispose();
 		this._overlayLayout = undefined;
+		this._overlayCorners.clear();
 
 		for (const msg of this._firstLoadPendingMessages) {
 			msg.resolve(false);
@@ -125,6 +121,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private get overlayLayout() {
 		if (!this._overlayLayout) {
 			this._overlayLayout = new OverlayLayoutElement();
+			this._overlayCorners.value = new PartOverlayCorners(this._overlayLayout.content, this.sizeService, this.themeService);
 			this._overlayLayout.content.style.visibility = 'hidden';
 
 			// Marker used by floating panels (Modern UI) CSS to round the overlay content (and
@@ -155,6 +152,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.clear();
 			this._overlayLayout?.dispose();
 			this._overlayLayout = undefined;
+			this._overlayCorners.clear();
 		}
 
 		this._owner = owner;
@@ -253,21 +251,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
 		}
 
-		this.overlayLayout.content.style.removeProperty('border-radius');
-		const root = part?.closest('.monaco-workbench');
-		if (part && anchorBounds && contentBounds && !part.classList.contains('modal-editor-part')
-			&& root?.matches('.floating-panels, .agent-sessions-workbench:not(.phone-layout)')) {
-			const touches = (edge: 'left' | 'right' | 'top' | 'bottom') => Math.abs(anchorBounds[edge] - contentBounds[edge]) <= 1;
-			// The anchor can cover only a subregion of the card, so resolve its actual exposed corners.
-			const css = getWindow(part).getComputedStyle(part);
-			const radius = (value: string, firstBorder: string, secondBorder: string) =>
-				Math.max(0, Number.parseFloat(value) - Math.max(Number.parseFloat(firstBorder), Number.parseFloat(secondBorder)));
-			this.overlayLayout.content.style.borderRadius = [
-				touches('top') && touches('left') ? radius(css.borderTopLeftRadius, css.borderTopWidth, css.borderLeftWidth) : 0,
-				touches('top') && touches('right') ? radius(css.borderTopRightRadius, css.borderTopWidth, css.borderRightWidth) : 0,
-				touches('bottom') && touches('right') ? radius(css.borderBottomRightRadius, css.borderBottomWidth, css.borderRightWidth) : 0,
-				touches('bottom') && touches('left') ? radius(css.borderBottomLeftRadius, css.borderBottomWidth, css.borderLeftWidth) : 0,
-			].map(value => `${value}px`).join(' ');
+		if (this._anchorState) {
+			this._overlayCorners.value?.setAnchor(this._anchorState.anchorElement, part ?? undefined);
 		}
 	}
 

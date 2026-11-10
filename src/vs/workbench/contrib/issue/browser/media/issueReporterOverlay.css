@@ -214,7 +214,7 @@
 	flex: 0 0 auto;
 	padding: 4px 10px;
 	height: 26px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px) 0 0 var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px 0 0 4px;
 	border-right: none !important;
 	font-size: 12px;
 	line-height: 18px;
@@ -266,7 +266,7 @@
 	flex: 0 0 auto;
 	padding: 4px 6px;
 	height: 26px;
-	border-radius: 0 var(--workbench-custom-buttons-corner-radius, 4px) var(--workbench-custom-buttons-corner-radius, 4px) 0;
+	border-radius: 0 4px 4px 0;
 	border-left: none !important;
 	min-width: 0;
 }
@@ -440,7 +440,7 @@ label/control gap, so the buttons must not add their own margin. */
 	background: transparent !important;
 	color: var(--vscode-foreground, #ccc) !important;
 	border: 1px solid transparent;
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 	font-size: 13px;
 	line-height: normal;
 	transition: border-color 0.15s ease, background 0.15s ease;
@@ -1116,7 +1116,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 /* Annotation Editor Buttons */
 .issue-reporter-annotation-overlay .monaco-button {
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 	height: 28px;
 	font-size: 13px;
 	min-width: 80px;

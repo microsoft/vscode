@@ -38,7 +38,7 @@
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--workbench-custom-buttons-corner-radius, 4px);
+	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
 

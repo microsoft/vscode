@@ -450,7 +450,7 @@
 
 .onboarding-a-signin-ghe-input .monaco-inputbox {
 	height: 40px;
-	border-radius: var(--workbench-custom-inputs-corner-radius, 8px);
+	border-radius: 8px;
 	font-size: 13px;
 	line-height: 40px;
 }

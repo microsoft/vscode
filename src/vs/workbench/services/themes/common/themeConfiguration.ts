@@ -145,7 +145,7 @@ const themeSettingsConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {},
 			allOf: [{ $ref: sizeCustomizationsSchemaId }],
-			description: nls.localize('sizeCustomizations', "Customizes corners and inter-panel spacing in pixels. Use panels.cornerRadius, controls.cornerRadius, and popups.cornerRadius (0-8) for independent families, with individual area and widget overrides. Use panels.spacing (0-16) for panel gaps. Agents window panels also support agentsWindow overrides. Compact layouts remain gapless, and joined edges remain square. Native operating system surfaces and window-edge gutters are unchanged."),
+			description: nls.localize('sizeCustomizations', "Customizes panel corners and inter-panel spacing in pixels. Use panels.cornerRadius (0-8) for shared panel corners, with individual area overrides. Use panels.spacing (0-16) for panel gaps. Agents window panels also support agentsWindow overrides. Compact layouts remain gapless, and joined edges remain square. Controls, pop-ups, native operating system surfaces, and window-edge gutters are unchanged."),
 		},
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}

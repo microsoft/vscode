@@ -201,7 +201,7 @@
 	cursor: pointer;
 	line-height: 18px;
 	padding: 0px 23px 0px 8px;
-	border-radius: var(--workbench-custom-inputs-corner-radius, 2px);
+	border-radius: 2px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container .profile-select-container {

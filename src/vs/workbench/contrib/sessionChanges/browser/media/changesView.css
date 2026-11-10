@@ -168,7 +168,7 @@
 	padding: 4px;
 	width: auto;
 	min-width: 0;
-	border-radius: 0px var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) 0px;
+	border-radius: 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0px;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
@@ -185,7 +185,7 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
 	padding: 2px;
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small);
 	display: inline-flex;
 }
 
@@ -196,7 +196,7 @@
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
-	border-radius: var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small)) 0px 0px var(--workbench-custom-buttons-corner-radius, var(--vscode-cornerRadius-small));
+	border-radius: var(--vscode-cornerRadius-small) 0px 0px var(--vscode-cornerRadius-small);
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary:hover {

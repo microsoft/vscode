@@ -7,13 +7,14 @@ import './media/part.css';
 import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition, isHTMLElement } from '../../base/browser/dom.js';
+import { ISizeService } from '../../platform/theme/common/sizeService.js';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition, isHTMLElement, getWindow, scheduleAtNextAnimationFrame } from '../../base/browser/dom.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Grid, GridNode, ISerializableView, IViewSize, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
-import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
@@ -26,6 +27,84 @@ export interface ILayoutContentResult {
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
 	readonly footerSize: IDimension;
+}
+
+/** Matches an overlay's exposed corners to the inner edges of its owning part. */
+export function getPartOverlayCornerRadius(anchorElement: HTMLElement, part: Element | undefined): string | undefined {
+	const root = part?.closest('.monaco-workbench');
+	if (!part || part.classList.contains('modal-editor-part')
+		|| !root?.matches('.modern-ui, .floating-panels, .agent-sessions-workbench:not(.phone-layout)')) {
+		return undefined;
+	}
+
+	const anchor = anchorElement.getBoundingClientRect();
+	const bounds = part.getBoundingClientRect();
+	const content = {
+		left: bounds.left + part.clientLeft,
+		top: bounds.top + part.clientTop,
+		right: bounds.left + part.clientLeft + part.clientWidth,
+		bottom: bounds.top + part.clientTop + part.clientHeight,
+	};
+	const touches = (edge: 'left' | 'right' | 'top' | 'bottom') => Math.abs(anchor[edge] - content[edge]) <= 1;
+	const css = getWindow(part).getComputedStyle(part);
+	const radius = (value: string, firstBorder: string, secondBorder: string) =>
+		Math.max(0, Number.parseFloat(value) - Math.max(Number.parseFloat(firstBorder), Number.parseFloat(secondBorder)));
+	return [
+		touches('top') && touches('left') ? radius(css.borderTopLeftRadius, css.borderTopWidth, css.borderLeftWidth) : 0,
+		touches('top') && touches('right') ? radius(css.borderTopRightRadius, css.borderTopWidth, css.borderRightWidth) : 0,
+		touches('bottom') && touches('right') ? radius(css.borderBottomRightRadius, css.borderBottomWidth, css.borderRightWidth) : 0,
+		touches('bottom') && touches('left') ? radius(css.borderBottomLeftRadius, css.borderBottomWidth, css.borderLeftWidth) : 0,
+	].map(value => `${value}px`).join(' ');
+}
+
+/** Keeps a portaled overlay's clipping in sync with its owning part's exposed corners. */
+export class PartOverlayCorners extends Disposable {
+	private anchor: HTMLElement | undefined;
+	private part: Element | undefined;
+	private readonly observer = this._register(new MutableDisposable());
+	private readonly pendingUpdate = this._register(new MutableDisposable());
+
+	constructor(
+		private readonly element: HTMLElement,
+		sizeService: ISizeService,
+		themeService: IThemeService,
+	) {
+		super();
+		const update = () => {
+			this.update();
+			// Auxiliary windows receive cloned theme styles in a later mutation-observer callback.
+			this.pendingUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => this.update());
+		};
+		this._register(sizeService.onDidChangeSizes(update));
+		this._register(themeService.onDidColorThemeChange(update));
+	}
+
+	setAnchor(anchor: HTMLElement, part: Element | undefined): void {
+		this.anchor = anchor;
+		if (part !== this.part) {
+			this.observer.clear();
+			this.part = part;
+			if (part) {
+				const observer = new (getWindow(part).MutationObserver)(() => this.update());
+				observer.observe(part, { attributes: true, attributeFilter: ['class', 'style'] });
+				const root = part.closest('.monaco-workbench');
+				if (root) {
+					observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+				}
+				this.observer.value = toDisposable(() => observer.disconnect());
+			}
+		}
+		this.update();
+	}
+
+	private update(): void {
+		const radius = this.anchor && getPartOverlayCornerRadius(this.anchor, this.part);
+		if (radius === undefined) {
+			this.element.style.removeProperty('border-radius');
+		} else {
+			this.element.style.borderRadius = radius;
+		}
+	}
 }
 
 /** Reapplies content metrics when allocations are unchanged and the grid would skip its leaves. */
