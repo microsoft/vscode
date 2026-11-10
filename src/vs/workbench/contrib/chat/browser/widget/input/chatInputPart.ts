@@ -951,6 +951,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _modelSelectionDiagnostics: ChatModelSelectionDiagnostics;
 	private readonly _modelSelectionController: ChatInputModelSelectionController;
 	private readonly _currentLanguageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
+	private _lastAnnouncedModelId: string | undefined;
 	private readonly _modelSelectionRuntime: IChatInputModelSelectionRuntime;
 
 	/**
@@ -1497,13 +1498,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setImplicitContextEnablement();
 		}));
 		this._register(autorun(reader => {
-			const lm = this._currentLanguageModel.read(reader);
-			this.chatModelIdKey.set(lm?.metadata.id.toLowerCase() ?? '');
-			this.contextUsageWidget?.setSelectedModel(lm?.identifier);
-			if (lm?.metadata.name) {
-				this.accessibilityService.alert(lm.metadata.name);
-			}
-			this._inputEditor?.updateOptions({ ariaLabel: this._getAriaLabel() });
+			this._updateSelectedModel(this._currentLanguageModel.read(reader));
 		}));
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
@@ -2238,6 +2233,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._inputModel) {
 			this._syncInputStateToModel();
 		}
+	}
+
+	private _updateSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
+		this.chatModelIdKey.set(model?.metadata.id.toLowerCase() ?? '');
+		this.contextUsageWidget?.setSelectedModel(model?.identifier);
+		if (model?.metadata.name && model.identifier !== this._lastAnnouncedModelId) {
+			this._lastAnnouncedModelId = model.identifier;
+			this.accessibilityService.alert(model.metadata.name);
+		}
+		this._inputEditor?.updateOptions({ ariaLabel: this._getAriaLabel() });
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {

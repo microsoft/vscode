@@ -89,6 +89,27 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
 	});
 
+	test('announces a model once across metadata refreshes and transient loading states', () => {
+		const announcements: string[] = [];
+		const labels: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			chatModelIdKey: { set: () => { } },
+			accessibilityService: { alert: (message: string) => announcements.push(message) },
+			_inputEditor: { updateOptions: ({ ariaLabel }: { ariaLabel: string }) => labels.push(ariaLabel) },
+			_getAriaLabel: () => 'Chat input',
+		});
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const update = Reflect.get(ChatInputPart.prototype, '_updateSelectedModel') as (this: ChatInputPart, model: ILanguageModelChatMetadataAndIdentifier | undefined) => void;
+		for (const selected of [undefined, model('first'), model('first'), undefined, model('first'), model('second'), model('second')]) {
+			update.call(input, selected);
+		}
+		assert.deepStrictEqual({ announcements, labelUpdates: labels.length }, {
+			announcements: ['first', 'second'], labelUpdates: 7,
+		});
+	});
+
 	for (const placement of ['primary', 'secondary'] as const) {
 		test(`keeps dependent session options in the attached ${placement} toolbar after synchronous refresh`, () => {
 			const root = dom.append(mainWindow.document.body, dom.$('div'));
