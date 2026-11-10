@@ -34,7 +34,7 @@ export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('se
 
 //#region < --- Session View --- >
 
-export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
+export { SessionIsCreatedContext } from '../../../common/contextkeys.js';
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
 export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));

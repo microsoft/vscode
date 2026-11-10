@@ -48,7 +48,7 @@ import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../common/constants.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
