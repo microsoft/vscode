@@ -790,6 +790,11 @@ class ChatLibExtractor {
 			}
 		}
 
+		// The postinstall copies static files next to the extracted sources. chat-lib is a member of the
+		// pnpm workspace, whose installs run the install scripts of every member, so its checked-in
+		// package.json leaves the script out until there are sources. The published package declares it.
+		chatLibPackageJson.scripts = { ...chatLibPackageJson.scripts, postinstall: 'tsx script/postinstall.js' };
+
 		// Write the updated chat-lib package.json
 		await fs.promises.writeFile(
 			chatLibPackageJsonPath,
