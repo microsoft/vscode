@@ -45,3 +45,12 @@ steps:
     displayName: Restore pnpm store cache
     retryCountOnTaskFailure: 2
     continueOnError: true
+
+  # The store is saved without its links to projects (see prune-pnpm-store.yml), unless a pnpm
+  # command after the prune adds one, like the `pnpm deploy` into a temporary folder that packages
+  # Copilot (extensions/copilot/script/build/packageVsix.ts). Its folder is gone by the save, and on
+  # Windows the cache restores that link as a file link, which `pnpm store prune` fails to remove
+  # (os error 267). The job's installations add their own links, so remove the restored ones.
+  - script: node build/azure-pipelines/common/removePnpmStoreProjects.ts
+    displayName: Remove project links of the restored pnpm store
+    continueOnError: true
