@@ -1,6 +1,11 @@
 name: Test chat-lib
 description: Extracts the chat-lib package from the Copilot extension, then builds and tests it. Expects the repository to be checked out.
 
+inputs:
+  restore-pnpm-store:
+    description: Restore the pnpm store from the cache. 'false' when the job uses a workspace image, which holds its own store and the dependencies of Copilot (see .github/workflows/workspace_image/README.md).
+    default: 'true'
+
 runs:
   using: composite
   steps:
@@ -16,6 +21,7 @@ runs:
     # store on Linux and Windows, and the full store (which includes extensions/copilot) on macOS.
     # Never save: PR-scoped caches are not shared with other PRs and only evict the shared ones.
     - name: Restore pnpm store cache
+      if: inputs.restore-pnpm-store == 'true'
       uses: ./.github/actions/restore-pnpm-store
       with:
         key-prefix: ${{ runner.os == 'macOS' && 'pnpm-store-macos' || runner.os == 'Windows' && 'pnpm-store-copilot-windows' || 'pnpm-store-copilot-linux' }}
