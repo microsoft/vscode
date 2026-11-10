@@ -145,6 +145,11 @@ export interface INewSessionBackgroundSend {
 	/** The prompt as the user wrote it. */
 	readonly query: string;
 	readonly attachedContext: readonly IChatRequestVariableEntry[] | undefined;
+	/**
+	 * Whether the user sent it in the background, such as with Send in Background, rather than as an ordinary send that the
+	 * composer sends in the background because its view has it send all its requests so ({@link IChatViewOptions.backgroundSend}).
+	 */
+	readonly requestedInBackground: boolean;
 	/** Whether it is still the composer's latest send; never once the composer is gone. */
 	isLatest(): boolean;
 }

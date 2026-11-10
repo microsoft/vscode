@@ -219,7 +219,7 @@ suite('Chat window composer', () => {
 		const { slot } = slots[0];
 		const send = (sessionId: string) => {
 			const session = createSession(sessionId, { folder: '/repo' });
-			return { session, tracked: composer.trackBackgroundSend({ session, query: 'hello', attachedContext: undefined, isLatest: () => true }) };
+			return { session, tracked: composer.trackBackgroundSend({ session, query: 'hello', attachedContext: undefined, requestedInBackground: true, isLatest: () => true }) };
 		};
 		const failed = send('failed');
 		const replaced = send('replaced');
@@ -257,7 +257,7 @@ suite('Chat window composer', () => {
 			const attempt = composer.input.beginSendAttempt(written);
 			composer.input.set({ inputText: '', attachments: [] });
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => latest });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => latest });
 			composer.input.endSendAttempt(attempt);
 			return session;
 		};
@@ -351,7 +351,7 @@ suite('Chat window composer', () => {
 			composer.input.beginSendAttempt({ inputText: state.text, attachments: [...state.attachments], references: [...state.references] });
 			state.text = ''; state.attachments = []; state.references = []; changed.fire();
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
 			onDidAccept.fire({ session, owner: slot, background: true });
 			return session;
 		};
@@ -397,7 +397,7 @@ suite('Chat window composer', () => {
 			const attempt = composer.input.beginSendAttempt(written);
 			composer.input.set({ inputText: '', attachments: [] });
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
 			composer.input.endSendAttempt(attempt);
 			return session;
 		};
