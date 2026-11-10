@@ -141,6 +141,8 @@ class PullRequestEntry {
 	effective = new Map<PullRequestFragment, EffectivePullRequestFragmentInterest>();
 	generation = 1;
 	headGeneration = 0;
+	/** Counts same-token reauthorizations, so a refusal of a request sent before one can be retried. */
+	reauthorizations = 0;
 	dormantAt: number | undefined;
 	mergedInto: PullRequestEntry | undefined;
 	disposed = false;
@@ -442,6 +444,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	): Promise<void> {
 		let credential: GitHubCredential | undefined;
 		const startedAt = this._clock.now();
+		const reauthorizationsAtStart = entry.reauthorizations;
 		this._logService.trace(`[PullRequestResourceService] Refreshing ${fragment} for ${formatPullRequestRef(entry.ref)} (entry ${entry.id}, generation ${entryGeneration})`);
 		try {
 			credential = await this._credentials.getCredential(controller.signal);
@@ -473,6 +476,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			committedEntry.failureCounts.delete(fragment);
 			this._scheduleNext(committedEntry, fragment, committedEntry.effective.get(fragment) ?? interest);
 		} catch (error) {
+			// GitHub refused a request sent before the credential was reauthorized, which may have lifted the refusal,
+			// so the fragment asks again instead of reporting it.
+			if (entry.reauthorizations !== reauthorizationsAtStart && isCredentialRefusal(error) && !controller.signal.aborted
+				&& this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
+				this._logService.debug(`[PullRequestResourceService] Retrying ${fragment} for ${formatPullRequestRef(entry.ref)} refused before reauthorization`);
+				return this._runFragmentFetch(entry, fragment, interest, entryGeneration, fragmentGeneration, headAtStart, controller);
+			}
 			if (credential && sameAccount(credential.account, entry.ref)) {
 				this._credentials.handleRequestError(credential, error);
 			}
@@ -832,9 +842,17 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._logService.debug(`[PullRequestResourceService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
 		for (const entry of [...this._entries]) {
 			if (!event.credential || sameAccount(event.credential.account, entry.ref)) {
-				if (event.reason === 'replacement' || event.reason === 'authentication') {
+				if (event.reason === 'replacement' || event.reason === 'authentication' || event.reason === 'reauthorization') {
+					if (event.reason === 'reauthorization') {
+						entry.reauthorizations++;
+					}
 					for (const fragment of fragments) {
 						const current = fragmentState(entry.snapshot.get(), fragment);
+						// A reauthorized credential keeps what it already observed; failed fragments ask again, and
+						// fragments still loading retry a refusal of their earlier request.
+						if (event.reason === 'reauthorization' && current.status !== 'error') {
+							continue;
+						}
 						this._setFragmentState(entry, fragment, {
 							...current,
 							status: current.value ? 'stale' : 'missing',
@@ -988,6 +1006,10 @@ function withFragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestF
 		case 'checks': return { ...snapshot, checks: state as FragmentState<PullRequestChecks> };
 		case 'mergeability': return { ...snapshot, mergeability: state as FragmentState<PullRequestMergeability> };
 	}
+}
+
+function isCredentialRefusal(error: unknown): boolean {
+	return error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization');
 }
 
 function toFragmentError(error: unknown): GitHubFragmentError {
